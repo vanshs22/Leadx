@@ -297,3 +297,30 @@ body { text-rendering: optimizeLegibility; -webkit-font-smoothing: antialiased; 
 .growth-banner .label { color: rgb(151 230 211); }
 .growth-banner .text-ink { color: rgb(246 250 246); }
 .operator-brand-mark { background: #081513; box-shadow: 0 8px 24px rgb(0 0 0 / .2); }
+
+/* Landing page: a dark editorial front door, separate from the light workspace. */
+.landing-page { font-family: var(--font-sans), ui-sans-serif, system-ui, sans-serif; }
+.landing-page::selection { background: rgb(63 189 168 / .35); color: white; }
+.landing-mark { position: relative; display: inline-flex; height: 34px; width: 34px; align-items: center; justify-content: center; border-radius: 11px; background: #06100f; color: white; font: 800 11px/1 var(--font-display), sans-serif; box-shadow: 0 8px 24px rgb(0 0 0 / .25); }
+.landing-mark span { position: absolute; right: 5px; top: 5px; height: 4px; width: 4px; border-radius: 999px; background: #e58a4c; }
+.landing-mark-small { height: 22px; width: 22px; border-radius: 7px; font-size: 8px; }
+.landing-mark-small span { right: 3px; top: 3px; height: 3px; width: 3px; }
+.landing-eyebrow { display: inline-flex; align-items: center; gap: .55rem; color: #78b9aa; font: 700 10px/1 var(--font-mono), monospace; letter-spacing: .16em; text-transform: uppercase; }
+.landing-live-dot, .landing-console-dot { display: inline-block; height: 7px; width: 7px; border-radius: 999px; background: #4fd0b7; box-shadow: 0 0 0 4px rgb(79 208 183 / .12); }
+.landing-orbit { pointer-events: none; position: absolute; border-radius: 999px; filter: blur(1px); opacity: .7; }
+.landing-orbit-one { left: -18rem; top: 5rem; height: 38rem; width: 38rem; border: 1px solid rgb(63 189 168 / .15); box-shadow: inset 0 0 100px rgb(63 189 168 / .07), 0 0 100px rgb(63 189 168 / .06); }
+.landing-orbit-two { right: -14rem; bottom: -12rem; height: 30rem; width: 30rem; border: 1px solid rgb(229 138 76 / .16); box-shadow: inset 0 0 90px rgb(229 138 76 / .06); }
+.landing-accent { color: #e5a273; }
+.landing-nav-link { @apply rounded-lg px-3 py-2 text-sm font-semibold text-[#a9c4bc] transition hover:bg-white/5 hover:text-white; }
+.landing-nav-cta { @apply inline-flex items-center gap-1.5 rounded-lg border border-[#55c9b1]/40 bg-[#3fbda8]/15 px-3.5 py-2 text-sm font-semibold text-[#a6eadc] transition hover:bg-[#3fbda8]/25; }
+.landing-primary { @apply inline-flex items-center gap-2 rounded-xl bg-[#45c7b0] px-5 py-3 text-sm font-bold text-[#061311] shadow-[0_12px_30px_rgba(63,189,168,.2)] transition hover:-translate-y-0.5 hover:bg-[#6dd9c4]; }
+.landing-secondary { @apply inline-flex items-center rounded-xl border border-white/15 px-5 py-3 text-sm font-semibold text-[#d2e3dd] transition hover:border-white/30 hover:bg-white/5; }
+.landing-console { overflow: hidden; border: 1px solid rgb(119 183 168 / .25); border-radius: 24px; background: linear-gradient(145deg, rgb(22 45 42 / .96), rgb(8 20 19 / .98)); box-shadow: 0 28px 90px rgb(0 0 0 / .35), 0 0 0 8px rgb(63 189 168 / .035); }
+.landing-console-kicker { color: #71998f; font: 700 9px/1 var(--font-mono), monospace; letter-spacing: .14em; text-transform: uppercase; }
+.landing-tier { display: inline-flex; height: 25px; width: 25px; flex: none; align-items: center; justify-content: center; border-radius: 8px; font: 800 10px/1 var(--font-mono), monospace; }
+.landing-tier-a { background: rgb(79 208 183 / .15); color: #9ae9d7; }
+.landing-tier-b { background: rgb(229 162 115 / .15); color: #f4bb92; }
+.landing-proof { min-height: 235px; border: 1px solid rgb(119 183 168 / .16); border-radius: 18px; background: rgb(255 255 255 / .035); padding: 1.25rem; transition: transform 180ms ease, background 180ms ease, border-color 180ms ease; }
+.landing-proof:hover { transform: translateY(-3px); border-color: rgb(119 183 168 / .36); background: rgb(255 255 255 / .06); }
+.landing-proof-icon { display: inline-flex; height: 38px; width: 38px; align-items: center; justify-content: center; border-radius: 12px; background: rgb(63 189 168 / .12); color: #8de0ce; }
+@media (prefers-reduced-motion: reduce) { .landing-proof:hover { transform: none; } }
