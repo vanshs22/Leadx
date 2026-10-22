@@ -226,6 +226,8 @@ async def run_pipeline_parallel_target(
     seen_fp: set[str] = set()
     processed_ids: set[str] = set()
     source_counts: dict[str, int] = {}
+    discovery_telemetry: dict[str, Any] = {}
+    reuse_counts = {"reused_count": 0, "refreshed_count": 0, "stale_count": 0}
     stop_reason = "target_met"
 
     def _has_contact(lead: dict) -> bool:
@@ -505,6 +507,8 @@ async def run_pipeline_parallel_target(
         prepared, needs = await _prepare_enrichment_pool(
             fresh, reuse_days=int(os.getenv("ENRICHMENT_REUSE_DAYS", "14"))
         )
+        reuse_counts["reused_count"] += sum(1 for lead in prepared if lead.get("_enrichment_reused"))
+        reuse_counts["refreshed_count"] += len(needs)
         needs_ids = {str(x.get("id")) for x in needs if x.get("id")}
         # prepared is de-duped/reconciled. Fresh/reused leads go straight to the
         # scoring/assignment stage; only actual scrape work enters enrich_queue.
@@ -601,7 +605,9 @@ async def run_pipeline_parallel_target(
                             max_cells_per_run=max_cells_per_run,
                             sources=src_flags,
                             social_limit_per_source=social_limit_per_source,
+                            rotation_key=f"{run_id}:{round_i}",
                         )) or []
+                        discovery_telemetry = getattr(more, "telemetry", {}) or discovery_telemetry
                     except Exception as exc:
                         logger.warning("[%s] streaming continuous discovery round %s: %s", run_id[:8], round_i, exc)
 
@@ -730,6 +736,10 @@ async def run_pipeline_parallel_target(
         "shortfall": shortfall,
         "rounds_used": rounds_used,
         "source_counts": source_counts,
+        "lane_telemetry": discovery_telemetry,
+        "coverage": (discovery_telemetry.get("coverage") or {}),
+        "freshness": {"reuse_days": int(os.getenv("ENRICHMENT_REUSE_DAYS", "14")), **reuse_counts},
+        "reuse_counts": reuse_counts,
         "stop_reason": stop_reason,
         "target_mode": True,
         "streaming": True,
@@ -860,6 +870,8 @@ async def run_pipeline(
     geo = locations or []
     delivery_channel = "portal"
     delivery_config: dict = {}
+    discovery_telemetry: dict[str, Any] = {}
+    reuse_counts = {"reused_count": 0, "refreshed_count": 0, "stale_count": 0}
 
     # Preflight (non-blocking): verification is free-first (local SMTP probe +
     # plan rules) with optional provider upgrades, so a run never needs a paid
@@ -987,6 +999,7 @@ async def run_pipeline(
     reuse_only = bool(inventory_candidates and len(inventory_candidates) >= max(inventory_target * 2, 100))
     if reuse_only:
         raw = inventory_candidates
+        reuse_counts["reused_count"] = len(inventory_candidates)
         logger.info("[%s] Reusing %s global inventory candidates; provider discovery skipped", run_id[:8], len(raw))
     else:
         raw = None
@@ -1023,7 +1036,9 @@ async def run_pipeline(
                     queries=queries, target_new_leads=discover_target,
                     max_cells_per_run=max_cells_per_run, sources=src_flags,
                     social_limit_per_source=social_limit_per_source,
+                    rotation_key=run_id,
                 )
+                discovery_telemetry = getattr(raw, "telemetry", {}) or {}
             else:
                 raw = await discover_leads(
                     industry=vertical, locations=geo, queries=queries,
@@ -1394,7 +1409,9 @@ async def run_pipeline(
                         queries=queries, target_new_leads=batch_target,
                         max_cells_per_run=max_cells_per_run, sources=src_flags,
                         social_limit_per_source=social_limit_per_source,
+                        rotation_key=f"{run_id}:fill:{fill_round}",
                     ) or []
+                    discovery_telemetry = getattr(more, "telemetry", {}) or discovery_telemetry
                     if tenant_id and more:
                         try:
                             from app.integrations.prod.continuous_discovery import load_tenant_seen, mark_tenant_seen
@@ -1592,6 +1609,10 @@ async def run_pipeline(
             "effective_target": int(slots_cap) if target_mode else None,
             "quota_limited": bool(target_mode and slots_cap < int(target_assign or 0)),
             "assignment_blockers": assignment_blockers,
+            "lane_telemetry": discovery_telemetry,
+            "coverage": (discovery_telemetry.get("coverage") or {}),
+            "freshness": {"reuse_days": int(os.getenv("ENRICHMENT_REUSE_DAYS", "14")), **reuse_counts},
+            "reuse_counts": reuse_counts,
             "board_lead_ids": [str(l.get("id")) for l in pool if l.get("id")][:2000],
         }
 
@@ -1810,7 +1831,7 @@ def _finish_run(run_id: str, status: str, summary: dict, error: str = "") -> Non
         "delivered": int(summary.get("delivered", 0) or 0),
         "error_message": (error or None),
         "finished_at": datetime.now(timezone.utc).isoformat(),
-        "meta": {k: summary.get(k) for k in ("industry", "locations", "campaign_mode", "top_leads", "stage", "message", "board_lead_ids", "target_assignments", "requested_target", "effective_target", "quota_limited", "assignment_blockers", "shortfall", "stop_reason", "rounds_used", "target_mode", "quota_remaining_after") if summary.get(k) is not None},
+        "meta": {k: summary.get(k) for k in ("industry", "locations", "campaign_mode", "top_leads", "stage", "message", "board_lead_ids", "target_assignments", "requested_target", "effective_target", "quota_limited", "assignment_blockers", "shortfall", "stop_reason", "rounds_used", "target_mode", "quota_remaining_after", "lane_telemetry", "coverage", "freshness", "reuse_counts") if summary.get(k) is not None},
         "finished_at": datetime.now(timezone.utc).isoformat(),
     }
     try:

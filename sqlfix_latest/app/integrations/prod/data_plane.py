@@ -175,16 +175,16 @@ def record_delivery_outcome(
                 metadata={"destination": destination, "ok": bool(ok), "error_code": "provider_delivery_failed" if not ok else None},
             )
             updated += len(rows)
-            if rows and not ok:
+            if rows:
                 outbox_id = rows[0].get("id")
                 if outbox_id:
                     attempt = {
                         "tenant_id": tenant_id, "outbox_id": outbox_id,
                         "attempt_number": int(rows[0].get("attempts") or 1),
-                        "state": state,
+                        "state": "delivered" if ok else state,
                         "provider_operation_id": provider_operation_id,
-                        "safe_error_code": "provider_delivery_failed",
-                        "safe_error_detail": _safe_text(error),
+                        "safe_error_code": None if ok else "provider_delivery_failed",
+                        "safe_error_detail": None if ok else _safe_text(error),
                         "finished_at": _now(),
                     }
                     sb.table("delivery_outbox_attempts").upsert(
@@ -375,3 +375,116 @@ def run_durable_preflight() -> dict:
         return data if isinstance(data, dict) else {"ok": True, "data": data}
     except Exception as exc:
         return {"ok": False, "reason": "durable_preflight_failed", "error_code": type(exc).__name__}
+
+
+
+def record_outbox_result(*, row: dict, result: dict) -> dict:
+    """Persist one adapter outcome, its attempt, and ambiguous reconciliation state."""
+    sb = get_supabase()
+    outbox_id = row.get("id")
+    tenant_id = str(row.get("tenant_id") or "")
+    stable_event_id = str(row.get("stable_event_id") or "")
+    destination = str(row.get("destination") or row.get("provider") or "portal").lower()
+    if not outbox_id or not tenant_id or not stable_event_id:
+        return {"ok": False, "reason": "outbox_identity_missing"}
+    ok = bool(result.get("ok"))
+    retryable = bool(result.get("retryable"))
+    ambiguous = bool(result.get("ambiguous"))
+    state = "delivered" if ok else "retryable" if retryable else "dead-letter"
+    attempt_number = max(1, int(row.get("attempts") or 0) + 1)
+    now = _now()
+    next_attempt = None
+    if retryable:
+        delay = result.get("retry_after_seconds")
+        if delay is None:
+            delay = min(3600, 30 * (2 ** min(attempt_number - 1, 7)))
+        next_attempt = (datetime.now(timezone.utc) + timedelta(seconds=max(1, int(delay)))).isoformat()
+    patch = {
+        "status": "delivered" if ok else "failed",
+        "outbox_state": state,
+        "next_attempt_at": next_attempt,
+        "delivered_at": now if ok else None,
+        "safe_error_code": None if ok else _safe_text(result.get("safe_error_code"), 80),
+        "safe_error_detail": None if ok else _safe_text(result.get("safe_error_detail"), 300),
+        "attempts": attempt_number,
+    }
+    try:
+        sb.table("delivery_outbox").update(patch).eq("id", outbox_id).eq("tenant_id", tenant_id).execute()
+        attempt = {
+            "tenant_id": tenant_id, "outbox_id": outbox_id, "attempt_number": attempt_number,
+            "state": state, "provider_operation_id": _safe_text(result.get("provider_operation_id"), 180),
+            "http_status": result.get("status_code"),
+            "safe_error_code": None if ok else _safe_text(result.get("safe_error_code"), 80),
+            "safe_error_detail": None if ok else _safe_text(result.get("safe_error_detail"), 300),
+            "finished_at": now,
+        }
+        sb.table("delivery_outbox_attempts").upsert(attempt, on_conflict="outbox_id,attempt_number").execute()
+        if ambiguous:
+            sb.table("delivery_reconciliations").upsert({
+                "tenant_id": tenant_id, "outbox_id": outbox_id,
+                "stable_event_id": stable_event_id, "destination": destination,
+                "external_id": _safe_text(result.get("external_id"), 180),
+                "state": "unconfirmed", "safe_detail": _safe_text(result.get("safe_error_detail"), 300),
+                "observed_at": now,
+            }, on_conflict="tenant_id,stable_event_id,destination").execute()
+        return {"ok": True, "outbox_state": state, "attempt_number": attempt_number, "next_attempt_at": next_attempt}
+    except Exception as exc:
+        logger.debug("delivery outbox result unavailable: %s", type(exc).__name__)
+        return {"ok": False, "reason": "outbox_result_unavailable"}
+
+
+async def process_delivery_outbox_row(row: dict, *, client: Any = None) -> dict:
+    """Execute one CRM outbox row without changing assignment status semantics.
+
+    Rows for portal/export/email/webhook remain owned by their existing direct
+    delivery paths. CRM rows resolve a tenant connector and never call a provider
+    when the connector is absent or disabled.
+    """
+    from app.integrations.prod.crm_delivery import (
+        CRM_PROVIDERS, execute_crm_delivery, make_request, resolve_tenant_connector,
+    )
+    provider = str(row.get("provider") or row.get("destination") or "").lower()
+    if provider not in CRM_PROVIDERS:
+        return {"ok": False, "state": "ignored", "reason": "destination_not_crm"}
+    payload = row.get("payload") if isinstance(row.get("payload"), dict) else {}
+    assignment_id = str(row.get("aggregate_id") or payload.get("assignment_id") or "")
+    lead_id = str(payload.get("lead_id") or "")
+    assignment = payload.get("assignment") if isinstance(payload.get("assignment"), dict) else {"provider": provider, "destination": provider}
+    lead = payload.get("lead") if isinstance(payload.get("lead"), dict) else None
+    mapping = payload.get("mapping") if isinstance(payload.get("mapping"), dict) else {}
+    if not lead or not lead_id:
+        try:
+            from app.services.aio import aexec
+            sb = get_supabase()
+            assignments = (await aexec(sb.table("lead_assignments").select("id,lead_id,tier,stage_id").eq("id", assignment_id).eq("tenant_id", row.get("tenant_id")).limit(1))).data or []
+            if assignments:
+                assignment = {**assignment, **assignments[0], "provider": provider, "destination": provider}
+                lead_id = str(assignments[0].get("lead_id") or lead_id)
+            leads = (await aexec(sb.table("leads_global").select("*").eq("id", lead_id).limit(1))).data or []
+            lead = leads[0] if leads else lead
+            if not mapping:
+                maps = (await aexec(sb.table("integration_field_maps").select("mapping").eq("tenant_id", row.get("tenant_id")).eq("provider", provider).eq("auto_push", True).limit(1))).data or []
+                mapping = maps[0].get("mapping") or {} if maps else {}
+        except Exception as exc:
+            logger.debug("outbox delivery payload lookup unavailable: %s", type(exc).__name__)
+    if not isinstance(lead, dict) or not lead_id:
+        result = {"ok": False, "retryable": False, "safe_error_code": "assignment_not_found", "safe_error_detail": "assignment payload is unavailable"}
+        record_outbox_result(row=row, result=result)
+        return result
+    resolved = resolve_tenant_connector(str(row.get("tenant_id") or ""), provider, connection_id=payload.get("connection_id"))
+    stable_event_id = str(row.get("stable_event_id") or f"assignment:{assignment_id}:delivery:{provider}")
+    if resolved.get("state") != "ready":
+        result = {"ok": False, "retryable": False, "ambiguous": False, "safe_error_code": resolved.get("reason") or "connector_unconfigured", "safe_error_detail": "CRM connector is not enabled and configured", "provider_operation_id": make_request(tenant_id=str(row.get("tenant_id")), assignment_id=assignment_id, lead_id=lead_id, provider=provider, stable_event_id=stable_event_id, lead=lead, assignment=assignment, mapping=mapping, payload_hash=row.get("payload_hash")).provider_operation_id}
+        record_outbox_result(row=row, result=result)
+        return result
+    request = make_request(
+        tenant_id=str(row.get("tenant_id")), assignment_id=assignment_id, lead_id=lead_id,
+        provider=provider, stable_event_id=stable_event_id, lead=lead, assignment=assignment,
+        mapping=mapping, payload_hash=row.get("payload_hash"),
+    )
+    result = (await execute_crm_delivery(request, resolved.get("config"), client=client)).as_dict()
+    record_outbox_result(row=row, result=result)
+    return result
+
+
+process_delivery_outbox_row_async = process_delivery_outbox_row

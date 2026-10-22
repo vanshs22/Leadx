@@ -644,6 +644,13 @@ except Exception as e:
     emit_telemetry(logger, logging.ERROR, "startup.module_mount_failed", status="degraded", dependency="ops_api", outcome="module_unavailable", error_code=telemetry_error_code(e))
 
 try:
+    from app.api.prod.campaigns_api import router as campaigns_router
+    app.include_router(campaigns_router)
+    logger.info("Mounted /crm tenant campaign controls")
+except Exception as e:
+    emit_telemetry(logger, logging.ERROR, "startup.module_mount_failed", status="degraded", dependency="campaigns_api", outcome="module_unavailable", error_code=telemetry_error_code(e))
+
+try:
     from app.api.prod.intelligence_api import router as intelligence_router
     from app.api.prod.lead_intelligence_6_api import router as lead_intelligence_6_router
     app.include_router(intelligence_router)

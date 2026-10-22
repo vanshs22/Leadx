@@ -16,18 +16,58 @@ from app.memory.supabase_client import get_supabase
 logger = logging.getLogger("lead_engine.autonomous_campaigns")
 
 
+class CampaignValidationError(ValueError):
+    """Safe, stable validation failure for campaign control APIs."""
+
+    def __init__(self, code: str):
+        self.code = code
+        super().__init__(code)
+
+
+def _validate_sequence_binding(tenant_id: str, sequence_id: Optional[str]) -> None:
+    if not sequence_id:
+        return
+    rows = (_sb().table("email_sequences").select("id,status,tenant_id")
+            .eq("id", sequence_id).eq("tenant_id", tenant_id).limit(1).execute().data or [])
+    if not rows or rows[0].get("status") != "active":
+        raise CampaignValidationError("sequence_not_found_or_inactive")
+
+
+def _validate_campaign_fields(fields: dict[str, Any], *, existing: Optional[dict] = None) -> dict[str, Any]:
+    merged = {**(existing or {}), **fields}
+    tenant_id = str(merged.get("tenant_id") or "").strip()
+    if not tenant_id:
+        raise CampaignValidationError("tenant_required")
+    status = str(merged.get("status") or "draft")
+    if status not in {"draft", "active", "paused", "completed", "error"}:
+        raise CampaignValidationError("invalid_campaign_status")
+    if int(merged.get("daily_new_lead_limit") or 25) < 1 or int(merged.get("daily_email_limit") or 25) < 1:
+        raise CampaignValidationError("campaign_budget_required")
+    # Campaigns are always strict about verified contactability.  Keep the
+    # request field for compatibility, but never permit a campaign send policy
+    # to downgrade this safety invariant.
+    merged["require_verified_email"] = True
+    _validate_sequence_binding(tenant_id, merged.get("sequence_id"))
+    return merged
+
+
 def _sb(): return get_supabase()
 def _now(): return datetime.now(timezone.utc)
 
 
-def list_campaigns(status: Optional[str] = None) -> list[dict]:
+def list_campaigns(status: Optional[str] = None, *, tenant_id: Optional[str] = None) -> list[dict]:
     q = _sb().table("autonomous_campaigns").select("*").order("created_at", desc=True).limit(200)
+    if tenant_id:
+        q = q.eq("tenant_id", tenant_id)
     if status: q = q.eq("status", status)
     return q.execute().data or []
 
 
-def get_campaign(cid: str) -> Optional[dict]:
-    rows = _sb().table("autonomous_campaigns").select("*").eq("id", cid).limit(1).execute().data or []
+def get_campaign(cid: str, *, tenant_id: Optional[str] = None) -> Optional[dict]:
+    q = _sb().table("autonomous_campaigns").select("*").eq("id", cid).limit(1)
+    if tenant_id:
+        q = q.eq("tenant_id", tenant_id)
+    rows = q.execute().data or []
     return rows[0] if rows else None
 
 
@@ -36,16 +76,25 @@ def create_campaign(**fields: Any) -> dict:
     row.setdefault("status", "draft")
     row.setdefault("created_by", "admin")
     row.setdefault("next_discovery_at", _now().isoformat())
+    row = _validate_campaign_fields(row)
     created = _sb().table("autonomous_campaigns").insert(row).execute().data or []
     return created[0] if created else {}
 
 
-def update_campaign(cid: str, **fields: Any) -> dict:
+def update_campaign(cid: str, *, tenant_id: Optional[str] = None, **fields: Any) -> dict:
+    existing = get_campaign(cid, tenant_id=tenant_id)
+    if not existing:
+        return {}
     patch = {k: v for k, v in fields.items() if v is not None}
+    merged = _validate_campaign_fields(patch, existing=existing)
+    patch["require_verified_email"] = True
     patch["updated_at"] = _now().isoformat()
     if patch.get("status") == "active" and "next_discovery_at" not in patch:
         patch["next_discovery_at"] = _now().isoformat()
-    rows = _sb().table("autonomous_campaigns").update(patch).eq("id", cid).execute().data or []
+    q = _sb().table("autonomous_campaigns").update(patch).eq("id", cid)
+    if tenant_id:
+        q = q.eq("tenant_id", tenant_id)
+    rows = q.execute().data or []
     return rows[0] if rows else {}
 
 
@@ -82,6 +131,10 @@ async def run(campaign_id: str, *, execution_context: dict | None = None) -> dic
     c = (await offload(get_campaign, campaign_id))
     if not c or c.get("status") != "active":
         return {"ok": False, "error": "campaign_not_active"}
+    try:
+        _validate_campaign_fields(c)
+    except CampaignValidationError as exc:
+        return {"ok": False, "error": exc.code}
     stats = (await offload(daily_stats, campaign_id))
     active_enrollments = 0
     try:
@@ -101,7 +154,7 @@ async def run(campaign_id: str, *, execution_context: dict | None = None) -> dic
             allow_tier_b=True, deliver=False, exhaustive_discovery=False,
             campaign_mode="quality_campaign",
             target_new_leads=remaining, max_assignments=remaining, min_score=int(c.get("score_threshold") or 0),
-            require_verified_email=bool(c.get("require_verified_email", True)),
+            require_verified_email=True,
             execution_context=execution_context,
         )
         assigned = list(result.get("assignment_ids") or [])

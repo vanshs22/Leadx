@@ -98,6 +98,13 @@ def enroll_leads(tenant_id: str, sequence_id: str, assignment_ids: list[str], ca
     enrolled = skipped = 0
     for aid in list(dict.fromkeys(assignment_ids or [])):
         try:
+            # Service-level ownership check: callers may be workers or internal
+            # automations, so FastAPI tenant dependencies are not sufficient.
+            owned = (sb.table("lead_assignments").select("id")
+                     .eq("id", aid).eq("tenant_id", tenant_id).limit(1).execute().data or [])
+            if not owned:
+                skipped += 1
+                continue
             # Never allow two active sequences to target the same assignment.
             # This is the application-level guard shared by campaigns, workflows,
             # and manual enrollment; the durable row claim remains authoritative.
@@ -133,6 +140,7 @@ def _campaign_policy(campaign_id: Optional[str]) -> dict:
         "stop_on_reply": True,
         "stop_on_optout": True,
         "auto_followup": True,
+        "require_verified_email": True,
         "send_window_start": "09:00",
         "send_window_end": "17:00",
         "timezone": "UTC",
@@ -141,7 +149,7 @@ def _campaign_policy(campaign_id: Optional[str]) -> dict:
         return policy
     try:
         rows = (_sb().table("autonomous_campaigns")
-                .select("stop_on_reply,stop_on_optout,auto_followup,send_window_start,send_window_end,timezone")
+                .select("stop_on_reply,stop_on_optout,auto_followup,require_verified_email,send_window_start,send_window_end,timezone")
                 .eq("id", campaign_id).limit(1).execute().data or [])
         if rows:
             policy.update({k: rows[0].get(k) for k in policy if rows[0].get(k) is not None})
@@ -322,6 +330,16 @@ async def process_due_sends(limit: int = 200) -> dict:
                 continue
 
             lead = await _lead_for_assignment(enr["assignment_id"])
+            if enr.get("campaign_id") and bool(campaign_policy.get("require_verified_email", True)):
+                verified = (
+                    lead.get("email_valid") is True
+                    or str(lead.get("email_status") or "").lower() in {"valid", "deliverable"}
+                )
+                if not verified:
+                    (await offload(_defer, enr["id"], _iso(_now() + timedelta(hours=6)), "campaign_verified_email_required"))
+                    deferred += 1
+                    defer_reasons["campaign_verified_email_required"] = defer_reasons.get("campaign_verified_email_required", 0) + 1
+                    continue
             gate = send_policy.can_send_now(
                 enr["tenant_id"], lead, assignment_id=enr["assignment_id"],
                 from_email=_from_email(enr["tenant_id"]), respect_hours=True,
