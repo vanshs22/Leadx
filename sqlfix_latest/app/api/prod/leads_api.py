@@ -248,7 +248,7 @@ async def run_pipeline(req: PipelineRequest, request: Request, background_tasks:
             tenant_id=kwargs["tenant_id"],
             idempotency_key=key,
             operation_kind="pipeline.run",
-            actor_scope=request.headers.get("authorization") or (request.client.host if request.client else None),
+            actor_scope=request.headers.get("authorization") or kwargs["tenant_id"],
             created_by="admin",
             max_attempts=1,
             provider_required=True,
