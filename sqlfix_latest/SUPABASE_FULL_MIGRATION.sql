@@ -10277,6 +10277,7 @@ CREATE INDEX IF NOT EXISTS idx_oauth_states_binding ON public.oauth_states(tenan
 ALTER TABLE public.oauth_states ENABLE ROW LEVEL SECURITY;
 REVOKE ALL ON TABLE public.oauth_states FROM anon, authenticated;
 GRANT ALL ON TABLE public.oauth_states TO service_role;
+DROP POLICY IF EXISTS "service_role_oauth_states" ON public.oauth_states;
 CREATE POLICY "service_role_oauth_states" ON public.oauth_states FOR ALL TO service_role USING (true) WITH CHECK (true);
 
 -- ============================================================================
