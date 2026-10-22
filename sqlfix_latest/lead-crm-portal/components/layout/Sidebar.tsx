@@ -11,7 +11,7 @@ import { Icon, type IconName } from "@/components/ui/Icon";
 
 const GROUPS = [
   { title: "Workspace", items: [
-    ["/dashboard", "Overview", "home"], ["/today", "Today", "clock"], ["/intelligence", "Intelligence", "brain"], ["/agents", "Agents", "spark"], ["/approvals", "Approvals", "check"], ["/search", "Discover", "search"], ["/leads", "Leads", "leads"], ["/pipeline", "Pipeline", "pipeline"],
+    ["/dashboard", "Overview", "home"], ["/growth", "Growth", "growth"], ["/today", "Today", "clock"], ["/intelligence", "Intelligence", "brain"], ["/agents", "Agents", "spark"], ["/approvals", "Approvals", "check"], ["/search", "Discover", "search"], ["/leads", "Leads", "leads"], ["/pipeline", "Pipeline", "pipeline"],
   ]},
   { title: "Engage", items: [
     ["/sequences", "Sequences", "sequence"], ["/automations", "Automations", "automation"], ["/compose", "Write email", "compose"], ["/replies", "Replies", "reply"], ["/activities", "Activity", "activity"],

@@ -46,7 +46,8 @@ class PipelineRequest(BaseModel):
     social_limit_per_source: int = Field(default=15, ge=0, le=50)
     target_new_leads: int = Field(default=0, ge=0, le=50000, description='Net-new leads target; use 5000–15000 for statewide ICPs')
     max_cells_per_run: int = Field(default=40, ge=1, le=150)
-    exhaustive_discovery: bool = Field(default=True, description="Scan all enabled source/query/geo partitions; limit_per_location is not a discovery ceiling")
+    campaign_mode: str = Field(default="auto", description="auto, fast_target, or strict quality_campaign")
+    exhaustive_discovery: bool = Field(default=False, description="Explicitly scan all enabled source/query/geo partitions; normal requests use bounded adaptive discovery")
 
 
 class CronRequest(BaseModel):
@@ -182,6 +183,7 @@ async def run_pipeline(req: PipelineRequest, request: Request, background_tasks:
         include_yelp=req.include_yelp,
         include_facebook=req.include_facebook,
         target_new_leads=requested_target,
+        campaign_mode=req.campaign_mode,
         max_cells_per_run=req.max_cells_per_run,
         exhaustive_discovery=req.exhaustive_discovery,
     )

@@ -781,9 +781,12 @@ async def run_pipeline(
     include_yelp: bool = True,
     include_facebook: bool = True,
     target_new_leads: int = 0,
+    campaign_mode: str = "auto",
     max_cells_per_run: int = 25,
     run_id: Optional[str] = None,
-    exhaustive_discovery: bool = True,
+    # Exhaustive discovery is an explicit operator opt-in; normal requests use
+    # target-sized adaptive/rotating discovery with early stopping.
+    exhaustive_discovery: bool = False,
     max_assignments: Optional[int] = None,
     discovery_request_id: Optional[str] = None,
     min_score: int = 0,
@@ -800,6 +803,18 @@ async def run_pipeline(
     run_id = (run_id or "").strip() or str(uuid4())
     started = datetime.now(timezone.utc)
 
+    # Normalize mode before persisting the run so the durable run identity
+    # records the same target and strict policy the worker will execute.
+    campaign_mode = str(campaign_mode or "auto").strip().lower()
+    if campaign_mode not in {"auto", "fast_target", "quality_campaign"}:
+        campaign_mode = "auto"
+    if campaign_mode == "quality_campaign":
+        exhaustive_discovery = False
+        target_new_leads = int(target_new_leads or limit_per_location or 1)
+        require_verified_email = True
+        min_score = max(int(min_score or 0), 60)
+        allow_tier_b = False
+
     # Upsert run record (API normally pre-created this id). This is a hard
     # lifecycle boundary: if the run cannot be persisted/read back, the worker
     # must not continue with an invisible run that the UI can never poll.
@@ -812,7 +827,7 @@ async def run_pipeline(
         "started_at": started.isoformat(),
         "requested_target": max(0, requested_target),
         "target_mode": requested_target > 0,
-        "meta": {"stage": "starting", "message": "Pipeline started"},
+        "meta": {"stage": "starting", "message": "Pipeline started", "campaign_mode": campaign_mode},
     }
     try:
         existing = (
@@ -1548,6 +1563,7 @@ async def run_pipeline(
         shortfall = max(0, int(target_assign or 0) - int(assigned or 0)) if target_mode else 0
         summary = {
             "pipeline": "lead_engine_v2",
+            "campaign_mode": campaign_mode,
             "run_id": run_id,
             "tenant_id": tenant_id,
             "icp_id": icp_id,
@@ -1794,7 +1810,7 @@ def _finish_run(run_id: str, status: str, summary: dict, error: str = "") -> Non
         "delivered": int(summary.get("delivered", 0) or 0),
         "error_message": (error or None),
         "finished_at": datetime.now(timezone.utc).isoformat(),
-        "meta": {k: summary.get(k) for k in ("industry", "locations", "top_leads", "stage", "message", "board_lead_ids", "target_assignments", "requested_target", "effective_target", "quota_limited", "assignment_blockers", "shortfall", "stop_reason", "rounds_used", "target_mode", "quota_remaining_after") if summary.get(k) is not None},
+        "meta": {k: summary.get(k) for k in ("industry", "locations", "campaign_mode", "top_leads", "stage", "message", "board_lead_ids", "target_assignments", "requested_target", "effective_target", "quota_limited", "assignment_blockers", "shortfall", "stop_reason", "rounds_used", "target_mode", "quota_remaining_after") if summary.get(k) is not None},
         "finished_at": datetime.now(timezone.utc).isoformat(),
     }
     try:

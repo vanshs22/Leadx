@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 
 const PUBLIC = new Set(["/", "/login", "/signup", "/accept-invite", "/verify-email", "/pricing", "/audit"]);
 const PORTAL_PREFIXES = ["/client", "/portal"];
-const PORTAL_ROUTES = new Set(["dashboard","today","search","leads","companies","contacts","deals","sequences","compose","replies","notifications","pipeline","activities","reports","revenue","import","team","docs","settings","login","accept-invite"]);
+const PORTAL_ROUTES = new Set(["dashboard","growth","today","search","leads","companies","contacts","deals","sequences","compose","replies","notifications","pipeline","activities","reports","revenue","import","team","docs","settings","login","accept-invite"]);
 
 function authCookie(req: NextRequest) {
   const cookies = req.cookies.getAll().filter(c => c.name === "leadx_session");

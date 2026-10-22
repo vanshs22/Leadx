@@ -275,6 +275,26 @@ def prepare_job(
     outcome = str(result.get("outcome") or "").lower()
     if outcome == "accepted" and result.get("job_id"):
         result.setdefault("provider_operation_id", provider_operation_id)
+        try:
+            from app.integrations.prod.data_plane import append_ledger_event
+            job_id = str(result.get("job_id"))
+            append_ledger_event(
+                tenant_id=str(tenant_id), event_key=f"job:{job_id}:requested",
+                event_type="requested", direction="informational",
+                quantity=max(0, int(requested_credits or 0)), unit="credit",
+                source_type="job_operation", source_id=job_id,
+                job_operation_id=job_id, metadata={"kind": kind, "operation_kind": operation},
+            )
+            if int(requested_credits or 0) > 0:
+                append_ledger_event(
+                    tenant_id=str(tenant_id), event_key=f"job:{job_id}:reserved",
+                    event_type="reserved", direction="debit",
+                    quantity=max(0, int(requested_credits or 0)), unit="credit",
+                    source_type="job_operation", source_id=job_id,
+                    job_operation_id=job_id, metadata={"kind": kind},
+                )
+        except Exception as exc:
+            logger.debug("job ledger projection skipped: %s", type(exc).__name__)
         return result
     if outcome in {"replay", "in_progress"}:
         result.setdefault("provider_operation_id", provider_operation_id)

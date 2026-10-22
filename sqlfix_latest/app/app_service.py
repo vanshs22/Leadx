@@ -281,6 +281,24 @@ async def startup():
     env = os.getenv("ENVIRONMENT", "dev").lower()
     from app.core.runtime_config import validate_runtime_configuration
     validate_runtime_configuration(process="api")
+    # Migration 16.0 preflight runs before provider-bound work.  Development
+    # remains bootable against older mirrors, but production/staging fail closed
+    # rather than accepting jobs that cannot be durably replayed/accounted for.
+    try:
+        from app.integrations.prod.data_plane import run_durable_preflight
+        _preflight = run_durable_preflight()
+        if not _preflight.get("ok"):
+            if env in ("production", "prod", "staging"):
+                raise RuntimeError("Durable data-plane migration preflight failed")
+            logger.warning("Durable data-plane preflight unavailable in %s", env)
+        else:
+            logger.info("Durable data-plane preflight passed")
+    except RuntimeError:
+        raise
+    except Exception as _preflight_error:
+        if env in ("production", "prod", "staging"):
+            raise RuntimeError("Durable data-plane migration preflight failed") from _preflight_error
+        logger.warning("Durable data-plane preflight skipped: %s", type(_preflight_error).__name__)
     missing = [k for k in ("SUPABASE_URL", "SUPABASE_ANON_KEY", "UNSUBSCRIBE_SECRET", "INTEGRATION_OAUTH_STATE_SECRET", "REDIS_URL") if not os.getenv(k)]
     if not (os.getenv("SUPABASE_SERVICE_KEY") or os.getenv("SUPABASE_SERVICE_ROLE_KEY") or os.getenv("SUPABASE_KEY")):
         missing.append("SUPABASE_SERVICE_ROLE_KEY")
