@@ -1,0 +1,299 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* LeadX — Deep Teal / Tangerine design system.
+   Deep teal is the product identity; tangerine is reserved for opportunity
+   signals and high-attention actions. The palette is deliberately not an
+   Aurora/indigo/cyan SaaS gradient. */
+:root {
+  --surface: 246 247 244;
+  --surface-2: 255 255 253;
+  --surface-3: 237 239 235;
+  --ink: 13 20 32;
+  --ink-muted: 55 67 83;
+  --ink-faint: 83 96 113;
+  --line: 204 210 218;
+  --brand: 22 140 122;
+  --brand-soft: 231 248 244;
+  --success: 22 163 74;
+  --warn: 244 107 34;
+  --danger: 225 74 96;
+  --sidebar: 249 250 247;
+  --sidebar-border: 204 210 218;
+  --accent: 244 107 34;
+  --shadow-color: 15 23 42;
+  color-scheme: light;
+}
+
+.dark {
+  --surface: 9 12 18;
+  --surface-2: 16 21 30;
+  --surface-3: 25 32 43;
+  --ink: 247 248 244;
+  --ink-muted: 191 199 211;
+  --ink-faint: 151 162 177;
+  --line: 48 59 75;
+  --brand: 63 189 168;
+  --brand-soft: 18 55 51;
+  --success: 74 222 128;
+  --warn: 255 170 107;
+  --danger: 251 113 133;
+  --sidebar: 11 15 22;
+  --sidebar-border: 44 55 70;
+  --accent: 244 107 34;
+  --shadow-color: 0 0 0;
+  color-scheme: dark;
+}
+
+html { margin: 0; min-height: 100%; }
+body {
+  margin: 0;
+  min-height: 100%;
+  background: rgb(var(--surface));
+  color: rgb(var(--ink));
+  font-family: var(--font-sans), ui-sans-serif, system-ui, sans-serif;
+  font-feature-settings: "ss01" on, "cv11" on;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
+  letter-spacing: -0.011em;
+  line-height: 1.5;
+}
+html.dark body { background: rgb(var(--surface)); }
+* { box-sizing: border-box; }
+
+h1,h2,h3,h4 { font-family: var(--font-display), var(--font-sans), sans-serif; letter-spacing: -.025em; font-weight: 650; }
+.tabular-nums,.font-mono,[data-readout] { font-family: var(--font-mono),ui-monospace,monospace; font-feature-settings:"tnum" on; }
+
+@layer components {
+  .page { @apply mx-auto w-full max-w-[1440px] space-y-6 p-4 sm:p-6 lg:p-8; }
+  .page-title { @apply font-display text-[1.7rem] font-bold tracking-tight text-ink md:text-3xl; }
+  .page-sub { @apply mt-1.5 max-w-3xl text-sm leading-6 text-ink-muted; }
+  .card { @apply rounded-2xl border border-line bg-surface-2 shadow-card; }
+  .card-pad { @apply card p-5 md:p-6; }
+  .label,.section-kicker,.eyebrow { @apply font-mono text-[10px] font-bold uppercase tracking-[.14em] text-ink-faint; }
+
+  .btn { @apply inline-flex items-center justify-center gap-2 rounded-xl px-3.5 py-2 text-sm font-semibold transition duration-150 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-500/40 disabled:cursor-not-allowed disabled:opacity-50; }
+  .btn-primary { @apply btn bg-brand-600 text-white shadow-sm hover:bg-brand-500 hover:shadow-lift active:bg-brand-700 dark:bg-brand-400 dark:text-slate-950 dark:hover:bg-brand-300; }
+  .btn-secondary { @apply btn border border-line bg-surface-2 text-ink shadow-sm hover:border-brand-300/70 hover:bg-surface-3; }
+  .btn-ghost { @apply btn text-ink-muted hover:bg-surface-3 hover:text-ink; }
+  .btn-success { @apply btn bg-signal-600 text-white hover:bg-signal-500; }
+  .btn-danger { @apply btn border border-rose-200 bg-rose-50 text-rose-700 hover:bg-rose-100 dark:border-rose-900/60 dark:bg-rose-950/40 dark:text-rose-300 dark:hover:bg-rose-950/70; }
+  .input { @apply w-full rounded-xl border border-line bg-surface-2 px-3.5 py-2.5 text-sm font-medium text-ink shadow-sm placeholder:text-ink-faint focus:border-brand-400 focus:outline-none focus:ring-4 focus:ring-brand-500/10; }
+  .pill { @apply inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-bold; }
+  .kpi { @apply card-pad transition duration-200 hover:-translate-y-0.5 hover:border-brand-300/70 hover:shadow-lift; }
+  .kpi-value { @apply font-display text-2xl font-bold tabular-nums text-ink md:text-3xl; }
+
+  .sidebar-link { @apply flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-semibold text-ink-muted transition hover:bg-surface-3 hover:text-ink; }
+  .sidebar-link-active { @apply sidebar-link bg-brand-50 text-brand-800 shadow-sm dark:bg-brand-500/15 dark:text-brand-200; }
+
+  .app-shell { @apply relative isolate; }
+  .data-card,.premium-card,.glass-panel { @apply rounded-2xl border border-line/90 bg-surface-2/95 shadow-card backdrop-blur-xl; }
+  .data-card-hover { @apply transition duration-200 hover:-translate-y-0.5 hover:border-brand-300/80 hover:shadow-lift; }
+  .hero-panel { @apply rounded-2xl border border-line bg-surface-2 shadow-card; }
+  .action-card { @apply rounded-xl border border-line bg-surface-3/70 p-4 transition duration-200 hover:-translate-y-0.5 hover:border-brand-300/70 hover:bg-surface-2 hover:shadow-sm; }
+  .table-head { @apply bg-surface-3/80 text-[10px] font-bold uppercase tracking-[.12em] text-ink-muted; }
+  .metric-number { @apply font-display text-2xl font-bold tracking-tight text-ink md:text-3xl; }
+  .stat-label { @apply text-[10px] font-bold uppercase tracking-[.13em] text-ink-muted; }
+  .soft-divider { @apply border-t border-line; }
+  .topbar { @apply border-b border-line/80 bg-surface-2/85 shadow-sm backdrop-blur-xl; }
+  .page-shell { @apply page; }
+  .icon-button { @apply inline-flex h-9 w-9 items-center justify-center rounded-xl border border-line bg-surface-2 text-ink-muted shadow-sm transition hover:border-brand-300/70 hover:bg-surface-3 hover:text-ink focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-500/30; }
+
+  .brand-mark {
+    @apply relative flex h-9 w-9 shrink-0 items-center justify-center overflow-hidden rounded-xl bg-slate-950 text-[11px] font-black tracking-tight text-white shadow-sm;
+  }
+  .brand-mark::after { content:""; position:absolute; right:4px; top:4px; width:5px; height:5px; border-radius:999px; background:#F46B22; box-shadow:0 0 0 2px rgba(255,255,255,.08); }
+  .brand-wordmark { @apply font-display text-[16px] font-bold tracking-[-.035em] text-ink; }
+
+  .signal-meter { display:inline-flex; align-items:flex-end; gap:2px; height:12px; }
+  .signal-meter span { display:block; width:3px; border-radius:2px; background:rgb(var(--line)); }
+  .signal-meter span:nth-child(1){height:40%}.signal-meter span:nth-child(2){height:70%}.signal-meter span:nth-child(3){height:100%}
+  .signal-meter[data-fill="3"] span{background:currentColor}.signal-meter[data-fill="2"] span:nth-child(-n+2){background:currentColor}.signal-meter[data-fill="1"] span:nth-child(1){background:currentColor}
+}
+
+/* Make common legacy utility text classes readable if a page still uses them. */
+.text-ink-faint { color: rgb(var(--ink-faint)); }
+.text-ink-muted { color: rgb(var(--ink-muted)); }
+
+::-webkit-scrollbar { width:10px; height:10px; }
+::-webkit-scrollbar-track { background:transparent; }
+::-webkit-scrollbar-thumb { background:rgb(var(--ink-faint) / .32); border-radius:99px; border:2px solid transparent; background-clip:padding-box; }
+::selection { background:rgb(var(--brand) / .22); color:rgb(var(--ink)); }
+button,a,input,textarea,select { -webkit-tap-highlight-color:transparent; }
+:focus-visible { outline:none; }
+
+@layer components {
+  .auth-shell { @apply relative flex min-h-screen items-center justify-center overflow-hidden bg-surface p-5 sm:p-8; background-image: linear-gradient(rgba(22,140,122,.055) 1px, transparent 1px), linear-gradient(90deg, rgba(22,140,122,.055) 1px, transparent 1px); background-size: 32px 32px; }
+  .auth-shell::before { content:""; position:absolute; width:560px; height:560px; left:-220px; top:-220px; border-radius:999px; background:rgb(var(--brand) / .14); filter:blur(10px); }
+  .auth-shell::after { content:""; position:absolute; width:460px; height:460px; right:-180px; bottom:-180px; border-radius:999px; background:rgb(var(--accent) / .11); filter:blur(10px); }
+  .auth-card { @apply relative z-10 w-full max-w-md rounded-[1.5rem] border border-line bg-surface-2/95 p-7 shadow-lift backdrop-blur-xl sm:p-8; box-shadow: 0 1px 2px rgb(13 20 32 / .06), 0 24px 70px rgb(13 20 32 / .16); }
+  .auth-logo { @apply brand-mark h-11 w-11 rounded-2xl text-xs; }
+  .auth-title { @apply mt-5 font-display text-2xl font-bold tracking-tight text-ink; }
+  .auth-copy { @apply mt-2 text-sm leading-6 text-ink-muted; }
+}
+
+/* Fast, restrained loading treatment — avoids layout jumps while the API warms. */
+.skeleton {
+  border-radius: 0.75rem;
+  background: linear-gradient(90deg, rgb(var(--surface-3)) 25%, rgb(var(--surface-2)) 37%, rgb(var(--surface-3)) 63%);
+  background-size: 400% 100%;
+  animation: leadx-shimmer 1.25s ease-in-out infinite;
+}
+@keyframes leadx-shimmer {
+  0% { background-position: 100% 0; }
+  100% { background-position: 0 0; }
+}
+
+.card-hover {
+  transition: transform 160ms ease, box-shadow 160ms ease, border-color 160ms ease, background-color 160ms ease;
+}
+.card-hover:hover { transform: translateY(-1px); box-shadow: 0 12px 30px rgb(var(--shadow-color) / 0.08); }
+
+/* ==========================================================================
+   LeadX UI polish layer (additive — only new classes + gentle refinements).
+   Nothing here changes layout or behaviour; it upgrades feel and legibility.
+   ========================================================================== */
+
+/* Smooth theme + interaction transitions on the primitives everyone uses. */
+.card, .card-pad, .data-card, .kpi, .action-card, .btn, .input, .icon-button, .sidebar-link {
+  transition-property: background-color, border-color, color, box-shadow, transform, opacity;
+  transition-duration: 160ms;
+  transition-timing-function: cubic-bezier(.2,.7,.2,1);
+}
+
+/* Clear keyboard focus (the base rule removed the default outline). */
+:focus-visible { outline: 2px solid rgb(var(--brand) / .75); outline-offset: 2px; border-radius: 8px; }
+.input:focus-visible { outline: none; }
+
+/* Pages ease in instead of popping. */
+@keyframes leadx-enter { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+.page, .page-shell { animation: leadx-enter 220ms cubic-bezier(.2,.7,.2,1) both; }
+
+/* Frosted top bar + softer elevated cards. */
+.topbar { backdrop-filter: saturate(1.4) blur(14px); -webkit-backdrop-filter: saturate(1.4) blur(14px); }
+.kpi { position: relative; overflow: hidden; }
+.kpi::after {
+  content: ""; position: absolute; inset: 0 0 auto 0; height: 2px; opacity: 0;
+  background: linear-gradient(90deg, rgb(var(--brand)), rgb(var(--accent)));
+  transition: opacity 200ms ease;
+}
+.kpi:hover::after { opacity: .9; }
+
+/* Data tables: sticky header, zebra-free hover, readable density. */
+table { border-collapse: separate; border-spacing: 0; }
+thead th { position: sticky; top: 0; z-index: 1; }
+tbody tr { transition: background-color 120ms ease; }
+tbody tr:hover { background: rgb(var(--brand) / .05); }
+
+/* Realtime feedback: a row/card that just changed flashes once. Add the class
+   with a key change, e.g. className={changed ? "row-flash" : ""}. */
+@keyframes leadx-flash { 0% { background-color: rgb(var(--brand) / .22); } 100% { background-color: transparent; } }
+.row-flash { animation: leadx-flash 1.6s ease-out 1; }
+
+/* Live indicator dot (green ping) for "connected / running" states. */
+.live-dot { position: relative; display: inline-block; width: 8px; height: 8px; border-radius: 999px; background: rgb(var(--success)); }
+.live-dot::after { content: ""; position: absolute; inset: 0; border-radius: inherit; background: inherit; animation: leadx-ping 1.8s cubic-bezier(0,0,.2,1) infinite; }
+@keyframes leadx-ping { 75%, 100% { transform: scale(2.6); opacity: 0; } }
+
+/* Lightweight toast used by realtime "new lead" style messages. */
+.toast-live {
+  position: fixed; right: 1rem; bottom: 1rem; z-index: 60; max-width: 22rem;
+  border: 1px solid rgb(var(--line)); background: rgb(var(--surface-2) / .96); color: rgb(var(--ink));
+  border-radius: 14px; padding: .7rem .9rem; font-size: .8125rem; font-weight: 600;
+  box-shadow: 0 18px 50px rgb(var(--shadow-color) / .22); backdrop-filter: blur(12px);
+  animation: leadx-enter 220ms ease both;
+}
+
+/* Score / tier chips get consistent, accessible contrast in both themes. */
+.pill { letter-spacing: .01em; }
+
+/* Better small-screen behaviour for wide tables. */
+@media (max-width: 640px) {
+  .page { padding: 1rem; }
+  table { font-size: .8125rem; }
+}
+
+/* Respect users who ask for less motion. */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation-duration: .001ms !important; animation-iteration-count: 1 !important; transition-duration: .001ms !important; scroll-behavior: auto !important; }
+}
+
+/* ==========================================================================
+   LeadX v4 — premium UI layer (additive; existing classes keep working)
+   Goals: modern, calm, friendly; obvious primary actions; fast-feeling.
+   ========================================================================== */
+
+/* Primary actions get depth + a soft brand glow; secondary stay quiet. */
+.btn-primary {
+  background-image: linear-gradient(180deg, rgb(var(--brand) / 1), rgb(var(--brand) / .88));
+  box-shadow: 0 1px 0 rgb(255 255 255 / .18) inset, 0 6px 16px -6px rgb(var(--brand) / .55);
+}
+.btn-primary:hover { transform: translateY(-1px); box-shadow: 0 1px 0 rgb(255 255 255 / .2) inset, 0 10px 22px -8px rgb(var(--brand) / .6); }
+.btn-primary:active { transform: translateY(0); }
+.btn { min-height: 38px; }
+@media (pointer: coarse) { .btn, .input, select { min-height: 44px; } }
+
+/* Cards: softer border, lift on hover, subtle brand wash on KPI tiles. */
+.card { border-color: rgb(var(--line) / .75); }
+.kpi { background-image: radial-gradient(120% 90% at 0% 0%, rgb(var(--brand) / .07), transparent 60%); }
+.card-hover { cursor: pointer; }
+
+/* Inputs: obvious focus, friendly radius. */
+.input { border-radius: 12px; }
+.input:focus { box-shadow: 0 0 0 3px rgb(var(--brand) / .18); border-color: rgb(var(--brand) / .7); }
+
+/* Pills read as status chips. */
+.pill { border-radius: 999px; font-weight: 600; }
+
+/* Sidebar: clear active item with an accent bar. */
+aside a[aria-current="page"], aside a.active {
+  background: rgb(var(--brand) / .10); color: rgb(var(--brand)); font-weight: 600;
+  box-shadow: inset 3px 0 0 rgb(var(--brand));
+}
+
+/* Smooth scrolling + native-feeling overscroll, no layout shift from scrollbars. */
+html { scroll-behavior: smooth; scrollbar-gutter: stable; }
+body { text-rendering: optimizeLegibility; -webkit-font-smoothing: antialiased; }
+
+/* Skip long off-screen work: big lists/tables render only when near the viewport. */
+.table-wrap tbody tr, .lead-card, .card-pad[data-lazy] { content-visibility: auto; contain-intrinsic-size: 0 64px; }
+
+/* Empty-state helper: friendly, centered, one clear action. */
+.empty-state { display: grid; place-items: center; gap: .5rem; padding: 3rem 1rem; text-align: center; color: rgb(var(--ink-muted)); }
+.empty-state h3 { color: rgb(var(--ink)); font-weight: 700; font-size: 1.05rem; }
+
+/* Print/reduced-data friendliness */
+@media (prefers-reduced-motion: reduce) { html { scroll-behavior: auto; } }
+
+/* LeadX signature layer: editorial workspace rail + instrument-panel control room. */
+.workspace-rail {
+  background:
+    linear-gradient(180deg, rgb(var(--sidebar)) 0%, rgb(var(--surface-2)) 62%, rgb(var(--sidebar)) 100%);
+  box-shadow: 10px 0 32px rgb(var(--shadow-color) / .045);
+}
+.workspace-rail .brand-mark { box-shadow: 0 8px 24px rgb(var(--brand) / .2); }
+.workspace-rail .sidebar-link-active { box-shadow: inset 3px 0 0 rgb(var(--accent)), 0 4px 14px rgb(var(--brand) / .08); }
+.operator-main { background-image: radial-gradient(circle at 84% 0%, rgb(var(--brand) / .07), transparent 30rem); }
+.operator-topbar { background: rgb(var(--surface-2) / .84); }
+.operator-rail { background: linear-gradient(180deg, rgb(12 25 24) 0%, rgb(17 33 32) 100%); color: rgb(244 247 242); border-color: rgb(58 85 80); }
+.operator-rail .brand-wordmark, .operator-rail .text-ink, .operator-rail .text-ink-muted { color: rgb(235 244 240); }
+.operator-rail .text-ink-faint { color: rgb(162 188 181); }
+.operator-rail .sidebar-link-active { background: rgb(var(--accent) / .18); color: rgb(255 210 180); box-shadow: inset 3px 0 0 rgb(var(--accent)); }
+.nav-icon { color: currentColor; }
+
+/* Authentication is intentionally dark and calm: identity first, no SaaS rainbow wash. */
+.auth-shell { background: #0a1716; background-image: radial-gradient(circle at 12% 15%, rgb(22 140 122 / .22), transparent 24rem), radial-gradient(circle at 88% 86%, rgb(244 107 34 / .16), transparent 22rem); }
+.auth-shell::before { width: 1px; height: 70%; left: 12%; top: 15%; border-radius: 0; background: linear-gradient(transparent, rgb(63 189 168 / .5), transparent); filter: none; }
+.auth-shell::after { width: 1px; height: 48%; right: 16%; bottom: 24%; border-radius: 0; background: linear-gradient(transparent, rgb(244 107 34 / .55), transparent); filter: none; }
+.auth-card { border-color: rgb(130 176 165 / .28); box-shadow: 0 1px 2px rgb(0 0 0 / .2), 0 30px 100px rgb(0 0 0 / .34); }
+
+@media (prefers-reduced-motion: reduce) {
+  .workspace-rail, .operator-main { background-image: none; }
+}
+
+.growth-banner { @apply rounded-2xl border border-brand-300/30 bg-[#102724] text-white shadow-lift; background-image: linear-gradient(105deg, rgb(16 39 36) 0%, rgb(17 62 55) 55%, rgb(43 43 32) 100%); }
+.growth-banner .label { color: rgb(151 230 211); }
+.growth-banner .text-ink { color: rgb(246 250 246); }
+.operator-brand-mark { background: #081513; box-shadow: 0 8px 24px rgb(0 0 0 / .2); }
