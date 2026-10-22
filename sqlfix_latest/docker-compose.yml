@@ -1,0 +1,123 @@
+# Managed Lead Service — operator runs engine; clients use CRM portal
+# Usage:
+#   cp .env.example .env   # fill keys
+#   docker compose up -d api worker portal
+#   # optional LinkedIn sidecar when you have a li_at cookie:
+#   docker compose up -d linkedin-scraper
+
+services:
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - "8000:8000"
+    env_file:
+      - .env
+    environment:
+      # Deployment-specific values belong in .env; never force development
+      # auth bypass or a local scraper URL from the compose file.
+      - ENVIRONMENT=${ENVIRONMENT:-development}
+      - LEAD_ENGINE_DEV_AUTH_BYPASS=${LEAD_ENGINE_DEV_AUTH_BYPASS:-0}
+      - LINKEDIN_SCRAPER_URL=${LINKEDIN_SCRAPER_URL:-http://linkedin-scraper:8001}
+      - REDIS_URL=${REDIS_URL:-redis://redis:6379/0}
+      - REQUIRE_DISTRIBUTED_RATE_LIMIT=${REQUIRE_DISTRIBUTED_RATE_LIMIT:-0}
+      # Set to 1 ONLY when behind a reverse proxy you control (nginx/Caddy/Cloudflare)
+      - TRUST_PROXY_HEADERS=${TRUST_PROXY_HEADERS:-0}
+      - CORS_ORIGINS=${CORS_ORIGINS:-}
+      - WEBHOOK_SECRET=${WEBHOOK_SECRET:-}
+      - LEADX_PROCESS=api
+    restart: "on-failure:5"
+    mem_limit: 1536m
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://127.0.0.1:8000/health/ready"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    depends_on:
+      redis:
+        condition: service_healthy
+
+  worker:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    env_file:
+      - .env
+    environment:
+      - ENVIRONMENT=${ENVIRONMENT:-development}
+      - LEADX_PROCESS=worker
+      - REDIS_URL=${REDIS_URL:-redis://redis:6379/0}
+      - WORKER_CONCURRENCY=${WORKER_CONCURRENCY:-3}
+      # Keep the process alive across transient Supabase transport failures;
+      # durable claim/transition code still fails closed and retries on recovery.
+      - WORKER_QUEUE_FAILURE_POLICY=${WORKER_QUEUE_FAILURE_POLICY:-continue}
+    restart: "on-failure:5"
+    mem_limit: 1536m
+    healthcheck:
+      test: ["CMD", "python", "scripts/check_worker_health.py"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    depends_on:
+      redis:
+        condition: service_healthy
+
+  portal:
+    build:
+      context: ./lead-crm-portal
+      dockerfile: Dockerfile
+      args:
+        API_UPSTREAM: http://api:8000
+        NEXT_PUBLIC_SUPABASE_URL: ${NEXT_PUBLIC_SUPABASE_URL:-}
+        NEXT_PUBLIC_SUPABASE_ANON_KEY: ${NEXT_PUBLIC_SUPABASE_ANON_KEY:-}
+    ports:
+      - "3000:3000"
+    environment:
+      # The service DNS name is required: loopback would resolve inside the
+      # portal container and cannot reach the API container.
+      API_UPSTREAM: http://api:8000
+      NODE_ENV: production
+      PORT: "3000"
+      NEXT_PUBLIC_SUPABASE_URL: ${NEXT_PUBLIC_SUPABASE_URL:-}
+      NEXT_PUBLIC_SUPABASE_ANON_KEY: ${NEXT_PUBLIC_SUPABASE_ANON_KEY:-}
+    restart: "on-failure:5"
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3000/').then((response) => { if (!response.ok) process.exit(1); }).catch(() => process.exit(1))"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    depends_on:
+      api:
+        condition: service_healthy
+
+  linkedin-scraper:
+    build:
+      context: ./services/linkedin-scraper
+    ports:
+      - "8001:8001"
+    environment:
+      - CHROME_BIN=/usr/bin/chromium
+      - CHROMEDRIVER_PATH=/usr/bin/chromedriver
+      - CHROME_SINGLE_PROCESS=0
+      - LINKEDIN_PAGE_WAIT=2.5
+    restart: unless-stopped
+    mem_limit: 1024m
+    memswap_limit: 2048m
+    shm_size: 64mb
+
+  # Redis for distributed rate limits / queues
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    restart: "on-failure:5"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+      start_period: 5s
