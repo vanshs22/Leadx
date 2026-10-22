@@ -198,7 +198,7 @@ async def run_pipeline(req: PipelineRequest, request: Request, background_tasks:
             handoff = jobs.submit(
                 "pipeline.run", kwargs, tenant_id=kwargs["tenant_id"],
                 idempotency_key=key, operation_kind="pipeline.run",
-                actor_scope=request.headers.get("authorization") or (request.client.host if request.client else None),
+                actor_scope=request.headers.get("authorization") or kwargs["tenant_id"],
                 created_by="admin-sync", max_attempts=1, provider_required=True,
             )
             outcome = str(handoff.get("outcome") or "")
@@ -1974,7 +1974,7 @@ async def op_email_bulk(req: OpEmailBulk, request: Request):
                 tenant_id=req.tenant_id,
                 idempotency_key=key,
                 operation_kind=f"operator.{kind}",
-                actor_scope=request.headers.get("authorization") or (request.client.host if request.client else None),
+                actor_scope=request.headers.get("authorization") or kwargs["tenant_id"],
                 created_by="admin",
                 provider_required=True,
             )
