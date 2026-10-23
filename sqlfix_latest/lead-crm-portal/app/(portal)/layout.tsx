@@ -46,10 +46,10 @@ export default function PortalLayout({ children }: { children: React.ReactNode }
       <a href="#main-content" className="sr-only focus:not-sr-only focus:fixed focus:left-4 focus:top-4 focus:z-[100] focus:rounded-lg focus:bg-surface focus:px-4 focus:py-2 focus:text-sm focus:shadow-lg">Skip to main content</a>
       <CommandPalette />
       <SupportChat />
-      <div className="flex h-[100dvh] max-h-[100dvh] overflow-hidden bg-surface text-ink">
+      <div className="flex min-h-screen bg-surface text-ink">
         <Sidebar />
         <div className="pointer-events-none fixed right-4 top-3 z-30 hidden md:block"><RealtimeStatus /></div>
-        <main id="main-content" className="flex min-h-0 min-w-0 flex-1 flex-col overflow-y-auto pt-12 md:pt-0">
+        <main id="main-content" className="min-w-0 flex-1 pt-12 md:pt-0">
           <div className="topbar sticky top-0 z-30 hidden h-12 items-center justify-between px-6 md:flex">
             <div className="flex items-center gap-2 text-xs text-ink-muted"><span className="font-semibold text-ink">Workspace</span><span className="text-slate-300">/</span><span>{path === "/dashboard" ? "Overview" : path === "/growth" ? "Growth workspace" : (path?.split("/").filter(Boolean).slice(-1)[0] || "Workspace").replace(/-/g, " ")}</span></div>
             <div className="flex items-center gap-2">

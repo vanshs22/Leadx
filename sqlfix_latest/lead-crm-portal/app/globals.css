@@ -7,41 +7,41 @@
    signals and high-attention actions. The palette is deliberately not an
    Aurora/indigo/cyan SaaS gradient. */
 :root {
-  --surface: 246 247 244;
-  --surface-2: 255 255 253;
-  --surface-3: 237 239 235;
-  --ink: 13 20 32;
-  --ink-muted: 55 67 83;
-  --ink-faint: 83 96 113;
-  --line: 204 210 218;
-  --brand: 22 140 122;
-  --brand-soft: 231 248 244;
-  --success: 22 163 74;
-  --warn: 244 107 34;
-  --danger: 225 74 96;
-  --sidebar: 249 250 247;
-  --sidebar-border: 204 210 218;
-  --accent: 244 107 34;
-  --shadow-color: 15 23 42;
+  --surface: 243 240 232;
+  --surface-2: 252 250 244;
+  --surface-3: 232 230 220;
+  --ink: 25 36 32;
+  --ink-muted: 65 82 75;
+  --ink-faint: 102 118 109;
+  --line: 207 210 198;
+  --brand: 63 135 111;
+  --brand-soft: 225 239 229;
+  --success: 45 137 93;
+  --warn: 196 130 74;
+  --danger: 186 67 58;
+  --sidebar: 235 239 230;
+  --sidebar-border: 199 207 194;
+  --accent: 169 101 62;
+  --shadow-color: 39 51 45;
   color-scheme: light;
 }
 
 .dark {
-  --surface: 9 12 18;
-  --surface-2: 16 21 30;
-  --surface-3: 25 32 43;
-  --ink: 247 248 244;
-  --ink-muted: 191 199 211;
-  --ink-faint: 151 162 177;
-  --line: 48 59 75;
-  --brand: 63 189 168;
-  --brand-soft: 18 55 51;
-  --success: 74 222 128;
-  --warn: 255 170 107;
-  --danger: 251 113 133;
-  --sidebar: 11 15 22;
-  --sidebar-border: 44 55 70;
-  --accent: 244 107 34;
+  --surface: 10 24 20;
+  --surface-2: 17 35 29;
+  --surface-3: 26 49 40;
+  --ink: 242 239 228;
+  --ink-muted: 190 205 193;
+  --ink-faint: 145 166 151;
+  --line: 53 78 65;
+  --brand: 143 194 170;
+  --brand-soft: 29 70 53;
+  --success: 105 195 132;
+  --warn: 226 148 93;
+  --danger: 242 119 103;
+  --sidebar: 7 27 22;
+  --sidebar-border: 45 75 61;
+  --accent: 226 148 93;
   --shadow-color: 0 0 0;
   color-scheme: dark;
 }

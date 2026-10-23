@@ -49,7 +49,7 @@ export function AdminSidebar() {
         <span className="ml-auto"><NotificationBell scope="admin" /></span>
       </div>
       {open && <button aria-label="Close operator navigation" onClick={() => setOpen(false)} className="fixed inset-0 z-40 bg-black/40 md:hidden" />}
-      <aside className={`operator-rail fixed inset-y-0 left-0 z-50 flex h-screen w-64 shrink-0 flex-col border-r transition-transform md:static md:w-60 md:translate-x-0 ${open ? "translate-x-0" : "-translate-x-full"}`}>
+      <aside className={`operator-rail fixed inset-y-0 left-0 z-50 flex h-screen w-64 shrink-0 flex-col border-r transition-transform md:sticky md:top-0 md:z-auto md:w-60 md:translate-x-0 ${open ? "translate-x-0" : "-translate-x-full"}`}>
       <div className="border-b border-line px-4 py-5 pt-14 md:pt-5">
         <div className="mb-3 flex items-center gap-2">
           <div className="operator-brand-mark flex h-8 w-8 items-center justify-center rounded-xl text-xs font-black text-white">LX</div>

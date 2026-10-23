@@ -46,7 +46,7 @@ export function Sidebar() {
       <span className="ml-auto"><NotificationBell /></span>
     </div>
     {open && <button type="button" aria-label="Close navigation" onClick={() => setOpen(false)} className="fixed inset-0 z-40 bg-slate-950/35 md:hidden" />}
-    <aside className={`workspace-rail fixed inset-y-0 left-0 z-50 flex w-[248px] flex-col border-r border-[rgb(var(--sidebar-border))] transition-transform md:static md:z-auto md:translate-x-0 ${open ? "translate-x-0" : "-translate-x-full"}`}>
+    <aside className={`workspace-rail fixed inset-y-0 left-0 z-50 flex h-screen w-[248px] flex-col border-r border-[rgb(var(--sidebar-border))] transition-transform md:sticky md:top-0 md:z-auto md:translate-x-0 ${open ? "translate-x-0" : "-translate-x-full"}`}>
       <div className="border-b border-line px-4 py-4">
         <Link href="/dashboard" className="flex items-center gap-2.5">
           <span className="brand-mark h-8 w-8 rounded-[9px] text-[9px]">LX</span>
