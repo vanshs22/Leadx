@@ -123,8 +123,8 @@ export function SessionGate({ children }: { children: React.ReactNode }) {
         <p className="mt-2 text-sm text-ink-muted">{error}</p>
         <p className="mt-3 text-xs leading-5 text-ink-faint">{detail}</p>
         <div className="mt-6 flex justify-center gap-2">
-          <button aria-label="Action" className="btn btn-secondary" onClick={() => { setError(""); setDetail(""); setReady(false); setRetryKey((v) => v + 1); }}>Retry</button>
-          <button aria-label="Action" className="btn-primary" onClick={async () => { clearTenant(); await signOut().catch(() => {}); router.replace("/login"); }}>Sign out</button>
+          <button aria-label="Retry workspace session" className="btn btn-secondary" onClick={() => { setError(""); setDetail(""); setReady(false); setRetryKey((v) => v + 1); }}>Retry</button>
+          <button aria-label="Sign out of workspace" className="btn-primary" onClick={async () => { clearTenant(); await signOut().catch(() => {}); router.replace("/login"); }}>Sign out</button>
         </div>
       </div>
     </div>

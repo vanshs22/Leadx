@@ -13,6 +13,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { crmExtras, type CopyVariant, type LintResult } from "@/lib/api";
 import { getTenantId } from "@/lib/tenant";
+import { PageHeader, Notice } from "@/components/ui/Primitives";
 
 const CATEGORY_LABELS: Record<string, string> = {
   cold_outreach: "Cold outreach",
@@ -200,20 +201,14 @@ export default function ComposePage() {
 
   return (
     <div className="page">
-      <div className="mb-6">
-        <h1 className="page-title">Write an email</h1>
-        <p className="page-sub">
-          Start from copy that already gets replies, edit it directly, and check it before it goes out.
-        </p>
-      </div>
+      <PageHeader eyebrow="Copy studio" title="Write an email" description="Start from copy that already gets replies, edit it directly, and check it before it goes out." />
 
-      {error && (
-        <div className="card-pad mb-4 border-rust-500/40 text-sm text-rust-600 dark:text-rust-400">{error}</div>
-      )}
+      {error && <Notice tone="danger" title="Composer unavailable">{error}</Notice>}
 
       <div className="mb-4 flex flex-wrap gap-2">
         {categories.map((c) => (
-          <button aria-label="Action"
+          <button
+            type="button"
             key={c}
             className={category === c ? "pill bg-brand-500/15 text-brand-700 dark:text-brand-300" : "pill"}
             onClick={() => setCategory(c)}
@@ -239,7 +234,7 @@ export default function ComposePage() {
             </div>
             <div className="grid gap-2 sm:grid-cols-2">
               {variants.map((v) => (
-                <button aria-label="Action"
+                <button
                   key={v.variant_key}
                   onClick={() => apply(v)}
                   className={`rounded-xl2 border p-3 text-left transition ${
@@ -287,7 +282,7 @@ export default function ComposePage() {
               <div className="mt-2 space-y-1 rounded-xl2 border border-line bg-surface-2 p-2">
                 <p className="text-[11px] text-ink-faint">Click one to use it:</p>
                 {subjectOptions.map((s, i) => (
-                  <button aria-label="Action"
+                  <button
                     key={i}
                     className="block w-full rounded-lg px-2 py-1 text-left text-sm text-ink hover:bg-surface-3"
                     onClick={() => {
@@ -320,17 +315,17 @@ export default function ComposePage() {
             <div className="mt-3 flex flex-wrap items-center gap-1.5">
               <span className="text-[11px] text-ink-faint">Insert:</span>
               {mergeTags.map((t) => (
-                <button aria-label="Action" key={t} className="pill text-[11px]" onClick={() => insertTag(t)}>
+                <button key={t} className="pill text-[11px]" onClick={() => insertTag(t)}>
                   {`{{${t}}}`}
                 </button>
               ))}
             </div>
 
             <div className="mt-4 flex flex-wrap gap-2 border-t border-line pt-4">
-              <button aria-label="Action" className="btn-primary" onClick={copyAll}>
+              <button className="btn-primary" onClick={copyAll}>
                 {copied ? "Copied" : "Copy subject + body"}
               </button>
-              <button aria-label="Action"
+              <button
                 className="btn-secondary"
                 onClick={() => {
                   const v = variants.find((x) => x.variant_key === activeVariant);
@@ -352,7 +347,7 @@ export default function ComposePage() {
             </p>
             <div className="mb-3 flex flex-wrap gap-1.5">
               {tones.map((t) => (
-                <button aria-label="Action"
+                <button
                   key={t}
                   disabled={!!busy}
                   className="pill disabled:opacity-50"
@@ -364,7 +359,7 @@ export default function ComposePage() {
             </div>
             <div className="mb-3 flex flex-wrap gap-1.5">
               {modes.map((m) => (
-                <button aria-label="Action"
+                <button
                   key={m}
                   disabled={!!busy}
                   className="pill bg-signal-500/10 text-signal-700 disabled:opacity-50 dark:text-signal-300"
@@ -383,7 +378,7 @@ export default function ComposePage() {
                 if (e.key === "Enter" && instruction.trim()) rewrite({ instruction });
               }}
             />
-            <button aria-label="Action"
+            <button
               className="btn-secondary w-full text-xs"
               disabled={!instruction.trim() || !!busy}
               onClick={() => rewrite({ instruction })}

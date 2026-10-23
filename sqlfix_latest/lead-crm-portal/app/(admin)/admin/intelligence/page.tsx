@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { admin } from "@/lib/admin";
 import { ErrorState, EmptyState } from "@/components/ui/States";
 import { Icon } from "@/components/ui/Icon";
+import { PageHeader, Notice } from "@/components/ui/Primitives";
 
 export default function AdminIntelligencePage() {
   const [pack, setPack] = useState<any>(null);
@@ -40,9 +41,9 @@ export default function AdminIntelligencePage() {
 
   return (
     <div className="page">
-      <header><div className="section-kicker text-signal-700 dark:text-signal-300">Control plane · quality moat</div><h1 className="page-title mt-1">Intelligence & quality</h1><p className="page-sub">Validate contact evidence, manage replacement signals and protect exclusive territory before clients feel the cost of bad data.</p></header>
+      <PageHeader eyebrow="Control plane · quality moat" title="Intelligence & quality" description="Validate contact evidence, manage replacement signals and protect exclusive territory before clients feel the cost." />
       {error && <ErrorState error={error} onRetry={() => void load()} />}
-      {message && <div role="status" className="rounded-xl border border-signal-300/60 bg-signal-50/70 px-4 py-3 text-sm text-signal-800 dark:bg-signal-500/10 dark:text-signal-200">{message}</div>}
+      {message && <Notice tone="success">{message}</Notice>}
 
       <section className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">{[["Samples", qa?.samples ?? "—"], ["Phone verified", qa?.phone_ok_pct != null ? `${qa.phone_ok_pct}%` : "—"], ["Email verified", qa?.email_ok_pct != null ? `${qa.email_ok_pct}%` : "—"], ["Business open", qa?.business_open_pct != null ? `${qa.business_open_pct}%` : "—"]].map(([label, value], index) => <div className="kpi" key={String(label)}><div className="flex items-center gap-2"><Icon name={index === 0 ? "leads" : "check"} size={15} className="text-brand-600" /><span className="label">{label}</span></div><div className="kpi-value mt-2">{String(value)}</div><div className="mt-1 text-xs text-ink-faint">Last 30 days</div></div>)}</section>
 

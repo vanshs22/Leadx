@@ -72,8 +72,8 @@ export default function PricingPage() {
           <h1 className="mt-4 text-4xl font-semibold tracking-[-0.045em] text-slate-950 sm:text-6xl">Pay for qualified leads, not a maze of credits.</h1>
           <p className="mx-auto mt-5 max-w-2xl text-base leading-7 text-slate-600 sm:text-lg">LeadX finds and enriches the businesses your team asks for. Your client-facing workspace gets the lead data; the deeper GTM intelligence stays in your operating layer.</p>
           <div className="mt-8 inline-flex items-center gap-1 rounded-full border border-slate-200 bg-white p-1 shadow-sm">
-            <button aria-label="Action" onClick={() => setAnnual(false)} className={`rounded-full px-4 py-2 text-sm font-semibold ${!annual ? "bg-slate-950 text-white" : "text-slate-600 hover:text-slate-950"}`}>Monthly</button>
-            <button aria-label="Action" onClick={() => setAnnual(true)} className={`rounded-full px-4 py-2 text-sm font-semibold ${annual ? "bg-slate-950 text-white" : "text-slate-600 hover:text-slate-950"}`}>Annual <span className="ml-1 text-brand-300">save 20%</span></button>
+            <button onClick={() => setAnnual(false)} className={`rounded-full px-4 py-2 text-sm font-semibold ${!annual ? "bg-slate-950 text-white" : "text-slate-600 hover:text-slate-950"}`}>Monthly</button>
+            <button onClick={() => setAnnual(true)} className={`rounded-full px-4 py-2 text-sm font-semibold ${annual ? "bg-slate-950 text-white" : "text-slate-600 hover:text-slate-950"}`}>Annual <span className="ml-1 text-brand-300">save 20%</span></button>
           </div>
         </div>
 
@@ -93,7 +93,7 @@ export default function PricingPage() {
                 <div className="my-6 border-t border-slate-100" />
                 <div className="space-y-2 text-sm"><p className="font-semibold text-slate-900">{plan.leads}</p><p className="text-slate-500">{plan.research}</p></div>
                 <ul className="mt-6 space-y-3 text-sm text-slate-600">{plan.features.map((f) => <li key={f} className="flex gap-2"><span className="mt-0.5 text-brand-700">✓</span><span>{f}</span></li>)}</ul>
-                <button aria-label="Action" onClick={() => start(plan.key)} disabled={loading === plan.key} className={`mt-auto w-full rounded-xl px-4 py-3 text-sm font-semibold transition ${featured ? "bg-brand-700 text-white hover:bg-brand-800" : "border border-slate-300 bg-white text-slate-900 hover:border-slate-500 hover:bg-slate-50"}`}>
+                <button onClick={() => start(plan.key)} disabled={loading === plan.key} className={`mt-auto w-full rounded-xl px-4 py-3 text-sm font-semibold transition ${featured ? "bg-brand-700 text-white hover:bg-brand-800" : "border border-slate-300 bg-white text-slate-900 hover:border-slate-500 hover:bg-slate-50"}`}>
                   {loading === plan.key ? "Opening…" : plan.cta}
                 </button>
               </article>

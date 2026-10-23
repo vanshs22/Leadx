@@ -132,7 +132,7 @@ export default function AdminLeadDetailPage() {
           </p>
         </div>
         <div className="flex gap-2">
-          <button aria-label="Action"
+          <button
             type="button"
             onClick={() => setEditing((v) => !v)}
             className="rounded-lg border border-line bg-surface-2 px-3 py-1.5 text-sm text-ink hover:border-brand-500"
@@ -196,7 +196,7 @@ export default function AdminLeadDetailPage() {
               </label>
             ))}
           </div>
-          <button aria-label="Action"
+          <button
             type="button"
             disabled={saving}
             onClick={save}

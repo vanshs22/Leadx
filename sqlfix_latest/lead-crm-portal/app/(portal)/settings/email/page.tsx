@@ -1,11 +1,12 @@
 "use client";
 
-import { setVisibleInterval, clearVisibleInterval } from "../../../../lib/live";
+import { useLiveLoader } from "@/lib/live";
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { getTenantId } from "@/lib/tenant";
 import { getApiBase } from "@/lib/config";
 import { getSupabase } from "@/lib/supabaseClient";
+import { PageHeader, Notice, DataTable } from "@/components/ui/Primitives";
 
 type DnsRec = { type?: string; name?: string; value?: string };
 type Settings = {
@@ -46,6 +47,7 @@ export default function EmailSettingsPage() {
   const [sesReady, setSesReady] = useState<boolean | null>(null);
   const [phase, setPhase] = useState<Phase>("loading");
   const [lastChecked, setLastChecked] = useState<string | null>(null);
+  const [pollingExpired, setPollingExpired] = useState(false);
 
   const tid = typeof window !== "undefined" ? getTenantId() : "";
 
@@ -93,28 +95,17 @@ export default function EmailSettingsPage() {
     load();
   }, [load]);
 
-  // Live poll while waiting on DNS (every 20s)
-  useEffect(() => {
+  const pollDns = useCallback(async () => {
     if (phase !== "pending_dns" || !tid) return;
-    const id = setVisibleInterval(async () => {
-      try {
-        const r = await fetch(`${getApiBase()}/crm/${tid}/email-settings/check`, {
-          method: "POST",
-          headers: await authHeaders(),
-          credentials: "include",
-        });
-        const j = await r.json().catch(() => ({}));
-        setLastChecked(new Date().toLocaleTimeString());
-        if (r.ok && j.verified) {
-          setMsg("Domain verified — you are ready to bulk send.");
-          await load();
-        }
-      } catch {
-        /* ignore poll errors */
-      }
-    }, 20000);
-    return () => clearVisibleInterval(id);
+    try {
+      const r = await fetch(`${getApiBase()}/crm/${tid}/email-settings/check`, { method: "POST", headers: await authHeaders(), credentials: "include" });
+      const j = await r.json().catch(() => ({}));
+      setLastChecked(new Date().toLocaleTimeString());
+      if (r.ok && j.verified) { setMsg("Domain verified — you are ready to bulk send."); await load(); }
+    } catch { /* bounded polling is best effort; manual check remains available */ }
   }, [phase, tid, load]);
+
+  useLiveLoader(pollDns, phase === "pending_dns" ? 20000 : 0, [phase, tid], { onDeadline: () => setPollingExpired(true) });
 
   async function connect() {
     setLoading(true);
@@ -202,14 +193,10 @@ export default function EmailSettingsPage() {
 
   return (
     <div className="page max-w-2xl space-y-6">
-      <div>
-        <h1 className="text-xl font-semibold text-ink">Email & domain</h1>
-        <p className="text-sm text-mute mt-1">
-          Link your domain for bulk email. You only manage DNS; sending runs on the platform Amazon SES account.
-        </p>
-      </div>
+      <PageHeader eyebrow="Workspace settings" title="Email & domain" description="Link your domain for bulk email. You only manage DNS; sending runs on the platform Amazon SES account." />
 
       {/* Live status */}
+      {pollingExpired ? <Notice tone="warning" title="Live verification paused">Refresh or check status manually to start a new bounded verification window.</Notice> : null}
       <div className={`rounded-xl border px-4 py-3 text-sm ${statusBanner.cls}`}>
         <div className="font-semibold">{statusBanner.title}</div>
         <p className="mt-1 opacity-90">{statusBanner.body}</p>
@@ -220,7 +207,7 @@ export default function EmailSettingsPage() {
         )}
         {phase === "pending_dns" && (
           <div className="mt-2 flex flex-wrap gap-2">
-            <button aria-label="Action" type="button" className="btn btn-primary text-xs" disabled={loading} onClick={check}>
+            <button type="button" className="btn btn-primary text-xs" disabled={loading} onClick={() => { setPollingExpired(false); void check(); }}>
               Check status now
             </button>
           </div>
@@ -279,15 +266,15 @@ export default function EmailSettingsPage() {
           />
         </label>
         <div className="flex flex-wrap gap-2">
-          <button aria-label="Action" type="button" className="btn btn-primary" disabled={loading || !domain} onClick={connect}>
+          <button type="button" className="btn btn-primary" disabled={loading || !domain} onClick={connect}>
             {loading ? "Working…" : "Connect domain"}
           </button>
-          <button aria-label="Action" type="button" className="btn btn-ghost" disabled={loading || !domain} onClick={check}>
+          <button type="button" className="btn btn-ghost" disabled={loading || !domain} onClick={() => { setPollingExpired(false); void check(); }}>
             Check status
           </button>
         </div>
-        {msg && <p className="text-sm text-ink">{msg}</p>}
-        {err && <p className="text-sm text-red-600">{String(err)}</p>}
+        {msg && <Notice tone="success">{msg}</Notice>}
+        {err && <Notice tone="danger" title="Email setup unavailable">{String(err)}</Notice>}
       </div>
 
       {dns.length > 0 && (
@@ -296,7 +283,7 @@ export default function EmailSettingsPage() {
           <p className="text-xs text-mute mb-3">
             Add these CNAMEs at Cloudflare, GoDaddy, Namecheap, etc. Status above updates when verification succeeds.
           </p>
-          <table className="w-full text-sm">
+          <DataTable caption="DNS records to add">
             <thead>
               <tr className="text-left text-mute border-b border-line">
                 <th className="py-2 pr-2">Type</th>
@@ -313,7 +300,7 @@ export default function EmailSettingsPage() {
                 </tr>
               ))}
             </tbody>
-          </table>
+          </DataTable>
         </div>
       )}
     </div>

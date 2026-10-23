@@ -12,6 +12,7 @@ import { useCallback, useEffect, useState, Suspense } from "react";
 import { useSearchParams } from "next/navigation";
 import { ErrorState, EmptyState, PollingDeadlineState } from "@/components/ui/States";
 import { FreshnessNote } from "@/components/ui/SurfaceMeta";
+import { PageHeader } from "@/components/ui/Primitives";
 
 import { adminExtras, type CronCheck, type Job, type OperationalSnapshot, type QueueStats } from "@/lib/admin";
 
@@ -98,27 +99,7 @@ function JobsMonitor() {
 
   return (
     <div className="page">
-      <header className="flex flex-wrap items-end justify-between gap-3">
-        <div>
-          <h1 className="page-title">Jobs</h1>
-          <p className="page-sub">Background queue — pipelines, bulk sends, imports, cron work. Visibility-aware refresh continues without adding hidden-tab traffic.</p>
-          <div className="mt-2"><FreshnessNote label="Live queue monitor" detail="refreshes while visible" /></div>
-        </div>
-        <div className="flex gap-2">
-          <button aria-label="Action"
-            className="rounded-lg border border-line bg-surface px-3 py-1.5 text-xs font-medium text-ink hover:bg-surface-2"
-            onClick={() => act("reap", () => adminExtras.reapJobs())}
-          >
-            Reap stale
-          </button>
-          <button aria-label="Action"
-            className="rounded-lg border border-line bg-surface px-3 py-1.5 text-xs font-medium text-ink hover:bg-surface-2"
-            onClick={refresh}
-          >
-            Refresh
-          </button>
-        </div>
-      </header>
+      <PageHeader eyebrow="Control plane" title="Jobs" description="Background queue for pipelines, sends, imports, and scheduled work. Visibility-aware refresh pauses in hidden tabs." meta={<FreshnessNote label="Live queue monitor" detail="refreshes while visible" />} actions={<div className="flex gap-2"><button type="button" aria-label="Reap stale jobs" className="btn-secondary" onClick={() => act("reap", () => adminExtras.reapJobs())}>Reap stale</button><button type="button" aria-label="Refresh jobs" className="btn-secondary" onClick={refresh}>Refresh</button></div>} />
 
       {loading ? <div className="card-pad text-sm text-ink-faint" aria-busy="true">Loading jobs…</div> : null}
       {error ? <ErrorState error={error} onRetry={refresh} /> : null}
@@ -198,8 +179,7 @@ function JobsMonitor() {
 
       <div className="flex flex-wrap gap-2">
         {FILTERS.map((f) => (
-          <button aria-label="Action"
-            key={f || "all"}
+          <button type="button" aria-label={`Filter jobs by ${f || "all statuses"}`}
             onClick={() => setStatus(f)}
             className={
               status === f
@@ -239,14 +219,14 @@ function JobsMonitor() {
                   {new Date(j.created_at).toLocaleString()}
                 </div>
                 <div className="flex justify-end gap-2 text-xs">
-                  <button aria-label="Action"
+                  <button
                     className="text-ink-faint hover:text-ink"
                     onClick={() => setOpen(open === j.id ? "" : j.id)}
                   >
                     {open === j.id ? "Hide" : "Payload"}
                   </button>
                   {(j.status === "failed" || j.status === "cancelled") && (
-                    <button aria-label="Action"
+                    <button
                       disabled={busy === j.id}
                       className="font-medium text-brand-600 hover:underline disabled:opacity-40 dark:text-brand-700 dark:text-brand-300"
                       onClick={() => act(j.id, () => adminExtras.retryJob(j.id))}
@@ -255,7 +235,7 @@ function JobsMonitor() {
                     </button>
                   )}
                   {j.status === "queued" && (
-                    <button aria-label="Action"
+                    <button
                       disabled={busy === j.id}
                       className="text-rust-600 hover:underline disabled:opacity-40 dark:text-rust-300"
                       onClick={() => act(j.id, () => adminExtras.cancelJob(j.id))}

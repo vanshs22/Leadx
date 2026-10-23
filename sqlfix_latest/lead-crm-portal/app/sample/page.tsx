@@ -74,7 +74,7 @@ export default function PublicSamplePage() {
               placeholder="Hoboken, New Jersey"
             />
           </label>
-          <button aria-label="Action"
+          <button
             disabled={loading || !vertical.trim()}
             className="btn-primary w-full"
             onClick={getSample}

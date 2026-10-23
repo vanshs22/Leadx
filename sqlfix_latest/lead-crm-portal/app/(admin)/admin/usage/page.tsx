@@ -4,6 +4,7 @@ import { useLiveLoader } from "@/lib/live";
 import { useState } from "react";
 import { admin } from "@/lib/admin";
 import { ErrorState, PollingDeadlineState } from "@/components/ui/States";
+import { PageHeader } from "@/components/ui/Primitives";
 
 export default function AdminUsagePage() {
   const [data, setData] = useState<any>(null);
@@ -67,15 +68,7 @@ export default function AdminUsagePage() {
 
   return (
     <div className="page">
-      <header className="flex items-start justify-between">
-        <div>
-          <h1 className="page-title">Usage & billing</h1>
-          <p className="page-sub">Period: {data?.period || "…"} · net delivered leads</p>
-        </div>
-        <button aria-label="Action" onClick={reportAll} className="btn-primary">
-          Report all to Stripe
-        </button>
-      </header>
+      <PageHeader eyebrow="Control plane" title="Usage & billing" description={`Period: ${data?.period || "…"} · net delivered leads`} actions={<button type="button" aria-label="Report all tenant usage to Stripe" onClick={reportAll} className="btn-primary">Report all to Stripe</button>} />
 
       {pollingExpired && <PollingDeadlineState onRefresh={refresh} />}
       {loadError ? <ErrorState error={loadError} onRetry={refresh} /> : null}
@@ -123,8 +116,7 @@ export default function AdminUsagePage() {
                   {u.stripe_reported_at ? new Date(u.stripe_reported_at).toLocaleString() : "—"}
                 </td>
                 <td className="px-4 py-3 text-right">
-                  <button aria-label="Action"
-                    onClick={() => reportOne(u.tenant_id)}
+                  <button type="button" aria-label={`Report usage for ${u.tenant_name || u.tenant_id}`}
                     disabled={busyId === u.tenant_id}
                     className="btn-ghost text-xs disabled:opacity-50"
                   >

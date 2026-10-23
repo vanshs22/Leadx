@@ -67,7 +67,7 @@ export default function ClientLoginPage() {
           />
         </label>
         {error ? <p className="text-sm text-rust-400">{error}</p> : null}
-        <button aria-label="Action"
+        <button
           type="submit"
           disabled={busy}
           className="btn-primary w-full py-2.5"

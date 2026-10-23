@@ -5,6 +5,7 @@ import { useSearchParams } from "next/navigation";
 import { admin } from "@/lib/admin";
 import { EmptyState, ErrorState, LoadingRows } from "@/components/ui/States";
 import { FreshnessNote } from "@/components/ui/SurfaceMeta";
+import { PageHeader } from "@/components/ui/Primitives";
 
 function IcpsInner() {
   const params = useSearchParams();
@@ -43,7 +44,8 @@ function IcpsInner() {
   if (error) return <div className="page"><ErrorState error={error} onRetry={load} /></div>;
 
   return <div className="page">
-    <header><h1 className="page-title">ICPs</h1><p className="page-sub">Vertical, geography, keyword, exclusivity, and active-state targets per client.</p><div className="mt-2"><FreshnessNote label="Control-plane snapshot" detail={`${icps.length} ICPs loaded`} /></div></header>
+    <PageHeader eyebrow="Admin targeting" title="ICPs" description="Vertical, geography, keyword, exclusivity, and active-state targets per client." />
+    <div className="mb-3"><FreshnessNote label="Control-plane snapshot" detail={`${icps.length} ICPs loaded`} /></div>
     <div className="grid gap-3 premium-card p-5 sm:grid-cols-2">
       <select className="rounded-lg border border-line bg-surface px-3 py-2 text-sm" value={form.tenant_id} onChange={(e) => setForm({ ...form, tenant_id: e.target.value })}><option value="">Client…</option>{tenants.map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}</select>
       <input placeholder="Vertical (medspa)" className="rounded-lg border border-line bg-surface px-3 py-2 text-sm" value={form.vertical} onChange={(e) => setForm({ ...form, vertical: e.target.value })} />

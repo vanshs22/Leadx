@@ -5,6 +5,7 @@ import { crm } from "@/lib/api";
 import { ErrorState } from "@/components/ui/States";
 import { UnavailableNote, FreshnessNote } from "@/components/ui/SurfaceMeta";
 import { getTenantId } from "@/lib/tenant";
+import { PageHeader } from "@/components/ui/Primitives";
 import { getSupabase } from "@/lib/supabaseClient";
 
 export default function SettingsPage() {
@@ -86,10 +87,7 @@ export default function SettingsPage() {
 
   return (
     <div className="page max-w-xl">
-      <header>
-        <h1 className="page-title">Settings</h1>
-        <p className="page-sub">Workspace branding, pipeline setup, and account access. Changes apply to this workspace only.</p>
-      </header>
+      <PageHeader eyebrow="Workspace settings" title="Settings" description="Workspace branding, pipeline setup, and account access. Changes apply to this workspace only." />
 
       {msg && (
         <div className="rounded-xl border border-line bg-surface-2 px-4 py-2.5 text-sm text-ink-muted">{msg}</div>
@@ -107,7 +105,7 @@ export default function SettingsPage() {
             />
           </label>
         ))}
-        <button aria-label="Action" onClick={save} disabled={busy} className="btn-primary">
+        <button type="button" aria-label="Save workspace branding" onClick={save} disabled={busy} className="btn-primary">
           Save branding
         </button>
       </section>
@@ -129,7 +127,7 @@ export default function SettingsPage() {
             value={newPassword}
             onChange={(e) => setNewPassword(e.target.value)}
           />
-          <button aria-label="Action" onClick={changePassword} disabled={pwBusy} className="btn-secondary shrink-0">
+          <button type="button" aria-label="Update account password" onClick={changePassword} disabled={pwBusy} className="btn-secondary shrink-0">
             Update
           </button>
         </div>
@@ -139,7 +137,7 @@ export default function SettingsPage() {
       <section className="card-pad space-y-3">
         <h2 className="text-sm font-semibold text-ink">Pipeline</h2>
         <p className="text-sm text-ink-muted">Seed default stages (New → Contacted → Qualified → Won / Lost).</p>
-        <button aria-label="Action" onClick={seedStages} disabled={busy} className="btn-secondary">
+        <button type="button" aria-label="Seed default pipeline stages" onClick={seedStages} disabled={busy} className="btn-secondary">
           Seed stages
         </button>
       </section>

@@ -1,4 +1,6 @@
 import { test, expect } from "@playwright/test";
+import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
 import {
   classifyApiResponse,
   createApiClientError,
@@ -15,6 +17,20 @@ import { MockRealtimeRuntime, type MockProjection } from "./fixtures/realtime-mo
 
 const configuredBase = process.env.LEADX_E2E_URL || process.env.PLAYWRIGHT_BASE_URL;
 const configuredAuthState = process.env.LEADX_E2E_STORAGE_STATE;
+
+test("shared frontend contracts keep navigation, primitives, and truthful states additive", () => {
+  const primitiveSource = readFileSync(resolve(__dirname, "../components/ui/Primitives.tsx"), "utf8");
+  const sidebarSource = readFileSync(resolve(__dirname, "../components/layout/Sidebar.tsx"), "utf8");
+  const adminSidebarSource = readFileSync(resolve(__dirname, "../components/layout/AdminSidebar.tsx"), "utf8");
+  const cssSource = readFileSync(resolve(__dirname, "../app/globals.css"), "utf8");
+  for (const name of ["PageHeader", "FilterBar", "DataTable", "Pagination", "Drawer", "ConfirmDialog", "Notice"]) expect(primitiveSource).toContain(`export function ${name}`);
+  expect(sidebarSource).toContain("/settings/billing");
+  expect(sidebarSource).toContain('aria-current={active ? "page" : undefined}');
+  expect(adminSidebarSource).toContain('aria-current={active ? "page" : undefined}');
+  expect(cssSource).toContain("prefers-reduced-motion");
+  expect(cssSource).toContain(".notice-warning");
+  expect(cssSource).not.toMatch(/linear-gradient\([^)]*(purple|indigo|#6d28d9|#4f46e5)/i);
+});
 
 test.describe("portal API and state contracts", () => {
   test("normalizes dependency and auth responses without exposing internals", () => {

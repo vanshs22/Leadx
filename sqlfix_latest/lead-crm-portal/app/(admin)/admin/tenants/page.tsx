@@ -6,6 +6,7 @@ import Link from "next/link";
 import { admin } from "@/lib/admin";
 import { ErrorState, EmptyState, LoadingRows, PollingDeadlineState } from "@/components/ui/States";
 import { FreshnessNote, UnavailableNote } from "@/components/ui/SurfaceMeta";
+import { PageHeader } from "@/components/ui/Primitives";
 
 export default function AdminTenantsPage() {
   const [tenants, setTenants] = useState<any[]>([]);
@@ -128,19 +129,7 @@ export default function AdminTenantsPage() {
 
   return (
     <div className="page">
-      <header className="flex flex-wrap items-end justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-semibold text-ink">Clients</h1>
-          <p className="page-sub">Tenant workspaces, delivery posture, quota, and client access. Secrets are only shown at creation time.</p>
-          <div className="mt-2"><FreshnessNote label="Control-plane snapshot" detail={`${tenants.length} clients loaded`} /></div>
-        </div>
-        <button aria-label="Action"
-          onClick={() => setShowForm(!showForm)}
-          className="rounded-lg bg-brand-600 px-4 py-2 text-sm font-medium text-ink"
-        >
-          {showForm ? "Cancel" : "New client"}
-        </button>
-      </header>
+      <PageHeader eyebrow="Control plane" title="Clients" description="Tenant workspaces, delivery posture, quota, and client access. Secrets are only shown at creation time." actions={<button type="button" aria-label={showForm ? "Cancel new client form" : "Create new client"} onClick={() => setShowForm(!showForm)} className="btn-primary">{showForm ? "Cancel" : "New client"}</button>} meta={<FreshnessNote label="Control-plane snapshot" detail={`${tenants.length} clients loaded`} />} />
 
       {pollingExpired && <PollingDeadlineState onRefresh={refresh} />}
 
@@ -152,7 +141,7 @@ export default function AdminTenantsPage() {
             <h3 className="text-sm font-semibold text-signal-800 dark:text-signal-300">
               Client login created — hand these to the client now, they won't be shown again
             </h3>
-            <button aria-label="Action" className="btn-ghost text-xs" onClick={() => setCredentials(null)}>
+            <button className="btn-ghost text-xs" onClick={() => setCredentials(null)}>
               Dismiss
             </button>
           </div>
@@ -163,7 +152,7 @@ export default function AdminTenantsPage() {
           <div className="flex items-center gap-3 font-mono text-sm">
             <span className="text-ink-muted">Password:</span>
             <span className="text-ink">{credentials.password}</span>
-            <button aria-label="Action"
+            <button
               className="btn-ghost text-xs"
               onClick={() => navigator.clipboard.writeText(credentials.password)}
             >
@@ -253,7 +242,7 @@ export default function AdminTenantsPage() {
               value={form.login_password}
               onChange={(e) => setForm({ ...form, login_password: e.target.value })}
             />
-            <button aria-label="Action"
+            <button
               type="button"
               className="btn-secondary shrink-0 text-xs"
               onClick={() => {
@@ -310,7 +299,7 @@ export default function AdminTenantsPage() {
             onChange={(e) => setForm({ ...form, logo_url: e.target.value })}
           />
 
-          <button aria-label="Action"
+          <button
             onClick={create}
             disabled={!form.name}
             className="rounded-lg bg-brand-600 px-4 py-2 text-sm text-ink disabled:opacity-50 sm:col-span-2"

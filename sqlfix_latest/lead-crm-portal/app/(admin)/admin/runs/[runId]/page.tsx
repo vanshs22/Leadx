@@ -6,6 +6,9 @@ import { PollingDeadlineState } from "@/components/ui/States";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { admin } from "@/lib/admin";
+import { PageHeader, Notice } from "@/components/ui/Primitives";
+import { ErrorState } from "@/components/ui/States";
+import { OperationStateCard, toOperationState } from "@/components/ui/OperationState";
 
 type RunLead = {
   id?: string;
@@ -134,6 +137,7 @@ export default function RunBoardPage() {
   const target = Number(run?.meta?.effective_target ?? run?.meta?.target_assignments ?? run?.requested_target ?? 0);
   const assigned = Number(run?.assigned ?? 0);
   const targetReached = target > 0 && assigned >= target;
+  const operation = run ? toOperationState(run, { runId, deadlineReached: pollingExpired }) : null;
   const blockers = Object.entries((run?.meta?.assignment_blockers || {}) as Record<string, number>);
 
   function onDragStart(e: React.DragEvent, lead: RunLead) {
@@ -190,18 +194,16 @@ export default function RunBoardPage() {
     }
   }
 
-  if (loading) return <div className="p-8 text-ink-faint">Loading board…</div>;
+  if (loading) return <div className="page"><PageHeader eyebrow="Admin operations" title="Run board" /><div className="card-pad animate-pulse">Loading board…</div></div>;
 
   return (
-    <div className="flex h-[calc(100vh-0px)] flex-col p-6">
+    <div className="page flex h-[calc(100vh-0px)] flex-col p-6">
       <header className="mb-4 shrink-0">
         <Link href="/admin/runs" className="text-xs text-ink-faint hover:text-brand-600 dark:text-brand-500">
           ← Run history
         </Link>
-        <h1 className="mt-1 text-xl font-semibold text-ink">Run board</h1>
-        <p className="text-sm text-ink-muted">
-          Quality-gated candidates are assigned automatically until the effective target is reached. Manual drag/drop is for operator corrections only.
-        </p>
+        <PageHeader eyebrow="Admin operations" title="Run board" description="Quality-gated candidates are assigned automatically until the effective target is reached. Manual drag/drop is for operator corrections only." />
+        {run && operation ? <OperationStateCard operation={operation} title="Run operation state" onRefresh={refresh} /> : null}
         {run && (
           <div className="run-summary-grid mt-4">
             <div><span className="run-summary-label">Status</span><b className="run-summary-value">{run.status}</b></div>
@@ -230,14 +232,7 @@ export default function RunBoardPage() {
             {blockers.map(([reason, count]) => <span key={reason} className="pill bg-surface-3 text-ink-muted">{reason.replaceAll("_", " ")} · {count}</span>)}
           </div>
         )}
-        {error && (
-          <p className="mt-2 text-sm text-brand-600 dark:text-brand-500">
-            {error}
-            <span className="block text-xs text-ink-faint">
-              Verify that the LeadX 15.8 canonical migration has been applied if this run has no board rows.
-            </span>
-          </p>
-        )}
+        {error && <ErrorState error={new Error(error)} onRetry={refresh} />}
         {pollingExpired && <PollingDeadlineState onRefresh={refresh} />}
         {msg && <p className="mt-1 text-xs text-signal-400">{msg}</p>}
         {saving && <p className="text-xs text-ink-faint">Saving…</p>}

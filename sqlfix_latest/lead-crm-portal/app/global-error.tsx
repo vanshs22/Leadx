@@ -9,7 +9,7 @@ export default function GlobalError({ reset }: { error: Error & { digest?: strin
             <strong style={{ letterSpacing: ".08em" }}>LEADX</strong>
             <h1 style={{ marginTop: 24 }}>LeadX needs a quick restart.</h1>
             <p style={{ color: "#cbd5e1", lineHeight: 1.6 }}>An unexpected application error occurred. Retry first; your server-side data is not deleted by this error.</p>
-            <button aria-label="Action" onClick={() => reset()} style={{ marginTop: 12, padding: "10px 16px", borderRadius: 12, border: 0, background: "#7c5cff", color: "white", fontWeight: 700 }}>Retry LeadX</button>
+            <button onClick={() => reset()} style={{ marginTop: 12, padding: "10px 16px", borderRadius: 12, border: 0, background: "#7c5cff", color: "white", fontWeight: 700 }}>Retry LeadX</button>
           </section>
         </main>
       </body>

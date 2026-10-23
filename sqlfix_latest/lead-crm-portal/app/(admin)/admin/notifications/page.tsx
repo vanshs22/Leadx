@@ -5,6 +5,7 @@ import { useCallback, useState } from "react";
 
 import { NotificationList, type NotificationRow } from "@/components/layout/NotificationList";
 import { PollingDeadlineState } from "@/components/ui/States";
+import { PageHeader } from "@/components/ui/Primitives";
 import { adminExtras } from "@/lib/admin";
 
 export default function AdminNotificationsPage() {
@@ -38,12 +39,7 @@ export default function AdminNotificationsPage() {
 
   return (
     <div className="page">
-      <header>
-        <h1 className="page-title">Notifications</h1>
-        <p className="page-sub">
-          Operator-scoped: failed jobs, complaint spikes, positive replies across every client
-        </p>
-      </header>
+      <PageHeader eyebrow="Control plane" title="Notifications" description="Operator-scoped failed jobs, complaint spikes, and positive replies across every client." />
 
       {pollingExpired && <PollingDeadlineState onRefresh={refresh} />}
 

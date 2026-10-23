@@ -14,7 +14,7 @@ import { useChangedIds } from "@/lib/live";
 import { VariableVirtualList } from "@/lib/VariableVirtualList";
 import { ErrorState, EmptyState } from "@/components/ui/States";
 import { EvidenceNote, FreshnessNote, UnavailableNote } from "@/components/ui/SurfaceMeta";
-
+import { PageHeader, FilterBar } from "@/components/ui/Primitives";
 
 /** Rows come from two shapes (view vs search-run); both carry one of these. */
 const leadId = (l: any): string => l.assignment_id || l.id;
@@ -235,27 +235,7 @@ export default function LeadsPage() {
 
   return (
     <div className="page">
-      <header className="flex flex-wrap items-end justify-between gap-4">
-        <div>
-          <h1 className="page-title">Leads</h1>
-          <p className="page-sub">{total} quality-gated prospects · prioritize the next best conversation, not a static list.</p>
-          <div className="mt-2 flex flex-wrap items-center gap-3"><FreshnessNote label="Live CRM view" detail={`${leads.length} loaded`} /><span className="text-[11px] text-ink-faint">Evidence and provider fields are shown only when returned by the API.</span></div>
-        </div>
-        <div className="flex flex-wrap gap-2">
-          <button aria-label="Action" onClick={() => setBulkOpen(true)} className="btn-primary">
-            Email…
-          </button>
-          <button aria-label="Action" onClick={() => setSeqOpen(true)} className="btn-secondary">
-            Enroll in sequence…
-          </button>
-          <button aria-label="Action" onClick={handleExport} className="btn-secondary">
-            Export CSV
-          </button>
-          <button aria-label="Action" onClick={load} className="btn-primary">
-            Refresh
-          </button>
-        </div>
-      </header>
+      <PageHeader title="Leads" description={`${total} quality-gated prospects · prioritize the next best conversation, not a static list.`} meta={<><FreshnessNote label="Live CRM view" detail={`${leads.length} loaded`} /><span>Evidence and provider fields are shown only when returned by the API.</span></>} actions={<><button aria-label="Email selected leads" onClick={() => setBulkOpen(true)} className="btn-primary">Email…</button><button aria-label="Enroll selected leads" onClick={() => setSeqOpen(true)} className="btn-secondary">Enroll in sequence…</button><button aria-label="Export leads as CSV" onClick={handleExport} className="btn-secondary">Export CSV</button><button aria-label="Refresh leads" onClick={load} className="btn-secondary">Refresh</button></>} />
 
       {msg && (
         <div className="rounded-xl border border-line bg-surface-2 px-4 py-2.5 text-sm text-ink-muted">
@@ -263,60 +243,17 @@ export default function LeadsPage() {
         </div>
       )}
 
-      {/* Filters */}
       <SavedViews
         current={{ search, tier, stage, sort }}
-        onApply={(f) => {
-          setSearch(f.search ?? "");
-          setTier(f.tier ?? "");
-          setStage(f.stage ?? "");
-          setSort(f.sort ?? "score_desc");
-        }}
+        onApply={(f) => { setSearch(f.search ?? ""); setTier(f.tier ?? ""); setStage(f.stage ?? ""); setSort(f.sort ?? "score_desc"); }}
       />
-      <div className="card-pad flex flex-wrap gap-3">
-        <input
-          className="input min-w-[200px] flex-1"
-          type="search"
-          placeholder="Search company, city, phone…"
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-        />
-        <select className="input max-w-[140px]" value={tier} onChange={(e) => setTier(e.target.value)}>
-          <option value="">All tiers</option>
-          <option value="A">Tier A only</option>
-          <option value="B">Tier B</option>
-        </select>
-        <select className="input max-w-[160px]" value={stage} onChange={(e) => setStage(e.target.value)}>
-          <option value="">All stages</option>
-          <option value="new">New</option>
-          <option value="contacted">Contacted</option>
-          <option value="qualified">Qualified</option>
-          <option value="won">Won</option>
-          <option value="lost">Lost</option>
-        </select>
-        <select className="input max-w-[180px]" value={sort} onChange={(e) => setSort(e.target.value)}>
-          <option value="score_desc">Score: high → low</option>
-          <option value="score_asc">Score: low → high</option>
-          <option value="tier_asc">Tier: A → C</option>
-          <option value="tier_desc">Tier: C → A</option>
-          <option value="name_asc">Name: A → Z</option>
-          <option value="name_desc">Name: Z → A</option>
-          <option value="city_asc">City: A → Z</option>
-          <option value="newest">Newest first</option>
-        </select>
-        <label className="flex items-center gap-2 text-sm text-ink-muted">
-          <input
-            type="checkbox"
-            className="h-4 w-4 rounded border-line"
-            aria-label="Select all leads shown"
-            checked={allSelected}
-            onChange={(e) =>
-              setSelected(e.target.checked ? new Set(leads.map(leadId)) : new Set())
-            }
-          />
-          Select all
-        </label>
-      </div>
+      <FilterBar onClear={() => { setSearch(""); setTier(""); setStage(""); setSort("score_desc"); }}>
+        <input className="input min-w-[200px] flex-1" type="search" placeholder="Search company, city, phone…" value={search} onChange={(e) => setSearch(e.target.value)} aria-label="Search leads" />
+        <select className="input max-w-[140px]" value={tier} onChange={(e) => setTier(e.target.value)} aria-label="Filter leads by tier"><option value="">All tiers</option><option value="A">Tier A only</option><option value="B">Tier B</option></select>
+        <select className="input max-w-[160px]" value={stage} onChange={(e) => setStage(e.target.value)} aria-label="Filter leads by stage"><option value="">All stages</option><option value="new">New</option><option value="contacted">Contacted</option><option value="qualified">Qualified</option><option value="won">Won</option><option value="lost">Lost</option></select>
+        <select className="input max-w-[180px]" value={sort} onChange={(e) => setSort(e.target.value)} aria-label="Sort leads"><option value="score_desc">Score: high → low</option><option value="score_asc">Score: low → high</option><option value="tier_asc">Tier: A → C</option><option value="tier_desc">Tier: C → A</option><option value="name_asc">Name: A → Z</option><option value="name_desc">Name: Z → A</option><option value="city_asc">City: A → Z</option><option value="newest">Newest first</option></select>
+        <label className="flex items-center gap-2 px-1 text-sm text-ink-muted"><input type="checkbox" className="h-4 w-4 rounded border-line" aria-label="Select all leads shown" checked={allSelected} onChange={(e) => setSelected(e.target.checked ? new Set(leads.map(leadId)) : new Set())} />Select all</label>
+      </FilterBar>
 
       <div className="rounded-xl border border-brand-200 bg-brand-50 px-4 py-3 text-sm text-brand-900 dark:border-brand-500/20 dark:bg-brand-500/10 dark:text-brand-200">
         <strong>Tip:</strong> Start with Tier A → use the pitch line → call → update stage. Report bad numbers for credit.
@@ -345,7 +282,7 @@ export default function LeadsPage() {
           <div className="card-pad max-h-[90vh] w-full max-w-lg space-y-3 overflow-y-auto shadow-lift">
             <div className="flex items-center justify-between">
               <h2 className="text-lg font-semibold text-ink">Send email</h2>
-              <button aria-label="Action" className="btn-ghost" onClick={() => setBulkOpen(false)}>Close</button>
+              <button className="btn-ghost" onClick={() => setBulkOpen(false)}>Close</button>
             </div>
             <p className="text-xs text-ink-faint">
               Merge tags: {"{{name}}"} {"{{company}}"} {"{{owner}}"} {"{{city}}"} {"{{pitch}}"} {"{{tier}}"}
@@ -353,10 +290,10 @@ export default function LeadsPage() {
             <input className="input" value={bulkSubj} onChange={(e) => setBulkSubj(e.target.value)} placeholder="Subject" />
             <textarea className="input min-h-[160px] font-mono text-xs" value={bulkBody} onChange={(e) => setBulkBody(e.target.value)} />
             <div className="flex flex-wrap gap-2">
-              <button aria-label="Action" disabled={bulkBusy || selected.size === 0} onClick={sendSelectedEmail} className="btn-primary">
+              <button disabled={bulkBusy || selected.size === 0} onClick={sendSelectedEmail} className="btn-primary">
                 Email selected ({selected.size})
               </button>
-              <button aria-label="Action" disabled={bulkBusy} onClick={sendAllEmail} className="btn-secondary">
+              <button disabled={bulkBusy} onClick={sendAllEmail} className="btn-secondary">
                 Send all (filtered)
               </button>
             </div>
@@ -370,7 +307,7 @@ export default function LeadsPage() {
           <div className="card-pad w-full max-w-md space-y-3 shadow-lift">
             <div className="flex items-center justify-between">
               <h2 className="text-lg font-semibold text-ink">Enroll in sequence</h2>
-              <button aria-label="Action" className="btn-ghost" onClick={() => setSeqOpen(false)}>Close</button>
+              <button className="btn-ghost" onClick={() => setSeqOpen(false)}>Close</button>
             </div>
             {selected.size === 0 && (
               <p className="text-sm text-rust-500 dark:text-rust-300">Select leads first (checkboxes in the table).</p>
@@ -386,7 +323,7 @@ export default function LeadsPage() {
                 <option key={s.id} value={s.id}>{s.name} ({s.steps?.length || 0} steps)</option>
               ))}
             </select>
-            <button aria-label="Action"
+            <button
               disabled={seqBusy || !seqPick || selected.size === 0}
               onClick={async () => {
                 setSeqBusy(true);

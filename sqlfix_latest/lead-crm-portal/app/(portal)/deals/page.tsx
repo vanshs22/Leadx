@@ -314,10 +314,10 @@ export default function DealsPage() {
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
-          <button aria-label="Action" type="button" className="btn-primary" onClick={() => setFormOpen(true)}>
+          <button type="button" className="btn-primary" onClick={() => setFormOpen(true)}>
             New deal
           </button>
-          <button aria-label="Action" type="button" className="btn-secondary" onClick={load}>
+          <button type="button" className="btn-secondary" onClick={load}>
             Refresh
           </button>
         </div>
@@ -353,7 +353,7 @@ export default function DealsPage() {
         </select>
 
         {(q || statusFilter) && (
-          <button aria-label="Action"
+          <button
             type="button"
             className="btn-secondary"
             onClick={() => {
@@ -369,7 +369,7 @@ export default function DealsPage() {
 
         {views.map((v) => (
           <span key={v.name} className="inline-flex items-center">
-            <button aria-label="Action"
+            <button
               type="button"
               onClick={() => {
                 setQ(v.state.q);
@@ -390,7 +390,7 @@ export default function DealsPage() {
           </span>
         ))}
 
-        <button aria-label="Action"
+        <button
           type="button"
           className="text-xs text-ink-muted underline hover:text-ink"
           disabled={!q && !statusFilter}
@@ -478,7 +478,7 @@ export default function DealsPage() {
               <h2 id="new-deal-title" className="text-lg font-semibold text-ink">
                 New deal
               </h2>
-              <button aria-label="Action" type="button" className="btn-ghost" onClick={() => setFormOpen(false)}>
+              <button type="button" className="btn-ghost" onClick={() => setFormOpen(false)}>
                 Close
               </button>
             </div>
@@ -604,10 +604,10 @@ export default function DealsPage() {
             </div>
 
             <div className="flex gap-2">
-              <button aria-label="Action" type="submit" disabled={saving} className="btn-primary">
+              <button type="submit" disabled={saving} className="btn-primary">
                 {saving ? "Saving…" : "Create deal"}
               </button>
-              <button aria-label="Action" type="button" className="btn-secondary" onClick={() => setFormOpen(false)}>
+              <button type="button" className="btn-secondary" onClick={() => setFormOpen(false)}>
                 Cancel
               </button>
             </div>

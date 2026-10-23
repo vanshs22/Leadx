@@ -2,6 +2,9 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { autonomousCampaigns, admin, adminExtras, type SequenceStepInput } from "@/lib/admin";
+import { useLiveLoader } from "@/lib/live";
+import { Notice, PageHeader } from "@/components/ui/Primitives";
+import { PollingDeadlineState } from "@/components/ui/States";
 
 const starter: SequenceStepInput[] = [
   { step_number: 1, delay_days: 0, subject: "Quick idea for {{company}}", body_html: "<p>Hi {{first_name}},</p><p>I came across {{company}} and noticed {{pitch}}.</p><p>Would it be useful to compare notes for 10 minutes?</p>" },
@@ -17,6 +20,7 @@ export default function AutonomousGrowthPage() {
   const [msg, setMsg] = useState("");
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
+  const [pollingExpired, setPollingExpired] = useState(false);
   const [steps, setSteps] = useState<SequenceStepInput[]>(starter);
   const [dragIndex, setDragIndex] = useState<number | null>(null);
   const [form, setForm] = useState({
@@ -44,7 +48,7 @@ export default function AutonomousGrowthPage() {
       setError("");
     } catch (e: any) { setError(e.message); }
   }, []);
-  useEffect(() => { load(); }, [load]);
+  useLiveLoader(load, 15000, [], { onDeadline: () => setPollingExpired(true) });
 
   const campaigns = data?.campaigns || [];
   const active = campaigns.filter((c: any) => c.status === "active").length;
@@ -93,6 +97,8 @@ export default function AutonomousGrowthPage() {
 
   return (
     <div className="page">
+      <PageHeader eyebrow="Operator autopilot" title="Autonomous growth" description="Choose an ICP once. LeadX continuously finds qualified prospects, writes evidence-grounded personalized emails, and respects daily safety gates." actions={<button className="btn-secondary" onClick={() => { setPollingExpired(false); void load(); }} disabled={busy}>Refresh</button>} />
+      {pollingExpired && <PollingDeadlineState onRefresh={() => { setPollingExpired(false); void load(); }} />}
       <header className="hero-panel p-6 md:p-8">
         <div className="flex flex-wrap items-start justify-between gap-5">
           <div>
@@ -139,15 +145,15 @@ export default function AutonomousGrowthPage() {
               <div className="flex items-start gap-3"><div className="mt-0.5 cursor-grab rounded-xl bg-surface-3 px-2.5 py-2 text-xs font-bold text-ink-muted">↕ {i+1}</div><div className="min-w-0 flex-1"><div className="flex items-center justify-between gap-2"><input className="input h-9" value={s.subject} onChange={e=>{const x=[...steps];x[i]={...x[i],subject:e.target.value};setSteps(x)}}/><span className="ml-2 whitespace-nowrap text-[10px] font-bold uppercase tracking-wide text-ink-faint">{i===0?"Immediately":`+${s.delay_days}d`}</span></div><textarea className="input mt-2 min-h-20" value={s.body_html} onChange={e=>{const x=[...steps];x[i]={...x[i],body_html:e.target.value};setSteps(x)}}/></div></div>
             </div>)}
           </div>
-          <div className="mt-4 grid grid-cols-2 gap-2"><button aria-label="Action" className="btn-secondary" onClick={()=>setSteps([...steps,{step_number:steps.length+1,delay_days:7,subject:"One last note about {{company}}",body_html:"<p>Hi {{first_name}},</p><p>Worth keeping this on your radar?</p>"}])}>+ Add step</button><button aria-label="Action" className="btn-primary" disabled={busy || !data?.operator_tenant_id} onClick={create}>{busy?"Creating…":"Create campaign"}</button></div>
+          <div className="mt-4 grid grid-cols-2 gap-2"><button className="btn-secondary" onClick={()=>setSteps([...steps,{step_number:steps.length+1,delay_days:7,subject:"One last note about {{company}}",body_html:"<p>Hi {{first_name}},</p><p>Worth keeping this on your radar?</p>"}])}>+ Add step</button><button className="btn-primary" disabled={busy || !data?.operator_tenant_id} onClick={create}>{busy?"Creating…":"Create campaign"}</button></div>
         </div>
       </section>
 
       <section className="data-card overflow-hidden">
-        <div className="flex flex-wrap items-center justify-between gap-3 border-b border-line px-5 py-4"><div><div className="section-kicker">03 · Control room</div><h2 className="mt-1 text-lg font-semibold">Campaigns</h2></div><button aria-label="Action" className="btn-secondary" disabled={busy} onClick={()=>autonomousCampaigns.tick().then(load)}>Run due check</button></div>
+        <div className="flex flex-wrap items-center justify-between gap-3 border-b border-line px-5 py-4"><div><div className="section-kicker">03 · Control room</div><h2 className="mt-1 text-lg font-semibold">Campaigns</h2></div><button className="btn-secondary" disabled={busy} onClick={()=>autonomousCampaigns.tick().then(load)}>Run due check</button></div>
         <div className="divide-y divide-line/70">
           {!campaigns.length && <div className="p-8 text-sm text-ink-muted">No autonomous campaigns yet. Create one above; nothing sends until you activate it.</div>}
-          {campaigns.map((c: any)=>{const d=data?.daily?.[c.id]||{};return <div key={c.id} className="p-5 hover:bg-surface-3/30"><div className="flex flex-wrap items-start justify-between gap-4"><div className="min-w-0"><div className="flex flex-wrap items-center gap-2"><h3 className="font-semibold text-ink">{c.name}</h3><span className="pill bg-surface-3 text-ink-muted">{c.status}</span></div><p className="mt-1 text-xs text-ink-faint">{(c.locations||[]).slice(0,4).join(" · ")} · {c.daily_new_lead_limit} leads/day · {c.daily_email_limit} emails/day</p></div><div className="flex gap-2">{c.status!=="active"?<button aria-label="Action" className="btn-success" disabled={busy} onClick={()=>setStatus(c.id,"active")}>Activate</button>:<button aria-label="Action" className="btn-secondary" disabled={busy} onClick={()=>setStatus(c.id,"paused")}>Pause</button>}<button aria-label="Action" className="btn-secondary" disabled={busy} onClick={()=>runNow(c.id)}>Run now</button></div></div><div className="mt-4 grid gap-3 sm:grid-cols-5"><div className="action-card"><div className="stat-label">Found today</div><div className="mt-1 font-mono text-lg font-semibold">{d.leads_discovered||0}</div></div><div className="action-card"><div className="stat-label">Sent today</div><div className="mt-1 font-mono text-lg font-semibold">{d.emails_sent||0} / {c.daily_email_limit}</div></div><div className="action-card"><div className="stat-label">Follow-up</div><div className="mt-1 text-sm font-semibold">{c.auto_followup?"Automatic":"Off"}</div></div><div className="action-card"><div className="stat-label">Reply stop</div><div className="mt-1 text-sm font-semibold">{c.stop_on_reply?"On":"Off"}</div></div><div className="action-card"><div className="stat-label">Opt-out</div><div className="mt-1 text-sm font-semibold">{c.stop_on_optout?"Global + tenant":"Manual"}</div></div></div></div>})}
+          {campaigns.map((c: any)=>{const d=data?.daily?.[c.id]||{};return <div key={c.id} className="p-5 hover:bg-surface-3/30"><div className="flex flex-wrap items-start justify-between gap-4"><div className="min-w-0"><div className="flex flex-wrap items-center gap-2"><h3 className="font-semibold text-ink">{c.name}</h3><span className="pill bg-surface-3 text-ink-muted">{c.status}</span></div><p className="mt-1 text-xs text-ink-faint">{(c.locations||[]).slice(0,4).join(" · ")} · {c.daily_new_lead_limit} leads/day · {c.daily_email_limit} emails/day</p></div><div className="flex gap-2">{c.status!=="active"?<button className="btn-success" disabled={busy} onClick={()=>setStatus(c.id,"active")}>Activate</button>:<button className="btn-secondary" disabled={busy} onClick={()=>setStatus(c.id,"paused")}>Pause</button>}<button className="btn-secondary" disabled={busy} onClick={()=>runNow(c.id)}>Run now</button></div></div><div className="mt-4 grid gap-3 sm:grid-cols-5"><div className="action-card"><div className="stat-label">Found today</div><div className="mt-1 font-mono text-lg font-semibold">{d.leads_discovered||0}</div></div><div className="action-card"><div className="stat-label">Sent today</div><div className="mt-1 font-mono text-lg font-semibold">{d.emails_sent||0} / {c.daily_email_limit}</div></div><div className="action-card"><div className="stat-label">Follow-up</div><div className="mt-1 text-sm font-semibold">{c.auto_followup?"Automatic":"Off"}</div></div><div className="action-card"><div className="stat-label">Reply stop</div><div className="mt-1 text-sm font-semibold">{c.stop_on_reply?"On":"Off"}</div></div><div className="action-card"><div className="stat-label">Opt-out</div><div className="mt-1 text-sm font-semibold">{c.stop_on_optout?"Global + tenant":"Manual"}</div></div></div></div>})}
         </div>
       </section>
     </div>

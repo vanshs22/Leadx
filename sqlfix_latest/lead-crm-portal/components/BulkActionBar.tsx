@@ -33,7 +33,7 @@ export function BulkActionBar({
         {count} {noun}
       </span>
       {actions.map((a) => (
-        <button aria-label="Action"
+        <button aria-label={a.label}
           key={a.label}
           type="button"
           className="btn-primary"
@@ -43,7 +43,7 @@ export function BulkActionBar({
           {a.label}
         </button>
       ))}
-      <button aria-label="Action" type="button" className="btn-secondary" onClick={onClear}>
+      <button aria-label="Clear selected items" type="button" className="btn-secondary" onClick={onClear}>
         Clear
       </button>
     </div>

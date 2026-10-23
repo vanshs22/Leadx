@@ -7,6 +7,7 @@ import { admin } from "@/lib/admin";
 import { FunnelChart } from "@/components/charts/FunnelChart";
 import { EmptyState, ErrorState, LoadingRows, PollingDeadlineState } from "@/components/ui/States";
 import { FreshnessNote } from "@/components/ui/SurfaceMeta";
+import { PageHeader } from "@/components/ui/Primitives";
 
 const STATUS_STYLE: Record<string, string> = {
   queued: "bg-surface-3 text-ink-muted",
@@ -58,12 +59,8 @@ export default function AdminRunsPage() {
 
   return (
     <div className="page">
-      <header>
-        <h1 className="page-title">Pipeline runs</h1>
-        <p className="page-sub">Recent discover → enrich → gate → assign → deliver jobs. Run telemetry refreshes while this tab is visible.</p>
-        <div className="mt-2 flex flex-wrap items-center gap-3"><FreshnessNote label="Live run monitor" detail={lastUpdated ? `updated ${lastUpdated}` : "waiting for first response"} />{error ? <span className="text-[11px] text-rust-500 dark:text-rust-300">Refresh issue: {error}</span> : null}</div>
-        {pollingExpired && <PollingDeadlineState onRefresh={refresh} />}
-      </header>
+      <PageHeader eyebrow="Control plane" title="Pipeline runs" description="Recent discover → enrich → gate → assign → deliver jobs. Run telemetry refreshes while this tab is visible." meta={<FreshnessNote label="Live run monitor" detail={lastUpdated ? `updated ${lastUpdated}` : "waiting for first response"} />} />
+      {pollingExpired && <PollingDeadlineState onRefresh={refresh} />}
 
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <div className="kpi">

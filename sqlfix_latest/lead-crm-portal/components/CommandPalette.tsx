@@ -174,7 +174,7 @@ export function CommandPalette() {
   function row(item: Item, index: number) {
     const on = item.key === active?.key;
     return (
-      <button aria-label="Action"
+      <button aria-label={`Open ${item.label}`}
         key={item.key}
         type="button"
         onMouseEnter={() => setSel(index)}

@@ -57,7 +57,7 @@ export function NotificationList({
         <p className="text-sm text-ink-muted">
           {unread.length} unread · {rows.length} total
         </p>
-        <button aria-label="Action"
+        <button
           type="button"
           disabled={busy || !unread.length}
           onClick={() => wrap(onMarkAll)}
@@ -108,7 +108,7 @@ export function NotificationList({
                   </Link>
                 ) : null}
                 {!n.read_at && (
-                  <button aria-label="Action"
+                  <button
                     type="button"
                     disabled={busy}
                     onClick={() => wrap(() => onMarkRead([n.id]))}

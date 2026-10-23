@@ -9,6 +9,7 @@ import { SupportChat } from "@/components/support/SupportChat";
 import { crm } from "@/lib/api";
 import { getTenantId } from "@/lib/tenant";
 import { useEffect } from "react";
+import { QuietBreadcrumbs } from "@/components/ui/Primitives";
 
 const PUBLIC_PATHS = ["/login", "/signup", "/accept-invite", "/verify-email"];
 
@@ -51,9 +52,9 @@ export default function PortalLayout({ children }: { children: React.ReactNode }
         <div className="pointer-events-none fixed right-4 top-3 z-30 hidden md:block"><RealtimeStatus /></div>
         <main id="main-content" className="min-w-0 flex-1 pt-12 md:pt-0">
           <div className="topbar sticky top-0 z-30 hidden h-12 items-center justify-between px-6 md:flex">
-            <div className="flex items-center gap-2 text-xs text-ink-muted"><span className="font-semibold text-ink">Workspace</span><span className="text-slate-300">/</span><span>{path === "/dashboard" ? "Overview" : path === "/growth" ? "Growth workspace" : (path?.split("/").filter(Boolean).slice(-1)[0] || "Workspace").replace(/-/g, " ")}</span></div>
+            <QuietBreadcrumbs items={[{ label: "Workspace", href: "/dashboard" }, { label: path === "/dashboard" ? "Overview" : path === "/growth" ? "Growth workspace" : (path?.split("/").filter(Boolean).slice(-1)[0] || "Workspace").replace(/-/g, " ") }]} />
             <div className="flex items-center gap-2">
-              <a href="/growth" className="flex items-center gap-2 rounded-lg border border-line bg-surface-2 px-3 py-1.5 text-xs font-medium text-ink-muted hover:text-ink"><span>⌁</span><span>Growth workspace</span></a><a href="/search" className="flex items-center gap-2 rounded-lg border border-line bg-surface-2 px-3 py-1.5 text-xs font-medium text-ink-muted hover:text-ink"><span>⌕</span><span>Search prospects</span><kbd className="rounded border border-line px-1.5 py-0.5 text-[9px] text-ink-faint">⌘K</kbd></a>
+              <a href="/growth" className="quiet-action"><span>⌁</span><span>Growth workspace</span></a><a href="/search" className="quiet-action"><span>⌕</span><span>Search prospects</span><kbd className="rounded border border-line px-1.5 py-0.5 text-[9px] text-ink-faint">⌘K</kbd></a>
               <a href="/pricing" className="btn-primary px-3 py-1.5 text-xs">Upgrade</a>
             </div>
           </div>

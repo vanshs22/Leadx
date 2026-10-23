@@ -1,17 +1,15 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import { crm } from "@/lib/api";
 import { getTenantId } from "@/lib/tenant";
 import { useCrmChange } from "@/lib/crmRealtime";
+import { useLiveLoader } from "@/lib/live";
+import { DataState, EmptyState, ErrorState, LoadingRows, PollingDeadlineState } from "@/components/ui/States";
+import { PageHeader } from "@/components/ui/Primitives";
+import { FreshnessNote } from "@/components/ui/SurfaceMeta";
 
-const TRIGGERS = [
-  ["email.reply_received", "Reply received"],
-  ["lead.assigned", "Lead assigned"],
-  ["deal.stage_changed", "Deal stage changed"],
-  ["lead.score_changed", "Lead score changed"],
-  ["lead.quality_gate_passed", "Lead passed quality gate"],
-] as const;
+const TRIGGERS = [["email.reply_received", "Reply received"], ["lead.assigned", "Lead assigned"], ["deal.stage_changed", "Deal stage changed"], ["lead.score_changed", "Lead score changed"], ["lead.quality_gate_passed", "Lead passed quality gate"]] as const;
 const TEMPLATES = [
   { name: "Hot reply → owner + deal", trigger: "email.reply_received", graph: { trigger: { event: "email.reply_received", conditions: [{ field: "reply_score", op: "gte", value: 75 }] }, actions: [{ type: "escalate_owner", params: { title: "Hot reply — owner action required" } }, { type: "notify_owner", params: { message: "A high-intent reply needs owner attention." } }] } },
   { name: "Opt-out → stop outreach", trigger: "email.reply_received", graph: { trigger: { event: "email.reply_received", conditions: [{ field: "category", op: "eq", value: "opt_out" }] }, actions: [{ type: "stop_sequence" }] } },
@@ -20,18 +18,21 @@ const TEMPLATES = [
 
 export default function AutomationsPage() {
   const [rows, setRows] = useState<any[]>([]); const [name, setName] = useState(""); const [trigger, setTrigger] = useState("email.reply_received");
-  const [template, setTemplate] = useState(0); const [enabled, setEnabled] = useState(true); const [busy, setBusy] = useState(false); const [msg, setMsg] = useState("");
+  const [template, setTemplate] = useState(0); const [enabled, setEnabled] = useState(true); const [busy, setBusy] = useState(false); const [message, setMessage] = useState("");
+  const [error, setError] = useState<unknown>(null); const [loading, setLoading] = useState(true); const [deadline, setDeadline] = useState(false); const [refreshKey, setRefreshKey] = useState(0);
   const tid = useMemo(() => getTenantId(), []);
-  const load = async () => { try { const r:any = await crm.automations(tid); setRows(r.automations || []); } catch(e:any) { setMsg(e.message || "Could not load automations"); } };
-  useEffect(() => { load(); }, []);
+  const load = useCallback(async () => { if (!tid) return; setLoading(true); setError(null); try { const r: any = await crm.automations(tid); setRows(r.automations || []); } catch (caught) { setError(caught); } finally { setLoading(false); } }, [tid]);
+  useLiveLoader(load, 30_000, [refreshKey], { onDeadline: () => setDeadline(true) });
   useCrmChange(load, { tables: ["workflow_definitions", "workflow_runs", "automation_events", "email_replies", "lead_assignments"] });
-  async function create() { const t = TEMPLATES[template]; setBusy(true); setMsg(""); try { await crm.createAutomation(tid, { name: name.trim() || t.name, trigger_type: trigger, enabled, graph: { ...t.graph, trigger: { ...(t.graph as any).trigger, event: trigger } } }); setName(""); setMsg("Automation created"); await load(); } catch(e:any) { setMsg(e.message || "Could not create automation"); } finally { setBusy(false); } }
-  async function toggle(r:any) { try { await crm.updateAutomation(tid, r.id, { name:r.name, description:r.description||"", trigger_type:r.trigger_type, graph:r.graph, enabled:!r.enabled }); await load(); } catch(e:any) { setMsg(e.message || "Update failed"); } }
-  return <div className="page">
-    <header><h1 className="page-title">Automations</h1><p className="page-sub">Event-driven outreach and revenue actions. Replies are read, classified, scored, and routed asynchronously.</p></header>
-    <div className="grid gap-4 lg:grid-cols-[1fr_1.2fr]">
-      <section className="card-pad space-y-4"><h2 className="text-sm font-semibold text-ink">Create automation</h2><input className="input" placeholder="Automation name" value={name} onChange={e=>setName(e.target.value)}/><select className="input" value={trigger} onChange={e=>setTrigger(e.target.value)}>{TRIGGERS.map(x=><option key={x[0]} value={x[0]}>{x[1]}</option>)}</select><select className="input" value={template} onChange={e=>setTemplate(Number(e.target.value))}>{TEMPLATES.map((x,i)=><option key={x.name} value={i}>{x.name}</option>)}</select><label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={enabled} onChange={e=>setEnabled(e.target.checked)}/> Enable immediately</label><button aria-label="Action" disabled={busy} onClick={create} className="rounded-lg bg-brand-600 px-4 py-2 text-sm font-medium text-white disabled:opacity-50">{busy?"Creating…":"Create automation"}</button>{msg&&<p className="text-sm text-ink-muted">{msg}</p>}</section>
-      <section className="card-pad"><div className="mb-3 flex items-center justify-between"><h2 className="text-sm font-semibold text-ink">Live automations</h2><span className="text-xs text-ink-faint">Async queue · tenant isolated</span></div><div className="space-y-2">{rows.map(r=><div key={r.id} className="rounded-xl border border-line p-3"><div className="flex items-center justify-between gap-3"><div><div className="text-sm font-semibold text-ink">{r.name}</div><div className="mt-1 text-xs text-ink-muted">{r.trigger_type} · v{r.version}</div></div><button aria-label="Action" onClick={()=>toggle(r)} className={`rounded-lg px-3 py-1.5 text-xs font-medium ${r.enabled?"bg-brand-500/15 text-brand-700 dark:text-brand-200":"border border-line text-ink-muted"}`}>{r.enabled?"Enabled":"Paused"}</button></div></div>)}{rows.length===0&&<div className="py-10 text-center text-sm text-ink-faint">No automations yet</div>}</div></section>
+  const refresh = () => { setDeadline(false); setRefreshKey((value) => value + 1); };
+  async function create() { const t = TEMPLATES[template]; setBusy(true); setMessage(""); try { await crm.createAutomation(tid, { name: name.trim() || t.name, trigger_type: trigger, enabled, graph: { ...t.graph, trigger: { ...(t.graph as any).trigger, event: trigger } } }); setName(""); setMessage("Automation created"); await load(); } catch (e: any) { setMessage(e?.message || "Could not create automation"); } finally { setBusy(false); } }
+  async function toggle(row: any) { setBusy(true); try { await crm.updateAutomation(tid, row.id, { name: row.name, description: row.description || "", trigger_type: row.trigger_type, graph: row.graph, enabled: !row.enabled }); await load(); } catch (e: any) { setMessage(e?.message || "Update failed"); } finally { setBusy(false); } }
+  return <div className="page space-y-5">
+    <PageHeader eyebrow="Engage" title="Automations" description="Event-driven actions with explicit trigger, run, reply, error, and retry state. Refresh only reconciles stored records." actions={<button type="button" aria-label="Refresh automations" className="btn-secondary" onClick={refresh}>Refresh</button>} meta={<FreshnessNote label="Live automation telemetry" detail={`${rows.length} definitions · tenant isolated`} />} />
+    {deadline ? <PollingDeadlineState onRefresh={refresh} /> : null}
+    <div className="grid gap-4 lg:grid-cols-[1fr_1.25fr]">
+      <section className="card-pad space-y-4"><h2 className="text-sm font-semibold text-ink">Create automation</h2><label className="block text-xs font-medium text-ink-faint">Name<input aria-label="Automation name" className="input mt-1" placeholder="Automation name" value={name} onChange={(e) => setName(e.target.value)} /></label><label className="block text-xs font-medium text-ink-faint">Trigger<select aria-label="Automation trigger" className="input mt-1" value={trigger} onChange={(e) => setTrigger(e.target.value)}>{TRIGGERS.map((x) => <option key={x[0]} value={x[0]}>{x[1]}</option>)}</select></label><label className="block text-xs font-medium text-ink-faint">Template<select aria-label="Automation template" className="input mt-1" value={template} onChange={(e) => setTemplate(Number(e.target.value))}>{TEMPLATES.map((x, i) => <option key={x.name} value={i}>{x.name}</option>)}</select></label><label className="flex items-center gap-2 text-sm"><input aria-label="Enable automation immediately" type="checkbox" checked={enabled} onChange={(e) => setEnabled(e.target.checked)} /> Enable immediately</label><button type="button" aria-label="Create automation" disabled={busy || !tid} onClick={create} className="btn-primary">{busy ? "Creating…" : "Create automation"}</button>{message ? <p role="status" aria-live="polite" className="text-sm text-ink-muted">{message}</p> : null}</section>
+      <section className="card-pad"><div className="mb-3 flex items-center justify-between"><h2 className="text-sm font-semibold text-ink">Live automations</h2><span className="text-xs text-ink-faint">Stored definitions and latest run fields</span></div><DataState loading={loading && !rows.length} error={error && !rows.length ? error : undefined} onRetry={refresh} isEmpty={!loading && !error && rows.length === 0} empty={<EmptyState title="No automations yet" hint="Create an event-driven rule to route replies, owners, or sequence stops." />} skeleton={<LoadingRows rows={5} cols={4} />}><div className="space-y-2">{error ? <ErrorState error={error} onRetry={refresh} /> : null}{rows.map((row) => <article key={row.id} className="rounded-xl border border-line p-3"><div className="flex items-start justify-between gap-3"><div><div className="text-sm font-semibold text-ink">{row.name || "Unnamed automation"}</div><div className="mt-1 text-xs text-ink-muted">Trigger: {row.trigger_type || "unavailable"} · v{row.version ?? "—"}</div></div><button type="button" aria-label={`${row.enabled ? "Pause" : "Enable"} automation ${row.name || "unnamed"}`} disabled={busy} onClick={() => toggle(row)} className={`rounded-lg px-3 py-1.5 text-xs font-medium ${row.enabled ? "bg-brand-500/15 text-brand-700 dark:text-brand-200" : "border border-line text-ink-muted"}`}>{row.enabled ? "Enabled" : "Paused"}</button></div><div className="mt-3 grid grid-cols-2 gap-2 text-[11px] text-ink-faint sm:grid-cols-4"><span>Runs: {row.run_count ?? row.runs ?? "—"}</span><span>Last run: {row.last_run_status || "—"}</span><span>Errors: {row.error_count ?? "—"}</span><span>Retries: {row.retry_count ?? "—"}</span></div>{row.last_error ? <p className="mt-2 text-xs text-rust-600 dark:text-rust-300">Last error: {row.last_error}</p> : null}</article>)}</div></DataState></section>
     </div>
   </div>;
 }

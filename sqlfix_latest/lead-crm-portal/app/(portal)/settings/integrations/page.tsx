@@ -1,10 +1,12 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { useCrmChange } from "@/lib/crmRealtime";
 import { crmIntegrations } from "@/lib/api";
 import { getTenantId } from "@/lib/tenant";
 import { EmptyState, ErrorState, LoadingRows } from "@/components/ui/States";
 import { FreshnessNote, UnavailableNote } from "@/components/ui/SurfaceMeta";
+import { PageHeader, Notice } from "@/components/ui/Primitives";
 
 const BYOK_FIELDS: Record<string, Record<string, string>> = {
   gmail: { access_token: "" }, google_calendar: { access_token: "" }, google_drive: { access_token: "" }, google_sheets: { access_token: "" },
@@ -43,6 +45,7 @@ export default function IntegrationsPage() {
   }
 
   useEffect(() => { void load(); }, []);
+  useCrmChange(() => { void load(); }, { tables: ["integrations", "tenant_integrations"] });
   const selected = useMemo(() => catalog.find((x) => x.provider === provider), [catalog, provider]);
   const filtered = catalog.filter((p) => `${p.name} ${p.purpose} ${p.category}`.toLowerCase().includes(query.toLowerCase()));
 
@@ -88,8 +91,9 @@ export default function IntegrationsPage() {
   if (error) return <div className="page"><ErrorState error={error} onRetry={load} /></div>;
 
   return <div className="page max-w-7xl space-y-5">
-    <header className="hero-panel p-6 md:p-8"><div className="label text-brand-700 dark:text-brand-300">LeadX Connect</div><h1 className="mt-2 page-title">Bring your revenue stack into LeadX.</h1><p className="page-sub">Connect managed OAuth or your own credentials. Credentials stay server-side and are never rendered back to the browser.</p><div className="mt-3"><FreshnessNote label="Connector catalog" detail={`${catalog.length} providers available`} /></div></header>
-    {msg && <div className="rounded-xl border border-line bg-surface-2 px-4 py-3 text-sm text-ink-muted" role="status">{msg}</div>}
+    <PageHeader eyebrow="LeadX Connect" title="Integrations" description="Connect managed OAuth or your own credentials. Credentials stay server-side and are never rendered back to the browser." actions={<button className="btn-secondary" onClick={() => void load()} disabled={loading}>Refresh</button>} />
+    <div className="mb-3"><FreshnessNote label="Connector catalog" detail={`${catalog.length} providers available`} /></div>
+    {msg && <Notice tone={msg.includes("failed") || msg.includes("Failed") ? "danger" : "neutral"}>{msg}</Notice>}
     <div className="grid gap-5 lg:grid-cols-[1.1fr_.9fr]">
       <section className="card-pad"><div className="flex items-center justify-between gap-3"><h2 className="text-sm font-semibold">Connector catalog</h2><span className="pill bg-brand-50 text-brand-800 dark:bg-brand-500/15 dark:text-brand-200">{catalog.length} connectors</span></div><input className="input mt-4" placeholder="Search connectors by purpose or provider…" value={query} onChange={(e) => setQuery(e.target.value)} />{filtered.length ? <div className="mt-4 grid gap-2 sm:grid-cols-2">{filtered.map((p) => <button aria-label={`Select ${p.name}`} key={p.provider} onClick={() => select(p)} className={`rounded-xl border p-3 text-left transition ${provider === p.provider ? "border-brand-400 bg-brand-50/70 dark:bg-brand-500/10" : "border-line bg-surface-2 hover:border-brand-300"}`}><div className="font-semibold text-sm text-ink">{p.name}</div><div className="mt-1 text-xs text-ink-muted">{p.purpose || "Provider purpose unavailable"}</div><div className="mt-2 text-[10px] uppercase tracking-wide text-ink-faint">{p.category || "Category unavailable"} · {p.auth || "Auth unavailable"}</div></button>)}</div> : <EmptyState title="No connectors match" hint="Try a broader provider or purpose search." />}</section>
       <section className="card-pad"><div className="label">Connect account</div><h2 className="mt-1 text-lg font-semibold text-ink">{selected?.name || provider}</h2><div className="mt-4 grid grid-cols-2 rounded-xl border border-line bg-surface-2 p-1"><button aria-label="Use LeadX OAuth" onClick={() => setMode("platform")} className={`rounded-lg px-3 py-2 text-sm ${mode === "platform" ? "bg-brand-400 text-black" : "text-ink-muted"}`}>LeadX OAuth</button><button aria-label="Use BYOK" onClick={() => { setMode("byok"); setConfig(BYOK_FIELDS[provider] || {}); }} className={`rounded-lg px-3 py-2 text-sm ${mode === "byok" ? "bg-brand-400 text-black" : "text-ink-muted"}`}>My BYOK</button></div>{mode === "byok" && <label className="mt-4 block text-xs font-semibold text-ink-muted">Connection name<input className="input mt-1" placeholder="e.g. Sales Gmail" value={name} onChange={(e) => setName(e.target.value)} /></label>}{mode === "byok" && <div className="mt-4 space-y-3">{Object.entries(config).map(([k, v]) => <label key={k} className="block text-xs font-semibold text-ink-muted">{k.replace(/_/g, " ")}<input className="input mt-1" type={k.includes("token") || k.includes("key") || k.includes("secret") ? "password" : "text"} value={v} onChange={(e) => setConfig({ ...config, [k]: e.target.value })} /></label>)}</div>}<button aria-label="Connect selected provider" className="btn-primary mt-4 w-full" disabled={busy} onClick={connect}>{busy ? "Connecting…" : mode === "platform" ? `Connect ${selected?.name || provider}` : "Save encrypted BYOK connection"}</button><p className="mt-3 text-[11px] leading-4 text-ink-faint">OAuth follows the provider authorization flow; BYOK encrypts the supplied credential server-side.</p></section>

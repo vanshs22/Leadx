@@ -5,7 +5,9 @@ import { crm, ReportsSummary } from "@/lib/api";
 import { getTenantId } from "@/lib/tenant";
 import { useCrmChange } from "@/lib/crmRealtime";
 import { FunnelChart } from "@/components/charts/FunnelChart";
-import { EmptyState, ErrorState, LoadingRows } from "@/components/ui/States";
+import { EmptyState, ErrorState, LoadingRows, PollingDeadlineState } from "@/components/ui/States";
+import { useLiveLoader } from "@/lib/live";
+import { PageHeader } from "@/components/ui/Primitives";
 import { FreshnessNote } from "@/components/ui/SurfaceMeta";
 import dynamic from "next/dynamic";
 
@@ -18,6 +20,7 @@ export default function ReportsPage() {
   const [stale, setStale] = useState(false);
   const [refreshKey, setRefreshKey] = useState(0);
   const [exporting, setExporting] = useState(false);
+  const [deadline, setDeadline] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -59,7 +62,9 @@ export default function ReportsPage() {
     return () => { cancelled = true; };
   }, [refreshKey]);
 
-  useCrmChange(() => setRefreshKey((value) => value + 1), { tables: ["lead_assignments", "leads_global", "lead_score_snapshots", "lead_quality_gates", "lead_verification_observations", "lead_outcome_events", "pipeline_stages"] });
+  useLiveLoader(() => { setRefreshKey((value) => value + 1); }, 30_000, [], { runImmediately: false, onDeadline: () => setDeadline(true) });
+
+  useCrmChange(() => { setDeadline(false); setRefreshKey((value) => value + 1); }, { tables: ["lead_assignments", "leads_global", "lead_score_snapshots", "lead_quality_gates", "lead_verification_observations", "lead_outcome_events", "pipeline_stages"] });
 
   async function exportCsv() {
     setExporting(true);
@@ -92,17 +97,8 @@ export default function ReportsPage() {
 
   return (
     <div className="page">
-      <header className="flex flex-wrap items-start justify-between gap-4">
-        <div>
-          <h1 className="page-title">Reports</h1>
-          <p className="page-sub">Quality mix and conversion snapshot · cached data remains visible when the API is restarting.</p>
-          <div className="mt-2 flex flex-wrap items-center gap-3"><FreshnessNote label={stale ? "Cached report" : "Fresh report"} detail={stale ? "refreshing in background" : "from CRM API"} />{error ? <span className="text-[11px] text-rust-500 dark:text-rust-300">Refresh issue: {error instanceof Error ? error.message : "report request failed"}</span> : null}</div>
-        </div>
-        <div className="flex items-center gap-2">
-          <button type="button" className="btn-secondary" onClick={() => setRefreshKey((value) => value + 1)} disabled={loading}>{loading ? "Refreshing…" : "Refresh"}</button>
-          <button aria-label="Action" onClick={exportCsv} disabled={exporting} className="btn-secondary disabled:opacity-50">{exporting ? "Exporting…" : "Export CSV"}</button>
-        </div>
-      </header>
+        <PageHeader eyebrow="Measure" title="Reports" description="Quality mix and conversion snapshot; cached data remains visible when the API is restarting." actions={<><button type="button" aria-label="Refresh reports" className="btn-secondary" onClick={() => { setDeadline(false); setRefreshKey((value) => value + 1); }} disabled={loading}>{loading ? "Refreshing…" : "Refresh"}</button><button type="button" aria-label="Export report as CSV" onClick={exportCsv} disabled={exporting} className="btn-secondary disabled:opacity-50">{exporting ? "Exporting…" : "Export CSV"}</button></>} meta={<FreshnessNote label={stale ? "Cached report" : "Fresh report"} detail={stale ? "refreshing in background" : "from CRM API"} />} />
+        {deadline ? <PollingDeadlineState onRefresh={() => { setDeadline(false); setRefreshKey((value) => value + 1); }} /> : null}
 
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         {[{ label: "Total leads", value: data.total }, { label: "With email", value: `${data.with_email} (${data.with_email_pct}%)` }, { label: "With booking", value: data.with_booking }, { label: "Avg score", value: data.avg_score }].map((c) => (

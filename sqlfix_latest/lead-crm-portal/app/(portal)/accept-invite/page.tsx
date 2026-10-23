@@ -73,14 +73,14 @@ export default function AcceptInvitePage() {
           )}
         </div>
         <div className="flex gap-2 text-xs">
-          <button aria-label="Action"
+          <button
             type="button"
             onClick={() => setMode("new")}
             className={mode === "new" ? "btn-primary" : "btn-secondary"}
           >
             I'm new
           </button>
-          <button aria-label="Action"
+          <button
             type="button"
             onClick={() => setMode("existing")}
             className={mode === "existing" ? "btn-primary" : "btn-secondary"}
@@ -113,7 +113,7 @@ export default function AcceptInvitePage() {
           required
         />
         {error && <p className="text-sm text-rust-500">{error}</p>}
-        <button aria-label="Action"
+        <button
           type="submit"
           disabled={busy || !token}
           className="btn-primary w-full disabled:opacity-50"

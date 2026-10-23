@@ -98,7 +98,7 @@ export function SavedViews<T extends Record<string, any>>({
               : "border-line bg-surface-2 text-ink-muted"
           }`}
         >
-          <button aria-label="Action"
+          <button
             type="button"
             onClick={() => {
               setActiveId(v.id);
@@ -110,7 +110,7 @@ export function SavedViews<T extends Record<string, any>>({
             {v.is_default ? " ★" : ""}
           </button>
           {!v.is_default && (
-            <button aria-label="Action"
+            <button
               type="button"
               onClick={() => makeDefault(v)}
               title="Make default"
@@ -119,7 +119,7 @@ export function SavedViews<T extends Record<string, any>>({
               ☆
             </button>
           )}
-          <button aria-label="Action"
+          <button
             type="button"
             onClick={() => remove(v)}
             title="Delete view"
@@ -143,15 +143,15 @@ export function SavedViews<T extends Record<string, any>>({
               if (e.key === "Escape") setNaming(false);
             }}
           />
-          <button aria-label="Action" type="button" onClick={save} className="text-xs font-medium text-brand-600 dark:text-brand-300">
+          <button type="button" onClick={save} className="text-xs font-medium text-brand-600 dark:text-brand-300">
             Save
           </button>
-          <button aria-label="Action" type="button" onClick={() => setNaming(false)} className="text-xs text-ink-faint">
+          <button type="button" onClick={() => setNaming(false)} className="text-xs text-ink-faint">
             Cancel
           </button>
         </span>
       ) : (
-        <button aria-label="Action"
+        <button
           type="button"
           onClick={() => setNaming(true)}
           className="rounded-full border border-dashed border-line px-2.5 py-1 text-xs text-ink-muted hover:text-ink"

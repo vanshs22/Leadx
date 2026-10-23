@@ -4,8 +4,10 @@ import { useCallback, useEffect, useState } from "react";
 import { crm } from "@/lib/api";
 import { getTenantId } from "@/lib/tenant";
 import { useCrmChange } from "@/lib/crmRealtime";
-import { EmptyState, ErrorState, LoadingRows } from "@/components/ui/States";
+import { EmptyState, ErrorState, LoadingRows, PollingDeadlineState } from "@/components/ui/States";
 import { FreshnessNote, UnavailableNote } from "@/components/ui/SurfaceMeta";
+import { useLiveLoader } from "@/lib/live";
+import { PageHeader } from "@/components/ui/Primitives";
 
 type Step = { subject: string; body_html: string; delay_days: number };
 
@@ -20,6 +22,8 @@ export default function SequencesPage() {
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
   const [aiBusy, setAiBusy] = useState<string | null>(null);
+  const [pollingExpired, setPollingExpired] = useState(false);
+  const [refreshKey, setRefreshKey] = useState(0);
 
   const load = useCallback(() => {
     setLoading(true);
@@ -29,7 +33,7 @@ export default function SequencesPage() {
       .catch((e) => { setLoadError(e); setMsg(""); })
       .finally(() => setLoading(false));
   }, []);
-  useEffect(() => { void load(); }, [load]);
+  useLiveLoader(load, 30_000, [refreshKey], { onDeadline: () => setPollingExpired(true) });
   useCrmChange(load, { tables: ["email_sequences", "email_sequence_steps", "email_sequence_enrollments", "email_sequence_sends"] });
 
   function updateStep(i: number, patch: Partial<Step>) {
@@ -114,13 +118,8 @@ export default function SequencesPage() {
 
   return (
     <div className="page">
-      <header>
-        <h1 className="page-title">Follow-up sequences</h1>
-        <p className="page-sub">
-          Build follow-up systems once, see reuse and stop reasons clearly, and keep provider-generated copy labeled as such.
-        </p>
-        <div className="mt-2 flex flex-wrap items-center gap-3"><FreshnessNote label="Live sequence telemetry" detail={`${sequences.length} sequences`} /><span className="text-[11px] text-ink-faint">Enrollment counts appear only when the API returns them.</span></div>
-      </header>
+      <PageHeader eyebrow="Engage" title="Follow-up sequences" description="Build follow-up systems once, inspect delivery outcomes, and keep provider-generated copy labeled as such." meta={<FreshnessNote label="Live sequence telemetry" detail={`${sequences.length} sequences · read-side refresh only`} />} />
+      {pollingExpired && <PollingDeadlineState onRefresh={() => { setPollingExpired(false); setRefreshKey((value) => value + 1); }} />}
 
       <div className="card-pad space-y-4">
         <h2 className="text-sm font-semibold text-ink">New sequence</h2>
@@ -146,18 +145,12 @@ export default function SequencesPage() {
                   />
                   day(s)
                 </span>
-                <button aria-label="Action"
-                  type="button"
-                  disabled={!!aiBusy}
-                  onClick={() => aiWrite(i)}
+                <button aria-label={`AI write step ${i + 1}`}
                   className="rounded-lg border border-brand-500/40 bg-brand-500/10 px-2.5 py-1 font-medium text-brand-200 hover:bg-brand-500/20 disabled:opacity-50"
                 >
                   {aiBusy === `write-${i}` ? "Writing…" : "AI write"}
                 </button>
-                <button aria-label="Action"
-                  type="button"
-                  disabled={!!aiBusy}
-                  onClick={() => aiRephrase(i)}
+                <button aria-label={`AI rephrase step ${i + 1}`}
                   className="rounded-lg border border-line px-2.5 py-1 font-medium text-ink hover:bg-surface-2 disabled:opacity-50"
                 >
                   {aiBusy === `rephrase-${i}` ? "Rephrasing…" : "AI rephrase"}
@@ -180,14 +173,12 @@ export default function SequencesPage() {
         ))}
 
         <div className="flex flex-wrap gap-2">
-          <button aria-label="Action"
-            type="button"
-            className="rounded-lg border border-line px-3 py-2 text-sm"
+          <button aria-label="Add sequence step"
             onClick={() => setSteps((s) => [...s, { subject: "", body_html: "", delay_days: (s[s.length - 1]?.delay_days || 0) + 3 }])}
           >
             + Add step
           </button>
-          <button aria-label="Action" type="button" disabled={busy} onClick={save} className="rounded-lg bg-brand-600 px-4 py-2 text-sm font-medium text-white disabled:opacity-50">
+          <button aria-label="Create follow-up sequence" type="button" disabled={busy} onClick={save} className="rounded-lg bg-brand-600 px-4 py-2 text-sm font-medium text-white disabled:opacity-50">
             {busy ? "Saving…" : "Create sequence"}
           </button>
         </div>

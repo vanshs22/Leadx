@@ -154,7 +154,7 @@ export default function OnboardingWizardPage() {
             Your offer category
             <input className="input mt-1" value={offer} onChange={(e) => setOffer(e.target.value)} />
           </label>
-          <button aria-label="Action" disabled={busy || !vertical.trim()} className="btn-primary w-full" onClick={saveIcpAndContinue}>
+          <button disabled={busy || !vertical.trim()} className="btn-primary w-full" onClick={saveIcpAndContinue}>
             {busy ? "Saving…" : "Continue"}
           </button>
         </div>
@@ -183,8 +183,8 @@ export default function OnboardingWizardPage() {
             </label>
           )}
           <div className="flex gap-2">
-            <button aria-label="Action" className="btn-secondary" onClick={() => setStep(0)}>Back</button>
-            <button aria-label="Action" disabled={busy} className="btn-primary flex-1" onClick={saveDeliveryAndContinue}>
+            <button className="btn-secondary" onClick={() => setStep(0)}>Back</button>
+            <button disabled={busy} className="btn-primary flex-1" onClick={saveDeliveryAndContinue}>
               {busy ? "Saving…" : "Continue"}
             </button>
           </div>
@@ -200,8 +200,8 @@ export default function OnboardingWizardPage() {
             {geo ? ` in ${geo}` : ""} so you can see quality before going live.
           </p>
           <div className="flex gap-2">
-            <button aria-label="Action" className="btn-secondary" onClick={() => setStep(1)}>Back</button>
-            <button aria-label="Action" disabled={busy} className="btn-primary flex-1" onClick={loadSampleAndContinue}>
+            <button className="btn-secondary" onClick={() => setStep(1)}>Back</button>
+            <button disabled={busy} className="btn-primary flex-1" onClick={loadSampleAndContinue}>
               {busy ? "Loading sample…" : "Load sample pack"}
             </button>
           </div>
@@ -226,7 +226,7 @@ export default function OnboardingWizardPage() {
               ))}
             </ul>
           )}
-          <button aria-label="Action" className="btn-primary w-full" onClick={goLive}>
+          <button className="btn-primary w-full" onClick={goLive}>
             Go to Search
           </button>
         </div>

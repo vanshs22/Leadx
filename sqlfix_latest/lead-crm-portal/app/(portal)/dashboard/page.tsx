@@ -9,6 +9,7 @@ import { chartColors } from "@/lib/chartColors";
 import { useCrmChange } from "@/lib/crmRealtime";
 import { useLiveLoader } from "@/lib/live";
 import { ErrorState, PollingDeadlineState } from "@/components/ui/States";
+import { PageHeader, QuietBreadcrumbs } from "@/components/ui/Primitives";
 import dynamic from "next/dynamic";
 const Sparkline = dynamic(() => import("@/components/charts/Sparkline").then((m) => m.Sparkline), { ssr: false, loading: () => <div className="skeleton h-12 w-full rounded-lg" /> });
 const TierDonut = dynamic(() => import("@/components/charts/TierDonut").then((m) => m.TierDonut), { ssr: false, loading: () => <div className="skeleton h-12 w-full rounded-lg" /> });
@@ -127,23 +128,12 @@ export default function DashboardPage() {
 
   return (
     <div className="page">
-      <header className="flex flex-wrap items-end justify-between gap-4 rounded-3xl border border-line/70 bg-surface-2/70 p-5 shadow-card backdrop-blur-xl md:p-6">
-        <div>
-          <h1 className="page-title">{tenant?.name ? tenant.name : "Your workspace"}</h1>
-          <p className="page-sub">Opportunity intelligence · verified contacts · next-best actions</p>
-        </div>
-        <div className="flex items-center gap-3">
-          {refreshing && <span className="text-[11px] font-medium text-brand-500">Syncing live…</span>}
-          <div className="flex flex-wrap gap-2">
-          <Link href="/leads" className="btn-primary">
-            Work leads →
-          </Link>
-          <Link href="/reports" className="btn-secondary">
-            Reports
-          </Link>
-          </div>
-        </div>
-      </header>
+      <PageHeader
+        eyebrow={<QuietBreadcrumbs items={[{ label: "Workspace" }, { label: "Overview" }]} />}
+        title={tenant?.name ? tenant.name : "Your workspace"}
+        description="Opportunity intelligence · verified contacts · next-best actions"
+        actions={<><div className="flex items-center gap-3">{refreshing && <span className="text-[11px] font-medium text-brand-500">Syncing live…</span>}<Link href="/leads" className="btn-primary">Work leads →</Link><Link href="/reports" className="btn-secondary">Reports</Link></div></>}
+      />
       {pollingExpired && <PollingDeadlineState onRefresh={() => { setPollingExpired(false); refresh(); }} />}
 
       <div className="growth-banner overflow-hidden p-5 md:p-6">

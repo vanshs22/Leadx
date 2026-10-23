@@ -9,6 +9,7 @@ import { useLiveLoader } from "@/lib/live";
 import { OperationStateCard, toOperationState } from "@/components/ui/OperationState";
 import { EmptyState, ErrorState, LoadingRows, PollingDeadlineState } from "@/components/ui/States";
 import { Icon, type IconName } from "@/components/ui/Icon";
+import { PageHeader, QuietBreadcrumbs } from "@/components/ui/Primitives";
 
 type GrowthData = {
   dashboard: DashboardResponse | null;
@@ -184,17 +185,13 @@ export default function GrowthPage() {
 
   return (
     <div className="page">
-      <header className="hero-panel overflow-hidden p-5 md:p-7">
-        <div className="flex flex-wrap items-start justify-between gap-5">
-          <div className="max-w-3xl">
-            <div className="eyebrow flex items-center gap-2 text-brand-700 dark:text-brand-300"><span className="live-dot" /> Growth workspace</div>
-            <h1 className="page-title mt-2">Turn a target into pipeline.</h1>
-            <p className="page-sub">Configure who you want, reuse the verified database before fresh discovery, and monitor every handoff from evidence to reply to revenue.</p>
-          </div>
-          <div className="flex items-center gap-2"><span className="pill border border-line bg-surface-2 text-ink-muted">{refreshing ? "Syncing" : "Live workspace"}</span><button type="button" className="btn-secondary" onClick={() => void refresh(true)} disabled={refreshing}>Refresh</button></div>
-        </div>
-        {failedPanels.length > 0 && <div className="mt-5 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-amber-300/60 bg-amber-50/70 px-3 py-2.5 text-xs text-amber-900 dark:bg-amber-500/10 dark:text-amber-200"><span><b>Some signals are degraded.</b> Core CRM data remains available; affected panels will recover on the next refresh.</span><button type="button" className="font-semibold underline" onClick={() => void refresh(true)}>Retry</button></div>}
-      </header>
+      <PageHeader
+        eyebrow={<QuietBreadcrumbs items={[{ label: "Workspace", href: "/dashboard" }, { label: "Growth" }]} />}
+        title="Turn a target into pipeline."
+        description="Configure who you want, reuse the verified database before fresh discovery, and monitor every handoff from evidence to reply to revenue."
+        actions={<div className="flex items-center gap-2"><span className="pill border border-line bg-surface-2 text-ink-muted">{refreshing ? "Syncing" : "Live workspace"}</span><button type="button" className="btn-secondary" onClick={() => void refresh(true)} disabled={refreshing}>Refresh</button></div>}
+      />
+      {failedPanels.length > 0 && <div className="notice notice-warning"><span><b>Some signals are degraded.</b> Core CRM data remains available; affected panels will recover on the next refresh.</span><button type="button" className="font-semibold underline" onClick={() => void refresh(true)}>Retry</button></div>}
 
       {error && <ErrorState error={error} onRetry={() => void refresh()} />}
       {pollingExpired && <PollingDeadlineState onRefresh={() => { setPollingExpired(false); void refresh(true); }} />}

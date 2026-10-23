@@ -226,13 +226,13 @@ export default function AdminAutomationPage() {
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
-          <button aria-label="Action" type="button" className="btn-primary" onClick={() => setFormOpen(true)}>
+          <button type="button" className="btn-primary" onClick={() => setFormOpen(true)}>
             New automation
           </button>
-          <button aria-label="Action" type="button" className="btn-secondary" onClick={() => setSeqOpen(true)}>
+          <button type="button" className="btn-secondary" onClick={() => setSeqOpen(true)}>
             New sequence
           </button>
-          <button aria-label="Action"
+          <button
             type="button"
             className="btn-secondary"
             disabled={busy}
@@ -369,7 +369,7 @@ export default function AdminAutomationPage() {
                   </td>
                   <td className="px-4 py-3">
                     <div className="flex justify-end gap-2">
-                      <button aria-label="Action"
+                      <button
                         type="button"
                         className="btn-ghost text-xs"
                         disabled={busy}
@@ -379,7 +379,7 @@ export default function AdminAutomationPage() {
                       >
                         Run now
                       </button>
-                      <button aria-label="Action"
+                      <button
                         type="button"
                         className="btn-ghost text-xs"
                         disabled={busy}
@@ -392,7 +392,7 @@ export default function AdminAutomationPage() {
                       >
                         {s.active ? "Pause" : "Resume"}
                       </button>
-                      <button aria-label="Action"
+                      <button
                         type="button"
                         className="btn-ghost text-xs text-danger"
                         disabled={busy}
@@ -428,7 +428,7 @@ export default function AdminAutomationPage() {
               <h2 id="new-automation-title" className="text-lg font-semibold text-ink">
                 New automation
               </h2>
-              <button aria-label="Action" type="button" className="btn-ghost" onClick={() => setFormOpen(false)}>
+              <button type="button" className="btn-ghost" onClick={() => setFormOpen(false)}>
                 Close
               </button>
             </div>
@@ -571,10 +571,10 @@ export default function AdminAutomationPage() {
             </div>
 
             <div className="flex gap-2">
-              <button aria-label="Action" type="submit" disabled={busy} className="btn-primary">
+              <button type="submit" disabled={busy} className="btn-primary">
                 {busy ? "Saving…" : "Create automation"}
               </button>
-              <button aria-label="Action" type="button" className="btn-secondary" onClick={() => setFormOpen(false)}>
+              <button type="button" className="btn-secondary" onClick={() => setFormOpen(false)}>
                 Cancel
               </button>
             </div>
@@ -597,7 +597,7 @@ export default function AdminAutomationPage() {
               <h2 id="new-sequence-title" className="text-lg font-semibold text-ink">
                 New sequence
               </h2>
-              <button aria-label="Action" type="button" className="btn-ghost" onClick={() => setSeqOpen(false)}>
+              <button type="button" className="btn-ghost" onClick={() => setSeqOpen(false)}>
                 Close
               </button>
             </div>
@@ -627,7 +627,7 @@ export default function AdminAutomationPage() {
                 <div className="flex items-center justify-between gap-2">
                   <span className="label">Step {idx + 1}</span>
                   {steps.length > 1 && (
-                    <button aria-label="Action"
+                    <button
                       type="button"
                       className="btn-ghost text-xs text-danger"
                       onClick={() => setSteps(steps.filter((_, i) => i !== idx))}
@@ -689,7 +689,7 @@ export default function AdminAutomationPage() {
               </div>
             ))}
 
-            <button aria-label="Action"
+            <button
               type="button"
               className="btn-secondary"
               disabled={steps.length >= 20}
@@ -709,10 +709,10 @@ export default function AdminAutomationPage() {
             </button>
 
             <div className="flex gap-2">
-              <button aria-label="Action" type="submit" disabled={busy} className="btn-primary">
+              <button type="submit" disabled={busy} className="btn-primary">
                 {busy ? "Saving…" : "Create sequence"}
               </button>
-              <button aria-label="Action" type="button" className="btn-secondary" onClick={() => setSeqOpen(false)}>
+              <button type="button" className="btn-secondary" onClick={() => setSeqOpen(false)}>
                 Cancel
               </button>
             </div>

@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { crm } from "@/lib/api";
 import { getTenantId } from "@/lib/tenant";
+import { PageHeader, Notice } from "@/components/ui/Primitives";
 
 function applyVars(html: string, vars: Record<string, string>) {
   return (html || "").replace(/\{\{\s*([a-zA-Z0-9_]+)\s*\}\}/g, (_, k) =>
@@ -105,7 +106,7 @@ function ToolBtn({
   className?: string;
 }) {
   return (
-    <button aria-label="Action"
+    <button
       type="button"
       title={title}
       onMouseDown={(e) => e.preventDefault()}
@@ -319,38 +320,14 @@ export default function DocsPage() {
 
   return (
     <div className="page max-w-[1400px] space-y-4">
-      <header className="flex flex-wrap items-start justify-between gap-3">
-        <div>
-          <h1 className="page-title">Document editor</h1>
-          <p className="page-sub">Template · fields · format like Word · download or send</p>
-        </div>
-        <div className="flex flex-wrap items-center gap-2">
-          {dirty && (
-            <button aria-label="Action" type="button" onClick={resetPreview} className="btn-ghost text-xs">
-              Reset preview
-            </button>
-          )}
-          <button aria-label="Action" type="button" onClick={downloadDoc} className="btn-secondary text-sm" disabled={!selectedTpl}>
-            Download
-          </button>
-          <select className="input max-w-[120px] text-sm" value={channel} onChange={(e) => setChannel(e.target.value)}>
-            <option value="email">Email</option>
-            <option value="whatsapp">WhatsApp</option>
-          </select>
-          <button aria-label="Action" disabled={busy || !selected} onClick={send} className="btn-primary">
-            {busy ? "Sending…" : "Generate & send"}
-          </button>
-        </div>
-      </header>
+      <PageHeader eyebrow="Workspace documents" title="Document editor" description="Template · fields · format like Word · download or send" actions={<div className="flex flex-wrap items-center gap-2">{dirty && <button type="button" onClick={resetPreview} className="btn-ghost text-xs">Reset preview</button>}<button type="button" onClick={downloadDoc} className="btn-secondary text-sm" disabled={!selectedTpl}>Download</button><select aria-label="Delivery channel" className="input max-w-[120px] text-sm" value={channel} onChange={(e) => setChannel(e.target.value)}><option value="email">Email</option><option value="whatsapp">WhatsApp</option></select><button disabled={busy || !selected} onClick={send} className="btn-primary">{busy ? "Sending…" : "Generate & send"}</button></div>} />
 
-      {msg && (
-        <div className="rounded-xl border border-line bg-surface-2 px-4 py-2.5 text-sm text-ink-muted">{msg}</div>
-      )}
+      {msg && <Notice tone={msg.toLowerCase().includes("failed") || msg.toLowerCase().includes("error") ? "danger" : "neutral"}>{msg}</Notice>}
 
       <div className="space-y-2">
         <div className="flex flex-wrap gap-2">
           {categories.map((c) => (
-            <button aria-label="Action"
+            <button
               key={c}
               type="button"
               onClick={() => setFilter(c)}
@@ -367,7 +344,7 @@ export default function DocsPage() {
             const active = t.id === selected;
             const cm = CATEGORY_META[t.category] || { label: t.category };
             return (
-              <button aria-label="Action"
+              <button
                 key={t.id}
                 type="button"
                 onClick={() => selectTemplate(t.id)}
@@ -425,7 +402,7 @@ export default function DocsPage() {
             <div className="text-xs font-bold uppercase tracking-wider text-ink-faint">Send to</div>
             <input className="input" placeholder="client@email.com" value={toEmail} onChange={(e) => setToEmail(e.target.value)} />
             <input className="input" placeholder="WhatsApp +1…" value={toPhone} onChange={(e) => setToPhone(e.target.value)} />
-            <button aria-label="Action" type="button" onClick={downloadDoc} className="btn-secondary w-full text-sm" disabled={!selectedTpl}>
+            <button type="button" onClick={downloadDoc} className="btn-secondary w-full text-sm" disabled={!selectedTpl}>
               Download HTML
             </button>
           </div>
@@ -505,7 +482,7 @@ export default function DocsPage() {
             <div className="w-px h-6 bg-line mx-0.5" />
             <span className="text-[10px] text-ink-faint px-1">Color</span>
             {COLORS.map((c) => (
-              <button aria-label="Action"
+              <button
                 key={c}
                 type="button"
                 title={c}
@@ -523,7 +500,7 @@ export default function DocsPage() {
             <div className="w-px h-6 bg-line mx-0.5" />
             <span className="text-[10px] text-ink-faint px-1">Highlight</span>
             {HIGHLIGHTS.map((c) => (
-              <button aria-label="Action"
+              <button
                 key={c}
                 type="button"
                 title={c}

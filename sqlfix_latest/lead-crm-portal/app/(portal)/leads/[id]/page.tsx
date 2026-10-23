@@ -227,7 +227,7 @@ export default function LeadDetailPage() {
               Website ↗
             </a>
           )}
-          <button aria-label="Action" type="button" className="btn-primary" disabled={busy || researchBusy} onClick={fetchMoreData}>
+          <button type="button" className="btn-primary" disabled={busy || researchBusy} onClick={fetchMoreData}>
             {researchBusy ? "Researching…" : "✦ Fetch more data"}
           </button>
           <button aria-label="Prospect audit" type="button" className="btn-secondary" disabled={busy} onClick={generateAudit}>Prospect audit</button>
@@ -322,7 +322,7 @@ export default function LeadDetailPage() {
             <h2 className="text-sm font-semibold">Update stage</h2>
             <div className="mt-2 flex flex-wrap gap-2">
               {stages.map((s: any) => (
-                <button aria-label="Action" key={s.id} disabled={busy} onClick={() => moveStage(s.id)} className="btn-secondary">
+                <button key={s.id} disabled={busy} onClick={() => moveStage(s.id)} className="btn-secondary">
                   {s.name || s.slug}
                 </button>
               ))}
@@ -344,7 +344,7 @@ export default function LeadDetailPage() {
           <div className="border-t border-line pt-4 space-y-2">
             <div className="flex justify-between">
               <h3 className="text-sm font-semibold">Email this lead</h3>
-              <button aria-label="Action" type="button" className="btn-ghost text-xs" onClick={() => setEmailOpen(!emailOpen)}>
+              <button type="button" className="btn-ghost text-xs" onClick={() => setEmailOpen(!emailOpen)}>
                 {emailOpen ? "Hide" : "Compose"}
               </button>
             </div>

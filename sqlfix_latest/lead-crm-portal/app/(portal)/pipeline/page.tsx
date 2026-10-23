@@ -187,7 +187,7 @@ export default function PipelinePage() {
         </div>
         <div className="flex items-center gap-2">
           <span className={`pill ${saving ? "bg-signal-50 text-signal-700 dark:bg-signal-500/10 dark:text-signal-300" : ""}`}>{saving ? "Saving" : msg || "Live"}</span>
-          <button aria-label="Action" className="btn-secondary" onClick={() => load()} disabled={loading}>{loading ? "Refreshing…" : "Refresh"}</button>
+          <button className="btn-secondary" onClick={() => load()} disabled={loading}>{loading ? "Refreshing…" : "Refresh"}</button>
         </div>
       </header>
 

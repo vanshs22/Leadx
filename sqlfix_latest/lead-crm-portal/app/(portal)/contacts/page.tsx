@@ -15,6 +15,7 @@ import { useChangedIds } from "@/lib/live";
 import { BulkActionBar } from "@/components/BulkActionBar";
 import { EmptyState, ErrorState, LoadingRows } from "@/components/ui/States";
 import { FreshnessNote, UnavailableNote } from "@/components/ui/SurfaceMeta";
+import { PageHeader, FilterBar, Pagination } from "@/components/ui/Primitives";
 
 const PAGE_SIZE = 25;
 
@@ -173,21 +174,7 @@ export default function ContactsPage() {
 
   return (
     <div className="page">
-      <header className="flex flex-wrap items-end justify-between gap-4">
-        <div>
-          <h1 className="page-title">Contacts</h1>
-          <p className="page-sub">{total} people across your accounts · keep decision-makers, reachability, and ownership visible.</p>
-          <div className="mt-2 flex flex-wrap items-center gap-3"><FreshnessNote label="Live CRM view" detail="contact records" /><span className="text-[11px] text-ink-faint">Reachability reflects only email and phone fields returned by the API.</span></div>
-        </div>
-        <div className="flex flex-wrap gap-2">
-          <button aria-label="Action" type="button" onClick={() => setFormOpen(true)} className="btn-primary">
-            New contact
-          </button>
-          <button aria-label="Action" type="button" onClick={load} className="btn-secondary">
-            Refresh
-          </button>
-        </div>
-      </header>
+      <PageHeader title="Contacts" description={`${total} people across your accounts · keep decision-makers, reachability, and ownership visible.`} meta={<><FreshnessNote label="Live CRM view" detail="contact records" /><span>Reachability reflects only email and phone fields returned by the API.</span></>} actions={<><button aria-label="Create contact" type="button" onClick={() => setFormOpen(true)} className="btn-primary">New contact</button><button aria-label="Refresh contacts" type="button" onClick={load} className="btn-secondary">Refresh</button></>} />
 
       {msg && (
         <div className="rounded-xl border border-line bg-surface-2 px-4 py-2.5 text-sm text-ink-muted">
@@ -195,41 +182,7 @@ export default function ContactsPage() {
         </div>
       )}
 
-      <div className="card-pad flex flex-wrap gap-3">
-        <label className="sr-only" htmlFor="contact-search">
-          Search contacts
-        </label>
-        <input
-          id="contact-search"
-          className="input min-w-[200px] flex-1"
-          type="search"
-          placeholder="Search name, email, title…"
-          value={search}
-          onChange={(e) => {
-            setSearch(e.target.value);
-            setPage(0);
-          }}
-        />
-        <label className="sr-only" htmlFor="contact-status">
-          Filter by status
-        </label>
-        <select
-          id="contact-status"
-          className="input max-w-[180px]"
-          value={status}
-          onChange={(e) => {
-            setStatus(e.target.value);
-            setPage(0);
-          }}
-        >
-          <option value="">All statuses</option>
-          {CONTACT_STATUSES.map((s) => (
-            <option key={s} value={s}>
-              {s}
-            </option>
-          ))}
-        </select>
-      </div>
+      <FilterBar onClear={() => { setSearch(""); setStatus(""); setPage(0); }}><label className="sr-only" htmlFor="contact-search">Search contacts</label><input id="contact-search" className="input min-w-[200px] flex-1" type="search" placeholder="Search name, email, title…" value={search} onChange={(e) => { setSearch(e.target.value); setPage(0); }} /><label className="sr-only" htmlFor="contact-status">Filter by status</label><select id="contact-status" className="input max-w-[180px]" value={status} onChange={(e) => { setStatus(e.target.value); setPage(0); }}><option value="">All statuses</option>{CONTACT_STATUSES.map((s) => <option key={s} value={s}>{s}</option>)}</select></FilterBar>
 
       {loading ? (
         <LoadingRows rows={6} cols={5} />
@@ -339,31 +292,7 @@ export default function ContactsPage() {
         </div>
       )}
 
-      {!loading && rows.length > 0 && (
-        <div className="flex items-center justify-between text-sm text-ink-muted">
-          <span>
-            Page {page + 1} of {pageCount}
-          </span>
-          <div className="flex gap-2">
-            <button aria-label="Action"
-              type="button"
-              className="btn-secondary"
-              disabled={page === 0}
-              onClick={() => setPage((p) => Math.max(0, p - 1))}
-            >
-              Previous
-            </button>
-            <button aria-label="Action"
-              type="button"
-              className="btn-secondary"
-              disabled={page + 1 >= pageCount}
-              onClick={() => setPage((p) => p + 1)}
-            >
-              Next
-            </button>
-          </div>
-        </div>
-      )}
+      {!loading && rows.length > 0 && <Pagination page={page} pageCount={pageCount} onPageChange={setPage} />}
 
       {formOpen && (
         <div
@@ -380,7 +309,7 @@ export default function ContactsPage() {
               <h2 id="new-contact-title" className="text-lg font-semibold text-ink">
                 New contact
               </h2>
-              <button aria-label="Action" type="button" className="btn-ghost" onClick={() => setFormOpen(false)}>
+              <button type="button" className="btn-ghost" onClick={() => setFormOpen(false)}>
                 Close
               </button>
             </div>
@@ -495,10 +424,10 @@ export default function ContactsPage() {
             </div>
 
             <div className="flex gap-2">
-              <button aria-label="Action" type="submit" disabled={saving} className="btn-primary">
+              <button type="submit" disabled={saving} className="btn-primary">
                 {saving ? "Saving…" : "Create contact"}
               </button>
-              <button aria-label="Action" type="button" className="btn-secondary" onClick={() => setFormOpen(false)}>
+              <button type="button" className="btn-secondary" onClick={() => setFormOpen(false)}>
                 Cancel
               </button>
             </div>

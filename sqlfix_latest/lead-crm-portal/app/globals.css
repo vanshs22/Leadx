@@ -68,6 +68,11 @@ h1,h2,h3,h4 { font-family: var(--font-display), var(--font-sans), sans-serif; le
 
 @layer components {
   .page { @apply mx-auto w-full max-w-[1440px] space-y-6 p-4 sm:p-6 lg:p-8; }
+  .page-header { @apply flex flex-wrap items-end justify-between gap-4; }
+  .page-actions { @apply flex flex-wrap items-center gap-2; }
+  .page-meta { @apply mt-2 flex flex-wrap items-center gap-3 text-[11px] text-ink-faint; }
+  .breadcrumbs { @apply flex flex-wrap items-center gap-2 text-[11px] font-medium text-ink-faint; }
+  .quiet-action { @apply inline-flex items-center gap-2 rounded-lg border border-line bg-surface-2 px-3 py-1.5 text-xs font-medium text-ink-muted transition hover:border-brand-300/70 hover:text-ink; }
   .page-title { @apply font-display text-[1.7rem] font-bold tracking-tight text-ink md:text-3xl; }
   .page-sub { @apply mt-1.5 max-w-3xl text-sm leading-6 text-ink-muted; }
   .card { @apply rounded-2xl border border-line bg-surface-2 shadow-card; }
@@ -100,6 +105,26 @@ h1,h2,h3,h4 { font-family: var(--font-display), var(--font-sans), sans-serif; le
   .topbar { @apply border-b border-line/80 bg-surface-2/85 shadow-sm backdrop-blur-xl; }
   .page-shell { @apply page; }
   .icon-button { @apply inline-flex h-9 w-9 items-center justify-center rounded-xl border border-line bg-surface-2 text-ink-muted shadow-sm transition hover:border-brand-300/70 hover:bg-surface-3 hover:text-ink focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-500/30; }
+  .filter-bar { @apply flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-line bg-surface-2/80 p-3 shadow-sm; }
+  .data-table-wrap { @apply overflow-x-auto rounded-2xl border border-line bg-surface-2; }
+  .data-table { @apply w-full min-w-[680px] text-sm; }
+  .data-table thead { @apply bg-surface-3/70; }
+  .data-table th { @apply px-4 py-3 text-left; }
+  .data-table td { @apply px-4 py-3; }
+  .data-table tbody tr { @apply border-t border-line/70; }
+  .drawer-layer,.dialog-layer { @apply fixed inset-0 z-[80] flex bg-slate-950/35 backdrop-blur-[2px]; }
+  .drawer-layer { @apply justify-end; }
+  .drawer-panel { @apply flex h-full w-full max-w-xl flex-col border-l border-line bg-surface-2 shadow-lift; }
+  .drawer-header { @apply flex items-start justify-between gap-4 border-b border-line px-5 py-4; }
+  .drawer-body { @apply min-h-0 flex-1 overflow-y-auto p-5; }
+  .drawer-footer { @apply border-t border-line px-5 py-4; }
+  .dialog-layer { @apply items-center justify-center p-4; }
+  .dialog-panel { @apply w-full max-w-md rounded-2xl border border-line bg-surface-2 p-5 shadow-lift; }
+  .notice { @apply flex items-start justify-between gap-3 rounded-xl border px-4 py-3 text-sm; }
+  .notice-neutral { @apply border-line bg-surface-2 text-ink-muted; }
+  .notice-success { @apply border-signal-300/60 bg-signal-50/70 text-signal-800 dark:bg-signal-500/10 dark:text-signal-200; }
+  .notice-warning { @apply border-amber-300/60 bg-amber-50/70 text-amber-900 dark:bg-amber-500/10 dark:text-amber-200; }
+  .notice-danger { @apply border-rust-300/60 bg-rust-50/70 text-rust-800 dark:bg-rust-500/10 dark:text-rust-200; }
 
   .brand-mark {
     @apply relative flex h-9 w-9 shrink-0 items-center justify-center overflow-hidden rounded-xl bg-slate-950 text-[11px] font-black tracking-tight text-white shadow-sm;
@@ -213,6 +238,10 @@ tbody tr:hover { background: rgb(var(--brand) / .05); }
 @media (max-width: 640px) {
   .page { padding: 1rem; }
   table { font-size: .8125rem; }
+  .page-header { align-items: flex-start; }
+  .page-actions { width: 100%; }
+  .page-actions > * { flex: 1 1 auto; }
+  .drawer-panel { max-width: none; }
 }
 
 /* Respect users who ask for less motion. */

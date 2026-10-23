@@ -7,6 +7,7 @@ import { admin, adminExtras } from "@/lib/admin";
 import { chartColors } from "@/lib/chartColors";
 import { ErrorState, PollingDeadlineState } from "@/components/ui/States";
 import { Icon } from "@/components/ui/Icon";
+import { PageHeader } from "@/components/ui/Primitives";
 import dynamic from "next/dynamic";
 const Sparkline = dynamic(() => import("@/components/charts/Sparkline").then((m) => m.Sparkline), { ssr: false, loading: () => <div className="skeleton h-12 w-full rounded-lg" /> });
 
@@ -103,16 +104,7 @@ export default function AdminOverviewPage() {
 
   return (
     <div className="page">
-      <header className="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
-        <div>
-        <div className="section-kicker">LeadX control plane</div>
-        <h1 className="page-title">Operator console</h1>
-        <p className="page-sub">Run the service, protect quality, keep clients supplied</p>
-        </div>
-        <div className={`inline-flex items-center gap-2 rounded-full border px-3 py-1.5 text-xs font-semibold ${system?.ok === false ? "border-rust-300 bg-rust-50 text-rust-700 dark:bg-rust-500/10 dark:text-rust-300" : "border-signal-300 bg-signal-50 text-signal-700 dark:bg-signal-500/10 dark:text-signal-300"}`}>
-          <span className="h-1.5 w-1.5 rounded-full bg-current" /> API {system?.ok === false ? "degraded" : "healthy"}
-        </div>
-      </header>
+      <PageHeader eyebrow="LeadX control plane" title="Operator console" description="Run the service, protect quality, and keep clients supplied." actions={<div className={`inline-flex items-center gap-2 rounded-full border px-3 py-1.5 text-xs font-semibold ${system?.ok === false ? "border-rust-300 bg-rust-50 text-rust-700 dark:bg-rust-500/10 dark:text-rust-300" : "border-signal-300 bg-signal-50 text-signal-700 dark:bg-signal-500/10 dark:text-signal-300"}`}><span className="h-1.5 w-1.5 rounded-full bg-current" /> API {system?.ok === false ? "degraded" : "healthy"}</div>} />
 
       {err && <ErrorState error={err} onRetry={refresh} />}
       {pollingExpired && <PollingDeadlineState onRefresh={refresh} />}
@@ -163,9 +155,9 @@ export default function AdminOverviewPage() {
             <p className="mt-1 max-w-2xl text-sm text-ink-muted">Client health, discovery, enrichment, delivery, queues, billing and quality—one place to spot risk and act.</p>
           </div>
           <div className="flex flex-wrap gap-2">
-            <button aria-label="Action" className="btn-primary" disabled={!!actionBusy} onClick={() => control("pipeline", () => admin.runAllIcps({}))}>{actionBusy === "pipeline" ? "Starting…" : "Run all ICPs"}</button>
-            <button aria-label="Action" className="btn-secondary" disabled={!!actionBusy} onClick={() => control("alerts", () => admin.runAlerts())}>{actionBusy === "alerts" ? "Running…" : "Run alerts"}</button>
-            <button aria-label="Action" className="btn-secondary" disabled={!!actionBusy} onClick={() => control("reap", () => adminExtras.reapJobs())}>{actionBusy === "reap" ? "Repairing…" : "Reap stuck jobs"}</button>
+            <button type="button" aria-label="Run all ICPs" className="btn-primary" disabled={!!actionBusy} onClick={() => control("pipeline", () => admin.runAllIcps({}))}>{actionBusy === "pipeline" ? "Starting…" : "Run all ICPs"}</button>
+            <button type="button" aria-label="Run operator alerts" className="btn-secondary" disabled={!!actionBusy} onClick={() => control("alerts", () => admin.runAlerts())}>{actionBusy === "alerts" ? "Running…" : "Run alerts"}</button>
+            <button type="button" aria-label="Reap stuck jobs" className="btn-secondary" disabled={!!actionBusy} onClick={() => control("reap", () => adminExtras.reapJobs())}>{actionBusy === "reap" ? "Repairing…" : "Reap stuck jobs"}</button>
           </div>
         </div>
         <div className="mt-5 grid gap-3 sm:grid-cols-2 xl:grid-cols-5">

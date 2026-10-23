@@ -4,6 +4,8 @@ import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
 import Link from "next/link";
 import { admin } from "@/lib/admin";
+import { PageHeader, Notice } from "@/components/ui/Primitives";
+import { ErrorState, LoadingRows } from "@/components/ui/States";
 
 export default function AdminTenantDetailPage() {
   const { id } = useParams<{ id: string }>();
@@ -103,13 +105,13 @@ export default function AdminTenantDetailPage() {
     setMsg(r.ok ? `Invite: ${r.invite_url || "sent"}` : r.error);
   }
 
-  if (!data && !msg) return <div className="p-8 text-ink-faint">Loading…</div>;
-  if (!data) return <div className="p-8 text-rust-500">{msg}</div>;
+  if (!data && !msg) return <div className="page"><PageHeader eyebrow="Admin tenant" title="Loading tenant" /><LoadingRows rows={4} cols={3} /></div>;
+  if (!data) return <div className="page"><ErrorState error={new Error(msg || "Tenant details are unavailable.")} onRetry={load} /></div>;
 
   const t = data.tenant;
 
   return (
-    <div className="space-y-6 p-8">
+    <div className="page space-y-6 p-8">
       <Link href="/admin/tenants" className="text-sm text-ink-faint hover:text-ink-muted">
         ← Clients
       </Link>
@@ -120,14 +122,14 @@ export default function AdminTenantDetailPage() {
         </div>
         <div className="flex gap-2">
           {t.status === "active" ? (
-            <button aria-label="Action"
+            <button
               onClick={() => setStatus("paused")}
               className="rounded-lg border border-line px-3 py-1.5 text-sm text-ink-muted"
             >
               Pause
             </button>
           ) : (
-            <button aria-label="Action"
+            <button
               onClick={() => setStatus("active")}
               className="rounded-lg bg-signal-700 px-3 py-1.5 text-sm text-ink"
             >
@@ -143,7 +145,7 @@ export default function AdminTenantDetailPage() {
         </div>
       </header>
 
-      {msg && <p className="text-sm text-brand-700 dark:text-brand-300">{msg}</p>}
+      {msg && <Notice tone={msg.toLowerCase().includes("failed") || msg.toLowerCase().includes("error") ? "danger" : "neutral"}>{msg}</Notice>}
 
       <div className="grid gap-4 lg:grid-cols-3">
         <section className="rounded-xl border border-line bg-surface-2/60 p-5">
@@ -168,7 +170,7 @@ export default function AdminTenantDetailPage() {
           </dl>
           <div className="mt-4 flex gap-2">
             {[50, 100, 300, 500].map((n) => (
-              <button aria-label="Action"
+              <button
                 key={n}
                 onClick={() => saveQuota(n)}
                 className="rounded border border-line px-2 py-1 text-xs text-ink-muted hover:bg-surface-3"
@@ -197,10 +199,10 @@ export default function AdminTenantDetailPage() {
             onChange={(e) => setStripe({ ...stripe, item: e.target.value })}
           />
           <div className="mt-3 flex gap-2">
-            <button aria-label="Action" onClick={linkStripe} className="rounded-lg bg-brand-600 px-3 py-1.5 text-sm text-ink">
+            <button onClick={linkStripe} className="rounded-lg bg-brand-600 px-3 py-1.5 text-sm text-ink">
               Link
             </button>
-            <button aria-label="Action" onClick={reportBilling} className="rounded-lg border border-line px-3 py-1.5 text-sm text-ink-muted">
+            <button onClick={reportBilling} className="rounded-lg border border-line px-3 py-1.5 text-sm text-ink-muted">
               Report usage
             </button>
           </div>
@@ -215,7 +217,7 @@ export default function AdminTenantDetailPage() {
             value={inviteEmail}
             onChange={(e) => setInviteEmail(e.target.value)}
           />
-          <button aria-label="Action"
+          <button
             onClick={invite}
             className="mt-3 rounded-lg border border-line px-3 py-1.5 text-sm text-ink-muted"
           >
@@ -252,7 +254,7 @@ export default function AdminTenantDetailPage() {
             onChange={(e) => setLoginForm({ ...loginForm, password: e.target.value })}
           />
         </div>
-        <button aria-label="Action"
+        <button
           type="button"
           onClick={createLogin}
           className="mt-3 rounded-lg bg-brand-600 px-4 py-2 text-sm font-medium text-white"
@@ -281,7 +283,7 @@ export default function AdminTenantDetailPage() {
                   </span>
                 </span>
                 {u.auth_user_id && (
-                  <button aria-label="Action"
+                  <button
                     type="button"
                     onClick={() => resetPw(u.auth_user_id)}
                     className="text-xs text-brand-500 hover:underline"

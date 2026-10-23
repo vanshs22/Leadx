@@ -5,6 +5,7 @@ import { useState } from "react";
 import Link from "next/link";
 import { admin } from "@/lib/admin";
 import { ErrorState, PollingDeadlineState } from "@/components/ui/States";
+import { PageHeader } from "@/components/ui/Primitives";
 
 const RISK_STYLES: Record<string, string> = {
   churn_risk: "bg-rust-50 text-rust-700 dark:bg-rust-500/15 dark:text-rust-300",
@@ -50,12 +51,7 @@ export default function AdminTenantHealthPage() {
 
   return (
     <div className="page">
-      <header>
-        <h1 className="page-title">Tenant health</h1>
-        <p className="page-sub">
-          Churn risk, usage, and quality signals — catch problems before the client cancels.
-        </p>
-      </header>
+      <PageHeader eyebrow="Control plane" title="Tenant health" description="Churn risk, usage, and quality signals — catch problems before the client cancels." meta={<span className="text-xs text-ink-faint">Authoritative tenant health snapshot</span>} />
 
       {pollingExpired && <PollingDeadlineState onRefresh={refresh} />}
 

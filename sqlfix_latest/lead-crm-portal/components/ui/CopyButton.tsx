@@ -5,7 +5,7 @@ export function CopyButton({ value, label = "Copy" }: { value?: string | null; l
   const [ok, setOk] = useState(false);
   if (!value) return null;
   return (
-    <button aria-label="Action"
+    <button aria-label={label}
       type="button"
       className="btn-ghost !px-2 !py-0.5 text-xs"
       onClick={async () => {

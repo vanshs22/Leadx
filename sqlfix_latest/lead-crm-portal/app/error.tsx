@@ -15,7 +15,7 @@ export default function GlobalRouteError({ error, reset }: { error: Error & { di
           {error?.message || "Unexpected application error"}
         </div>
         <div className="mt-5 flex gap-2">
-          <button aria-label="Action" className="btn-primary" onClick={() => reset()}>Retry</button>
+          <button className="btn-primary" onClick={() => reset()}>Retry</button>
           <a className="btn-secondary" href="/dashboard">Back to workspace</a>
         </div>
       </section>

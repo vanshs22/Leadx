@@ -203,7 +203,7 @@ export default function AdminClientLeadsPage() {
         <div className="rounded-xl border border-rust-500/30 bg-rust-500/10 px-4 py-3 text-sm text-rust-300">
           {error}
         </div>
-        <button aria-label="Action" type="button" className="mt-4 text-sm text-brand-500 hover:underline" onClick={load}>
+        <button type="button" className="mt-4 text-sm text-brand-500 hover:underline" onClick={load}>
           Retry
         </button>
       </div>
@@ -233,7 +233,7 @@ export default function AdminClientLeadsPage() {
             value={q}
             onChange={(e) => setQ(e.target.value)}
           />
-          <button aria-label="Action"
+          <button
             type="button"
             onClick={cycleTierSort}
             className="rounded-lg border border-line bg-surface-2 px-3 py-2 text-sm text-ink hover:border-brand-500/40 hover:text-brand-700 dark:text-brand-300"
@@ -241,14 +241,14 @@ export default function AdminClientLeadsPage() {
             Tier sort:{" "}
             {tierSort === "default" ? "Default" : tierSort === "A_first" ? "A → C" : "C → A"}
           </button>
-          <button aria-label="Action"
+          <button
             type="button"
             onClick={load}
             className="rounded-lg border border-line bg-surface-2 px-3 py-2 text-sm text-ink-muted hover:text-ink"
           >
             Refresh
           </button>
-          <button aria-label="Action"
+          <button
             type="button"
             onClick={() => setShowAdd(true)}
             className="rounded-lg bg-brand-500 px-3 py-2 text-sm font-medium text-white hover:bg-brand-600"
@@ -294,8 +294,8 @@ export default function AdminClientLeadsPage() {
               </label>
             </div>
             <div className="mt-4 flex justify-end gap-2">
-              <button aria-label="Action" type="button" onClick={() => setShowAdd(false)} className="rounded-lg border border-line px-3 py-2 text-sm text-ink-muted">Cancel</button>
-              <button aria-label="Action" type="button" disabled={adding} onClick={submitAdd} className="rounded-lg bg-brand-500 px-4 py-2 text-sm font-medium text-white disabled:opacity-50">
+              <button type="button" onClick={() => setShowAdd(false)} className="rounded-lg border border-line px-3 py-2 text-sm text-ink-muted">Cancel</button>
+              <button type="button" disabled={adding} onClick={submitAdd} className="rounded-lg bg-brand-500 px-4 py-2 text-sm font-medium text-white disabled:opacity-50">
                 {adding ? "Adding…" : "Add to client"}
               </button>
             </div>
@@ -314,7 +314,7 @@ export default function AdminClientLeadsPage() {
                 <th className="px-4 py-3 font-medium">Website</th>
                 <th className="px-4 py-3 font-medium">Source</th>
                 <th className="px-4 py-3 font-medium">
-                  <button aria-label="Action" type="button" className="hover:text-brand-500" onClick={cycleTierSort}>
+                  <button type="button" className="hover:text-brand-500" onClick={cycleTierSort}>
                     Tier {tierSort === "A_first" ? "↑" : tierSort === "C_first" ? "↓" : ""}
                   </button>
                 </th>
@@ -374,7 +374,7 @@ export default function AdminClientLeadsPage() {
                     {(l.delivered_at || l.assigned_at || "").replace("T", " ").slice(0, 16) || "—"}
                   </td>
                   <td className="px-4 py-3 text-right">
-                    <button aria-label="Action"
+                    <button
                       type="button"
                       disabled={!l.assignment_id || busyId === l.assignment_id}
                       onClick={() => removeLead(l)}

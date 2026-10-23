@@ -20,6 +20,7 @@ export type OperationState = {
   gated?: number;
   assigned?: number;
   delivered?: number;
+  crmSaved?: number;
   target?: number;
   effectiveTarget?: number;
   shortfall?: number;
@@ -94,6 +95,7 @@ export function toOperationState(value: unknown, fallback: Partial<OperationStat
     gated: number(first(source.gated, progress.gated, run.gated_ok, request.gated_count)),
     assigned: number(first(source.assigned, progress.assigned, run.assigned, request.assigned_count)),
     delivered: number(first(source.delivered, progress.delivered, run.delivered, request.delivered_count)),
+    crmSaved: number(first(source.crm_saved, source.crmSaved, progress.crm_saved, run.crm_saved, request.crm_saved_count)),
     target: number(first(source.target, source.requested_target, progress.target, run.requested_target, request.requested_target, request.requested_leads)),
     effectiveTarget: number(first(source.effective_target, progress.effective_target, run.effective_target, run.target_assigned, request.effective_target, request.approved_leads)),
     shortfall: number(first(source.shortfall, progress.shortfall, run.shortfall, meta.shortfall, request.shortfall)),
@@ -127,9 +129,17 @@ function progressRows(operation: OperationState) {
   return [
     ["Discovered", operation.discovered], ["Stored", operation.stored], ["Enriched", operation.enriched],
     ["Verified", operation.verified], ["Scored", operation.scored], ["Gated", operation.gated],
-    ["Assigned", operation.assigned], ["Delivered", operation.delivered],
+    ["Assigned", operation.assigned], ["CRM saved", operation.crmSaved], ["Delivered", operation.delivered],
     ["Target", operation.target], ["Effective target", operation.effectiveTarget], ["Shortfall", operation.shortfall],
   ] as const;
+}
+
+function operationStatusClass(status: string) {
+  const normalized = status.toLowerCase();
+  if (["completed", "complete", "done", "delivered", "approved", "active"].includes(normalized)) return "bg-signal-50 text-signal-700 dark:bg-signal-500/15 dark:text-signal-300";
+  if (["failed", "error", "cancelled", "rejected", "lost"].includes(normalized)) return "bg-rust-50 text-rust-700 dark:bg-rust-900/30 dark:text-rust-300";
+  if (["partial", "degraded"].includes(normalized)) return "bg-amber-50 text-amber-800 dark:bg-amber-500/15 dark:text-amber-200";
+  return "bg-brand-500/15 text-brand-700 dark:text-brand-300";
 }
 
 export function OperationStateCard({
@@ -154,7 +164,7 @@ export function OperationStateCard({
             {operation.jobId ? <span>Job {operation.jobId}</span> : null}
           </div>
         </div>
-        <span className="pill bg-brand-500/15 text-brand-700 dark:text-brand-300">{status}</span>
+        <span className={`pill ${operationStatusClass(operation.status)}`}>{status}</span>
       </div>
       <dl className="mt-4 grid grid-cols-2 gap-3 text-xs sm:grid-cols-4">
         <div><dt className="text-ink-faint">Stage</dt><dd className="mt-1 font-medium text-ink">{label(operation.stage)}</dd></div>

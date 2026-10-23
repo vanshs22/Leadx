@@ -15,6 +15,7 @@ import { useChangedIds } from "@/lib/live";
 import { BulkActionBar } from "@/components/BulkActionBar";
 import { EmptyState, ErrorState, LoadingRows } from "@/components/ui/States";
 import { EvidenceNote, FreshnessNote } from "@/components/ui/SurfaceMeta";
+import { PageHeader, FilterBar, Pagination } from "@/components/ui/Primitives";
 
 const PAGE_SIZE = 25;
 
@@ -228,21 +229,7 @@ export default function CompaniesPage() {
 
   return (
     <div className="page">
-      <header className="flex flex-wrap items-end justify-between gap-4">
-        <div>
-          <h1 className="page-title">Companies</h1>
-          <p className="page-sub">{total} accounts · inspect activity, ownership, and next steps without losing your place.</p>
-          <div className="mt-2 flex flex-wrap items-center gap-3"><FreshnessNote label="Live CRM view" detail="account records" /><span className="text-[11px] text-ink-faint">Timeline opens inline; fields not returned by the API stay unavailable.</span></div>
-        </div>
-        <div className="flex flex-wrap gap-2">
-          <button aria-label="Action" type="button" onClick={() => setFormOpen(true)} className="btn-primary">
-            New company
-          </button>
-          <button aria-label="Action" type="button" onClick={load} className="btn-secondary">
-            Refresh
-          </button>
-        </div>
-      </header>
+      <PageHeader title="Companies" description={`${total} accounts · inspect activity, ownership, and next steps without losing your place.`} meta={<><FreshnessNote label="Live CRM view" detail="account records" /><span>Timeline opens inline; fields not returned by the API stay unavailable.</span></>} actions={<><button aria-label="Create company" type="button" onClick={() => setFormOpen(true)} className="btn-primary">New company</button><button aria-label="Refresh companies" type="button" onClick={load} className="btn-secondary">Refresh</button></>} />
 
       {msg && (
         <div className="rounded-xl border border-line bg-surface-2 px-4 py-2.5 text-sm text-ink-muted">
@@ -250,41 +237,7 @@ export default function CompaniesPage() {
         </div>
       )}
 
-      <div className="card-pad flex flex-wrap gap-3">
-        <label className="sr-only" htmlFor="company-search">
-          Search companies
-        </label>
-        <input
-          id="company-search"
-          className="input min-w-[200px] flex-1"
-          type="search"
-          placeholder="Search name, domain, city…"
-          value={search}
-          onChange={(e) => {
-            setSearch(e.target.value);
-            setPage(0);
-          }}
-        />
-        <label className="sr-only" htmlFor="company-status">
-          Filter by status
-        </label>
-        <select
-          id="company-status"
-          className="input max-w-[180px]"
-          value={status}
-          onChange={(e) => {
-            setStatus(e.target.value);
-            setPage(0);
-          }}
-        >
-          <option value="">All statuses</option>
-          {COMPANY_STATUSES.map((s) => (
-            <option key={s} value={s}>
-              {s}
-            </option>
-          ))}
-        </select>
-      </div>
+      <FilterBar onClear={() => { setSearch(""); setStatus(""); setPage(0); }}><label className="sr-only" htmlFor="company-search">Search companies</label><input id="company-search" className="input min-w-[200px] flex-1" type="search" placeholder="Search name, domain, city…" value={search} onChange={(e) => { setSearch(e.target.value); setPage(0); }} /><label className="sr-only" htmlFor="company-status">Filter by status</label><select id="company-status" className="input max-w-[180px]" value={status} onChange={(e) => { setStatus(e.target.value); setPage(0); }}><option value="">All statuses</option>{COMPANY_STATUSES.map((s) => <option key={s} value={s}>{s}</option>)}</select></FilterBar>
 
       {loading ? (
         <LoadingRows rows={6} cols={5} />
@@ -381,7 +334,7 @@ export default function CompaniesPage() {
                         </div>
                       </td>
                       <td className="px-4 py-3 text-right">
-                        <button aria-label="Action"
+                        <button
                           type="button"
                           className="btn-ghost text-xs"
                           aria-expanded={open}
@@ -410,31 +363,7 @@ export default function CompaniesPage() {
         </div>
       )}
 
-      {!loading && rows.length > 0 && (
-        <div className="flex items-center justify-between text-sm text-ink-muted">
-          <span>
-            Page {page + 1} of {pageCount}
-          </span>
-          <div className="flex gap-2">
-            <button aria-label="Action"
-              type="button"
-              className="btn-secondary"
-              disabled={page === 0}
-              onClick={() => setPage((p) => Math.max(0, p - 1))}
-            >
-              Previous
-            </button>
-            <button aria-label="Action"
-              type="button"
-              className="btn-secondary"
-              disabled={page + 1 >= pageCount}
-              onClick={() => setPage((p) => p + 1)}
-            >
-              Next
-            </button>
-          </div>
-        </div>
-      )}
+      {!loading && rows.length > 0 && <Pagination page={page} pageCount={pageCount} onPageChange={setPage} />}
 
       {formOpen && (
         <div
@@ -451,7 +380,7 @@ export default function CompaniesPage() {
               <h2 id="new-company-title" className="text-lg font-semibold text-ink">
                 New company
               </h2>
-              <button aria-label="Action" type="button" className="btn-ghost" onClick={() => setFormOpen(false)}>
+              <button type="button" className="btn-ghost" onClick={() => setFormOpen(false)}>
                 Close
               </button>
             </div>
@@ -581,10 +510,10 @@ export default function CompaniesPage() {
             </div>
 
             <div className="flex gap-2">
-              <button aria-label="Action" type="submit" disabled={saving} className="btn-primary">
+              <button type="submit" disabled={saving} className="btn-primary">
                 {saving ? "Saving…" : "Create company"}
               </button>
-              <button aria-label="Action" type="button" className="btn-secondary" onClick={() => setFormOpen(false)}>
+              <button type="button" className="btn-secondary" onClick={() => setFormOpen(false)}>
                 Cancel
               </button>
             </div>

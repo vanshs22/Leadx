@@ -75,6 +75,8 @@ async function adminApi(path: string, init?: RequestInit) {
 export const admin = {
   // Discovery approvals / shared coverage
   discoveryRequests: (status?: string) => adminApi(`/leads/v2/admin/discovery-requests${status ? `?status=${encodeURIComponent(status)}` : ""}`),
+  searchRun: (tenantId: string, body: Record<string, unknown>) => adminApi(`/crm/${tenantId}/search-run`, { method: "POST", body: JSON.stringify(body) }),
+  bulkEmail: (tenantId: string, body: Record<string, unknown>) => adminApi(`/crm/${tenantId}/email/bulk`, { method: "POST", body: JSON.stringify(body) }),
   approveDiscovery: (id: string, body: { approved_leads: number; reason: string; approved_by?: string }) => adminApi(`/leads/v2/admin/discovery-requests/${id}/approve`, { method: "POST", body: JSON.stringify(body) }),
   rejectDiscovery: (id: string, reason: string) => adminApi(`/leads/v2/admin/discovery-requests/${id}/reject`, { method: "POST", body: JSON.stringify({ reason }) }),
   discoveryCoverage: (vertical?: string) => adminApi(`/leads/v2/admin/discovery-coverage${vertical ? `?vertical=${encodeURIComponent(vertical)}` : ""}`),

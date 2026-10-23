@@ -1,9 +1,11 @@
 "use client";
 
+import { useLiveLoader } from "@/lib/live";
 import { useCallback, useEffect, useState } from "react";
 import { admin } from "@/lib/admin";
 import { ErrorState, EmptyState, LoadingRows } from "@/components/ui/States";
 import { Icon } from "@/components/ui/Icon";
+import { PageHeader } from "@/components/ui/Primitives";
 
 function percent(value: unknown) {
   if (value == null || value === "") return "—";
@@ -21,6 +23,7 @@ export default function AdminOpsPage() {
   const [error, setError] = useState<Error | null>(null);
   const [message, setMessage] = useState("");
   const [busy, setBusy] = useState("");
+  const [pollingExpired, setPollingExpired] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -34,7 +37,7 @@ export default function AdminOpsPage() {
     setLoading(false);
   }, [days]);
 
-  useEffect(() => { void load(); }, [load]);
+  useLiveLoader(load, 30000, [days], { onDeadline: () => setPollingExpired(true) });
 
   async function refreshPriors(vertical: string) {
     setBusy(vertical);
@@ -56,11 +59,10 @@ export default function AdminOpsPage() {
   return (
     <div className="page">
       <header className="flex flex-wrap items-end justify-between gap-4">
-        <div><div className="section-kicker text-signal-700 dark:text-signal-300">Control plane · reliability</div><h1 className="page-title mt-1">Ops health</h1><p className="page-sub">Monitor the evidence pipeline, provider lanes, key pool and delivery safety without hiding degraded dependencies.</p></div>
-        <div className="flex items-center gap-2"><select className="input w-auto" value={days} onChange={(e) => setDays(Number(e.target.value))}><option value={7}>7 days</option><option value={14}>14 days</option><option value={30}>30 days</option></select><button type="button" className="btn-secondary" onClick={() => void load()} disabled={loading}>Refresh</button></div>
+        <PageHeader eyebrow="Control plane · reliability" title="Ops health" description="Monitor the evidence pipeline, provider lanes, key pool and delivery safety without hiding degraded dependencies." actions={<div className="flex items-center gap-2"><select aria-label="Ops history window" className="input w-auto" value={days} onChange={(e) => setDays(Number(e.target.value))}><option value={7}>7 days</option><option value={14}>14 days</option><option value={30}>30 days</option></select><button type="button" className="btn-secondary" onClick={() => void load()} disabled={loading}>Refresh</button></div>} />
       </header>
 
-      {error && <ErrorState error={error} onRetry={() => void load()} />}
+      {pollingExpired && <div role="status" className="rounded-xl border border-amber-300/60 bg-amber-50/60 px-4 py-3 text-sm text-amber-900 dark:bg-amber-500/10 dark:text-amber-200">Live updates paused. Refresh to start a new monitoring window.</div>}
       {message && <div role="status" className="rounded-xl border border-signal-300/60 bg-signal-50/70 px-4 py-3 text-sm text-signal-800 dark:bg-signal-500/10 dark:text-signal-200">{message}</div>}
 
       <section className={`rounded-2xl border p-4 ${health?.ok === false ? "border-rust-300/70 bg-rust-50/60 dark:bg-rust-500/10" : "border-signal-300/70 bg-signal-50/60 dark:bg-signal-500/10"}`}><div className="flex items-center gap-2"><span className={`live-dot ${health?.ok === false ? "bg-rust-500" : ""}`} /><span className="text-sm font-semibold text-ink">Platform {health?.ok === false ? "degraded" : "healthy"}</span></div><p className="mt-1 text-xs text-ink-muted">DB {String(health?.checks?.db ?? "—")} · version {health?.version || "—"}. A healthy API does not override individual provider or queue failures.</p></section>
