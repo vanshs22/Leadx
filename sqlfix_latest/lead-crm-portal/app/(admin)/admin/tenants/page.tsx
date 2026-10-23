@@ -1,9 +1,10 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useLiveLoader } from "@/lib/live";
+import { useState } from "react";
 import Link from "next/link";
 import { admin } from "@/lib/admin";
-import { ErrorState, EmptyState, LoadingRows } from "@/components/ui/States";
+import { ErrorState, EmptyState, LoadingRows, PollingDeadlineState } from "@/components/ui/States";
 import { FreshnessNote, UnavailableNote } from "@/components/ui/SurfaceMeta";
 
 export default function AdminTenantsPage() {
@@ -36,19 +37,31 @@ export default function AdminTenantsPage() {
   const [msg, setMsg] = useState("");
   const [credentials, setCredentials] = useState<{ email: string; password: string } | null>(null);
 
-  function load() {
+  const [pollingExpired, setPollingExpired] = useState(false);
+  const [pollingReset, setPollingReset] = useState(0);
+
+  async function load() {
     setLoading(true);
     setError(null);
-    admin
-      .tenants()
-      .then((d) => setTenants(d.tenants || []))
-      .catch(setError)
-      .finally(() => setLoading(false));
+    try {
+      const d = await admin.tenants();
+      setTenants(d.tenants || []);
+    } catch (caught) {
+      setError(caught);
+    } finally {
+      setLoading(false);
+    }
   }
 
-  useEffect(() => {
-    load();
-  }, []);
+  const refresh = () => {
+    setPollingExpired(false);
+    setPollingReset((value) => value + 1);
+    void load();
+  };
+
+  useLiveLoader(load, 30_000, [pollingReset], {
+    onDeadline: () => setPollingExpired(true),
+  });
 
   async function create() {
     setMsg("");
@@ -104,7 +117,7 @@ export default function AdminTenantsPage() {
           ? "Client + ICP created"
           : "Client created"
       );
-      load();
+      refresh();
     } catch (e: any) {
       setMsg(e.message);
     }
@@ -128,6 +141,8 @@ export default function AdminTenantsPage() {
           {showForm ? "Cancel" : "New client"}
         </button>
       </header>
+
+      {pollingExpired && <PollingDeadlineState onRefresh={refresh} />}
 
       {msg && <p className="text-sm text-brand-500 dark:text-brand-700 dark:text-brand-300">{msg}</p>}
 

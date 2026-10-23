@@ -7,7 +7,8 @@ import { getTenantId, getTenantUserId } from "@/lib/tenant";
 import { FunnelChart } from "@/components/charts/FunnelChart";
 import { chartColors } from "@/lib/chartColors";
 import { useCrmChange } from "@/lib/crmRealtime";
-import { ErrorState } from "@/components/ui/States";
+import { useLiveLoader } from "@/lib/live";
+import { ErrorState, PollingDeadlineState } from "@/components/ui/States";
 import dynamic from "next/dynamic";
 const Sparkline = dynamic(() => import("@/components/charts/Sparkline").then((m) => m.Sparkline), { ssr: false, loading: () => <div className="skeleton h-12 w-full rounded-lg" /> });
 const TierDonut = dynamic(() => import("@/components/charts/TierDonut").then((m) => m.TierDonut), { ssr: false, loading: () => <div className="skeleton h-12 w-full rounded-lg" /> });
@@ -46,14 +47,18 @@ export default function DashboardPage() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [intel, setIntel] = useState<any>(null);
+  const [pollingExpired, setPollingExpired] = useState(false);
+  const refreshGeneration = useRef(0);
   const hasDataRef = useRef(false);
 
   const refresh = useCallback(() => {
+    const generation = ++refreshGeneration.current;
     const hasData = hasDataRef.current;
     if (!hasData) setLoading(true); else setRefreshing(true);
     setError(null);
     loadDashboard()
       .then((d) => {
+        if (generation !== refreshGeneration.current) return;
         hasDataRef.current = true;
         setData(d);
         setError(null);
@@ -62,8 +67,8 @@ export default function DashboardPage() {
           sessionStorage.setItem(key, JSON.stringify(d));
         } catch {}
       })
-      .catch((e) => setError(e))
-      .finally(() => { setLoading(false); setRefreshing(false); });
+      .catch((e) => { if (generation === refreshGeneration.current) setError(e); })
+      .finally(() => { if (generation === refreshGeneration.current) { setLoading(false); setRefreshing(false); } });
   }, []);
 
   useEffect(() => {
@@ -77,9 +82,10 @@ export default function DashboardPage() {
     if (tid) Promise.all([crmIntelligence.pipeline(tid).catch(() => null), crmIntelligence.tasks(tid, 20).catch(() => null)])
       .then(([pipeline, tasks]) => setIntel({ pipeline, tasks }));
   }, [refresh]);
+  useLiveLoader(refresh, 30_000, [refresh], { runImmediately: false, onDeadline: () => setPollingExpired(true) });
 
   // Realtime is a cache-invalidation signal; the API remains authoritative.
-  useCrmChange(refresh);
+  useCrmChange(refresh, { tables: ["lead_assignments", "leads_global", "lead_state_history", "lead_score_snapshots", "lead_quality_gates", "lead_verification_observations", "lead_outcome_events", "lead_activities", "activities", "pipeline_stages", "discovery_requests", "pipeline_runs", "jobs", "quota_usage"] });
 
   if (error) {
     return (
@@ -138,6 +144,7 @@ export default function DashboardPage() {
           </div>
         </div>
       </header>
+      {pollingExpired && <PollingDeadlineState onRefresh={() => { setPollingExpired(false); refresh(); }} />}
 
       <div className="growth-banner overflow-hidden p-5 md:p-6">
           <div className="label text-brand-600 dark:text-brand-300">Start here — 4 steps</div>

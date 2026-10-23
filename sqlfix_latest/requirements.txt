@@ -1,0 +1,29 @@
+# Leadx / Lead Engine API — CORE runtime deps.
+#
+# Everything here is pure-Python (or ships wheels) and installs with no compiler
+# toolchain. `pip install -r requirements.txt` must always succeed on a clean
+# machine — the API, CRM, scoring and delivery all run with just these.
+#
+# Heavy scraping/browser deps live in requirements-scrape.txt (optional).
+# They were previously in this file, which made a plain install FAIL:
+# scrapegraphai -> litellm requires a Rust toolchain to build.
+# Every enrichment layer degrades gracefully when its library is absent,
+# so the app is fully functional without them (HTTP fetch is the fallback).
+
+fastapi==0.111.0
+uvicorn[standard]==0.30.1
+httpx==0.27.0
+pydantic==2.8.2
+supabase==2.5.1
+python-dotenv==1.0.1
+python-jose[cryptography]==3.3.0
+cryptography==42.0.8
+stripe==10.1.0
+redis==5.0.7
+dnspython==2.6.1
+email-validator==2.2.0
+instaloader==4.14
+boto3==1.35.99  # Amazon SES domain + send
+
+anthropic==0.69.0
+phonenumbers==9.0.13

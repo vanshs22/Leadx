@@ -1,11 +1,11 @@
 "use client";
 
-import { setVisibleInterval, clearVisibleInterval } from "@/lib/live";
-import { useEffect, useState, Fragment } from "react";
+import { useLiveLoader } from "@/lib/live";
+import { useState, Fragment } from "react";
 import Link from "next/link";
 import { admin } from "@/lib/admin";
 import { FunnelChart } from "@/components/charts/FunnelChart";
-import { EmptyState, ErrorState, LoadingRows } from "@/components/ui/States";
+import { EmptyState, ErrorState, LoadingRows, PollingDeadlineState } from "@/components/ui/States";
 import { FreshnessNote } from "@/components/ui/SurfaceMeta";
 
 const STATUS_STYLE: Record<string, string> = {
@@ -22,15 +22,34 @@ export default function AdminRunsPage() {
   const [lastUpdated, setLastUpdated] = useState<string | null>(null);
   const [expanded, setExpanded] = useState<string | null>(null);
 
-  useEffect(() => {
-    let stopped=false;
-    const load=()=>admin.runs().then(d=>{if(!stopped){setRuns(d.runs||[]);setError("");setLastUpdated(new Date().toLocaleTimeString())}}).catch(e=>{if(!stopped)setError(e.message || "Could not load runs")}).finally(()=>{if(!stopped)setLoading(false)});
-    load(); const timer=setVisibleInterval(load,2500);
-    return ()=>{stopped=true;clearVisibleInterval(timer)};
-  }, []);
+  const [pollingExpired, setPollingExpired] = useState(false);
+  const [pollingReset, setPollingReset] = useState(0);
+
+  const load = async () => {
+    try {
+      const d = await admin.runs();
+      setRuns(d.runs || []);
+      setError("");
+      setLastUpdated(new Date().toLocaleTimeString());
+    } catch (caught: any) {
+      setError(caught?.message || "Could not load runs");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const refresh = () => {
+    setPollingExpired(false);
+    setPollingReset((value) => value + 1);
+    void load();
+  };
+
+  useLiveLoader(load, 2_500, [pollingReset], {
+    onDeadline: () => setPollingExpired(true),
+  });
 
   if (loading && !runs.length) return <div className="page"><h1 className="page-title">Pipeline runs</h1><LoadingRows rows={5} cols={5} /></div>;
-  if (error && !runs.length) return <div className="page"><ErrorState error={error} onRetry={() => window.location.reload()} /></div>;
+  if (error && !runs.length) return <div className="page"><ErrorState error={error} onRetry={refresh} /></div>;
 
   const total = runs.length;
   const completed = runs.filter((r) => r.status === "completed").length;
@@ -43,6 +62,7 @@ export default function AdminRunsPage() {
         <h1 className="page-title">Pipeline runs</h1>
         <p className="page-sub">Recent discover → enrich → gate → assign → deliver jobs. Run telemetry refreshes while this tab is visible.</p>
         <div className="mt-2 flex flex-wrap items-center gap-3"><FreshnessNote label="Live run monitor" detail={lastUpdated ? `updated ${lastUpdated}` : "waiting for first response"} />{error ? <span className="text-[11px] text-rust-500 dark:text-rust-300">Refresh issue: {error}</span> : null}</div>
+        {pollingExpired && <PollingDeadlineState onRefresh={refresh} />}
       </header>
 
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">

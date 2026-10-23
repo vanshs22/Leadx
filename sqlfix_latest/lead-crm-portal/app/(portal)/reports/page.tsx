@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { crm, ReportsSummary } from "@/lib/api";
 import { getTenantId } from "@/lib/tenant";
+import { useCrmChange } from "@/lib/crmRealtime";
 import { FunnelChart } from "@/components/charts/FunnelChart";
 import { EmptyState, ErrorState, LoadingRows } from "@/components/ui/States";
 import { FreshnessNote } from "@/components/ui/SurfaceMeta";
@@ -57,6 +58,8 @@ export default function ReportsPage() {
       .finally(() => { if (!cancelled) setLoading(false); });
     return () => { cancelled = true; };
   }, [refreshKey]);
+
+  useCrmChange(() => setRefreshKey((value) => value + 1), { tables: ["lead_assignments", "leads_global", "lead_score_snapshots", "lead_quality_gates", "lead_verification_observations", "lead_outcome_events", "pipeline_stages"] });
 
   async function exportCsv() {
     setExporting(true);

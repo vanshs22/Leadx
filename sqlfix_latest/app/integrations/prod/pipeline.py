@@ -913,6 +913,18 @@ async def run_pipeline(
     if not geo:
         geo = ["New Jersey"]
 
+    # Learning is approval-gated: only recommendations explicitly approved by
+    # the tenant enter the next discovery plan. Proposed/shadow signals remain
+    # visible in Growth but never silently change search behavior.
+    try:
+        from app.integrations.prod.learning_loop import approved_learning_queries
+        learned_queries = await approved_learning_queries(tenant_id, vertical, limit=8)
+        if learned_queries:
+            queries = list(dict.fromkeys([*(queries or []), *learned_queries]))
+            logger.info("[%s] added %s approved learning queries", run_id[:8], len(learned_queries))
+    except Exception as exc:
+        logger.debug("approved learning query load skipped: %s", exc)
+
     # Quota pre-check
     if discovery_request_id:
         try:

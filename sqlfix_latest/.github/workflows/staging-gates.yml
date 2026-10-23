@@ -1,0 +1,59 @@
+name: LeadX Staging Production Gates
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '0 3 * * 1'
+jobs:
+  gates:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: {python-version: '3.12'}
+      - run: pip install uv==0.10.0
+      - name: Generate authoritative hashed dependency lock
+        run: uv pip compile requirements.txt -o requirements.lock --generate-hashes --no-annotate
+      - run: pip install -r requirements.lock
+      - name: Fresh Supabase reset
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+          SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
+          SUPABASE_PROJECT_ID: ${{ secrets.SUPABASE_PROJECT_ID }}
+        run: |
+          test -n "$SUPABASE_PROJECT_ID"
+          npx supabase@latest link --project-ref "$SUPABASE_PROJECT_ID"
+          npx supabase@latest db reset --linked --password "$SUPABASE_DB_PASSWORD"
+      - name: Schema contracts
+        run: python scripts/check_migrations.py && python scripts/check_rls_coverage.py && python scripts/verify_runtime_schema.py && python scripts/check_plan_contract.py
+      - name: Cross-tenant isolation
+        env:
+          LEADX_STAGING_URL: ${{ secrets.LEADX_STAGING_URL }}
+          LEADX_TENANT_A_TOKEN: ${{ secrets.LEADX_TENANT_A_TOKEN }}
+          LEADX_TENANT_B_TOKEN: ${{ secrets.LEADX_TENANT_B_TOKEN }}
+          LEADX_TENANT_A_ID: ${{ secrets.LEADX_TENANT_A_ID }}
+          LEADX_TENANT_B_ID: ${{ secrets.LEADX_TENANT_B_ID }}
+        run: python scripts/cross_tenant_smoke.py
+      - name: Playwright
+        working-directory: lead-crm-portal
+        env: {LEADX_E2E_URL: ${{ secrets.LEADX_STAGING_URL }}}
+        run: npx playwright@1.55.0 install --with-deps chromium && npx playwright@1.55.0 test ../e2e
+      - name: Stripe test clock
+        env:
+          STRIPE_SECRET_KEY: ${{ secrets.STRIPE_TEST_SECRET_KEY }}
+          STRIPE_TEST_CUSTOMER_ID: ${{ secrets.STRIPE_TEST_CUSTOMER_ID }}
+        run: python scripts/stripe_test_clock.py
+      - name: k6
+        uses: grafana/setup-k6-action@v1
+      - name: Load gate
+        env:
+          LEADX_URL: ${{ secrets.LEADX_STAGING_URL }}
+          LEADX_TOKEN: ${{ secrets.LEADX_LOAD_TOKEN }}
+          LEADX_TENANT_ID: ${{ secrets.LEADX_TENANT_A_ID }}
+          VUS: 100
+          DURATION: 30m
+        run: k6 run k6/load.js
+      - name: Engine benchmark
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
+        run: python scripts/engine_benchmark.py --run-live --tenant-id "${{ secrets.LEADX_BENCHMARK_TENANT_ID }}" --target 100

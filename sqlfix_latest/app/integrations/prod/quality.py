@@ -173,9 +173,17 @@ def passes_quality_gate(
     return True, "ok"
 
 
-def _norm_offer(value: Optional[str], fallback: Optional[str] = None) -> str:
-    """Normalize competitive lock key."""
-    v = (value or fallback or "").strip().lower().replace(" ", "_")
+def _norm_offer(value: Optional[str]) -> str:
+    """Normalize an explicit competitive lock key.
+
+    Vertical is deliberately not a fallback: a salon can receive offers from
+    unrelated sellers. Generic/default labels represent shared delivery and do
+    not create an exclusivity lock.
+    """
+    v = (value or "").strip().lower().replace(" ", "_")
+    v = "_".join(part for part in v.split("_") if part)
+    if v in {"", "default", "general", "generic", "unknown", "any", "all", "shared", "lead_gen_service", "lead_generation", "service"}:
+        return ""
     return v
 
 
@@ -202,7 +210,7 @@ def check_exclusivity_conflict(
       → CONFLICT (same seller type)
     """
     sb = get_supabase()
-    my_offer = _norm_offer(offer_category, vertical)
+    my_offer = _norm_offer(offer_category)
     if not my_offer:
         return False
 
@@ -230,9 +238,9 @@ def check_exclusivity_conflict(
             .data or []
         )
         for a in assigns:
-            other_offer = _norm_offer(a.get("offer_category"), a.get("vertical"))
+            other_offer = _norm_offer(a.get("offer_category"))
             icp_id = a.get("icp_id")
-            exclusivity = "exclusive"
+            exclusivity = "shared"
             other_geo: set = set()
             if icp_id:
                 icp_rows = (
@@ -245,12 +253,8 @@ def check_exclusivity_conflict(
                 )
                 if not icp_rows:
                     continue
-                icp = icp_rows[0]
-                exclusivity = icp.get("exclusivity") or "exclusive"
-                other_offer = _norm_offer(
-                    icp.get("offer_category") or a.get("offer_category"),
-                    icp.get("vertical") or a.get("vertical"),
-                )
+                exclusivity = (icp.get("exclusivity") or "shared").strip().lower()
+                other_offer = _norm_offer(icp.get("offer_category") or a.get("offer_category"))
                 other_geo = set(icp.get("geo") or [])
             if exclusivity != "exclusive":
                 continue
@@ -279,19 +283,48 @@ def quota_remaining(tenant_id: str) -> int:
         t = sb.table("tenants").select("leads_per_month_limit").eq("id", tenant_id).limit(1).execute().data
         lim = (t[0]["leads_per_month_limit"] if t else 100) or 100
         period = datetime.now(timezone.utc).replace(day=1).date().isoformat()
-        u = (
-            sb.table("usage_log")
-            .select("leads_delivered")
-            .eq("tenant_id", tenant_id)
-            .eq("period", period)
-            .limit(1)
-            .execute()
-            .data
-        )
-        used = u[0]["leads_delivered"] if u else 0
-        return max(lim - used, 0)
+        try:
+            u = (
+                sb.table("usage_log")
+                .select("leads_delivered, quota_reserved, rollover_credits")
+                .eq("tenant_id", tenant_id)
+                .eq("period", period)
+                .limit(1)
+                .execute()
+                .data
+            )
+        except Exception:
+            u = (
+                sb.table("usage_log")
+                .select("leads_delivered, quota_reserved")
+                .eq("tenant_id", tenant_id)
+                .eq("period", period)
+                .limit(1)
+                .execute()
+                .data
+            )
+        row = u[0] if u else {}
+        used = int(row.get("leads_delivered") or 0)
+        reserved = int(row.get("quota_reserved") or 0)
+        rollover = int(row.get("rollover_credits") or 0)
+        return max(lim + rollover - used - reserved, 0)
     except Exception:
         return 0
+
+
+async def _tenant_exclusivity_entitled(tenant_id: str) -> bool:
+    """Check the commercial entitlement before honoring an exclusive ICP."""
+    try:
+        from app.core.plans import exclusive_leads_entitled
+        rows = (await aexec(
+            get_supabase().table("tenants").select("plan,settings").eq("id", tenant_id).limit(1)
+        )).data or []
+        if not rows:
+            return False
+        return exclusive_leads_entitled(rows[0].get("plan"), rows[0].get("settings"))
+    except Exception as exc:
+        logger.error("exclusivity entitlement check unavailable; refusing exclusive assignment: %s", exc)
+        return False
 
 
 async def assign_lead(
@@ -356,25 +389,32 @@ async def assign_lead(
         logger.error("recency check unavailable; refusing assignment: %s", e, exc_info=True)
         return {"assigned": False, "reason": "recency_check_unavailable"}
 
-    # Resolve offer_category from ICP when not passed
-    resolved_offer = _norm_offer(offer_category, None)
-    if not resolved_offer and icp_id:
+    # Resolve only explicit offer/use-case data. Target vertical is never a
+    # competitive lock key; missing or generic offers remain shareable.
+    resolved_offer = _norm_offer(offer_category)
+    icp_exclusivity = "shared"
+    if icp_id:
         try:
             rows = (
                 (await aexec(sb.table("icp_profiles")
-                .select("offer_category, vertical")
+                .select("offer_category, exclusivity")
                 .eq("id", icp_id)
                 .limit(1)))
                 .data or []
             )
             if rows:
-                resolved_offer = _norm_offer(rows[0].get("offer_category"), rows[0].get("vertical"))
+                resolved_offer = resolved_offer or _norm_offer(rows[0].get("offer_category"))
+                icp_exclusivity = (rows[0].get("exclusivity") or "shared").strip().lower()
         except Exception as exc: __import__("logging").getLogger(__name__).debug("suppressed optional failure: %s", exc)
-    if not resolved_offer:
-        resolved_offer = _norm_offer(vertical)
+
+    if icp_exclusivity == "exclusive" and resolved_offer:
+        if not await _tenant_exclusivity_entitled(tenant_id):
+            if run_slot_claimed:
+                await aexec(sb.rpc("release_pipeline_run_slot", {"p_run_id": run_id, "p_tenant_id": tenant_id}))
+            return {"assigned": False, "reason": "exclusive_not_entitled"}
 
     if await check_exclusivity_conflict(
-        lead_id, tenant_id, vertical, geo, offer_category=resolved_offer
+        lead_id, tenant_id, vertical, geo, offer_category=resolved_offer or None
     ):
         if run_slot_claimed:
             await aexec(sb.rpc("release_pipeline_run_slot", {"p_run_id": run_id, "p_tenant_id": tenant_id}))

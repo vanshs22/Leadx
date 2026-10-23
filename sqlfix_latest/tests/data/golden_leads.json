@@ -1,0 +1,640 @@
+[
+  {
+    "id": "g01",
+    "label": "A",
+    "lead": {
+      "website": true,
+      "phone_normalized": "2015550102",
+      "phone_verified": true,
+      "email": "info@a.example.org",
+      "email_smtp_verified": true,
+      "has_booking": true,
+      "google_rating": 4.8,
+      "review_count": 120,
+      "owner_name": "Jane"
+    }
+  },
+  {
+    "id": "g02",
+    "label": "B",
+    "lead": {
+      "website": true,
+      "phone_normalized": "2025550103",
+      "email": "info@b.example.org",
+      "email_mx_ok": true,
+      "has_booking": true,
+      "google_rating": 4.7,
+      "review_count": 100,
+      "owner_name": "Sam"
+    }
+  },
+  {
+    "id": "g03",
+    "label": "A",
+    "lead": {
+      "website": true,
+      "phone_normalized": "3035550104",
+      "email": "info@c.example.org",
+      "email_smtp_verified": true,
+      "has_booking": true,
+      "google_rating": 4.8,
+      "review_count": 90
+    }
+  },
+  {
+    "id": "g04",
+    "label": "A",
+    "lead": {
+      "website": true,
+      "phone_normalized": "4045550105",
+      "email": "info@d.example.org",
+      "email_smtp_verified": true,
+      "has_booking": true,
+      "google_rating": 4.6,
+      "review_count": 80
+    }
+  },
+  {
+    "id": "g05",
+    "label": "A",
+    "lead": {
+      "website": true,
+      "phone_normalized": "5055550106",
+      "email": "info@e.example.org",
+      "email_smtp_verified": true,
+      "has_booking": true,
+      "google_rating": 4.6,
+      "review_count": 75
+    }
+  },
+  {
+    "id": "g06",
+    "label": "A",
+    "lead": {
+      "website": true,
+      "phone_normalized": "2000000006",
+      "email": "info6@example.org",
+      "email_smtp_verified": true,
+      "has_booking": true,
+      "google_rating": 4.7,
+      "review_count": 80,
+      "owner_name": "Owner"
+    }
+  },
+  {
+    "id": "g07",
+    "label": "A",
+    "lead": {
+      "website": true,
+      "phone_normalized": "2000000007",
+      "email": "info7@example.org",
+      "email_smtp_verified": true,
+      "has_booking": true,
+      "google_rating": 4.7,
+      "review_count": 80,
+      "owner_name": "Owner"
+    }
+  },
+  {
+    "id": "g08",
+    "label": "A",
+    "lead": {
+      "website": true,
+      "phone_normalized": "2000000008",
+      "email": "info8@example.org",
+      "email_smtp_verified": true,
+      "has_booking": true,
+      "google_rating": 4.7,
+      "review_count": 80,
+      "owner_name": "Owner"
+    }
+  },
+  {
+    "id": "g09",
+    "label": "A",
+    "lead": {
+      "website": true,
+      "phone_normalized": "2000000009",
+      "email": "info9@example.org",
+      "email_smtp_verified": true,
+      "has_booking": true,
+      "google_rating": 4.7,
+      "review_count": 80,
+      "owner_name": "Owner"
+    }
+  },
+  {
+    "id": "g10",
+    "label": "A",
+    "lead": {
+      "website": true,
+      "phone_normalized": "2000000010",
+      "email": "info10@example.org",
+      "email_smtp_verified": true,
+      "has_booking": true,
+      "google_rating": 4.7,
+      "review_count": 80,
+      "owner_name": "Owner"
+    }
+  },
+  {
+    "id": "g11",
+    "label": "A",
+    "lead": {
+      "website": true,
+      "phone_normalized": "2000000011",
+      "email": "info11@example.org",
+      "email_smtp_verified": true,
+      "has_booking": true,
+      "google_rating": 4.7,
+      "review_count": 80,
+      "owner_name": "Owner"
+    }
+  },
+  {
+    "id": "g12",
+    "label": "A",
+    "lead": {
+      "website": true,
+      "phone_normalized": "2000000012",
+      "email": "info12@example.org",
+      "email_smtp_verified": true,
+      "has_booking": true,
+      "google_rating": 4.7,
+      "review_count": 80,
+      "owner_name": "Owner"
+    }
+  },
+  {
+    "id": "g13",
+    "label": "A",
+    "lead": {
+      "website": true,
+      "phone_normalized": "2000000013",
+      "email": "info13@example.org",
+      "email_smtp_verified": true,
+      "has_booking": true,
+      "google_rating": 4.7,
+      "review_count": 80,
+      "owner_name": "Owner"
+    }
+  },
+  {
+    "id": "g14",
+    "label": "A",
+    "lead": {
+      "website": true,
+      "phone_normalized": "2000000014",
+      "email": "info14@example.org",
+      "email_smtp_verified": true,
+      "has_booking": true,
+      "google_rating": 4.7,
+      "review_count": 80,
+      "owner_name": "Owner"
+    }
+  },
+  {
+    "id": "g15",
+    "label": "A",
+    "lead": {
+      "website": true,
+      "phone_normalized": "2000000015",
+      "email": "info15@example.org",
+      "email_smtp_verified": true,
+      "has_booking": true,
+      "google_rating": 4.7,
+      "review_count": 80,
+      "owner_name": "Owner"
+    }
+  },
+  {
+    "id": "g16",
+    "label": "A",
+    "lead": {
+      "website": true,
+      "phone_normalized": "2000000016",
+      "email": "info16@example.org",
+      "email_smtp_verified": true,
+      "has_booking": true,
+      "google_rating": 4.7,
+      "review_count": 80,
+      "owner_name": "Owner"
+    }
+  },
+  {
+    "id": "g17",
+    "label": "A",
+    "lead": {
+      "website": true,
+      "phone_normalized": "2000000017",
+      "email": "info17@example.org",
+      "email_smtp_verified": true,
+      "has_booking": true,
+      "google_rating": 4.7,
+      "review_count": 80,
+      "owner_name": "Owner"
+    }
+  },
+  {
+    "id": "g18",
+    "label": "A",
+    "lead": {
+      "website": true,
+      "phone_normalized": "2000000018",
+      "email": "info18@example.org",
+      "email_smtp_verified": true,
+      "has_booking": true,
+      "google_rating": 4.7,
+      "review_count": 80,
+      "owner_name": "Owner"
+    }
+  },
+  {
+    "id": "g19",
+    "label": "A",
+    "lead": {
+      "website": true,
+      "phone_normalized": "2000000019",
+      "email": "info19@example.org",
+      "email_smtp_verified": true,
+      "has_booking": true,
+      "google_rating": 4.7,
+      "review_count": 80,
+      "owner_name": "Owner"
+    }
+  },
+  {
+    "id": "g20",
+    "label": "A",
+    "lead": {
+      "website": true,
+      "phone_normalized": "2000000020",
+      "email": "info20@example.org",
+      "email_smtp_verified": true,
+      "has_booking": true,
+      "google_rating": 4.7,
+      "review_count": 80,
+      "owner_name": "Owner"
+    }
+  },
+  {
+    "id": "g21",
+    "label": "B",
+    "lead": {
+      "website": true,
+      "phone_normalized": "3000000021",
+      "email": "info21@example.org",
+      "email_mx_ok": true,
+      "has_booking": false,
+      "google_rating": 4.3,
+      "review_count": 30,
+      "owner_name": "Owner"
+    }
+  },
+  {
+    "id": "g22",
+    "label": "B",
+    "lead": {
+      "website": true,
+      "phone_normalized": "3000000022",
+      "email": "info22@example.org",
+      "email_mx_ok": true,
+      "has_booking": false,
+      "google_rating": 4.3,
+      "review_count": 30,
+      "owner_name": "Owner"
+    }
+  },
+  {
+    "id": "g23",
+    "label": "B",
+    "lead": {
+      "website": true,
+      "phone_normalized": "3000000023",
+      "email": "info23@example.org",
+      "email_mx_ok": true,
+      "has_booking": false,
+      "google_rating": 4.3,
+      "review_count": 30,
+      "owner_name": "Owner"
+    }
+  },
+  {
+    "id": "g24",
+    "label": "B",
+    "lead": {
+      "website": true,
+      "phone_normalized": "3000000024",
+      "email": "info24@example.org",
+      "email_mx_ok": true,
+      "has_booking": false,
+      "google_rating": 4.3,
+      "review_count": 30,
+      "owner_name": "Owner"
+    }
+  },
+  {
+    "id": "g25",
+    "label": "B",
+    "lead": {
+      "website": true,
+      "phone_normalized": "3000000025",
+      "email": "info25@example.org",
+      "email_mx_ok": true,
+      "has_booking": false,
+      "google_rating": 4.3,
+      "review_count": 30,
+      "owner_name": "Owner"
+    }
+  },
+  {
+    "id": "g26",
+    "label": "B",
+    "lead": {
+      "website": true,
+      "phone_normalized": "3000000026",
+      "email": "info26@example.org",
+      "email_mx_ok": true,
+      "has_booking": false,
+      "google_rating": 4.3,
+      "review_count": 30,
+      "owner_name": "Owner"
+    }
+  },
+  {
+    "id": "g27",
+    "label": "B",
+    "lead": {
+      "website": true,
+      "phone_normalized": "3000000027",
+      "email": "info27@example.org",
+      "email_mx_ok": true,
+      "has_booking": false,
+      "google_rating": 4.3,
+      "review_count": 30,
+      "owner_name": "Owner"
+    }
+  },
+  {
+    "id": "g28",
+    "label": "B",
+    "lead": {
+      "website": true,
+      "phone_normalized": "3000000028",
+      "email": "info28@example.org",
+      "email_mx_ok": true,
+      "has_booking": false,
+      "google_rating": 4.3,
+      "review_count": 30,
+      "owner_name": "Owner"
+    }
+  },
+  {
+    "id": "g29",
+    "label": "B",
+    "lead": {
+      "website": true,
+      "phone_normalized": "3000000029",
+      "email": "info29@example.org",
+      "email_mx_ok": true,
+      "has_booking": false,
+      "google_rating": 4.3,
+      "review_count": 30,
+      "owner_name": "Owner"
+    }
+  },
+  {
+    "id": "g30",
+    "label": "B",
+    "lead": {
+      "website": true,
+      "phone_normalized": "3000000030",
+      "email": "info30@example.org",
+      "email_mx_ok": true,
+      "has_booking": false,
+      "google_rating": 4.3,
+      "review_count": 30,
+      "owner_name": "Owner"
+    }
+  },
+  {
+    "id": "g31",
+    "label": "B",
+    "lead": {
+      "website": true,
+      "phone_normalized": "3000000031",
+      "email": "info31@example.org",
+      "email_mx_ok": true,
+      "has_booking": false,
+      "google_rating": 4.3,
+      "review_count": 30,
+      "owner_name": "Owner"
+    }
+  },
+  {
+    "id": "g32",
+    "label": "B",
+    "lead": {
+      "website": true,
+      "phone_normalized": "3000000032",
+      "email": "info32@example.org",
+      "email_mx_ok": true,
+      "has_booking": false,
+      "google_rating": 4.3,
+      "review_count": 30,
+      "owner_name": "Owner"
+    }
+  },
+  {
+    "id": "g33",
+    "label": "B",
+    "lead": {
+      "website": true,
+      "phone_normalized": "3000000033",
+      "email": "info33@example.org",
+      "email_mx_ok": true,
+      "has_booking": false,
+      "google_rating": 4.3,
+      "review_count": 30,
+      "owner_name": "Owner"
+    }
+  },
+  {
+    "id": "g34",
+    "label": "B",
+    "lead": {
+      "website": true,
+      "phone_normalized": "3000000034",
+      "email": "info34@example.org",
+      "email_mx_ok": true,
+      "has_booking": false,
+      "google_rating": 4.3,
+      "review_count": 30,
+      "owner_name": "Owner"
+    }
+  },
+  {
+    "id": "g35",
+    "label": "B",
+    "lead": {
+      "website": true,
+      "phone_normalized": "3000000035",
+      "email": "info35@example.org",
+      "email_mx_ok": true,
+      "has_booking": false,
+      "google_rating": 4.3,
+      "review_count": 30,
+      "owner_name": "Owner"
+    }
+  },
+  {
+    "id": "g36",
+    "label": "C",
+    "lead": {
+      "website": false,
+      "google_rating": 3.5,
+      "review_count": 4,
+      "services": []
+    }
+  },
+  {
+    "id": "g37",
+    "label": "C",
+    "lead": {
+      "website": false,
+      "google_rating": 3.5,
+      "review_count": 4,
+      "services": []
+    }
+  },
+  {
+    "id": "g38",
+    "label": "C",
+    "lead": {
+      "website": false,
+      "google_rating": 3.5,
+      "review_count": 4,
+      "services": []
+    }
+  },
+  {
+    "id": "g39",
+    "label": "C",
+    "lead": {
+      "website": false,
+      "google_rating": 3.5,
+      "review_count": 4,
+      "services": []
+    }
+  },
+  {
+    "id": "g40",
+    "label": "C",
+    "lead": {
+      "website": false,
+      "google_rating": 3.5,
+      "review_count": 4,
+      "services": []
+    }
+  },
+  {
+    "id": "g41",
+    "label": "C",
+    "lead": {
+      "website": false,
+      "google_rating": 3.5,
+      "review_count": 4,
+      "services": []
+    }
+  },
+  {
+    "id": "g42",
+    "label": "C",
+    "lead": {
+      "website": false,
+      "google_rating": 3.5,
+      "review_count": 4,
+      "services": []
+    }
+  },
+  {
+    "id": "g43",
+    "label": "C",
+    "lead": {
+      "website": false,
+      "google_rating": 3.5,
+      "review_count": 4,
+      "services": []
+    }
+  },
+  {
+    "id": "g44",
+    "label": "C",
+    "lead": {
+      "website": false,
+      "google_rating": 3.5,
+      "review_count": 4,
+      "services": []
+    }
+  },
+  {
+    "id": "g45",
+    "label": "C",
+    "lead": {
+      "website": false,
+      "google_rating": 3.5,
+      "review_count": 4,
+      "services": []
+    }
+  },
+  {
+    "id": "g46",
+    "label": "C",
+    "lead": {
+      "website": false,
+      "google_rating": 3.5,
+      "review_count": 4,
+      "services": []
+    }
+  },
+  {
+    "id": "g47",
+    "label": "C",
+    "lead": {
+      "website": false,
+      "google_rating": 3.5,
+      "review_count": 4,
+      "services": []
+    }
+  },
+  {
+    "id": "g48",
+    "label": "C",
+    "lead": {
+      "website": false,
+      "google_rating": 3.5,
+      "review_count": 4,
+      "services": []
+    }
+  },
+  {
+    "id": "g49",
+    "label": "C",
+    "lead": {
+      "website": false,
+      "google_rating": 3.5,
+      "review_count": 4,
+      "services": []
+    }
+  },
+  {
+    "id": "g50",
+    "label": "C",
+    "lead": {
+      "website": false,
+      "google_rating": 3.5,
+      "review_count": 4,
+      "services": []
+    }
+  }
+]

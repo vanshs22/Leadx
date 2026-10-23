@@ -1,6 +1,8 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
+import { useLiveLoader } from "@/lib/live";
+import { PollingDeadlineState } from "@/components/ui/States";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { admin } from "@/lib/admin";
@@ -89,27 +91,34 @@ export default function RunBoardPage() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [msg, setMsg] = useState("");
+  const [pollingExpired, setPollingExpired] = useState(false);
+  const [pollingReset, setPollingReset] = useState(0);
 
-  const load = useCallback(() => {
+  const load = useCallback(async () => {
     if (!runId) return;
-    admin
-      .runLeads(runId)
-      .then((d: any) => {
-        setRun(d.run);
-        setLeads(d.leads || []);
-        if (d.error) setError(d.error);
-      })
-      .catch((e) => setError(e.message))
-      .finally(() => setLoading(false));
+    try {
+      const d: any = await admin.runLeads(runId);
+      setRun(d.run);
+      setLeads(d.leads || []);
+      setError(d.error || "");
+    } catch (caught: any) {
+      setError(caught?.message || "Could not load run board");
+    } finally {
+      setLoading(false);
+    }
   }, [runId]);
 
-  useEffect(() => {
-    load();
-    let timer:number|undefined;
-    const tick=()=>{load();timer=window.setTimeout(tick,run?.status==="running"||run?.status==="queued"?1500:5000)};
-    timer=window.setTimeout(tick,1500);
-    return ()=>{if(timer)window.clearTimeout(timer)};
-  }, [load, run?.status]);
+  const runStatus = String(run?.status || "").toLowerCase();
+  const runTerminal = ["completed", "complete", "done", "failed", "cancelled"].includes(runStatus);
+  const refresh = () => {
+    setPollingExpired(false);
+    setPollingReset((value) => value + 1);
+    void load();
+  };
+
+  useLiveLoader(load, runTerminal ? 0 : 1_500, [runId, runTerminal, pollingReset], {
+    onDeadline: () => setPollingExpired(true),
+  });
 
   const buckets = useMemo(() => {
     const map: Record<string, RunLead[]> = {};
@@ -201,6 +210,15 @@ export default function RunBoardPage() {
             <div><span className="run-summary-label">Delivery</span><b className="run-summary-value">{run.delivered ?? 0}</b></div>
           </div>
         )}
+        {run && (
+          <div className="mt-3 flex flex-wrap gap-x-4 gap-y-1 text-xs text-ink-faint" aria-label="Run operational evidence">
+            <span>Queue age: {run.queue_age_seconds ?? "—"}s</span>
+            <span>Retries: {run.retries ?? run.retry_count ?? 0}</span>
+            <span>Worker: {run.worker_status || "—"}</span>
+            <span>Job: {run.job_id || "—"}</span>
+            {run.terminal_reason ? <span>Terminal: {run.terminal_reason}</span> : null}
+          </div>
+        )}
         {run && !targetReached && target > 0 && (
           <div className="mt-3 rounded-xl border border-amber-300/60 bg-amber-50/70 px-3 py-2 text-xs text-amber-900 dark:bg-amber-500/10 dark:text-amber-200">
             {target - assigned} assignment{target - assigned === 1 ? "" : "s"} short. {run.meta?.quota_remaining_after === 0 ? "Tenant quota is exhausted." : "See blockers below for quality, exclusivity, recency, or assignment failures."}
@@ -220,6 +238,7 @@ export default function RunBoardPage() {
             </span>
           </p>
         )}
+        {pollingExpired && <PollingDeadlineState onRefresh={refresh} />}
         {msg && <p className="mt-1 text-xs text-signal-400">{msg}</p>}
         {saving && <p className="text-xs text-ink-faint">Saving…</p>}
       </header>

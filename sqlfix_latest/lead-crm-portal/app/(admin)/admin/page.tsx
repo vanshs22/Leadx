@@ -1,11 +1,11 @@
 "use client";
 
-import { setVisibleInterval, clearVisibleInterval } from "@/lib/live";
-import { useEffect, useState } from "react";
+import { useLiveLoader } from "@/lib/live";
+import { useState } from "react";
 import Link from "next/link";
 import { admin, adminExtras } from "@/lib/admin";
 import { chartColors } from "@/lib/chartColors";
-import { ErrorState } from "@/components/ui/States";
+import { ErrorState, PollingDeadlineState } from "@/components/ui/States";
 import { Icon } from "@/components/ui/Icon";
 import dynamic from "next/dynamic";
 const Sparkline = dynamic(() => import("@/components/charts/Sparkline").then((m) => m.Sparkline), { ssr: false, loading: () => <div className="skeleton h-12 w-full rounded-lg" /> });
@@ -25,6 +25,8 @@ export default function AdminOverviewPage() {
   const [platformSummary, setPlatformSummary] = useState<any>(null);
   const [actionBusy, setActionBusy] = useState("");
   const [lastRefresh, setLastRefresh] = useState<Date | null>(null);
+  const [pollingExpired, setPollingExpired] = useState(false);
+  const [pollingReset, setPollingReset] = useState(0);
 
   const load = async () => {
     setErr("");
@@ -56,16 +58,20 @@ export default function AdminOverviewPage() {
     setLastRefresh(new Date());
   };
 
-  useEffect(() => {
-    load();
-    const id = setVisibleInterval(load, 30000);
-    return () => clearVisibleInterval(id);
-  }, []);
+  const refresh = () => {
+    setPollingExpired(false);
+    setPollingReset((value) => value + 1);
+    void load();
+  };
+
+  useLiveLoader(load, 30000, [pollingReset], {
+    onDeadline: () => setPollingExpired(true),
+  });
 
   async function control(label: string, fn: () => Promise<any>) {
     setActionBusy(label);
     setErr("");
-    try { await fn(); load(); } catch (e: any) { setErr(e?.message || `Failed: ${label}`); } finally { setActionBusy(""); }
+    try { await fn(); refresh(); } catch (e: any) { setErr(e?.message || `Failed: ${label}`); } finally { setActionBusy(""); }
   }
 
   const actions = [
@@ -108,7 +114,8 @@ export default function AdminOverviewPage() {
         </div>
       </header>
 
-      {err && <ErrorState error={err} onRetry={load} />}
+      {err && <ErrorState error={err} onRetry={refresh} />}
+      {pollingExpired && <PollingDeadlineState onRefresh={refresh} />}
 
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
         {kpis.map((k) => (

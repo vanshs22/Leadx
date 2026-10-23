@@ -87,7 +87,7 @@ class CreateICPRequest(BaseModel):
     vertical: str
     geo: list[str] = Field(default_factory=list)
     keywords: list[str] = Field(default_factory=list)
-    exclusivity: str = "exclusive"
+    exclusivity: str = "shared"
 
 
 class SuppressionUpload(BaseModel):
@@ -281,25 +281,38 @@ async def run_pipeline(req: PipelineRequest, request: Request, background_tasks:
     # durably created: the old implementation swallowed this INSERT failure,
     # returned 200/queued, and produced the misleading 404 seen by the portal.
     run_started_at = datetime.now(timezone.utc).isoformat()
+    run_row = {
+        "id": run_id,
+        "tenant_id": kwargs["tenant_id"],
+        "icp_id": icp,
+        "status": "queued",
+        "discovered": 0,
+        "enriched": 0,
+        "gated_ok": 0,
+        "assigned": 0,
+        "delivered": 0,
+        "started_at": run_started_at,
+        "meta": {"stage": "queued", "message": "Waiting to start", "industry": kwargs["industry"]},
+    }
     try:
         sb = get_supabase()
-        await aexec(sb.table("pipeline_runs").insert({
-            "id": run_id,
-            "tenant_id": kwargs["tenant_id"],
-            "icp_id": icp,
-            # Keep the persisted row compatible with older databases that have
-            # not yet received migration 23. The meta stage still communicates
-            # that the durable row is waiting for a worker. Migration 23 adds
-            # the explicit queued status for new/current installs.
-            "status": "running",
-            "discovered": 0,
-            "enriched": 0,
-            "gated_ok": 0,
-            "assigned": 0,
-            "delivered": 0,
-            "started_at": run_started_at,
-            "meta": {"stage": "queued", "message": "Waiting to start", "industry": kwargs["industry"]},
-        }))
+        try:
+            await aexec(sb.table("pipeline_runs").insert(run_row))
+        except Exception as queued_error:
+            # Older installs may still reject the queued enum value. Retry the
+            # same durable row identity as running; never create another job/run.
+            detail = str(queued_error).lower()
+            code = str(getattr(queued_error, "code", "")).lower()
+            is_queued_schema_rejection = (
+                code == "23514"
+                or "pipeline_runs_status_check" in detail
+                or ("queued" in detail and "status" in detail and "check" in detail)
+            )
+            if not is_queued_schema_rejection:
+                raise
+            log.warning("pipeline_runs schema does not accept queued; using running compatibility status run_id=%s", run_id)
+            legacy_row = {**run_row, "status": "running"}
+            await aexec(sb.table("pipeline_runs").insert(legacy_row))
         verify = (await aexec(
             sb.table("pipeline_runs")
             .select("id,tenant_id,status,started_at")
@@ -438,13 +451,21 @@ def create_tenant(req: CreateTenantRequest):
 def create_icp(req: CreateICPRequest):
     from app.memory.supabase_client import get_supabase
     sb = get_supabase()
+    exclusivity = (req.exclusivity or "shared").strip().lower()
+    if exclusivity not in {"shared", "exclusive"}:
+        raise HTTPException(400, "exclusivity must be shared or exclusive")
+    if exclusivity == "exclusive":
+        from app.core.plans import exclusive_leads_entitled
+        tenant = sb.table("tenants").select("plan,settings").eq("id", req.tenant_id).limit(1).execute().data or []
+        if not tenant or not exclusive_leads_entitled(tenant[0].get("plan"), tenant[0].get("settings")):
+            raise HTTPException(403, "Exclusive lead delivery is not enabled for this plan")
     r = sb.table("icp_profiles").insert({
         "tenant_id": req.tenant_id,
         "name": req.name,
         "vertical": req.vertical,
         "geo": req.geo,
         "keywords": req.keywords,
-        "exclusivity": req.exclusivity,
+        "exclusivity": exclusivity,
     }).execute()
     return (r.data or [None])[0]
 

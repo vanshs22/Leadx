@@ -1,0 +1,20 @@
+# OPTIONAL heavy enrichment deps. Install only if you want the full
+# anti-bot / browser-rendered scraping cascade:
+#
+#   pip install -r requirements.txt -r requirements-scrape.txt
+#   playwright install chromium      # browser binaries for scrapling/crawl4ai
+#
+# Without these the enricher falls back to plain httpx fetching, which works
+# for most sites — see backend/integrations/prod/enricher.py fetch_scrapling().
+#
+# NOTE: scrapegraphai is deliberately NOT listed. It pulls in litellm, which
+# requires a Rust toolchain to compile and broke `pip install` outright.
+# Structured extraction is done with regex in enricher.py; re-add it only if
+# you specifically need LLM extraction and have a build toolchain available.
+
+-r requirements.txt
+
+scrapling==0.2.9
+crawl4ai==0.4.24
+playwright==1.45.0
+instaloader==4.12.1

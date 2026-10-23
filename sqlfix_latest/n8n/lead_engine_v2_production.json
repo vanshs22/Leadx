@@ -1,0 +1,114 @@
+{
+  "name": "Lead Engine v2 — Production Pipeline",
+  "active": true,
+  "nodes": [
+    {
+      "id": "cron-prod-001",
+      "name": "Daily Cron 6AM",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [160, 280],
+      "parameters": {
+        "rule": { "interval": [{ "field": "cronExpression", "expression": "0 6 * * *" }] }
+      }
+    },
+    {
+      "id": "webhook-prod-001",
+      "name": "Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [160, 480],
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "lead_engine_v2",
+        "responseMode": "responseNode"
+      }
+    },
+    {
+      "id": "normalize-prod-001",
+      "name": "Normalize Input",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [420, 380],
+      "parameters": {
+        "jsCode": "const d = $input.first().json;\nconst body = d.body || d;\nconst isCron = !body.tenant_id && !d.tenant_id;\n\nif (isCron) {\n  return [{ json: {\n    mode: 'all_icps',\n    limit_per_location: Number(body.limit_per_location) || 40,\n    skip_enrichment: !!body.skip_enrichment,\n    max_enrich_concurrent: Number(body.max_enrich_concurrent) || 6\n  }}];\n}\n\nreturn [{ json: {\n  mode: 'single',\n  tenant_id: body.tenant_id,\n  icp_id: body.icp_id || null,\n  industry: body.industry || 'medspa',\n  locations: body.locations || [],\n  queries: body.queries || [],\n  limit_per_location: Number(body.limit_per_location) || 50,\n  skip_enrichment: !!body.skip_enrichment,\n  allow_tier_b: !!body.allow_tier_b,\n  max_enrich_concurrent: Number(body.max_enrich_concurrent) || 6,\n  deliver: body.deliver !== false,\n  use_crawl4ai: body.use_crawl4ai !== false,\n  use_firecrawl: body.use_firecrawl !== false,\n  task_id: body.task_id || null\n}}];"
+      }
+    },
+    {
+      "id": "if-mode-prod",
+      "name": "Mode?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [640, 380],
+      "parameters": {
+        "conditions": {
+          "string": [{ "value1": "={{ $json.mode }}", "operation": "equals", "value2": "all_icps" }]
+        }
+      }
+    },
+    {
+      "id": "run-all-prod",
+      "name": "Run All ICPs",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [900, 280],
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.BACKEND_URL }}/leads/v2/pipeline/run-all-icps",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [{ "name": "Content-Type", "value": "application/json" }]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ limit_per_location: $json.limit_per_location, skip_enrichment: $json.skip_enrichment, max_enrich_concurrent: $json.max_enrich_concurrent }) }}",
+        "options": { "timeout": 900000 }
+      }
+    },
+    {
+      "id": "run-single-prod",
+      "name": "Run Single Tenant",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [900, 480],
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.BACKEND_URL }}/leads/v2/pipeline/run",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [{ "name": "Content-Type", "value": "application/json" }]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ tenant_id: $json.tenant_id, icp_id: $json.icp_id, industry: $json.industry, locations: $json.locations, queries: $json.queries, limit_per_location: $json.limit_per_location, skip_enrichment: $json.skip_enrichment, allow_tier_b: $json.allow_tier_b, max_enrich_concurrent: $json.max_enrich_concurrent, deliver: $json.deliver, use_crawl4ai: $json.use_crawl4ai, use_firecrawl: $json.use_firecrawl }) }}",
+        "options": { "timeout": 900000 }
+      }
+    },
+    {
+      "id": "respond-prod",
+      "name": "Respond",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [1160, 380],
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({ success: true, workflow: 'lead_engine_v2_production', data: $json }) }}"
+      }
+    }
+  ],
+  "connections": {
+    "Daily Cron 6AM": { "main": [[{ "node": "Normalize Input", "type": "main", "index": 0 }]] },
+    "Webhook": { "main": [[{ "node": "Normalize Input", "type": "main", "index": 0 }]] },
+    "Normalize Input": { "main": [[{ "node": "Mode?", "type": "main", "index": 0 }]] },
+    "Mode?": {
+      "main": [
+        [{ "node": "Run All ICPs", "type": "main", "index": 0 }],
+        [{ "node": "Run Single Tenant", "type": "main", "index": 0 }]
+      ]
+    },
+    "Run All ICPs": { "main": [[{ "node": "Respond", "type": "main", "index": 0 }]] },
+    "Run Single Tenant": { "main": [[{ "node": "Respond", "type": "main", "index": 0 }]] }
+  },
+  "settings": { "executionOrder": "v1" },
+  "tags": ["leads", "v2", "production", "multi-tenant"]
+}

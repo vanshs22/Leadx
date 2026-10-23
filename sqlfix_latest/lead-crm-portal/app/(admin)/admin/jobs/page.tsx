@@ -51,10 +51,16 @@ function JobsMonitor() {
   const load = useCallback(async () => {
     try {
       setError(null);
-      const d = await adminExtras.jobs({ status: status || undefined, run_id: runId || undefined, limit: 100 });
+      const [jobsResult, cronResult] = await Promise.allSettled([
+        adminExtras.jobs({ status: status || undefined, run_id: runId || undefined, limit: 100 }),
+        adminExtras.cronAudit(),
+      ]);
+      if (jobsResult.status === "rejected") throw jobsResult.reason;
+      const d = jobsResult.value;
       setJobs(d.jobs || []);
       setStats(d.stats || {});
       setOperational(d.operational || null);
+      if (cronResult.status === "fulfilled") setCron(cronResult.value.checks || []);
       setError(null);
     } catch (e: unknown) {
       setError(e);
@@ -74,18 +80,11 @@ function JobsMonitor() {
   }, [status]);
   useLiveLoader(load, POLL_MS, [status, pollingReset], { onDeadline: () => setPollingExpired(true) });
 
-  useEffect(() => {
-    adminExtras
-      .cronAudit()
-      .then((d) => setCron(d.checks || []))
-      .catch(() => setCron([]));
-  }, []);
-
   async function act(id: string, fn: () => Promise<any>) {
     setBusy(id);
     try {
       await fn();
-      await load();
+      await refresh();
     } catch (e: unknown) {
       setError(e);
     } finally {

@@ -4,9 +4,30 @@ import { useEffect, useState, Suspense } from "react";
 import { useSearchParams } from "next/navigation";
 import { admin } from "@/lib/admin";
 import { useLiveLoader } from "@/lib/live";
-import { ErrorState, EmptyState } from "@/components/ui/States";
-import { FreshnessNote, UnavailableNote } from "@/components/ui/SurfaceMeta";
+import { ErrorState } from "@/components/ui/States";
+import { FreshnessNote } from "@/components/ui/SurfaceMeta";
 import { OperationStateCard, toOperationState } from "@/components/ui/OperationState";
+
+const TERMINAL_STATUSES = new Set(["completed", "complete", "done", "failed", "cancelled", "partial"]);
+
+function statusBadgeClass(status: string) {
+  switch (status) {
+    case "completed":
+    case "complete":
+    case "done":
+      return "rounded-full bg-signal-500/15 px-2.5 py-0.5 text-xs font-medium text-signal-400";
+    case "failed":
+      return "rounded-full bg-rust-500/15 px-2.5 py-0.5 text-xs font-medium text-rust-400";
+    case "partial":
+      return "rounded-full bg-amber-500/15 px-2.5 py-0.5 text-xs font-medium text-amber-400";
+    case "queued":
+      return "rounded-full bg-sky-500/15 px-2.5 py-0.5 text-xs font-medium text-sky-400";
+    case "running":
+      return "rounded-full bg-brand-500/15 px-2.5 py-0.5 text-xs font-medium text-brand-400";
+    default:
+      return "rounded-full bg-ink/10 px-2.5 py-0.5 text-xs font-medium text-ink-muted";
+  }
+}
 
 function PipelineForm() {
   const params = useSearchParams();
@@ -20,7 +41,7 @@ function PipelineForm() {
     industry: "medspa",
     locations: "Hoboken NJ, Jersey City NJ",
     limit_per_location: 5,
-    target_new_leads: 50,
+    target_new_leads: 5,
     deliver: true,
     allow_tier_b: false,
     skip_enrichment: false,
@@ -35,7 +56,8 @@ function PipelineForm() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<unknown>(null);
   const [liveRun, setLiveRun] = useState<any>(null);
-  const [liveRunId, setLiveRunId] = useState("");
+  // Hydrate from /admin/pipeline?run_id=... and only replace it with a POST id.
+  const [liveRunId, setLiveRunId] = useState(() => params.get("run_id") || "");
   const [pollError, setPollError] = useState<unknown>(null);
   const [pollingExpired, setPollingExpired] = useState(false);
   const [pollingReset, setPollingReset] = useState(0);
@@ -63,29 +85,37 @@ function PipelineForm() {
   }, [form.tenant_id]);
 
   const runStatus = String(liveRun?.status || "").toLowerCase();
-  const runTerminal = ["completed", "complete", "done", "failed", "cancelled"].includes(runStatus);
+  const runTerminal = TERMINAL_STATUSES.has(runStatus);
 
   async function loadLiveRun() {
-    if (!liveRunId || runTerminal) return;
+    if (!liveRunId) return;
     try {
+      // Always fetch the server record, including when a local snapshot says terminal.
       const d = await admin.getRun(liveRunId);
       const run = d?.run || d;
-      if (!run) return;
+      if (!run || typeof run !== "object") {
+        setLiveRun(null);
+        setPollError(new Error(`Run ${liveRunId} was not found. Refresh or start a new pipeline run.`));
+        return;
+      }
       setPollError(null);
       setLiveRun(run);
-      const nextStatus = String(run.status || "").toLowerCase();
-      if (["completed", "complete", "done", "failed", "cancelled"].includes(nextStatus)) setBusy(false);
+      const nextStatus = String((run as any).status || "").toLowerCase();
+      if (TERMINAL_STATUSES.has(nextStatus)) setBusy(false);
     } catch (e: unknown) {
+      // Never keep a fabricated or stale progress snapshot after an authoritative read fails.
+      setLiveRun(null);
       setPollError(e);
     }
   }
 
   const refreshRun = () => {
     setPollingExpired(false);
+    setPollError(null);
     setPollingReset((value) => value + 1);
   };
 
-  useLiveLoader(loadLiveRun, 2_000, [liveRunId, pollingReset, runTerminal], {
+  useLiveLoader(loadLiveRun, liveRunId && !runTerminal ? 2_000 : 0, [liveRunId, pollingReset, runTerminal], {
     onDeadline: () => setPollingExpired(true),
   });
 
@@ -99,13 +129,14 @@ function PipelineForm() {
     setPollError(null);
     setPollingExpired(false);
     setResult(null);
+    setLiveRun(null);
     try {
       const locations = form.locations
         .split(",")
         .map((s) => s.trim())
         .filter(Boolean);
-      const total = Math.max(0, Number(form.target_new_leads) || 0);
-      const perLoc = Math.max(1, Number(form.limit_per_location) || 30);
+      const total = Math.max(1, Number(form.target_new_leads) || 5);
+      const perLoc = Math.max(1, Number(form.limit_per_location) || 5);
       const r = await admin.runPipeline({
         tenant_id: form.tenant_id,
         icp_id: form.icp_id || undefined,
@@ -127,18 +158,12 @@ function PipelineForm() {
       setResult(r);
       const rid = r?.run_id || r?.id;
       if (rid) {
-        setLiveRunId(rid);
-        setLiveRun({
-          id: rid,
-          status: r?.status || "started",
-          discovered: 0,
-          enriched: 0,
-          gated_ok: 0,
-          assigned: 0,
-          delivered: 0,
-        });
+        // The authoritative GET below supplies status and counters; do not invent them here.
+        setLiveRunId(String(rid));
       } else {
+        setLiveRunId("");
         setBusy(false);
+        setError("Pipeline response did not include a run ID, so live progress cannot be loaded.");
       }
     } catch (e: unknown) {
       setError(e);
@@ -169,280 +194,129 @@ function PipelineForm() {
   return (
     <div className="page">
       <header>
-        <h1 className="text-2xl font-semibold text-ink">Run pipeline</h1>
-        <p className="mt-1 text-sm text-ink-faint">
-          Discover → enrich → gate → deliver for one client. Run state below is sourced from the returned run record; no progress is invented while the API is unavailable.
-        </p>
-        <div className="mt-2"><FreshnessNote label="Live operation monitor" detail="2-second visible refresh while a run is active" /></div>
+        <div className="flex flex-wrap items-end justify-between gap-3">
+          <div>
+            <h1 className="text-2xl font-semibold text-ink">Run pipeline</h1>
+            <p className="mt-1 max-w-3xl text-sm text-ink-faint">
+              Discover → enrich → gate → deliver for one client. Live counters and status are read from the authoritative run record.
+            </p>
+          </div>
+          <FreshnessNote label="Live operation monitor" detail="2-second visible refresh while a run is active" />
+        </div>
         {tenantError ? <ErrorState error={tenantError} onRetry={loadTenants} /> : null}
         {pollError ? (
-          <div role="alert" className="space-y-2">
+          <div role="alert" className="mt-3 space-y-2">
             <p className="text-sm font-medium text-rust-400">Unable to read live run status</p>
             <ErrorState error={pollError} onRetry={refreshRun} />
           </div>
         ) : null}
       </header>
 
-      <div className="max-w-xl space-y-3 rounded-xl border border-line bg-surface-2/60 p-5">
-        <label className="block text-xs text-ink-faint">
-          Client
-          <select
-            className="mt-1 w-full rounded-lg border border-line bg-surface px-3 py-2 text-sm text-ink"
-            value={form.tenant_id}
-            onChange={(e) => setForm({ ...form, tenant_id: e.target.value, icp_id: "" })}
-          >
-            {tenantLoading ? <option disabled>Loading clients…</option> : null}
-            {!tenantLoading && tenants.length === 0 ? <option disabled>No active clients returned</option> : null}
-            {!tenantLoading && tenants.map((t) => (
-              <option key={t.id} value={t.id}>
-                {t.name}
-              </option>
-            ))}
-          </select>
-        </label>
-
-        <label className="block text-xs text-ink-faint">
-          ICP (optional)
-          <select
-            className="mt-1 w-full rounded-lg border border-line bg-surface px-3 py-2 text-sm text-ink"
-            value={form.icp_id}
-            onChange={(e) => setForm({ ...form, icp_id: e.target.value })}
-          >
-            <option value="">Manual industry / locations</option>
-            {icps.map((i) => (
-              <option key={i.id} value={i.id}>
-                {i.vertical} — {(i.geo || []).join(", ")}
-              </option>
-            ))}
-          </select>
-        </label>
-
-        <label className="block text-xs text-ink-faint">
-          Industry
-          <input
-            className="mt-1 w-full rounded-lg border border-line bg-surface px-3 py-2 text-sm text-ink"
-            value={form.industry}
-            onChange={(e) => setForm({ ...form, industry: e.target.value })}
-          />
-        </label>
-
-        <label className="block text-xs text-ink-faint">
-          Locations (comma-separated)
-          <input
-            className="mt-1 w-full rounded-lg border border-line bg-surface px-3 py-2 text-sm text-ink"
-            value={form.locations}
-            onChange={(e) => setForm({ ...form, locations: e.target.value })}
-          />
-        </label>
-
-        <label className="block text-xs text-ink-faint">
-          Limit per location
-          <input
-            type="number"
-            min={1}
-            className="mt-1 w-full rounded-lg border border-line bg-surface px-3 py-2 text-sm text-ink"
-            value={form.limit_per_location}
-            onChange={(e) =>
-              setForm({ ...form, limit_per_location: Number(e.target.value) })
-            }
-          />
-        </label>
-
-        <label className="block text-xs text-ink-faint">
-          Total leads this run
-          <input
-            type="number"
-            min={0}
-            max={50000}
-            className="mt-1 w-full rounded-lg border border-line bg-surface px-3 py-2 text-sm text-ink"
-            value={form.target_new_leads}
-            onChange={(e) =>
-              setForm({ ...form, target_new_leads: Number(e.target.value) })
-            }
-          />
-          <span className="mt-1 block text-xs text-ink-faint">
-            Cap how many businesses to find in this run (e.g. 50). Uses continuous
-            discovery when set. Limit per location still applies per city.
-          </span>
-        </label>
-
-        <div className="rounded-lg border border-line bg-surface px-3 py-3">
-          <div className="text-xs font-semibold text-ink mb-2">Lead sources (multi-select)</div>
-          <p className="text-[11px] text-ink-faint mb-2">
-            Only selected sources run. Small targets use reserved slots so Maps cannot take 100%.
-          </p>
-          <div className="flex flex-wrap gap-3 text-sm text-ink">
-            {(
-              [
-                ["include_maps", "Maps"],
-                ["include_web", "Web"],
-                ["include_yelp", "Yelp"],
-                ["include_facebook", "Facebook"],
-                ["include_linkedin", "LinkedIn"],
-                ["include_instagram", "Instagram"],
-              ] as const
-            ).map(([key, label]) => (
-              <label key={key} className="flex items-center gap-2">
-                <input
-                  type="checkbox"
-                  checked={(form as any)[key]}
-                  onChange={(e) => setForm({ ...form, [key]: e.target.checked })}
-                />
-                {label}
-              </label>
-            ))}
+      <div className="mt-5 grid gap-4 lg:grid-cols-[minmax(260px,0.8fr)_minmax(0,1.7fr)] lg:items-start">
+        <section aria-labelledby="pipeline-setup-title" className="space-y-3 rounded-xl border border-line bg-surface-2/60 p-5">
+          <div>
+            <h2 id="pipeline-setup-title" className="text-sm font-semibold text-ink">Run setup</h2>
+            <p className="mt-1 text-xs text-ink-faint">Choose the client, target, and source lanes.</p>
           </div>
-        </div>
+          <label className="block text-xs text-ink-faint">
+            Client
+            <select aria-label="Client" className="mt-1 w-full rounded-lg border border-line bg-surface px-3 py-2 text-sm text-ink" value={form.tenant_id} onChange={(e) => setForm({ ...form, tenant_id: e.target.value, icp_id: "" })}>
+              {tenantLoading ? <option disabled>Loading clients…</option> : null}
+              {!tenantLoading && tenants.length === 0 ? <option disabled>No active clients returned</option> : null}
+              {!tenantLoading && tenants.map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}
+            </select>
+          </label>
+          <label className="block text-xs text-ink-faint">
+            ICP (optional)
+            <select aria-label="ICP (optional)" className="mt-1 w-full rounded-lg border border-line bg-surface px-3 py-2 text-sm text-ink" value={form.icp_id} onChange={(e) => setForm({ ...form, icp_id: e.target.value })}>
+              <option value="">Manual industry / locations</option>
+              {icps.map((i) => <option key={i.id} value={i.id}>{i.vertical} — {(i.geo || []).join(", ")}</option>)}
+            </select>
+          </label>
+          <label className="block text-xs text-ink-faint">
+            Industry
+            <input aria-label="Industry" className="mt-1 w-full rounded-lg border border-line bg-surface px-3 py-2 text-sm text-ink" value={form.industry} onChange={(e) => setForm({ ...form, industry: e.target.value })} />
+          </label>
+          <label className="block text-xs text-ink-faint">
+            Locations (comma-separated)
+            <input aria-label="Locations (comma-separated)" className="mt-1 w-full rounded-lg border border-line bg-surface px-3 py-2 text-sm text-ink" value={form.locations} onChange={(e) => setForm({ ...form, locations: e.target.value })} />
+          </label>
+          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-1 xl:grid-cols-2">
+            <label className="block text-xs text-ink-faint">
+              Limit per location
+              <input aria-label="Limit per location" type="number" min={1} className="mt-1 w-full rounded-lg border border-line bg-surface px-3 py-2 text-sm text-ink" value={form.limit_per_location} onChange={(e) => setForm({ ...form, limit_per_location: Number(e.target.value) })} />
+            </label>
+            <label className="block text-xs text-ink-faint">
+              Total leads this run
+              <input aria-label="Total leads this run" type="number" min={1} max={50000} className="mt-1 w-full rounded-lg border border-line bg-surface px-3 py-2 text-sm text-ink" value={form.target_new_leads} onChange={(e) => setForm({ ...form, target_new_leads: Math.max(1, Number(e.target.value) || 1) })} />
+            </label>
+          </div>
+          <p className="text-[11px] text-ink-faint">Target at least 1 lead. Limit per location applies to each city.</p>
 
-        <div className="flex flex-wrap gap-4 text-sm text-ink-faint">
-          <label className="flex items-center gap-2">
-            <input
-              type="checkbox"
-              checked={form.deliver}
-              onChange={(e) => setForm({ ...form, deliver: e.target.checked })}
-            />
-            Deliver
-          </label>
-          <label className="flex items-center gap-2">
-            <input
-              type="checkbox"
-              checked={form.allow_tier_b}
-              onChange={(e) => setForm({ ...form, allow_tier_b: e.target.checked })}
-            />
-            Allow Tier B
-          </label>
-          <label className="flex items-center gap-2">
-            <input
-              type="checkbox"
-              checked={form.skip_enrichment}
-              onChange={(e) => setForm({ ...form, skip_enrichment: e.target.checked })}
-            />
-            Skip enrichment
-          </label>
-        </div>
+          <div className="rounded-lg border border-line bg-surface px-3 py-3">
+            <div className="mb-2 text-xs font-semibold text-ink">Lead sources (multi-select)</div>
+            <p className="mb-2 text-[11px] text-ink-faint">Only selected sources run. Small targets use reserved slots so Maps cannot take 100%.</p>
+            <div className="flex flex-wrap gap-3 text-sm text-ink">
+              {([
+                ["include_maps", "Maps"], ["include_web", "Web"], ["include_yelp", "Yelp"],
+                ["include_facebook", "Facebook"], ["include_linkedin", "LinkedIn"], ["include_instagram", "Instagram"],
+              ] as const).map(([key, label]) => (
+                <label key={key} className="flex items-center gap-2"><input aria-label={label} type="checkbox" checked={(form as any)[key]} onChange={(e) => setForm({ ...form, [key]: e.target.checked })} />{label}</label>
+              ))}
+            </div>
+          </div>
+          <div className="flex flex-wrap gap-4 text-sm text-ink-faint">
+            <label className="flex items-center gap-2"><input aria-label="Deliver" type="checkbox" checked={form.deliver} onChange={(e) => setForm({ ...form, deliver: e.target.checked })} />Deliver</label>
+            <label className="flex items-center gap-2"><input aria-label="Allow Tier B" type="checkbox" checked={form.allow_tier_b} onChange={(e) => setForm({ ...form, allow_tier_b: e.target.checked })} />Allow Tier B</label>
+            <label className="flex items-center gap-2"><input aria-label="Skip enrichment" type="checkbox" checked={form.skip_enrichment} onChange={(e) => setForm({ ...form, skip_enrichment: e.target.checked })} />Skip enrichment</label>
+          </div>
+          <div className="flex flex-wrap gap-2 pt-2">
+            <button type="button" onClick={run} disabled={tenantLoading || busy || !form.tenant_id} className="rounded-lg bg-brand-600 px-4 py-2 text-sm font-medium text-white disabled:opacity-50">{busy ? "Running…" : "Run for client"}</button>
+            <button type="button" onClick={runAll} disabled={busy} className="rounded-lg border border-line px-4 py-2 text-sm text-ink-muted disabled:opacity-50">Run all active ICPs</button>
+          </div>
+        </section>
 
-        <div className="flex gap-2 pt-2">
-          <button
-            type="button"
-            onClick={run}
-            disabled={tenantLoading || busy || !form.tenant_id}
-            className="rounded-lg bg-brand-600 px-4 py-2 text-sm font-medium text-white disabled:opacity-50"
-          >
-            {busy ? "Running…" : "Run for client"}
-          </button>
-          <button
-            type="button"
-            onClick={runAll}
-            disabled={busy}
-            className="rounded-lg border border-line px-4 py-2 text-sm text-ink-muted disabled:opacity-50"
-          >
-            Run all active ICPs
-          </button>
-        </div>
+        <section aria-labelledby="pipeline-monitor-title" className="min-w-0 space-y-3">
+          <div className="rounded-xl border border-line bg-surface-2/60 p-4">
+            <h2 id="pipeline-monitor-title" className="text-sm font-semibold text-ink">Live monitor</h2>
+            <p className="mt-1 text-xs text-ink-faint">The monitor appears only after an authoritative run record is returned.</p>
+          </div>
+          {liveRun ? (
+            <>
+              {operation ? <OperationStateCard operation={operation} title="Live run and queue state" onRefresh={refreshRun} jobsHref={liveRunId ? `/admin/jobs?run_id=${encodeURIComponent(liveRunId)}` : undefined} /> : null}
+              <div className="rounded-2xl border border-line bg-surface-2/50 p-4">
+                <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+                  <div><h2 className="text-sm font-semibold text-ink">Live run progress</h2><p className="font-mono text-xs text-ink-faint">{liveRun.id || liveRunId}</p></div>
+                  <span className={statusBadgeClass(status)}>{status || "unknown"}</span>
+                </div>
+                <div className="overflow-x-auto">
+                  <table className="w-full min-w-[480px] text-left text-sm">
+                    <thead><tr className="border-b border-line text-xs uppercase tracking-wide text-ink-faint"><th className="py-2 pr-3 font-medium">Stage</th><th className="py-2 pr-3 font-medium">Count</th><th className="py-2 font-medium">Notes</th></tr></thead>
+                    <tbody className="text-ink">
+                      {[["Discovered", "discovered", "Businesses found"], ["Enriched", "enriched", "Website / contact data"], ["Gated (quality)", "gated_ok", "Passed quality gate"], ["Assigned", "assigned", "Assigned to this client"], ["Delivered", "delivered", "Sent to channel / CRM"]].map(([label, key, note], index, rows) => (
+                        <tr key={key} className={index === rows.length - 1 ? "" : "border-b border-line/60"}><td className="py-2.5 pr-3">{label}</td><td className="py-2.5 pr-3 font-semibold tabular-nums">{liveRun[key] ?? "—"}</td><td className="py-2.5 text-xs text-ink-faint">{note}</td></tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+                {liveRun.meta?.message ? <p className="mt-3 text-xs text-ink-faint">{String(liveRun.meta.message)}</p> : null}
+                {liveRun.error_message ? <p className="mt-2 text-xs text-rust-400">{liveRun.error_message}</p> : null}
+              </div>
+            </>
+          ) : (
+            <div className="rounded-2xl border border-dashed border-line bg-surface-2/30 p-6 text-sm text-ink-muted" role="status" aria-live="polite">
+              {liveRunId ? `Loading authoritative run ${liveRunId}…` : "No run selected. Start a pipeline run or open this page with a run_id."}
+            </div>
+          )}
+        </section>
       </div>
 
-      {liveRun && (
-        <>
-          {operation ? (
-            <OperationStateCard
-              operation={operation}
-              title="Live run and queue state"
-              onRefresh={refreshRun}
-              jobsHref={liveRunId ? `/admin/jobs?run_id=${encodeURIComponent(liveRunId)}` : undefined}
-            />
-          ) : null}
-          <div className="rounded-2xl border border-line bg-surface-2/50 p-4">
-          <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
-            <div>
-              <h2 className="text-sm font-semibold text-ink">Live run progress</h2>
-              <p className="font-mono text-xs text-ink-faint">
-                {liveRun.id || liveRunId}
-              </p>
-            </div>
-            <span
-              className={
-                status === "completed"
-                  ? "rounded-full bg-signal-500/15 px-2.5 py-0.5 text-xs font-medium text-signal-400"
-                  : status === "failed"
-                    ? "rounded-full bg-rust-500/15 px-2.5 py-0.5 text-xs font-medium text-rust-400"
-                    : "rounded-full bg-brand-500/15 px-2.5 py-0.5 text-xs font-medium text-brand-400"
-              }
-            >
-              {liveRun.status || "running"}
-            </span>
-          </div>
-          <div className="overflow-x-auto">
-            <table className="w-full min-w-[480px] text-left text-sm">
-              <thead>
-                <tr className="border-b border-line text-xs uppercase tracking-wide text-ink-faint">
-                  <th className="py-2 pr-3 font-medium">Stage</th>
-                  <th className="py-2 pr-3 font-medium">Count</th>
-                  <th className="py-2 font-medium">Notes</th>
-                </tr>
-              </thead>
-              <tbody className="text-ink">
-                <tr className="border-b border-line/60">
-                  <td className="py-2.5 pr-3">Discovered</td>
-                  <td className="py-2.5 pr-3 font-semibold tabular-nums">
-                    {liveRun.discovered ?? 0}
-                  </td>
-                  <td className="py-2.5 text-xs text-ink-faint">Businesses found</td>
-                </tr>
-                <tr className="border-b border-line/60">
-                  <td className="py-2.5 pr-3">Enriched</td>
-                  <td className="py-2.5 pr-3 font-semibold tabular-nums">
-                    {liveRun.enriched ?? 0}
-                  </td>
-                  <td className="py-2.5 text-xs text-ink-faint">Website / contact data</td>
-                </tr>
-                <tr className="border-b border-line/60">
-                  <td className="py-2.5 pr-3">Gated (quality)</td>
-                  <td className="py-2.5 pr-3 font-semibold tabular-nums">
-                    {liveRun.gated_ok ?? 0}
-                  </td>
-                  <td className="py-2.5 text-xs text-ink-faint">Passed quality gate</td>
-                </tr>
-                <tr className="border-b border-line/60">
-                  <td className="py-2.5 pr-3">Assigned</td>
-                  <td className="py-2.5 pr-3 font-semibold tabular-nums">
-                    {liveRun.assigned ?? 0}
-                  </td>
-                  <td className="py-2.5 text-xs text-ink-faint">Assigned to this client</td>
-                </tr>
-                <tr>
-                  <td className="py-2.5 pr-3">Delivered</td>
-                  <td className="py-2.5 pr-3 font-semibold tabular-nums">
-                    {liveRun.delivered ?? 0}
-                  </td>
-                  <td className="py-2.5 text-xs text-ink-faint">Sent to channel / CRM</td>
-                </tr>
-              </tbody>
-            </table>
-          </div>
-          {liveRun.meta?.message ? (
-            <p className="mt-3 text-xs text-ink-faint">{String(liveRun.meta.message)}</p>
-          ) : null}
-          {liveRun.error_message ? (
-            <p className="mt-2 text-xs text-rust-400">{liveRun.error_message}</p>
-          ) : null}
-          </div>
-        </>
-      )}
-
       {error ? <ErrorState error={error} onRetry={refreshRun} /> : null}
-      {result && !liveRun ? (
-        <p className="rounded-xl border border-line bg-surface-2/60 p-4 text-sm text-ink-muted" role="status">
-          Pipeline request accepted. Live progress will appear when the run identity is available.
-        </p>
-      ) : null}
+      {result && !liveRun && !error ? <p className="rounded-xl border border-line bg-surface-2/60 p-4 text-sm text-ink-muted" role="status">Pipeline request accepted. Waiting for the authoritative run record…</p> : null}
     </div>
   );
 }
 
 export default function AdminPipelinePage() {
-  return (
-    <Suspense fallback={<div className="p-8 text-ink-faint">Loading…</div>}>
-      <PipelineForm />
-    </Suspense>
-  );
+  return <Suspense fallback={<div className="p-8 text-ink-faint">Loading…</div>}><PipelineForm /></Suspense>;
 }

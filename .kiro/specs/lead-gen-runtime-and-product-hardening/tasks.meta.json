@@ -1,0 +1,425 @@
+{
+  "pbtResults": {
+    "10.2 Verify the bug-condition exploration property after the fix": {
+      "status": "not_run",
+      "failingExample": "The exact command `python -m pytest -q tests/runtime_exploration/test_runtime_readiness_property.py` could not start: PowerShell reported `python : The term 'python' is not recognized`; no `py`, `python3`, `pytest`, `uv`, `poetry`, repository-local virtualenv, or Docker fallback was available.",
+      "lastRunTimestamp": 1792505249543
+    },
+    "10.3 Verify the preservation property after the fix": {
+      "status": "not_run",
+      "failingExample": "The exact standalone command could not execute because Python and pytest tooling are unavailable: `python`, `py`, `python3`, and `pytest` were all not found on PATH.",
+      "lastRunTimestamp": 1792505364405
+    }
+  },
+  "executionHistory": {
+    "1. Establish the baseline and runtime test harness": [
+      {
+        "executionId": "d6aa0c93-d2e0-400e-b579-eb175702b7a5",
+        "chatSessionId": "sess_a6e13ab9-7b17-4a7a-b44a-4f6b0c1fce8a",
+        "timestamp": 1792490098740
+      },
+      {
+        "executionId": "d6aa0c93-d2e0-400e-b579-eb175702b7a5",
+        "chatSessionId": "sess_a6e13ab9-7b17-4a7a-b44a-4f6b0c1fce8a",
+        "timestamp": 1792490111234
+      },
+      {
+        "executionId": "d6aa0c93-d2e0-400e-b579-eb175702b7a5",
+        "chatSessionId": "sess_a6e13ab9-7b17-4a7a-b44a-4f6b0c1fce8a",
+        "timestamp": 1792490598125
+      }
+    ],
+    "2. **Property 1: Bug Condition** - Runtime readiness and dependency truthfulness exploration": [
+      {
+        "executionId": "d6aa0c93-d2e0-400e-b579-eb175702b7a5",
+        "chatSessionId": "sess_a6e13ab9-7b17-4a7a-b44a-4f6b0c1fce8a",
+        "timestamp": 1792490100055
+      },
+      {
+        "executionId": "d6aa0c93-d2e0-400e-b579-eb175702b7a5",
+        "chatSessionId": "sess_a6e13ab9-7b17-4a7a-b44a-4f6b0c1fce8a",
+        "timestamp": 1792490614023
+      },
+      {
+        "executionId": "d6aa0c93-d2e0-400e-b579-eb175702b7a5",
+        "chatSessionId": "sess_a6e13ab9-7b17-4a7a-b44a-4f6b0c1fce8a",
+        "timestamp": 1792491056408
+      }
+    ],
+    "3. **Property 2: Preservation** - Healthy runtime and existing product behavior exploration": [
+      {
+        "executionId": "d6aa0c93-d2e0-400e-b579-eb175702b7a5",
+        "chatSessionId": "sess_a6e13ab9-7b17-4a7a-b44a-4f6b0c1fce8a",
+        "timestamp": 1792490100180
+      },
+      {
+        "executionId": "d6aa0c93-d2e0-400e-b579-eb175702b7a5",
+        "chatSessionId": "sess_a6e13ab9-7b17-4a7a-b44a-4f6b0c1fce8a",
+        "timestamp": 1792491065915
+      },
+      {
+        "executionId": "d6aa0c93-d2e0-400e-b579-eb175702b7a5",
+        "chatSessionId": "sess_a6e13ab9-7b17-4a7a-b44a-4f6b0c1fce8a",
+        "timestamp": 1792500251217
+      }
+    ],
+    "4. Define and validate runtime configuration policy": [
+      {
+        "executionId": "d6aa0c93-d2e0-400e-b579-eb175702b7a5",
+        "chatSessionId": "sess_a6e13ab9-7b17-4a7a-b44a-4f6b0c1fce8a",
+        "timestamp": 1792490100246
+      },
+      {
+        "executionId": "d6aa0c93-d2e0-400e-b579-eb175702b7a5",
+        "chatSessionId": "sess_a6e13ab9-7b17-4a7a-b44a-4f6b0c1fce8a",
+        "timestamp": 1792500261156
+      },
+      {
+        "executionId": "d6aa0c93-d2e0-400e-b579-eb175702b7a5",
+        "chatSessionId": "sess_a6e13ab9-7b17-4a7a-b44a-4f6b0c1fce8a",
+        "timestamp": 1792500598288
+      }
+    ],
+    "5. Harden Compose and Docker service wiring": [
+      {
+        "executionId": "d6aa0c93-d2e0-400e-b579-eb175702b7a5",
+        "chatSessionId": "sess_a6e13ab9-7b17-4a7a-b44a-4f6b0c1fce8a",
+        "timestamp": 1792490100300
+      },
+      {
+        "executionId": "d6aa0c93-d2e0-400e-b579-eb175702b7a5",
+        "chatSessionId": "sess_a6e13ab9-7b17-4a7a-b44a-4f6b0c1fce8a",
+        "timestamp": 1792500608834
+      },
+      {
+        "executionId": "d6aa0c93-d2e0-400e-b579-eb175702b7a5",
+        "chatSessionId": "sess_a6e13ab9-7b17-4a7a-b44a-4f6b0c1fce8a",
+        "timestamp": 1792500920939
+      }
+    ],
+    "6. Implement API liveness, readiness, and aggregate health contracts": [
+      {
+        "executionId": "d6aa0c93-d2e0-400e-b579-eb175702b7a5",
+        "chatSessionId": "sess_a6e13ab9-7b17-4a7a-b44a-4f6b0c1fce8a",
+        "timestamp": 1792490100368
+      },
+      {
+        "executionId": "d6aa0c93-d2e0-400e-b579-eb175702b7a5",
+        "chatSessionId": "sess_a6e13ab9-7b17-4a7a-b44a-4f6b0c1fce8a",
+        "timestamp": 1792500929432
+      },
+      {
+        "executionId": "d6aa0c93-d2e0-400e-b579-eb175702b7a5",
+        "chatSessionId": "sess_a6e13ab9-7b17-4a7a-b44a-4f6b0c1fce8a",
+        "timestamp": 1792501316611
+      }
+    ],
+    "7. Enforce Redis required-operation and bounded-cache policy": [
+      {
+        "executionId": "d6aa0c93-d2e0-400e-b579-eb175702b7a5",
+        "chatSessionId": "sess_a6e13ab9-7b17-4a7a-b44a-4f6b0c1fce8a",
+        "timestamp": 1792490100448
+      },
+      {
+        "executionId": "d6aa0c93-d2e0-400e-b579-eb175702b7a5",
+        "chatSessionId": "sess_a6e13ab9-7b17-4a7a-b44a-4f6b0c1fce8a",
+        "timestamp": 1792501327491
+      },
+      {
+        "executionId": "d6aa0c93-d2e0-400e-b579-eb175702b7a5",
+        "chatSessionId": "sess_a6e13ab9-7b17-4a7a-b44a-4f6b0c1fce8a",
+        "timestamp": 1792501749079
+      }
+    ],
+    "8. Make durable queue failures and worker heartbeat semantics explicit": [
+      {
+        "executionId": "d6aa0c93-d2e0-400e-b579-eb175702b7a5",
+        "chatSessionId": "sess_a6e13ab9-7b17-4a7a-b44a-4f6b0c1fce8a",
+        "timestamp": 1792490100553
+      },
+      {
+        "executionId": "d6aa0c93-d2e0-400e-b579-eb175702b7a5",
+        "chatSessionId": "sess_a6e13ab9-7b17-4a7a-b44a-4f6b0c1fce8a",
+        "timestamp": 1792501759657
+      },
+      {
+        "executionId": "d6aa0c93-d2e0-400e-b579-eb175702b7a5",
+        "chatSessionId": "sess_a6e13ab9-7b17-4a7a-b44a-4f6b0c1fce8a",
+        "timestamp": 1792502692955
+      }
+    ],
+    "9. Add additive durable job, idempotency, and accounting migration/RPC support": [
+      {
+        "executionId": "d6aa0c93-d2e0-400e-b579-eb175702b7a5",
+        "chatSessionId": "sess_a6e13ab9-7b17-4a7a-b44a-4f6b0c1fce8a",
+        "timestamp": 1792490100610
+      },
+      {
+        "executionId": "d6aa0c93-d2e0-400e-b579-eb175702b7a5",
+        "chatSessionId": "sess_a6e13ab9-7b17-4a7a-b44a-4f6b0c1fce8a",
+        "timestamp": 1792502704192
+      },
+      {
+        "executionId": "d6aa0c93-d2e0-400e-b579-eb175702b7a5",
+        "chatSessionId": "sess_a6e13ab9-7b17-4a7a-b44a-4f6b0c1fce8a",
+        "timestamp": 1792503389981
+      }
+    ],
+    "10.1 Implement the durable handoff and fail-closed provider boundary": [
+      {
+        "executionId": "d6aa0c93-d2e0-400e-b579-eb175702b7a5",
+        "chatSessionId": "sess_a6e13ab9-7b17-4a7a-b44a-4f6b0c1fce8a",
+        "timestamp": 1792490100671
+      },
+      {
+        "executionId": "d6aa0c93-d2e0-400e-b579-eb175702b7a5",
+        "chatSessionId": "sess_a6e13ab9-7b17-4a7a-b44a-4f6b0c1fce8a",
+        "timestamp": 1792503401394
+      },
+      {
+        "executionId": "80ee0f80-b052-420d-8462-b00322cd07dc",
+        "chatSessionId": "sess_a6e13ab9-7b17-4a7a-b44a-4f6b0c1fce8a",
+        "timestamp": 1792504203901
+      },
+      {
+        "executionId": "80ee0f80-b052-420d-8462-b00322cd07dc",
+        "chatSessionId": "sess_a6e13ab9-7b17-4a7a-b44a-4f6b0c1fce8a",
+        "timestamp": 1792504215363
+      },
+      {
+        "executionId": "80ee0f80-b052-420d-8462-b00322cd07dc",
+        "chatSessionId": "sess_a6e13ab9-7b17-4a7a-b44a-4f6b0c1fce8a",
+        "timestamp": 1792505132633
+      }
+    ],
+    "10.2 Verify the bug-condition exploration property after the fix": [
+      {
+        "executionId": "d6aa0c93-d2e0-400e-b579-eb175702b7a5",
+        "chatSessionId": "sess_a6e13ab9-7b17-4a7a-b44a-4f6b0c1fce8a",
+        "timestamp": 1792490100728
+      },
+      {
+        "executionId": "80ee0f80-b052-420d-8462-b00322cd07dc",
+        "chatSessionId": "sess_a6e13ab9-7b17-4a7a-b44a-4f6b0c1fce8a",
+        "timestamp": 1792504203979
+      },
+      {
+        "executionId": "80ee0f80-b052-420d-8462-b00322cd07dc",
+        "chatSessionId": "sess_a6e13ab9-7b17-4a7a-b44a-4f6b0c1fce8a",
+        "timestamp": 1792505143344
+      },
+      {
+        "executionId": "80ee0f80-b052-420d-8462-b00322cd07dc",
+        "chatSessionId": "sess_a6e13ab9-7b17-4a7a-b44a-4f6b0c1fce8a",
+        "timestamp": 1792505272656
+      }
+    ],
+    "10.3 Verify the preservation property after the fix": [
+      {
+        "executionId": "d6aa0c93-d2e0-400e-b579-eb175702b7a5",
+        "chatSessionId": "sess_a6e13ab9-7b17-4a7a-b44a-4f6b0c1fce8a",
+        "timestamp": 1792490100795
+      },
+      {
+        "executionId": "80ee0f80-b052-420d-8462-b00322cd07dc",
+        "chatSessionId": "sess_a6e13ab9-7b17-4a7a-b44a-4f6b0c1fce8a",
+        "timestamp": 1792504204023
+      },
+      {
+        "executionId": "80ee0f80-b052-420d-8462-b00322cd07dc",
+        "chatSessionId": "sess_a6e13ab9-7b17-4a7a-b44a-4f6b0c1fce8a",
+        "timestamp": 1792505283747
+      },
+      {
+        "executionId": "80ee0f80-b052-420d-8462-b00322cd07dc",
+        "chatSessionId": "sess_a6e13ab9-7b17-4a7a-b44a-4f6b0c1fce8a",
+        "timestamp": 1792505380839
+      }
+    ],
+    "11. Standardize sanitized request, job, worker, queue, retry, and reap observability": [
+      {
+        "executionId": "d6aa0c93-d2e0-400e-b579-eb175702b7a5",
+        "chatSessionId": "sess_a6e13ab9-7b17-4a7a-b44a-4f6b0c1fce8a",
+        "timestamp": 1792490100862
+      },
+      {
+        "executionId": "80ee0f80-b052-420d-8462-b00322cd07dc",
+        "chatSessionId": "sess_a6e13ab9-7b17-4a7a-b44a-4f6b0c1fce8a",
+        "timestamp": 1792504204090
+      },
+      {
+        "executionId": "80ee0f80-b052-420d-8462-b00322cd07dc",
+        "chatSessionId": "sess_a6e13ab9-7b17-4a7a-b44a-4f6b0c1fce8a",
+        "timestamp": 1792505391121
+      },
+      {
+        "executionId": "80ee0f80-b052-420d-8462-b00322cd07dc",
+        "chatSessionId": "sess_a6e13ab9-7b17-4a7a-b44a-4f6b0c1fce8a",
+        "timestamp": 1792506657034
+      }
+    ],
+    "12. Extend admin health and jobs operational surfaces": [
+      {
+        "executionId": "d6aa0c93-d2e0-400e-b579-eb175702b7a5",
+        "chatSessionId": "sess_a6e13ab9-7b17-4a7a-b44a-4f6b0c1fce8a",
+        "timestamp": 1792490100924
+      },
+      {
+        "executionId": "80ee0f80-b052-420d-8462-b00322cd07dc",
+        "chatSessionId": "sess_a6e13ab9-7b17-4a7a-b44a-4f6b0c1fce8a",
+        "timestamp": 1792504204174
+      },
+      {
+        "executionId": "80ee0f80-b052-420d-8462-b00322cd07dc",
+        "chatSessionId": "sess_a6e13ab9-7b17-4a7a-b44a-4f6b0c1fce8a",
+        "timestamp": 1792506667080
+      },
+      {
+        "executionId": "80ee0f80-b052-420d-8462-b00322cd07dc",
+        "chatSessionId": "sess_a6e13ab9-7b17-4a7a-b44a-4f6b0c1fce8a",
+        "timestamp": 1792507432495
+      }
+    ],
+    "13. Add worker/queue, job safety, Redis, and readiness unit/property coverage": [
+      {
+        "executionId": "d6aa0c93-d2e0-400e-b579-eb175702b7a5",
+        "chatSessionId": "sess_a6e13ab9-7b17-4a7a-b44a-4f6b0c1fce8a",
+        "timestamp": 1792490100988
+      },
+      {
+        "executionId": "80ee0f80-b052-420d-8462-b00322cd07dc",
+        "chatSessionId": "sess_a6e13ab9-7b17-4a7a-b44a-4f6b0c1fce8a",
+        "timestamp": 1792504204220
+      },
+      {
+        "executionId": "80ee0f80-b052-420d-8462-b00322cd07dc",
+        "chatSessionId": "sess_a6e13ab9-7b17-4a7a-b44a-4f6b0c1fce8a",
+        "timestamp": 1792507447369
+      },
+      {
+        "executionId": "80ee0f80-b052-420d-8462-b00322cd07dc",
+        "chatSessionId": "sess_a6e13ab9-7b17-4a7a-b44a-4f6b0c1fce8a",
+        "timestamp": 1792507687193
+      }
+    ],
+    "14. Implement portal upstream, process readiness, and shared request-state contracts": [
+      {
+        "executionId": "d6aa0c93-d2e0-400e-b579-eb175702b7a5",
+        "chatSessionId": "sess_a6e13ab9-7b17-4a7a-b44a-4f6b0c1fce8a",
+        "timestamp": 1792490101050
+      },
+      {
+        "executionId": "80ee0f80-b052-420d-8462-b00322cd07dc",
+        "chatSessionId": "sess_a6e13ab9-7b17-4a7a-b44a-4f6b0c1fce8a",
+        "timestamp": 1792504204265
+      },
+      {
+        "executionId": "80ee0f80-b052-420d-8462-b00322cd07dc",
+        "chatSessionId": "sess_a6e13ab9-7b17-4a7a-b44a-4f6b0c1fce8a",
+        "timestamp": 1792507700405
+      },
+      {
+        "executionId": "80ee0f80-b052-420d-8462-b00322cd07dc",
+        "chatSessionId": "sess_a6e13ab9-7b17-4a7a-b44a-4f6b0c1fce8a",
+        "timestamp": 1792508179808
+      }
+    ],
+    "15. Implement bounded loading, success/empty, error, and polling states for existing portal workflows": [
+      {
+        "executionId": "d6aa0c93-d2e0-400e-b579-eb175702b7a5",
+        "chatSessionId": "sess_a6e13ab9-7b17-4a7a-b44a-4f6b0c1fce8a",
+        "timestamp": 1792490101137
+      },
+      {
+        "executionId": "80ee0f80-b052-420d-8462-b00322cd07dc",
+        "chatSessionId": "sess_a6e13ab9-7b17-4a7a-b44a-4f6b0c1fce8a",
+        "timestamp": 1792504204311
+      },
+      {
+        "executionId": "80ee0f80-b052-420d-8462-b00322cd07dc",
+        "chatSessionId": "sess_a6e13ab9-7b17-4a7a-b44a-4f6b0c1fce8a",
+        "timestamp": 1792508191082
+      },
+      {
+        "executionId": "289c5cdb-de4c-4b26-89df-69080af22ced",
+        "chatSessionId": "sess_a6e13ab9-7b17-4a7a-b44a-4f6b0c1fce8a",
+        "timestamp": 1792528241487
+      },
+      {
+        "executionId": "289c5cdb-de4c-4b26-89df-69080af22ced",
+        "chatSessionId": "sess_a6e13ab9-7b17-4a7a-b44a-4f6b0c1fce8a",
+        "timestamp": 1792529140203
+      }
+    ],
+    "16. Add portal unit/component and authenticated workflow coverage": [
+      {
+        "executionId": "d6aa0c93-d2e0-400e-b579-eb175702b7a5",
+        "chatSessionId": "sess_a6e13ab9-7b17-4a7a-b44a-4f6b0c1fce8a",
+        "timestamp": 1792490101240
+      },
+      {
+        "executionId": "80ee0f80-b052-420d-8462-b00322cd07dc",
+        "chatSessionId": "sess_a6e13ab9-7b17-4a7a-b44a-4f6b0c1fce8a",
+        "timestamp": 1792504204363
+      },
+      {
+        "executionId": "289c5cdb-de4c-4b26-89df-69080af22ced",
+        "chatSessionId": "sess_a6e13ab9-7b17-4a7a-b44a-4f6b0c1fce8a",
+        "timestamp": 1792529146112
+      },
+      {
+        "executionId": "289c5cdb-de4c-4b26-89df-69080af22ced",
+        "chatSessionId": "sess_a6e13ab9-7b17-4a7a-b44a-4f6b0c1fce8a",
+        "timestamp": 1792529731218
+      }
+    ],
+    "17. Run end-to-end Compose, outage/recovery, and worker lifecycle integration validation": [
+      {
+        "executionId": "d6aa0c93-d2e0-400e-b579-eb175702b7a5",
+        "chatSessionId": "sess_a6e13ab9-7b17-4a7a-b44a-4f6b0c1fce8a",
+        "timestamp": 1792490101295
+      },
+      {
+        "executionId": "80ee0f80-b052-420d-8462-b00322cd07dc",
+        "chatSessionId": "sess_a6e13ab9-7b17-4a7a-b44a-4f6b0c1fce8a",
+        "timestamp": 1792504204422
+      },
+      {
+        "executionId": "289c5cdb-de4c-4b26-89df-69080af22ced",
+        "chatSessionId": "sess_a6e13ab9-7b17-4a7a-b44a-4f6b0c1fce8a",
+        "timestamp": 1792529740174
+      }
+    ],
+    "18. Run the complete regression and production-gate suite": [
+      {
+        "executionId": "d6aa0c93-d2e0-400e-b579-eb175702b7a5",
+        "chatSessionId": "sess_a6e13ab9-7b17-4a7a-b44a-4f6b0c1fce8a",
+        "timestamp": 1792490101358
+      },
+      {
+        "executionId": "80ee0f80-b052-420d-8462-b00322cd07dc",
+        "chatSessionId": "sess_a6e13ab9-7b17-4a7a-b44a-4f6b0c1fce8a",
+        "timestamp": 1792504204487
+      }
+    ],
+    "19. Checkpoint - Confirm implementation readiness and handoff": [
+      {
+        "executionId": "d6aa0c93-d2e0-400e-b579-eb175702b7a5",
+        "chatSessionId": "sess_a6e13ab9-7b17-4a7a-b44a-4f6b0c1fce8a",
+        "timestamp": 1792490101414
+      },
+      {
+        "executionId": "80ee0f80-b052-420d-8462-b00322cd07dc",
+        "chatSessionId": "sess_a6e13ab9-7b17-4a7a-b44a-4f6b0c1fce8a",
+        "timestamp": 1792504204535
+      }
+    ],
+    "10. Implement API-to-worker job handoff and provider/credit idempotency": [
+      {
+        "executionId": "80ee0f80-b052-420d-8462-b00322cd07dc",
+        "chatSessionId": "sess_a6e13ab9-7b17-4a7a-b44a-4f6b0c1fce8a",
+        "timestamp": 1792505380891
+      }
+    ]
+  }
+}

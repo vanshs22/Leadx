@@ -1,0 +1,13 @@
+"""Repository interfaces: persistence is replaceable without touching business logic."""
+from __future__ import annotations
+from typing import Any, Protocol
+
+class LeadRepository(Protocol):
+    async def upsert(self, lead: dict[str, Any]) -> str | None: ...
+    async def upsert_batch(self, leads: list[dict[str, Any]]) -> list[dict[str, Any]]: ...
+
+class EnrichmentRepository(Protocol):
+    async def upsert(self, lead_id: str, lead: dict[str, Any]) -> None: ...
+
+class ScoreRepository(Protocol):
+    async def upsert(self, lead_id: str, score: int, tier: str, reasoning: str, lead: dict[str, Any] | None = None) -> None: ...

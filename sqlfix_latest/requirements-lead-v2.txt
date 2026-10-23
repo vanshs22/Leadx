@@ -1,0 +1,12 @@
+# Lead Engine v2 — additional dependencies (free / self-hosted first)
+scrapling>=0.2.0
+crawl4ai>=0.4.0
+scrapegraphai>=1.0.0
+httpx>=0.27.0
+# Optional browser backends
+playwright>=1.40.0
+# Already present in Automiqo OS:
+# fastapi, pydantic, supabase, asyncio
+instaloader>=4.13
+stripe>=8.0
+cryptography>=42.0

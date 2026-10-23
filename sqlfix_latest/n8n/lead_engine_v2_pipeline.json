@@ -1,0 +1,165 @@
+{
+  "name": "Lead Engine v2 — Full Pipeline",
+  "active": true,
+  "nodes": [
+    {
+      "id": "cron-v2-001",
+      "name": "Cron (Daily 6 AM)",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [160, 300],
+      "parameters": {
+        "rule": {
+          "interval": [{ "field": "cronExpression", "expression": "0 6 * * *" }]
+        }
+      }
+    },
+    {
+      "id": "webhook-v2-001",
+      "name": "Webhook Trigger",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [160, 500],
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "lead_engine_v2",
+        "responseMode": "responseNode"
+      }
+    },
+    {
+      "id": "merge-v2-001",
+      "name": "Normalize Input",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [420, 400],
+      "parameters": {
+        "jsCode": "const d = $input.first().json;\nconst isCron = !d.tenant_id && !d.body;\nconst body = d.body || d;\n\nif (isCron) {\n  return [{ json: {\n    mode: 'all_icps',\n    limit_per_location: 40,\n    skip_enrichment: false\n  }}];\n}\n\nreturn [{ json: {\n  mode: 'single',\n  tenant_id: body.tenant_id,\n  icp_id: body.icp_id || null,\n  industry: body.industry || body.parameters?.industry || 'medspa',\n  locations: body.locations || body.parameters?.locations || [],\n  queries: body.queries || body.parameters?.queries || [],\n  limit_per_location: body.limit_per_location || body.parameters?.limit_per_location || 50,\n  skip_enrichment: body.skip_enrichment || false,\n  allow_tier_b: body.allow_tier_b || false,\n  max_enrich_concurrent: body.max_enrich_concurrent || 6,\n  deliver: body.deliver !== false,\n  task_id: body.task_id || null\n}}];"
+      }
+    },
+    {
+      "id": "if-mode-001",
+      "name": "Mode?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [640, 400],
+      "parameters": {
+        "conditions": {
+          "string": [
+            {
+              "value1": "={{ $json.mode }}",
+              "operation": "equals",
+              "value2": "all_icps"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "run-all-001",
+      "name": "Run All Active ICPs",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [900, 300],
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.BACKEND_URL }}/leads/v2/pipeline/run-all-icps",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "Content-Type", "value": "application/json" }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ limit_per_location: $json.limit_per_location, skip_enrichment: $json.skip_enrichment }) }}",
+        "options": { "timeout": 600000 }
+      }
+    },
+    {
+      "id": "run-single-001",
+      "name": "Run Single Tenant Pipeline",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [900, 500],
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.BACKEND_URL }}/leads/v2/pipeline/run",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "Content-Type", "value": "application/json" }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ tenant_id: $json.tenant_id, icp_id: $json.icp_id, industry: $json.industry, locations: $json.locations, queries: $json.queries, limit_per_location: $json.limit_per_location, skip_enrichment: $json.skip_enrichment, allow_tier_b: $json.allow_tier_b, max_enrich_concurrent: $json.max_enrich_concurrent, deliver: $json.deliver }) }}",
+        "options": { "timeout": 600000 }
+      }
+    },
+    {
+      "id": "update-task-001",
+      "name": "Update Task (if any)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [1160, 500],
+      "parameters": {
+        "method": "PATCH",
+        "url": "={{ $env.SUPABASE_URL }}/rest/v1/tasks?id=eq.{{ $('Normalize Input').item.json.task_id }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "apikey", "value": "={{ $env.SUPABASE_SERVICE_KEY }}" },
+            { "name": "Authorization", "value": "=Bearer {{ $env.SUPABASE_SERVICE_KEY }}" },
+            { "name": "Content-Type", "value": "application/json" },
+            { "name": "Prefer", "value": "return=minimal" }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ status: 'completed', result: JSON.stringify($json), completed_at: new Date().toISOString() }) }}",
+        "options": {
+          "response": { "response": { "neverError": true } }
+        }
+      }
+    },
+    {
+      "id": "respond-v2-001",
+      "name": "Respond",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [1400, 400],
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({ success: true, workflow: 'lead_engine_v2', data: $json }) }}"
+      }
+    }
+  ],
+  "connections": {
+    "Cron (Daily 6 AM)": {
+      "main": [[{ "node": "Normalize Input", "type": "main", "index": 0 }]]
+    },
+    "Webhook Trigger": {
+      "main": [[{ "node": "Normalize Input", "type": "main", "index": 0 }]]
+    },
+    "Normalize Input": {
+      "main": [[{ "node": "Mode?", "type": "main", "index": 0 }]]
+    },
+    "Mode?": {
+      "main": [
+        [{ "node": "Run All Active ICPs", "type": "main", "index": 0 }],
+        [{ "node": "Run Single Tenant Pipeline", "type": "main", "index": 0 }]
+      ]
+    },
+    "Run All Active ICPs": {
+      "main": [[{ "node": "Respond", "type": "main", "index": 0 }]]
+    },
+    "Run Single Tenant Pipeline": {
+      "main": [[{ "node": "Update Task (if any)", "type": "main", "index": 0 }]]
+    },
+    "Update Task (if any)": {
+      "main": [[{ "node": "Respond", "type": "main", "index": 0 }]]
+    }
+  },
+  "settings": { "executionOrder": "v1" },
+  "tags": ["marketing", "leads", "v2", "multi-tenant"]
+}

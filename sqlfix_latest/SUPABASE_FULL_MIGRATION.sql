@@ -132,7 +132,7 @@ CREATE TABLE IF NOT EXISTS icp_profiles (
   geo           jsonb NOT NULL DEFAULT '[]',
   keywords      jsonb NOT NULL DEFAULT '[]',
   weights       jsonb NOT NULL DEFAULT '{}',
-  exclusivity   text NOT NULL DEFAULT 'exclusive'
+  exclusivity   text NOT NULL DEFAULT 'shared'
                   CHECK (exclusivity IN ('exclusive','shared')),
   active        boolean NOT NULL DEFAULT true,
   created_at    timestamptz NOT NULL DEFAULT now(),
@@ -2059,17 +2059,8 @@ CREATE INDEX IF NOT EXISTS idx_assignments_offer_cat
   ON lead_assignments (lead_id, lower(offer_category))
   WHERE status NOT IN ('rejected', 'expired');
 
--- Backfill: if offer_category null, use vertical as conservative default
--- (operator should set real categories for multi-ICP same-vertical sharing)
-UPDATE icp_profiles
-SET offer_category = lower(regexp_replace(vertical, '\s+', '_', 'g'))
-WHERE offer_category IS NULL OR offer_category = '';
-
-UPDATE lead_assignments la
-SET offer_category = icp.offer_category
-FROM icp_profiles icp
-WHERE la.icp_id = icp.id
-  AND (la.offer_category IS NULL OR la.offer_category = '');
+-- Older rows are normalized by the correction migration below. Do not infer a
+-- competitive offer from the target vertical: missing offers remain shared.
 
 -- New exclusivity function: compete on offer_category, not vertical alone
 CREATE OR REPLACE FUNCTION check_exclusivity(
@@ -2084,14 +2075,10 @@ DECLARE
   conflict_exists boolean;
   v_offer text;
 BEGIN
-  -- Prefer explicit offer category; fall back to vertical (legacy)
+  -- Only an explicit offer/use-case can create a competitive lock.
   v_offer := lower(nullif(trim(p_offer_category), ''));
-  IF v_offer IS NULL THEN
-    v_offer := lower(nullif(trim(p_vertical), ''));
-  END IF;
-
-  IF v_offer IS NULL THEN
-    RETURN false; -- cannot lock without a category
+  IF v_offer IS NULL OR v_offer IN ('default','general','generic','unknown','any','all','shared','lead_gen_service','lead_generation','service') THEN
+    RETURN false;
   END IF;
 
   SELECT EXISTS (
@@ -2101,9 +2088,9 @@ BEGIN
     WHERE la.lead_id = p_lead_id
       AND la.tenant_id <> p_tenant_id
       AND la.status NOT IN ('rejected', 'expired')
-      AND COALESCE(icp.exclusivity, 'exclusive') = 'exclusive'
-      -- SAME competitive set only
-      AND lower(COALESCE(nullif(la.offer_category, ''), nullif(icp.offer_category, ''), icp.vertical, la.vertical, ''))
+      AND COALESCE(icp.exclusivity, 'shared') = 'exclusive'
+      -- SAME explicit competitive offer/use-case only
+      AND lower(COALESCE(nullif(la.offer_category, ''), nullif(icp.offer_category, '')))
           = v_offer
       AND (
         icp.geo IS NULL
@@ -10816,4 +10803,255 @@ CREATE OR REPLACE VIEW public.economic_ledger_balances AS SELECT tenant_id,perio
 CREATE OR REPLACE VIEW public.economic_ledger_reconciliation AS SELECT tenant_id,period,sum(quantity) FILTER(WHERE event_type='requested') AS requested_quantity,sum(quantity) FILTER(WHERE event_type='reserved') AS reserved_quantity,sum(quantity) FILTER(WHERE event_type='consumed') AS consumed_quantity,sum(quantity) FILTER(WHERE event_type IN ('refund','replacement_credit')) AS refunded_quantity,sum(quantity) FILTER(WHERE event_type='provider_usage') AS provider_quantity,sum(quantity) FILTER(WHERE event_type='stripe_report') AS stripe_quantity,count(*) AS ledger_event_count FROM public.economic_ledger_events GROUP BY tenant_id,period;
 REVOKE ALL ON public.economic_ledger_balances,public.economic_ledger_reconciliation FROM PUBLIC,anon,authenticated; GRANT SELECT ON public.economic_ledger_balances,public.economic_ledger_reconciliation TO service_role;
 
+-- ##### 20261020_exclusivity_learning_quota_correction.sql #####
+-- Explicit competitive offer locks, approval-gated learning, and quota truth.
+-- Missing/generic offers are shared. Target vertical is never a lock key.
+
+-- ============================================================================
+-- CANONICAL MIGRATION 31: 20261020001500_leadx_exclusivity_learning_quota.sql
+-- ============================================================================
+ALTER TABLE public.icp_profiles
+  ALTER COLUMN exclusivity SET DEFAULT 'shared';
+UPDATE public.icp_profiles SET exclusivity = 'shared'
+WHERE exclusivity IS NULL OR lower(trim(exclusivity)) NOT IN ('exclusive', 'shared');
+-- Older installs generated an offer from the target vertical. Clear only that
+-- generated shape; an explicitly named product/use-case remains untouched.
+UPDATE public.icp_profiles
+SET offer_category = NULL, exclusivity = 'shared'
+WHERE NULLIF(trim(offer_category), '') IS NOT NULL
+  AND lower(regexp_replace(trim(offer_category), '\s+', '_', 'g')) = lower(regexp_replace(trim(vertical), '\s+', '_', 'g'))
+  AND NULLIF(trim(COALESCE(offer_label, '')), '') IS NULL;
+UPDATE public.lead_assignments la
+SET offer_category = NULL
+FROM public.icp_profiles icp
+WHERE la.icp_id = icp.id
+  AND icp.offer_category IS NULL
+  AND (la.offer_category IS NULL OR lower(regexp_replace(trim(la.offer_category), '\s+', '_', 'g')) = lower(regexp_replace(trim(icp.vertical), '\s+', '_', 'g')));
+
+CREATE OR REPLACE FUNCTION public.check_exclusivity(
+  p_lead_id uuid,
+  p_tenant_id uuid,
+  p_vertical text,
+  p_geo text[],
+  p_offer_category text DEFAULT NULL
+) RETURNS boolean
+LANGUAGE plpgsql STABLE AS $$
+DECLARE
+  conflict_exists boolean;
+  v_offer text;
+BEGIN
+  v_offer := lower(regexp_replace(trim(COALESCE(p_offer_category, '')), '\s+', '_', 'g'));
+  IF v_offer IS NULL OR v_offer = '' OR v_offer IN ('default','general','generic','unknown','any','all','shared','lead_gen_service','lead_generation','service') THEN
+    RETURN false;
+  END IF;
+  SELECT EXISTS (
+    SELECT 1
+    FROM public.lead_assignments la
+    LEFT JOIN public.icp_profiles icp ON icp.id = la.icp_id
+    WHERE la.lead_id = p_lead_id
+      AND la.tenant_id <> p_tenant_id
+      AND la.status NOT IN ('rejected','expired')
+      AND COALESCE(lower(trim(icp.exclusivity)), 'shared') = 'exclusive'
+      AND lower(regexp_replace(trim(COALESCE(NULLIF(la.offer_category, ''), NULLIF(icp.offer_category, ''))), '\s+', '_', 'g')) = v_offer
+      AND (
+        icp.geo IS NULL OR icp.geo = '[]'::jsonb OR p_geo IS NULL OR cardinality(p_geo) = 0
+        OR EXISTS (
+          SELECT 1 FROM jsonb_array_elements_text(icp.geo) g
+          WHERE lower(trim(g)) = ANY (SELECT lower(trim(x)) FROM unnest(p_geo) x)
+        )
+      )
+  ) INTO conflict_exists;
+  RETURN conflict_exists;
+END;
+$$;
+
+CREATE OR REPLACE FUNCTION public.tenant_quota_remaining(p_tenant_id uuid)
+RETURNS int LANGUAGE plpgsql STABLE AS $$
+DECLARE lim int; used int; reserved int; rollover int; p date := date_trunc('month', now())::date;
+BEGIN
+  SELECT COALESCE(leads_per_month_limit, 0) INTO lim FROM public.tenants WHERE id = p_tenant_id;
+  SELECT COALESCE(leads_delivered, 0), COALESCE(quota_reserved, 0), COALESCE(rollover_credits, 0)
+    INTO used, reserved, rollover
+  FROM public.usage_log WHERE tenant_id = p_tenant_id AND period = p;
+  RETURN GREATEST(lim + rollover - used - reserved, 0);
+END;
+$$;
+
+CREATE TABLE IF NOT EXISTS public.tenant_icp_recommendations (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  tenant_id uuid NOT NULL REFERENCES public.tenants(id) ON DELETE CASCADE,
+  icp_id uuid REFERENCES public.icp_profiles(id) ON DELETE SET NULL,
+  recommendation_key text NOT NULL,
+  recommendation_type text NOT NULL DEFAULT 'query_expansion',
+  status text NOT NULL DEFAULT 'proposed' CHECK (status IN ('proposed','approved','rejected','applied')),
+  recommendation jsonb NOT NULL DEFAULT '{}'::jsonb,
+  rationale text,
+  sample_size integer NOT NULL DEFAULT 0,
+  created_at timestamptz NOT NULL DEFAULT now(),
+  reviewed_at timestamptz,
+  reviewed_by uuid,
+  UNIQUE (tenant_id, recommendation_key)
+);
+ALTER TABLE IF EXISTS public.tenant_icp_recommendations ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS tenant_icp_recommendations_select ON public.tenant_icp_recommendations;
+CREATE POLICY tenant_icp_recommendations_select ON public.tenant_icp_recommendations FOR SELECT USING (public.is_tenant_member(tenant_id));
+DROP POLICY IF EXISTS tenant_icp_recommendations_insert ON public.tenant_icp_recommendations;
+CREATE POLICY tenant_icp_recommendations_insert ON public.tenant_icp_recommendations FOR INSERT WITH CHECK (public.is_tenant_member(tenant_id));
+DROP POLICY IF EXISTS tenant_icp_recommendations_update ON public.tenant_icp_recommendations;
+CREATE POLICY tenant_icp_recommendations_update ON public.tenant_icp_recommendations FOR UPDATE USING (public.is_tenant_member(tenant_id)) WITH CHECK (public.is_tenant_member(tenant_id));
+CREATE INDEX IF NOT EXISTS idx_tenant_icp_recommendations_status ON public.tenant_icp_recommendations(tenant_id, status, created_at DESC);
+
+-- ============================================================================
+-- CANONICAL MIGRATION 32: 20261020001600_leadx_21_realtime_capture.sql
+-- ============================================================================
+-- LeadX task 21: tenant-safe database change signals.
+-- Broadcast is an invalidation hint; APIs remain authoritative. The lists below
+-- contain only tables whose changed row has a tenant_id ownership boundary.
+-- Rows with nullable tenant_id are intentionally skipped when it is NULL.
+
+CREATE OR REPLACE FUNCTION public.leadx_capture_event() RETURNS trigger
+LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
+DECLARE
+  row_data jsonb;
+  tid uuid;
+  rid text;
+BEGIN
+  -- DELETE must read OLD so the event remains on the deleted row's tenant topic.
+  row_data := CASE WHEN TG_OP = 'DELETE' THEN to_jsonb(OLD) ELSE to_jsonb(NEW) END;
+  BEGIN
+    tid := NULLIF(row_data->>'tenant_id', '')::uuid;
+  EXCEPTION WHEN others THEN
+    tid := NULL;
+  END;
+
+  -- Platform/admin notifications are never emitted on a tenant topic.
+  IF TG_TABLE_NAME = 'notifications'
+     AND lower(COALESCE(row_data->>'scope', 'tenant')) <> 'tenant' THEN
+    tid := NULL;
+  END IF;
+
+  rid := COALESCE(row_data->>'id', row_data->>'assignment_id');
+  IF tid IS NOT NULL THEN
+    INSERT INTO public.leadx_event_log(
+      tenant_id, actor_type, action, resource_type, resource_id, summary
+    )
+    VALUES (
+      tid,
+      'system',
+      lower('db.' || TG_TABLE_NAME || '.' || TG_OP),
+      TG_TABLE_NAME,
+      rid,
+      initcap(replace(lower(TG_TABLE_NAME), '_', ' ')) || ' ' || lower(TG_OP)
+    );
+  END IF;
+
+  IF TG_OP = 'DELETE' THEN
+    RETURN OLD;
+  END IF;
+  RETURN NEW;
+END;
+$$;
+
+CREATE OR REPLACE FUNCTION public.leadx_broadcast_event() RETURNS trigger
+LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
+BEGIN
+  BEGIN
+    -- Keep Broadcast metadata-only: clients refetch authoritative API data.
+    PERFORM realtime.send(
+      jsonb_build_object(
+        'table', COALESCE(NEW.resource_type, 'workspace'),
+        'event', CASE
+          WHEN position('.' IN COALESCE(NEW.action, '')) > 0
+            THEN split_part(NEW.action, '.', 3)
+          ELSE 'LOG'
+        END
+      ),
+      'crm_change',
+      'crm:' || NEW.tenant_id::text,
+      true
+    );
+  EXCEPTION WHEN others THEN
+    -- Realtime availability must not roll back the durable mutation.
+    NULL;
+  END;
+  RETURN NEW;
+END;
+$$;
+
+-- The event log is append-only and API/service-role only. No browser role can
+-- read, write, update, or delete the operational trail directly.
+ALTER TABLE IF EXISTS public.leadx_event_log ENABLE ROW LEVEL SECURITY;
+REVOKE ALL ON TABLE public.leadx_event_log FROM PUBLIC, anon, authenticated;
+GRANT SELECT, INSERT ON TABLE public.leadx_event_log TO service_role;
+REVOKE ALL ON FUNCTION public.leadx_capture_event() FROM PUBLIC, anon, authenticated;
+REVOKE ALL ON FUNCTION public.leadx_broadcast_event() FROM PUBLIC, anon, authenticated;
+GRANT EXECUTE ON FUNCTION public.leadx_capture_event() TO service_role;
+GRANT EXECUTE ON FUNCTION public.leadx_broadcast_event() TO service_role;
+
+-- One authoritative table list drives both capture triggers and realtime
+-- publication/replica identity. It intentionally excludes global tables,
+-- views, and child tables with no safe row-local tenant ownership:
+-- leads_global, lead_crm_cards, email_sequence_steps, support_messages.
+-- The portal's team_invites filter names a table absent from this schema;
+-- tenant_invites is the actual tenant-owned source and the filter remains an
+-- explicit bounded fallback until the client contract is reconciled.
+DO $$
+DECLARE
+  t text;
+  supported_tables text[] := ARRAY[
+    'pipeline_runs', 'discovery_requests', 'pipeline_stages',
+    'lead_assignments', 'lead_state_history', 'lead_score_snapshots',
+    'lead_quality_gates', 'lead_routing_decisions', 'lead_delivery_events',
+    'lead_verification_observations', 'lead_outcome_events',
+    'lead_activities', 'lead_tasks',
+    'companies', 'company_locations', 'contacts', 'contact_roles',
+    'deals', 'deal_stages', 'activities', 'tasks', 'notes',
+    'agent_runs', 'jobs',
+    'email_sequences', 'email_sequence_enrollments', 'email_sequence_sends',
+    'email_replies',
+    'workflow_definitions', 'workflow_runs', 'automation_events',
+    'tenant_members', 'tenant_invites', 'notifications', 'audit_log',
+    'crm_audit_log',
+    'usage_log', 'provider_usage_daily',
+    'learning_snapshots', 'tenant_icp_learning', 'tenant_icp_recommendations',
+    'support_conversations'
+  ];
+BEGIN
+  FOREACH t IN ARRAY supported_tables LOOP
+    IF to_regclass('public.' || t) IS NOT NULL THEN
+      EXECUTE format('DROP TRIGGER IF EXISTS leadx_event_capture ON public.%I', t);
+      EXECUTE format(
+        'CREATE TRIGGER leadx_event_capture AFTER INSERT OR UPDATE OR DELETE ON public.%I FOR EACH ROW EXECUTE FUNCTION public.leadx_capture_event()',
+        t
+      );
+
+      BEGIN
+        EXECUTE format('ALTER TABLE public.%I REPLICA IDENTITY FULL', t);
+        EXECUTE format('ALTER PUBLICATION supabase_realtime ADD TABLE public.%I', t);
+      EXCEPTION
+        WHEN duplicate_object THEN NULL;
+        WHEN undefined_table THEN NULL;
+        WHEN undefined_object THEN NULL;
+      END;
+    END IF;
+  END LOOP;
+END
+$$;
+
+-- Private tenant Broadcast only. There is deliberately no admin aggregate
+-- topic: platform-wide consumers must use bounded, authorized API polling.
+DROP POLICY IF EXISTS leadx_workspace_broadcast_read ON realtime.messages;
+CREATE POLICY leadx_workspace_broadcast_read
+  ON realtime.messages
+  FOR SELECT TO authenticated
+  USING (
+    extension = 'broadcast'
+    AND realtime.topic() ~* '^crm:[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$'
+    AND public.leadx_is_workspace_member(
+      nullif(split_part(realtime.topic(), ':', 2), '')::uuid
+    )
+  );
+
+COMMENT ON TABLE public.leadx_event_log IS
+  'Tenant-scoped append-only metadata events; browser roles have no table privileges.';
 COMMIT;

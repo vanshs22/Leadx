@@ -1,0 +1,46 @@
+{
+  "name": "Lead Engine - Proactive Alerts (Hourly)",
+  "active": false,
+  "nodes": [
+    {
+      "id": "cron-alerts-001",
+      "name": "Hourly",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [160, 280],
+      "parameters": {
+        "rule": {
+          "interval": [
+            { "field": "cronExpression", "expression": "0 * * * *" }
+          ]
+        }
+      }
+    },
+    {
+      "id": "run-alerts-001",
+      "name": "Run Alert Checks",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [420, 280],
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.BACKEND_URL }}/leads/v2/admin/alerts/run",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "Content-Type", "value": "application/json" },
+            { "name": "Authorization", "value": "=Bearer {{ $env.SERVICE_KEY }}" }
+          ]
+        },
+        "options": { "timeout": 60000 }
+      }
+    }
+  ],
+  "connections": {
+    "Hourly": {
+      "main": [[{ "node": "Run Alert Checks", "type": "main", "index": 0 }]]
+    }
+  },
+  "settings": { "executionOrder": "v1" },
+  "tags": []
+}

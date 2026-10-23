@@ -1,17 +1,20 @@
 "use client";
 
 import Link from "next/link";
-import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
+import { FormEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { crm, crmExtras, crmIntelligence, type DashboardResponse, type PipelineBoard, type ReportsSummary } from "@/lib/api";
 import { getTenantId } from "@/lib/tenant";
 import { useCrmChange } from "@/lib/crmRealtime";
-import { EmptyState, ErrorState, LoadingRows } from "@/components/ui/States";
+import { useLiveLoader } from "@/lib/live";
+import { OperationStateCard, toOperationState } from "@/components/ui/OperationState";
+import { EmptyState, ErrorState, LoadingRows, PollingDeadlineState } from "@/components/ui/States";
 import { Icon, type IconName } from "@/components/ui/Icon";
 
 type GrowthData = {
   dashboard: DashboardResponse | null;
   quota: any;
   requests: any[];
+  latestDiscovery: any;
   reports: ReportsSummary | null;
   pipeline: PipelineBoard | null;
   sequences: any[];
@@ -19,12 +22,14 @@ type GrowthData = {
   tasks: any;
   deals: any;
   email: any;
+  learning: any;
 };
 
 const EMPTY_DATA: GrowthData = {
   dashboard: null,
   quota: null,
   requests: [],
+  latestDiscovery: null,
   reports: null,
   pipeline: null,
   sequences: [],
@@ -32,6 +37,7 @@ const EMPTY_DATA: GrowthData = {
   tasks: null,
   deals: null,
   email: null,
+  learning: null,
 };
 
 const targetDefaults = {
@@ -39,6 +45,7 @@ const targetDefaults = {
   geo: "Hoboken, New Jersey",
   keywords: "med spa, botox, aesthetics",
   offer: "lead_gen_service",
+  exclusivity: "shared" as "shared" | "exclusive",
   requested: 15,
 };
 
@@ -66,8 +73,11 @@ export default function GrowthPage() {
   const [form, setForm] = useState(targetDefaults);
   const [submitting, setSubmitting] = useState(false);
   const [notice, setNotice] = useState("");
+  const [pollingExpired, setPollingExpired] = useState(false);
+  const refreshGeneration = useRef(0);
 
   const refresh = useCallback(async (silent = false) => {
+    const generation = ++refreshGeneration.current;
     const tenantId = getTenantId();
     if (!tenantId) {
       setError(new Error("Your workspace is still loading. Please try again."));
@@ -87,14 +97,23 @@ export default function GrowthPage() {
       crmIntelligence.tasks(tenantId, 20),
       crmExtras.dealReport(tenantId, 365),
       crmExtras.emailHealth(tenantId),
+      crmIntelligence.learning(tenantId),
     ]);
-    const names = ["dashboard", "quota", "discovery", "quality", "pipeline", "sequences", "replies", "tasks", "deals", "delivery"];
+    if (generation !== refreshGeneration.current) return;
+    const names = ["dashboard", "quota", "discovery", "quality", "pipeline", "sequences", "replies", "tasks", "deals", "delivery", "learning"];
     setFailedPanels(names.filter((_, i) => calls[i].status === "rejected"));
-    const [dashboard, quota, requests, reports, pipeline, sequences, replies, tasks, deals, email] = calls;
+    const [dashboard, quota, requests, reports, pipeline, sequences, replies, tasks, deals, email, learning] = calls;
+    const requestRows = result(requests, { requests: [] } as any)?.requests || [];
+    let latestDiscovery = null;
+    if (requestRows[0]?.id) {
+      try { latestDiscovery = await crm.discoveryRequestStatus(tenantId, requestRows[0].id); } catch { latestDiscovery = null; }
+      if (generation !== refreshGeneration.current) return;
+    }
     const next: GrowthData = {
       dashboard: result(dashboard, null),
       quota: result(quota, null),
-      requests: result(requests, { requests: [] } as any)?.requests || [],
+      requests: requestRows,
+      latestDiscovery,
       reports: result(reports, null),
       pipeline: result(pipeline, null),
       sequences: result(sequences, { sequences: [] } as any)?.sequences || [],
@@ -102,6 +121,7 @@ export default function GrowthPage() {
       tasks: result(tasks, null),
       deals: result(deals, null),
       email: result(email, null),
+      learning: result(learning, null),
     };
     setData(next);
     if (calls.every((call) => call.status === "rejected")) setError(new Error("LeadX could not load workspace growth data."));
@@ -110,7 +130,8 @@ export default function GrowthPage() {
   }, []);
 
   useEffect(() => { void refresh(); }, [refresh]);
-  useCrmChange(() => { void refresh(true); });
+  useLiveLoader(() => refresh(true), 30_000, [refresh], { runImmediately: false, onDeadline: () => setPollingExpired(true) });
+  useCrmChange(() => { void refresh(true); }, { tables: ["discovery_requests", "pipeline_runs", "jobs", "lead_assignments", "lead_quality_gates", "lead_verification_observations", "lead_score_snapshots", "quota_usage", "email_replies", "notifications"] });
 
   async function requestDiscovery(event: FormEvent) {
     event.preventDefault();
@@ -123,6 +144,7 @@ export default function GrowthPage() {
         geo: form.geo.split(",").map((item) => item.trim()).filter(Boolean),
         keywords: form.keywords.split(",").map((item) => item.trim()).filter(Boolean),
         offer_category: form.offer.trim() || "lead_gen_service",
+        exclusivity: form.exclusivity,
         requested_leads: Math.max(1, Number(form.requested) || 1),
         name: `${form.vertical.trim()} — ${form.geo.trim()}`,
         save_icp: true,
@@ -139,6 +161,7 @@ export default function GrowthPage() {
   const dashboard = data.dashboard;
   const kpis = dashboard?.kpis;
   const latestRequest = data.requests[0];
+  const latestOperation = data.latestDiscovery ? toOperationState(data.latestDiscovery, { status: latestRequest?.status || "queued", requestId: latestRequest?.id }) : null;
   const quota = data.quota;
   const recentReplies = data.replies.slice(0, 4);
   const pipelineStages = data.pipeline?.stages?.slice(0, 4) || [];
@@ -146,6 +169,7 @@ export default function GrowthPage() {
   const openDeals = Number(data.deals?.open_deals || 0);
   const quality = data.reports;
   const delivery = data.email;
+  const recommendations = (data.learning?.recommendations || []).filter((item: any) => item.status !== "rejected").slice(0, 3);
   const requestCounts = useMemo(() => {
     return data.requests.reduce((acc: Record<string, number>, request: any) => {
       const key = request.status || "queued";
@@ -173,7 +197,9 @@ export default function GrowthPage() {
       </header>
 
       {error && <ErrorState error={error} onRetry={() => void refresh()} />}
+      {pollingExpired && <PollingDeadlineState onRefresh={() => { setPollingExpired(false); void refresh(true); }} />}
       {notice && <div role="status" className="rounded-xl border border-signal-300/60 bg-signal-50/70 px-4 py-3 text-sm text-signal-800 dark:bg-signal-500/10 dark:text-signal-200">{notice}</div>}
+      {latestOperation && <OperationStateCard operation={latestOperation} title="Latest discovery run" onRefresh={() => { setPollingExpired(false); void refresh(true); }} />}
 
       <section className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
         <Metric icon="leads" label="Leads ready" value={kpis?.total_leads ?? "—"} hint="Assigned and ready to work" href="/leads" />
@@ -191,9 +217,10 @@ export default function GrowthPage() {
             <label className="label">Locations<input className="input mt-1" value={form.geo} onChange={(e) => setForm({ ...form, geo: e.target.value })} /></label>
             <label className="label sm:col-span-2">Search signals<input className="input mt-1" value={form.keywords} onChange={(e) => setForm({ ...form, keywords: e.target.value })} /></label>
             <label className="label">Offer category<input className="input mt-1" value={form.offer} onChange={(e) => setForm({ ...form, offer: e.target.value })} /></label>
-            <label className="label">Leads requested<input className="input mt-1" type="number" min={1} max={quota?.remaining || 500} value={form.requested} onChange={(e) => setForm({ ...form, requested: Number(e.target.value) || 1 })} /></label>
+            <label className="label">Delivery policy<select className="input mt-1" value={form.exclusivity} onChange={(e) => setForm({ ...form, exclusivity: e.target.value as "shared" | "exclusive" })}><option value="shared">Shared — recommended</option><option value="exclusive">Exclusive — same offer + territory lock</option></select></label>
+            <label className="label">Leads requested<input className="input mt-1" type="number" min={1} max={quota ? Math.max(1, quota.remaining) : 500} value={form.requested} onChange={(e) => setForm({ ...form, requested: Number(e.target.value) || 1 })} /></label>
           </div>
-          <div className="mt-4 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-brand-200/70 bg-brand-50/60 px-3 py-2.5 text-xs text-brand-900 dark:border-brand-500/20 dark:bg-brand-500/10 dark:text-brand-200"><span><b>Reuse first.</b> LeadX checks existing verified inventory before requesting fresh enrichment.</span><button className="btn-primary" disabled={submitting}>{submitting ? "Saving target…" : "Request opportunities"}</button></div>
+          <div className="mt-4 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-brand-200/70 bg-brand-50/60 px-3 py-2.5 text-xs text-brand-900 dark:border-brand-500/20 dark:bg-brand-500/10 dark:text-brand-200"><span><b>Reuse first.</b> LeadX checks existing verified inventory before requesting fresh enrichment. {quota && <>{quota.remaining} of {quota.monthly_limit ?? quota.limit} monthly leads available after {quota.reserved} reserved.</>}</span><button className="btn-primary" disabled={submitting || Boolean(quota && quota.remaining < 1)}>{submitting ? "Saving target…" : quota && quota.remaining < 1 ? "Quota unavailable" : "Request opportunities"}</button></div>
         </form>
 
         <div className="data-card p-5 md:p-6">
@@ -206,6 +233,11 @@ export default function GrowthPage() {
           </div>
           <Link href="/intelligence" className="mt-4 inline-flex items-center gap-1 text-xs font-semibold text-brand-600 hover:underline">Review lead evidence <Icon name="arrow" size={14} /></Link>
         </div>
+      </section>
+
+      <section className="data-card p-5 md:p-6">
+        <div className="flex flex-wrap items-start justify-between gap-3"><div><div className="section-kicker text-signal-700 dark:text-signal-300">Learning loop</div><h2 className="mt-1 text-lg font-semibold text-ink">Let wins improve the next search</h2><p className="mt-1 text-sm text-ink-muted">Recommendations stay in review until you approve them. Approved query expansions affect future discovery only; your ICP is never changed silently.</p></div><span className="pill bg-surface-3 text-ink-muted">{data.learning?.won ?? 0} wins · {data.learning?.booked ?? 0} meetings</span></div>
+        {recommendations.length === 0 ? <div className="mt-4 rounded-xl border border-line bg-surface-3/40 p-4 text-sm text-ink-muted">Record a booked, won, or lost outcome in the CRM to generate tenant-specific recommendations.</div> : <div className="mt-4 grid gap-3 md:grid-cols-3">{recommendations.map((item: any) => { const rec = item.recommendation || {}; return <div key={item.id} className="rounded-xl border border-line bg-surface-2 p-4"><div className="flex items-center justify-between gap-2"><span className="pill bg-brand-50 text-brand-700 dark:bg-brand-500/15 dark:text-brand-300">{item.status}</span><span className="text-[11px] text-ink-faint">{item.sample_size} signals</span></div><div className="mt-3 text-sm font-semibold text-ink">{rec.vertical || "General"}</div><div className="mt-1 text-xs text-ink-muted">Try: {(rec.queries || []).slice(0, 3).join(", ") || "more like your wins"}</div>{item.status === "proposed" && <button type="button" className="btn-secondary mt-3 w-full" onClick={async () => { try { await crmIntelligence.approveLearningRecommendation(getTenantId(), item.id); await refresh(true); } catch (e) { setError(e instanceof Error ? e : new Error(String(e))); } }}>Approve next-run expansion</button>}</div>; })}</div>}
       </section>
 
       <section className="grid gap-5 lg:grid-cols-[1.2fr_.8fr]">
