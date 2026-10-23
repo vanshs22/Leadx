@@ -222,6 +222,7 @@ async def run_pipeline_parallel_target(
     assignment_ids: list[str] = []
     to_deliver: list[dict] = []
     assignment_blockers: dict[str, int] = {}
+    crm_projection_failures = 0
     gate_rejections: dict[str, int] = {}
     seen_fp: set[str] = set()
     processed_ids: set[str] = set()
@@ -378,7 +379,7 @@ async def run_pipeline_parallel_target(
                 enrich_queue.task_done()
 
     async def _assignment_worker(worker_id: int) -> None:
-        nonlocal assigned_n, reserved_assignments
+        nonlocal assigned_n, reserved_assignments, crm_projection_failures
         while True:
             lead = await assignment_queue.get()
             reservation_taken = False
@@ -417,9 +418,14 @@ async def run_pipeline_parallel_target(
                         assigned_n += 1
                         position = assigned_n
                         assignment_id = result.get("assignment_id") or result.get("id")
-                        if assignment_id:
+                        crm_saved = result.get("crm_saved", True)
+                        if assignment_id and crm_saved:
                             assignment_ids.append(assignment_id)
-                        to_deliver.append(lead)
+                        if crm_saved:
+                            to_deliver.append(lead)
+                        else:
+                            crm_projection_failures += 1
+                            assignment_blockers["crm_persistence_failed"] = assignment_blockers.get("crm_persistence_failed", 0) + 1
                         if assigned_n >= slots_cap:
                             stop_event.set()
                     await _board_upsert(run_id, str(lead["id"]), tenant_id, "assigned", lead, position=position)
@@ -664,8 +670,12 @@ async def run_pipeline_parallel_target(
             stop_reason = "cancelled"
             status = "failed"
         elif assigned_n >= slots_cap:
-            stop_reason = "target_met"
-            status = "completed"
+            if crm_projection_failures:
+                stop_reason = "crm_persistence_failed"
+                status = "partial"
+            else:
+                stop_reason = "target_met"
+                status = "completed"
         elif assigned_n > 0:
             stop_reason = "shortfall"
             status = "partial"
@@ -701,8 +711,8 @@ async def run_pipeline_parallel_target(
         # the run marked delivered when all requested assignments are in CRM even
         # if an optional external channel failed.
         if assigned_n:
-            delivered_n = max(delivered_n, assigned_n)
-            if not delivery_result or not delivery_result.get("ok"):
+            delivered_n = max(delivered_n, len(to_deliver))
+            if to_deliver and (not delivery_result or not delivery_result.get("ok")):
                 delivery_result = {
                     "ok": True,
                     "channel": delivery_channel or "portal",
@@ -729,6 +739,8 @@ async def run_pipeline_parallel_target(
         "assignment_ids": assignment_ids,
         "delivered": delivered_n,
         "delivery": delivery_result,
+        "crm_saved": max(0, assigned_n - crm_projection_failures),
+        "crm_projection_failures": crm_projection_failures,
         "elapsed_seconds": elapsed,
         "target_assignments": slots_cap,
         "shortfall": shortfall,
@@ -1337,7 +1349,10 @@ async def run_pipeline(
                         gated_ok=gated, assigned=assigned,
                         meta={"stage": "assigning", "message": f"Assigned {assigned}/{gated}"},
                     )
-                to_deliver.append(lead)
+                if result.get("crm_saved", True):
+                    to_deliver.append(lead)
+                else:
+                    assignment_blockers["crm_persistence_failed"] = assignment_blockers.get("crm_persistence_failed", 0) + 1
                 # First-touch is MANUAL only (CRM toggle / API) — never auto on every assign
                 try:
                     from app.integrations.prod.ops_metrics import bump
@@ -1354,7 +1369,7 @@ async def run_pipeline(
                         .limit(1)))
                         .data or []
                     )
-                    if arows:
+                    if arows and result.get("crm_saved", True):
                         assignment_ids.append(arows[0]["id"])
                 except Exception as exc:
                     logger.debug("non-fatal fallback exception: %s", exc)
@@ -1511,10 +1526,13 @@ async def run_pipeline(
                         assigned += 1
                         board_assigned_ids.add(str(lead_id))
                         await _board_upsert(run_id, lead_id, tenant_id, "assigned", lead, position=assigned)
-                        to_deliver.append(lead)
-                        aid = result.get("assignment_id") or result.get("id")
-                        if aid:
-                            assignment_ids.append(aid)
+                        if result.get("crm_saved", True):
+                            to_deliver.append(lead)
+                            aid = result.get("assignment_id") or result.get("id")
+                            if aid:
+                                assignment_ids.append(aid)
+                        else:
+                            assignment_blockers["crm_persistence_failed"] = assignment_blockers.get("crm_persistence_failed", 0) + 1
                     else:
                         reason = str(result.get("reason") or "assignment_rejected")
                         assignment_blockers[reason] = assignment_blockers.get(reason, 0) + 1
@@ -1544,8 +1562,8 @@ async def run_pipeline(
             if delivery_result and delivery_result.get("ok"):
                 delivered_n = int(delivery_result.get("count") or len(to_deliver) or 0)
             # Assigned leads live in CRM for portal/webhook/telegram — always count delivered
-            if assigned:
-                delivered_n = max(delivered_n, assigned)
+            if to_deliver:
+                delivered_n = max(delivered_n, len(to_deliver))
                 if not delivery_result or not delivery_result.get("ok"):
                     delivery_result = {
                         "ok": True,
@@ -1559,8 +1577,8 @@ async def run_pipeline(
                             await mark_delivery_status(assignment_ids, "sent", None)
                     except Exception as me:
                         logger.warning("mark_delivery_status: %s", me)
-        elif assigned:
-            delivered_n = assigned
+        elif deliver and assigned:
+            delivered_n = len(to_deliver)
             delivery_result = {"ok": True, "channel": "portal", "count": delivered_n, "note": "assigned_to_crm"}
             try:
                 from app.services.delivery import mark_delivery_status
@@ -1605,6 +1623,8 @@ async def run_pipeline(
             # leads into a sequence. Collected above for delivery anyway.
             "assignment_ids": assignment_ids,
             "delivered": delivered_n,
+            "crm_saved": max(0, assigned - int(assignment_blockers.get("crm_persistence_failed") or 0)),
+            "crm_projection_failures": int(assignment_blockers.get("crm_persistence_failed") or 0),
             "delivery": delivery_result,
             "elapsed_seconds": elapsed,
             "top_leads": top,
@@ -1633,8 +1653,12 @@ async def run_pipeline(
             status = "failed"
         elif target_mode and deliver:
             if assigned >= int(target_assign or 0) and target_assign > 0:
-                status = "completed"
-                stop_reason = "target_met"
+                if assignment_blockers.get("crm_persistence_failed"):
+                    status = "partial"
+                    stop_reason = "crm_persistence_failed"
+                else:
+                    status = "completed"
+                    stop_reason = "target_met"
                 summary["stop_reason"] = stop_reason
             elif assigned > 0:
                 status = "partial"

@@ -554,7 +554,14 @@ async def assign_lead(
 
     assignment_rows = (await aexec(sb.table("lead_assignments").select("id").eq("lead_id", lead_id).eq("tenant_id", tenant_id).limit(1))).data or []
     assignment_id = assignment_rows[0].get("id") if assignment_rows else None
+    crm_projection = {"crm_saved": True, "crm_status": "not_configured"}
     if assignment_id:
+        try:
+            from app.integrations.prod.crm_projection import project_assignment_to_crm
+            crm_projection = await project_assignment_to_crm(str(tenant_id), str(assignment_id), str(lead_id))
+        except Exception as exc:
+            logger.warning("CRM projection boundary failed tenant=%s assignment=%s: %s", tenant_id, assignment_id, type(exc).__name__)
+            crm_projection = {"crm_saved": False, "crm_status": "retryable", "crm_error": "crm_projection_unavailable", "retryable": True}
         try:
             from app.integrations.prod.lead7_runtime import record_assignment
             await record_assignment(str(lead_id), str(tenant_id), str(assignment_id), reason="quota+quality+exclusivity")
@@ -613,7 +620,7 @@ async def assign_lead(
     except Exception as exc:
         logger.debug("Task-16 assignment projections skipped: %s", type(exc).__name__)
 
-    return {"assigned": True, "reason": "ok", "assignment_id": assignment_id, "run_id": run_id}
+    return {"assigned": True, "reason": "ok", "assignment_id": assignment_id, "run_id": run_id, **crm_projection}
 
 
 
