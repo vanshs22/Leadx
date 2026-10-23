@@ -154,7 +154,7 @@ function PipelineForm() {
         exhaustive_discovery: total > 25,
         include_linkedin: form.include_linkedin,
         include_instagram: form.include_instagram,
-      });
+      }, `admin-pipeline:${crypto.randomUUID()}`);
       setResult(r);
       const rid = r?.run_id || r?.id;
       if (rid) {

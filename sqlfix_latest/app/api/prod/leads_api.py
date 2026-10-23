@@ -930,7 +930,7 @@ def list_pipeline_runs(tenant_id: Optional[str] = None, limit: int = 50):
         .table("pipeline_runs")
         .select(
             "id, tenant_id, icp_id, status, discovered, enriched, gated_ok, assigned, delivered, "
-            "error_message, started_at, finished_at, meta"
+            "error_message, started_at, finished_at, requested_target, target_assigned, target_mode, meta"
         )
         .order("started_at", desc=True)
         .limit(min(limit, 200))
@@ -954,7 +954,7 @@ def get_pipeline_run(run_id: str):
             sb.table("pipeline_runs")
             .select(
                 "id, tenant_id, icp_id, status, discovered, enriched, gated_ok, assigned, delivered, "
-                "stored, error_message, started_at, finished_at, meta"
+                "stored, error_message, started_at, finished_at, requested_target, target_assigned, target_mode, meta"
             )
             .eq("id", run_id)
             .limit(1)

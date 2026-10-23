@@ -121,8 +121,8 @@ export const admin = {
     adminApi(`/leads/v2/admin/icps/${id}`, { method: "PATCH", body: JSON.stringify(body) }),
 
   // Pipeline
-  runPipeline: (body: Record<string, unknown>) =>
-    adminApi("/leads/v2/pipeline/run", { method: "POST", body: JSON.stringify(body) }),
+  runPipeline: (body: Record<string, unknown>, idempotencyKey?: string) =>
+    adminApi("/leads/v2/pipeline/run", { method: "POST", body: JSON.stringify(body), headers: idempotencyKey ? { "Idempotency-Key": idempotencyKey } : undefined }),
   /**
    * POST /leads/v2/pipeline/run-all-icps — body is CronRequest
    * (limit_per_location, skip_enrichment, max_enrich_concurrent), all optional.

@@ -60,11 +60,19 @@ export function toOperationState(value: unknown, fallback: Partial<OperationStat
   const status = text(first(source.status, run.status, job.status, request.status, fallback.status)) || "queued";
   const objectValue = (...values: unknown[]) => {
     const value = first(...values);
-    return value && typeof value === "object" && !Array.isArray(value) ? value as Record<string, unknown> : undefined;
+    if (value && typeof value === "object" && !Array.isArray(value)) {
+      const entries = Object.entries(value as Record<string, unknown>);
+      return entries.length ? Object.fromEntries(entries) : undefined;
+    }
+    return undefined;
   };
   const listValue = (...values: unknown[]) => {
     const value = first(...values);
-    if (Array.isArray(value)) return value.map(String);
+    if (Array.isArray(value)) return value.map((item) => {
+      if (item && typeof item === "object") return Object.entries(item as Record<string, unknown>).map(([key, count]) => `${key}: ${String(count)}`).join(", ");
+      return String(item);
+    }).filter(Boolean);
+    if (value && typeof value === "object") return Object.entries(value as Record<string, unknown>).map(([key, count]) => `${key}: ${String(count)}`);
     return value == null || value === "" ? undefined : [String(value)];
   };
   return {
@@ -87,7 +95,7 @@ export function toOperationState(value: unknown, fallback: Partial<OperationStat
     assigned: number(first(source.assigned, progress.assigned, run.assigned, request.assigned_count)),
     delivered: number(first(source.delivered, progress.delivered, run.delivered, request.delivered_count)),
     target: number(first(source.target, source.requested_target, progress.target, run.requested_target, request.requested_target, request.requested_leads)),
-    effectiveTarget: number(first(source.effective_target, progress.effective_target, run.effective_target, request.effective_target, request.approved_leads)),
+    effectiveTarget: number(first(source.effective_target, progress.effective_target, run.effective_target, run.target_assigned, request.effective_target, request.approved_leads)),
     shortfall: number(first(source.shortfall, progress.shortfall, run.shortfall, meta.shortfall, request.shortfall)),
     blockers: listValue(source.blockers, source.assignment_blockers, progress.blockers, meta.blockers, meta.assignment_blockers, request.blockers, request.assignment_blockers),
     reuse: objectValue(source.reuse, source.reuse_counts, progress.reuse, meta.reuse_counts, request.reuse_counts),
