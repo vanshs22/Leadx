@@ -356,15 +356,13 @@ async def run_pipeline_parallel_target(
                         result["enrichment_ok"] = False
                         result["enrichment_error"] = str(exc)
 
-                    # Social enrichment is part of the same streaming worker so
-                    # a lead becomes fully enriched before it is scored/assigned.
-                    if stop_event.is_set() or _cancelled():
-                        continue
-                    try:
-                        from app.integrations.prod.social_enrich import social_enrich_batch
-                        await social_enrich_batch([result], max_per_run=1)
-                    except Exception as exc:
-                        logger.debug("[%s] social enrichment skipped: %s", run_id[:8], exc)
+                    if ((include_linkedin or include_instagram)
+                            and not stop_event.is_set() and not _cancelled()):
+                        try:
+                            from app.integrations.prod.social_enrich import social_enrich_batch
+                            await social_enrich_batch([result], max_per_run=1)
+                        except Exception as exc:
+                            logger.debug("[%s] social enrichment skipped: %s", run_id[:8], exc)
 
                 gated = await _persist_and_gate(result)
                 if gated is not None:
@@ -783,13 +781,13 @@ async def run_pipeline(
     deliver: bool = True,
     use_crawl4ai: bool = True,
     use_firecrawl: bool = True,
-    include_linkedin: bool = True,
-    include_instagram: bool = True,
+    include_linkedin: bool = False,
+    include_instagram: bool = False,
     social_limit_per_source: int = 10,
     include_maps: bool = True,
     include_web: bool = True,
-    include_yelp: bool = True,
-    include_facebook: bool = True,
+    include_yelp: bool = False,
+    include_facebook: bool = False,
     target_new_leads: int = 0,
     campaign_mode: str = "auto",
     max_cells_per_run: int = 25,

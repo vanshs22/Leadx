@@ -37,15 +37,15 @@ class PipelineRequest(BaseModel):
     deliver: bool = True
     use_crawl4ai: bool = True
     use_firecrawl: bool = True
-    include_linkedin: bool = True
-    include_instagram: bool = True
+    include_linkedin: bool = False
+    include_instagram: bool = False
     include_maps: bool = True
     include_web: bool = True
-    include_yelp: bool = True
-    include_facebook: bool = True
+    include_yelp: bool = False
+    include_facebook: bool = False
     social_limit_per_source: int = Field(default=15, ge=0, le=50)
-    target_new_leads: int = Field(default=0, ge=0, le=50000, description='Net-new leads target; use 5000–15000 for statewide ICPs')
-    max_cells_per_run: int = Field(default=40, ge=1, le=150)
+    target_new_leads: int = Field(default=0, ge=0, le=50000, description='Net-new leads target; Fast Target Mode is used for bounded requests')
+    max_cells_per_run: int = Field(default=15, ge=1, le=150)
     campaign_mode: str = Field(default="auto", description="auto, fast_target, or strict quality_campaign")
     exhaustive_discovery: bool = Field(default=False, description="Explicitly scan all enabled source/query/geo partitions; normal requests use bounded adaptive discovery")
 

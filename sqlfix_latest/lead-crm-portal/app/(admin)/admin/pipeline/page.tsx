@@ -26,10 +26,10 @@ function PipelineForm() {
     skip_enrichment: false,
     include_maps: true,
     include_web: true,
-    include_yelp: true,
-    include_facebook: true,
-    include_linkedin: true,
-    include_instagram: true,
+    include_yelp: false,
+    include_facebook: false,
+    include_linkedin: false,
+    include_instagram: false,
   });
   const [result, setResult] = useState<any>(null);
   const [busy, setBusy] = useState(false);

@@ -324,3 +324,17 @@ body { text-rendering: optimizeLegibility; -webkit-font-smoothing: antialiased; 
 .landing-proof:hover { transform: translateY(-3px); border-color: rgb(119 183 168 / .36); background: rgb(255 255 255 / .06); }
 .landing-proof-icon { display: inline-flex; height: 38px; width: 38px; align-items: center; justify-content: center; border-radius: 12px; background: rgb(63 189 168 / .12); color: #8de0ce; }
 @media (prefers-reduced-motion: reduce) { .landing-proof:hover { transform: none; } }
+
+/* Run board: signal-based columns instead of generic equal cards. */
+.run-summary-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: .65rem; }
+.run-summary-grid > div { border: 1px solid rgb(var(--line)); border-radius: 12px; background: rgb(var(--surface-2)); padding: .65rem .75rem; }
+.run-summary-label { display: block; color: rgb(var(--ink-faint)); font: 700 9px/1 var(--font-mono), monospace; letter-spacing: .12em; text-transform: uppercase; }
+.run-summary-value { display: block; margin-top: .35rem; color: rgb(var(--ink)); font-size: .86rem; }
+.run-column { border-top-width: 3px; }
+.run-column-discovered { border-top-color: rgb(116 128 143); }
+.run-column-enriched { border-top-color: rgb(66 156 196); }
+.run-column-gated { border-top-color: rgb(63 189 168); }
+.run-column-assigned { border-top-color: rgb(232 162 89); }
+.run-column-assigned_B { border-top-color: rgb(183 133 220); }
+.run-column-excluded { border-top-color: rgb(225 74 96); }
+@media (max-width: 640px) { .run-summary-grid { grid-template-columns: 1fr; } }
