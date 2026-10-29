@@ -6,7 +6,9 @@ export type IconName =
   | "report" | "revenue" | "deal" | "team" | "integration" | "billing" | "settings"
   | "clients" | "health" | "territory" | "icp" | "growth" | "run" | "job"
   | "bell" | "support" | "key" | "usage" | "suppression" | "scale" | "security"
-  | "menu" | "arrow";
+  | "menu" | "arrow"
+  | "close" | "plus" | "filter" | "external" | "refresh" | "chevron" | "download"
+  | "upload" | "mail" | "phone" | "globe" | "sun" | "moon" | "logout" | "info" | "alert";
 
 const PATHS: Record<IconName, string> = {
   home: "M3 10.5 12 3l9 7.5M5.5 9.5V21h13V9.5M9 21v-6h6v6",
@@ -45,6 +47,22 @@ const PATHS: Record<IconName, string> = {
   security: "M12 3 20 6v6c0 5-3.5 8-8 9-4.5-1-8-4-8-9V6l8-3Zm-3 9 2 2 4-4",
   menu: "M4 7h16M4 12h16M4 17h16",
   arrow: "M5 12h13m-5-5 5 5-5 5",
+  close: "M6 6l12 12M18 6 6 18",
+  plus: "M12 5v14M5 12h14",
+  filter: "M4 5h16l-6 8v5l-4 2v-7L4 5Z",
+  external: "M14 4h6v6M20 4l-9 9M18 14v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h5",
+  refresh: "M20 11a8 8 0 0 0-14.3-4.9L4 8M4 4v4h4M4 13a8 8 0 0 0 14.3 4.9L20 16M20 20v-4h-4",
+  chevron: "m9 6 6 6-6 6",
+  download: "M12 4v11m-4-4 4 4 4-4M5 20h14",
+  upload: "M12 20V9m-4 4 4-4 4 4M5 4h14",
+  mail: "M4 6h16v12H4zM4 7l8 6 8-6",
+  phone: "M5 4h4l2 5-2.5 1.5a11 11 0 0 0 5 5L15 13l5 2v4a1 1 0 0 1-1 1A16 16 0 0 1 4 5a1 1 0 0 1 1-1",
+  globe: "M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18ZM3 12h18M12 3c2.5 2.6 3.8 5.6 3.8 9s-1.3 6.4-3.8 9c-2.5-2.6-3.8-5.6-3.8-9S9.5 5.6 12 3",
+  sun: "M12 16a4 4 0 1 0 0-8 4 4 0 0 0 0 8Zm0-14v2m0 16v2M4.9 4.9l1.4 1.4m11.4 11.4 1.4 1.4M2 12h2m16 0h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4",
+  moon: "M20 14.5A8 8 0 0 1 9.5 4a8 8 0 1 0 10.5 10.5Z",
+  logout: "M15 4h4v16h-4M10 8l-4 4 4 4M6 12h10",
+  info: "M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18Zm0-10v5m0-8h.01",
+  alert: "M12 4 2.5 20h19L12 4Zm0 6v4m0 3h.01",
 };
 
 export function Icon({ name, size = 18, strokeWidth = 1.8, ...props }: { name: IconName; size?: number; strokeWidth?: number } & SVGProps<SVGSVGElement>) {

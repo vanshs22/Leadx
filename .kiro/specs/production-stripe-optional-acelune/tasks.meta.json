@@ -1,0 +1,137 @@
+{
+  "pbtResults": {
+    "1. Write the bug-condition exploration test before the fix": {
+      "status": "passed",
+      "failingExample": "production: Counterexample for production: Stripe-disabled startup was refused; the unfixed validator reported: Production api startup refused: invalid/missing configuration: STRIPE_SECRET_KEY, STRIPE_WEBHOOK_SECRET\nprod: Counterexample for prod: Stripe-disabled startup was refused; the unfixed validator reported: Production api startup refused: invalid/missing configuration: STRIPE_SECRET_KEY, STRIPE_WEBHOOK_SECRET\nstaging: Counterexample for staging: Stripe-disabled startup was refused; the unfixed validator reported: Staging api startup refused: invalid/missing configuration: STRIPE_SECRET_KEY, STRIPE_WEBHOOK_SECRET",
+      "lastRunTimestamp": 1792960072296
+    }
+  },
+  "executionHistory": {
+    "1. Write the bug-condition exploration test before the fix": [
+      {
+        "executionId": "6a3a6728-b9e1-4e66-9a0c-daede612b053",
+        "chatSessionId": "sess_04c0a8cd-f6f5-434b-b17e-8d89acafffcf",
+        "timestamp": 1792959958626
+      },
+      {
+        "executionId": "6a3a6728-b9e1-4e66-9a0c-daede612b053",
+        "chatSessionId": "sess_04c0a8cd-f6f5-434b-b17e-8d89acafffcf",
+        "timestamp": 1792959977942
+      },
+      {
+        "executionId": "6a3a6728-b9e1-4e66-9a0c-daede612b053",
+        "chatSessionId": "sess_04c0a8cd-f6f5-434b-b17e-8d89acafffcf",
+        "timestamp": 1792960097800
+      }
+    ],
+    "2. Write preservation property tests before implementation": [
+      {
+        "executionId": "6a3a6728-b9e1-4e66-9a0c-daede612b053",
+        "chatSessionId": "sess_04c0a8cd-f6f5-434b-b17e-8d89acafffcf",
+        "timestamp": 1792959958791
+      },
+      {
+        "executionId": "6a3a6728-b9e1-4e66-9a0c-daede612b053",
+        "chatSessionId": "sess_04c0a8cd-f6f5-434b-b17e-8d89acafffcf",
+        "timestamp": 1792960106394
+      },
+      {
+        "executionId": "6a3a6728-b9e1-4e66-9a0c-daede612b053",
+        "chatSessionId": "sess_04c0a8cd-f6f5-434b-b17e-8d89acafffcf",
+        "timestamp": 1792960320647
+      }
+    ],
+    "3.1 Remove Stripe from hardened startup requirements": [
+      {
+        "executionId": "6a3a6728-b9e1-4e66-9a0c-daede612b053",
+        "chatSessionId": "sess_04c0a8cd-f6f5-434b-b17e-8d89acafffcf",
+        "timestamp": 1792959958917
+      },
+      {
+        "executionId": "6a3a6728-b9e1-4e66-9a0c-daede612b053",
+        "chatSessionId": "sess_04c0a8cd-f6f5-434b-b17e-8d89acafffcf",
+        "timestamp": 1792960339685
+      },
+      {
+        "executionId": "6a3a6728-b9e1-4e66-9a0c-daede612b053",
+        "chatSessionId": "sess_04c0a8cd-f6f5-434b-b17e-8d89acafffcf",
+        "timestamp": 1792960486466
+      }
+    ],
+    "3.2 Document Acelune and optional Stripe configuration without secrets": [
+      {
+        "executionId": "6a3a6728-b9e1-4e66-9a0c-daede612b053",
+        "chatSessionId": "sess_04c0a8cd-f6f5-434b-b17e-8d89acafffcf",
+        "timestamp": 1792959959008
+      },
+      {
+        "executionId": "6a3a6728-b9e1-4e66-9a0c-daede612b053",
+        "chatSessionId": "sess_04c0a8cd-f6f5-434b-b17e-8d89acafffcf",
+        "timestamp": 1792960348749
+      },
+      {
+        "executionId": "6a3a6728-b9e1-4e66-9a0c-daede612b053",
+        "chatSessionId": "sess_04c0a8cd-f6f5-434b-b17e-8d89acafffcf",
+        "timestamp": 1792960495664
+      }
+    ],
+    "3.3 Add focused billing, runtime, and Acelune configuration tests": [
+      {
+        "executionId": "6a3a6728-b9e1-4e66-9a0c-daede612b053",
+        "chatSessionId": "sess_04c0a8cd-f6f5-434b-b17e-8d89acafffcf",
+        "timestamp": 1792959959083
+      },
+      {
+        "executionId": "6a3a6728-b9e1-4e66-9a0c-daede612b053",
+        "chatSessionId": "sess_04c0a8cd-f6f5-434b-b17e-8d89acafffcf",
+        "timestamp": 1792960505025
+      },
+      {
+        "executionId": "6a3a6728-b9e1-4e66-9a0c-daede612b053",
+        "chatSessionId": "sess_04c0a8cd-f6f5-434b-b17e-8d89acafffcf",
+        "timestamp": 1792960684930
+      }
+    ],
+    "3.4 Verify the original properties after implementation": [
+      {
+        "executionId": "6a3a6728-b9e1-4e66-9a0c-daede612b053",
+        "chatSessionId": "sess_04c0a8cd-f6f5-434b-b17e-8d89acafffcf",
+        "timestamp": 1792959959161
+      },
+      {
+        "executionId": "6a3a6728-b9e1-4e66-9a0c-daede612b053",
+        "chatSessionId": "sess_04c0a8cd-f6f5-434b-b17e-8d89acafffcf",
+        "timestamp": 1792960694563
+      },
+      {
+        "executionId": "6a3a6728-b9e1-4e66-9a0c-daede612b053",
+        "chatSessionId": "sess_04c0a8cd-f6f5-434b-b17e-8d89acafffcf",
+        "timestamp": 1792960756899
+      }
+    ],
+    "4. Final focused validation checkpoint": [
+      {
+        "executionId": "6a3a6728-b9e1-4e66-9a0c-daede612b053",
+        "chatSessionId": "sess_04c0a8cd-f6f5-434b-b17e-8d89acafffcf",
+        "timestamp": 1792959959277
+      },
+      {
+        "executionId": "6a3a6728-b9e1-4e66-9a0c-daede612b053",
+        "chatSessionId": "sess_04c0a8cd-f6f5-434b-b17e-8d89acafffcf",
+        "timestamp": 1792960766881
+      },
+      {
+        "executionId": "6a3a6728-b9e1-4e66-9a0c-daede612b053",
+        "chatSessionId": "sess_04c0a8cd-f6f5-434b-b17e-8d89acafffcf",
+        "timestamp": 1792960860921
+      }
+    ],
+    "3. Apply the minimal Stripe-optional fix and documentation": [
+      {
+        "executionId": "6a3a6728-b9e1-4e66-9a0c-daede612b053",
+        "chatSessionId": "sess_04c0a8cd-f6f5-434b-b17e-8d89acafffcf",
+        "timestamp": 1792960757009
+      }
+    ]
+  }
+}

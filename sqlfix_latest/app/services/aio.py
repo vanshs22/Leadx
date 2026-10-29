@@ -72,6 +72,25 @@ async def offload(fn: Callable[..., T], /, *args: Any, **kwargs: Any) -> T:
     return await asyncio.to_thread(fn, *args, **kwargs)
 
 
+async def aexec_retry(builder: Any, *, attempts: int = 3, base_delay: float = 0.25) -> Any:
+    """Retry transient PostgREST transport failures without changing call shape."""
+    last: Exception | None = None
+    for attempt in range(max(1, int(attempts))):
+        try:
+            return await asyncio.to_thread(builder.execute)
+        except Exception as exc:
+            last = exc
+            text = str(exc).lower()
+            transient = any(token in text for token in (
+                "remoteprotocolerror", "server disconnected", "connection reset",
+                "readtimeout", "connecterror", "temporarily unavailable", "503", "502",
+            )) or exc.__class__.__name__.lower() in {"remoteprotocolerror", "readtimeout", "connecterror"}
+            if not transient or attempt + 1 >= max(1, int(attempts)):
+                raise
+            await asyncio.sleep(float(base_delay) * (2 ** attempt))
+    raise last or RuntimeError("database operation failed")
+
+
 async def aexec(builder: Any) -> Any:
     """``await aexec(sb.table(..).select(..))`` == ``builder.execute()`` off-loop."""
     return await asyncio.to_thread(builder.execute)

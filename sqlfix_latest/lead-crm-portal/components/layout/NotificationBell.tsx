@@ -53,14 +53,15 @@ export function NotificationBell({ scope = "tenant" }: { scope?: "tenant" | "adm
     <Link
       href={href}
       title={unread ? `${unread} unread` : "Notifications"}
-      className="relative inline-flex h-8 w-8 items-center justify-center rounded-lg border border-line bg-surface text-ink-muted hover:bg-surface-2 hover:text-ink"
+      aria-label={unread ? `Notifications, ${unread} unread` : "Notifications"}
+      className="icon-button relative h-8 w-8"
     >
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" className="h-4 w-4">
         <path d="M15 17h5l-1.4-2.1A2 2 0 0 1 18 13.8V11a6 6 0 1 0-12 0v2.8a2 2 0 0 1-.6 1.1L4 17h11Z" />
         <path d="M9.5 20a2.5 2.5 0 0 0 5 0" />
       </svg>
       {unread > 0 && (
-        <span className="absolute -right-1 -top-1 min-w-[16px] rounded-full bg-rust-600 px-1 text-[10px] font-semibold leading-4 text-white">
+        <span className="absolute -right-1 -top-1 min-w-[16px] rounded-full bg-rust-600 px-1 text-center text-[10px] font-semibold leading-4 text-white tabular-nums ring-2 ring-surface-2">
           {unread > 99 ? "99+" : unread}
         </span>
       )}

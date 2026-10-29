@@ -35,6 +35,9 @@ begin
   row_data := case when TG_OP = 'DELETE' then to_jsonb(OLD) else to_jsonb(NEW) end;
   begin tid := nullif(row_data->>'tenant_id','')::uuid; exception when others then tid := null; end;
   rid := coalesce(row_data->>'id', row_data->>'assignment_id');
+  if TG_TABLE_NAME = 'notifications' and lower(coalesce(row_data->>'scope', 'tenant')) <> 'tenant' then
+    tid := null;
+  end if;
   if tid is not null then
     insert into public.leadx_event_log(tenant_id, actor_type, action, resource_type, resource_id, summary)
     values (tid, 'system', lower('db.' || TG_TABLE_NAME || '.' || TG_OP), TG_TABLE_NAME, rid,
@@ -69,19 +72,40 @@ create trigger leadx_event_broadcast
 after insert on public.leadx_event_log
 for each row execute function public.leadx_broadcast_event();
 
+-- Browser roles cannot inspect or mutate the operational event trail.
+revoke all on table public.leadx_event_log from public, anon, authenticated;
+grant select, insert on table public.leadx_event_log to service_role;
+revoke all on function public.leadx_capture_event() from public, anon, authenticated;
+revoke all on function public.leadx_broadcast_event() from public, anon, authenticated;
+grant execute on function public.leadx_capture_event() to service_role;
+grant execute on function public.leadx_broadcast_event() to service_role;
+
 do $$
 declare
   t text;
   tables text[] := array[
+    'pipeline_runs','discovery_requests','pipeline_stages',
     'lead_assignments','lead_state_history','lead_score_snapshots','lead_quality_gates',
     'lead_routing_decisions','lead_delivery_events','lead_verification_observations',
-    'lead_outcome_events','activities','deals','contacts','companies','notifications','agent_runs','jobs','email_sequences','email_sequence_steps','email_sequence_enrollments','email_sequence_sends','tenant_members'
+    'lead_outcome_events','lead_activities','lead_tasks',
+    'companies','company_locations','contacts','contact_roles','deals','deal_stages',
+    'activities','tasks','notes','agent_runs','jobs',
+    'email_sequences','email_sequence_enrollments','email_sequence_sends','email_replies',
+    'workflow_definitions','workflow_runs','automation_events',
+    'tenant_members','tenant_invites','notifications','audit_log','crm_audit_log',
+    'usage_log','provider_usage_daily','learning_snapshots','tenant_icp_learning',
+    'tenant_icp_recommendations','support_conversations'
   ];
 begin
   foreach t in array tables loop
     if to_regclass('public.' || t) is not null then
       execute format('drop trigger if exists leadx_event_capture on public.%I', t);
       execute format('create trigger leadx_event_capture after insert or update or delete on public.%I for each row execute function public.leadx_capture_event()', t);
+      begin
+        execute format('alter table public.%I replica identity full', t);
+        execute format('alter publication supabase_realtime add table public.%I', t);
+      exception when duplicate_object then null when undefined_table then null when undefined_object then null;
+      end;
     end if;
   end loop;
 end $$;
@@ -99,6 +123,7 @@ create policy leadx_workspace_broadcast_read
   for select to authenticated
   using (
     extension = 'broadcast'
+    and realtime.topic() ~* '^crm:[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$'
     and exists (
       select 1
       from public.tenant_members tm

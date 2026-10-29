@@ -9,7 +9,7 @@ from __future__ import annotations
 import logging
 from typing import Any
 
-from app.services.aio import aexec
+from app.services.aio import aexec_retry
 from app.memory.supabase_client import get_supabase
 
 logger = logging.getLogger("lead_engine.crm_projection")
@@ -23,22 +23,22 @@ async def project_assignment_to_crm(tenant_id: str, assignment_id: str, lead_id:
     """Project one assignment into existing tenant CRM tables, replay-safely."""
     sb = get_supabase()
     try:
-        lead_rows = (await aexec(
+        lead_rows = (await aexec_retry(
             sb.table("leads_global").select("*").eq("id", str(lead_id)).limit(1)
         )).data or []
-        assignment_rows = (await aexec(
+        assignment_rows = (await aexec_retry(
             sb.table("lead_assignments").select("*").eq("id", str(assignment_id)).eq("tenant_id", str(tenant_id)).limit(1)
         )).data or []
         if not lead_rows or not assignment_rows:
             return {"crm_saved": False, "status": "failed", "reason": "source_record_missing", "retryable": False}
         lead = dict(lead_rows[0])
         assignment = dict(assignment_rows[0])
-        enrichment_rows = (await aexec(
+        enrichment_rows = (await aexec_retry(
             sb.table("enrichment").select("*").eq("lead_id", str(lead_id)).limit(1)
         )).data or []
         enrichment = dict(enrichment_rows[0]) if enrichment_rows else {}
 
-        company_rows = (await aexec(
+        company_rows = (await aexec_retry(
             sb.table("companies").select("*").eq("tenant_id", str(tenant_id)).eq("source_lead_id", str(lead_id)).limit(1)
         )).data or []
         company = company_rows[0] if company_rows else None
@@ -61,11 +61,11 @@ async def project_assignment_to_crm(tenant_id: str, assignment_id: str, lead_id:
                 "source_lead_id": str(lead_id),
             }
             try:
-                company_rows = (await aexec(sb.table("companies").insert(company_payload))).data or []
+                company_rows = (await aexec_retry(sb.table("companies").insert(company_payload))).data or []
                 company = company_rows[0] if company_rows else company_payload
             except Exception:
                 # A concurrent retry may have won the source_lead/domain race.
-                company_rows = (await aexec(
+                company_rows = (await aexec_retry(
                     sb.table("companies").select("*").eq("tenant_id", str(tenant_id)).eq("source_lead_id", str(lead_id)).limit(1)
                 )).data or []
                 if not company_rows:
@@ -80,7 +80,7 @@ async def project_assignment_to_crm(tenant_id: str, assignment_id: str, lead_id:
         )
         contact = None
         if company_id and contact_candidate:
-            contact_rows = (await aexec(
+            contact_rows = (await aexec_retry(
                 sb.table("contacts").select("*").eq("tenant_id", str(tenant_id)).eq("source_lead_id", str(lead_id)).limit(1)
             )).data or []
             contact = contact_rows[0] if contact_rows else None
@@ -100,10 +100,10 @@ async def project_assignment_to_crm(tenant_id: str, assignment_id: str, lead_id:
                     "source_lead_id": str(lead_id),
                 }
                 try:
-                    contact_rows = (await aexec(sb.table("contacts").insert(contact_payload))).data or []
+                    contact_rows = (await aexec_retry(sb.table("contacts").insert(contact_payload))).data or []
                     contact = contact_rows[0] if contact_rows else contact_payload
                 except Exception:
-                    contact_rows = (await aexec(
+                    contact_rows = (await aexec_retry(
                         sb.table("contacts").select("*").eq("tenant_id", str(tenant_id)).eq("source_lead_id", str(lead_id)).limit(1)
                     )).data or []
                     if contact_rows:

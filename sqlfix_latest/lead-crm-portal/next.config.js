@@ -57,6 +57,7 @@ function readEnvValue(filePath, wanted) {
 // Backend secrets/env are never loaded by Next. Public Supabase values must be
 // supplied through the frontend .env.local/.env or deployment environment.
 
+const LOCAL_AUTH = String(process.env.NEXT_PUBLIC_LEADX_LOCAL_AUTH || "").trim().toLowerCase();
 const SUPA_URL = (process.env.NEXT_PUBLIC_SUPABASE_URL || "").trim();
 const SUPA_ANON = (process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || "").trim();
 
@@ -109,6 +110,7 @@ const nextConfig = {
   env: {
     NEXT_PUBLIC_SUPABASE_URL: SUPA_URL,
     NEXT_PUBLIC_SUPABASE_ANON_KEY: SUPA_ANON,
+    NEXT_PUBLIC_LEADX_LOCAL_AUTH: LOCAL_AUTH,
   },
   async headers() {
     return [

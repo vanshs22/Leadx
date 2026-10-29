@@ -1,313 +1,198 @@
-# Implementation Plan
+# Implementation Plan: LeadX Lead-Generation Runtime Remediation
 
 ## Overview
 
-This plan hardens the existing LeadX runtime and portal without inventing CRM functionality. It follows the bug-condition workflow: establish unfixed counterexamples, capture healthy behavior for preservation, implement dependency/readiness/queue/idempotency/Redis/portal contracts, then validate with unit, property, integration, Compose, frontend, accessibility, security, and regression gates.
+This plan implements the completed lead-generation runtime remediation design in risk-first order. It starts with bug-condition and preservation evidence, then hardens recovery, planning, handoffs, discovery, enrichment, delivery accounting, target stopping, shared-pool policy, realtime projections, and offline evidence. Live-provider and deployed/UAT checks remain explicitly separate.
+
+## Scope and execution rules
+
+This plan turns the completed requirements and design into the smallest ordered implementation path. It fixes the existing runtime seams; it does not introduce a new broker, provider family, CRM model, billing model, unrestricted exhaustive mode, or automatic outreach.
+
+- `[CHECK-ONLY]` tasks inspect, test, or document behavior. They must not mutate production data, call providers, read `.env`, or deploy anything.
+- `[IMPLEMENT]` tasks may change application code, additive migrations, focused fixtures, and tests only at the files named in the task. Preserve unrelated working-tree changes and existing route/API/status names.
+- `[LIVE/UAT-BLOCKED]` tasks are operator-run follow-ups only. They remain incomplete until explicit credentials, a test tenant, provider budgets, cleanup, and a deployed/UAT environment are supplied. Local passes never satisfy them.
+- All offline commands run from `sqlfix_latest` with Local Validation Mode and deny-all outbound provider adapters. Never print or request secrets.
+- Run focused tests first. Use the final offline gate only after its dependencies pass.
 
 ## Task Dependency Graph
 
-- `1` is the baseline prerequisite for all work.
-- `2` and `3` are standalone pre-fix exploration tasks and must precede implementation.
-- `4` depends on `1`; `5` depends on `4`; `6` depends on `4, 5`.
-- `7` depends on `4` and may run in parallel with `5` and `6` after policy interfaces are agreed.
-- `8` depends on `4, 6`; `9` depends on `1, 4`; `10` depends on `8, 9`.
-- `11` depends on `6, 8, 10`; `12` depends on `6, 8, 11`.
-- `13` depends on `7, 8, 10, 11` and reuses the exact properties from `2` and `3`.
-- `14` depends on `5, 6, 11`; `15` depends on `12, 14`; `16` depends on `14, 15`.
-- `17` depends on `5, 6, 7, 8, 10, 12, 14, 16`; `18` depends on all implementation and validation tasks; `19` depends on `18`.
-- **Critical path:** `1 → 2/3 → 4 → 5 → 6 → 8 → 9 → 10 → 11 → 12 → 14 → 15 → 16 → 17 → 18 → 19`.
-- **Safe parallel groups:** after `1`, tasks `2` and `3`; after `4`, tasks `5` and `7`; after `10`, tasks `11` and `12`; after `14`, tasks `15` and `16` once their shared portal state contract is fixed.
+```text
+1 bug-condition exploration ─┐
+                             ├─> 3 recovery/fencing ─> 4 planner ─> 5 agent handoffs
+2 preservation baseline ─────┘                                      │
+                                                                     v
+                              6 route contract ─> 7 streaming enrichment
+                                                                     │
+                                                                     v
+                              8 ordered delivery ─> 9 adaptive target stop ─> 10 shared-pool policy
+                                                                                         │
+                                                                                         v
+                              11 realtime/refetch ─> 12 offline evidence boundary ─> 13 offline checkpoint
+                                                                                         │
+                                                                                         v
+                                                                                 14 live/UAT blocked
+```
+
+Tasks 1 and 2 are standalone pre-fix tests. Task 3 starts implementation only after their baseline evidence exists. Task 13 is the final local checkpoint; task 14 is never implied by local success.
 
 ```json
 {
   "waves": [
-    {"wave": 1, "tasks": ["1"]},
-    {"wave": 2, "tasks": ["2", "3"]},
-    {"wave": 3, "tasks": ["4"]},
-    {"wave": 4, "tasks": ["5", "7"]},
-    {"wave": 5, "tasks": ["6"]},
-    {"wave": 6, "tasks": ["8", "9"]},
-    {"wave": 7, "tasks": ["10"]},
-    {"wave": 8, "tasks": ["11", "12"]},
-    {"wave": 9, "tasks": ["13", "14"]},
-    {"wave": 10, "tasks": ["15"]},
-    {"wave": 11, "tasks": ["16"]},
-    {"wave": 12, "tasks": ["17"]},
-    {"wave": 13, "tasks": ["18"]},
-    {"wave": 14, "tasks": ["19"]}
+    {"id": "wave-1", "tasks": ["1"]},
+    {"id": "wave-2", "tasks": ["2"], "depends_on": ["wave-1"]},
+    {"id": "wave-3", "tasks": ["3"], "depends_on": ["wave-2"]},
+    {"id": "wave-4", "tasks": ["4"], "depends_on": ["wave-3"]},
+    {"id": "wave-5", "tasks": ["5"], "depends_on": ["wave-4"]},
+    {"id": "wave-6", "tasks": ["6"], "depends_on": ["wave-5"]},
+    {"id": "wave-7", "tasks": ["7"], "depends_on": ["wave-6"]},
+    {"id": "wave-8", "tasks": ["8"], "depends_on": ["wave-7"]},
+    {"id": "wave-9", "tasks": ["9"], "depends_on": ["wave-8"]},
+    {"id": "wave-10", "tasks": ["10"], "depends_on": ["wave-9"]},
+    {"id": "wave-11", "tasks": ["11"], "depends_on": ["wave-10"]},
+    {"id": "wave-12", "tasks": ["12"], "depends_on": ["wave-11"]},
+    {"id": "wave-13", "tasks": ["13"], "depends_on": ["wave-12"]},
+    {"id": "wave-14", "tasks": ["14"], "depends_on": ["wave-13"]}
   ]
 }
 ```
 
-## Notes
-
-- Every implementation task must preserve existing endpoint paths, job status names, handler kinds, authentication and tenant boundaries, billing/usage semantics, and portal routes. Do not add unrelated CRM functionality.
-- Property-based test tasks are intentionally standalone and precede implementation. The exploration property is expected to fail on the unfixed implementation; the preservation property is expected to pass on it.
-- Tasks are written for spec-task-execution subagents: each has explicit file/module targets, acceptance criteria, dependencies, and bug-condition/expected-behavior/preservation annotations where implementation is involved.
-
 ## Tasks
 
-- [x] 1. Establish the baseline and runtime test harness
-  - Inventory the existing Compose services, Docker build contexts, API/worker health commands, portal runtime, test fixtures, fake provider/adapters, and current Python/frontend/security/accessibility/performance commands.
-  - Add or organize isolated test fixtures under the existing `tests/`, `scripts/`, and portal test conventions without requiring real provider credentials, real lead data, or billable provider calls.
-  - Record the unfixed behavior and available counterexample harnesses for readiness, queue failure, duplicate submission risk, Redis outage fallback, portal upstream routing, and unbounded polling.
-  - Acceptance criteria: the baseline commands are documented in the relevant tests or task output; tests can run against controlled fake dependencies; no production code, route, schema, or authentication behavior is changed by this task.
-  - _Dependencies: none_
-  - _Requirements: 1.1, 1.2, 1.3, 1.4, 1.5, 1.6, 1.7, 1.8, 3.10_
+- [x] 1. [CHECK-ONLY] Write and run the bug-condition exploration tests before implementation
+  - **Property 1: Bug Condition** - Stranded runs, unsafe reset, narrow discovery, ordering, and false progress
+  - **IMPORTANT**: Write this standalone test before changing remediation code. Run it against the current/unfixed seams and record the counterexamples; the expected assertions should fail where the bug exists.
+  - Add or extend `sqlfix_latest/tests/runtime_exploration/test_lead_generation_runtime_remediation.py`, reusing `tests/test_orphaned_run_readiness_remediation.py`, `tests/test_pipeline_run_lifecycle.py`, `tests/test_batch2_security_performance.py`, and `tests/test_contact_quality.py` fixtures rather than creating a second runtime harness.
+  - Cover the affected run ID `d2b23a15-55a9-43b0-b9bb-dc6a6179837a` as read-only synthetic states: live lease, expired lease, terminal run, missing job, and wrong tenant. Also cover cancellation races, repeated quota settlement, late completion after cancel/reset, gym/New Delhi route under-expansion, route continuation after target 5, unbounded target-500 growth, dependent handoff before predecessor persistence, social URL accepted as email, and counters advancing before durable writes.
+  - Assert the intended post-fix contract so failures expose the current gap: tenant/run identity is checked; terminal work is immutable; late workers cannot write; route cells have bounded cursor/budget/provenance; free paths precede paid fallback; dependent tasks wait; assignment-confirmed target stopping is used; field types remain valid; and progress matches persisted state.
+  - Use only fake storage, fake clocks, static route pages, and deny-all provider adapters. Do not inspect or mutate the real affected run.
+  - Command before implementation: `python -m pytest -q tests/runtime_exploration/test_lead_generation_runtime_remediation.py tests/test_orphaned_run_readiness_remediation.py`.
+  - Document exact failing examples in the test module or evidence output. Do not weaken assertions to make the unfixed test pass.
+  - _Bug_Condition: `isBugCondition(input)` from design, including recovery, planning, route, handoff, stage-order, target-stop, shared-pool, and progress violations.
+  - _Expected_Behavior: `expectedBehavior(input)` from design.
+  - _Requirements: 1.1-1.6, 2.1-2.8, 3.1-3.8, 5.1-5.7, 9.3-9.5, 11.1-11.6, 12.1-12.5_
 
-- [x] 2. **Property 1: Bug Condition** - Runtime readiness and dependency truthfulness exploration
-  - **IMPORTANT:** Write and run this property against the unfixed implementation before applying the fix; the expected failure is evidence that the bug exists.
-  - Model `isBugCondition(input)` for supported runtime events where a dependency is started but not ready, API readiness omits Redis/worker/queue capability, queue failure is reported as idle, worker heartbeat exists without queue evidence, or portal upstream resolves to loopback.
-  - Scope deterministic cases to reproducible fake Compose/dependency inputs and assert the expected behavior from the design: required dependencies are gated, readiness is non-success with sanitized component status, queue failure is distinct from empty, and portal/API readiness is reachable through the service contract.
-  - Capture concrete counterexamples such as `200` readiness with `ok=false`, `claim_next -> None` on RPC failure, heartbeat-only health, or `127.0.0.1:8000` inside the portal container.
-  - Re-run the same property after implementation; it must pass without weakening its assertions.
-  - _Dependencies: 1_
-  - _Requirements: 1.1, 1.2, 1.3, 1.6, 1.7, 2.1, 2.2, 2.3, 2.7, 2.10_
+- [x] 2. [CHECK-ONLY] Write and run preservation tests before implementation
+  - **Property 2: Preservation** - Healthy runtime behavior outside the bug condition
+  - **IMPORTANT**: Follow observation-first methodology. Capture current behavior for non-buggy inputs, then assert that behavior remains unchanged after remediation.
+  - Add focused cases to `sqlfix_latest/tests/runtime_preservation/test_lead_generation_preservation.py` and reuse `tests/runtime_preservation/test_healthy_runtime_property.py`, `tests/test_route_contract.py`, `tests/test_leadx16_free_first.py`, `tests/test_pipeline_run_lifecycle.py`, `tests/test_contact_quality.py`, and `tests/test_crm_projection_contract.py`.
+  - Cover healthy queued/running/completed runs, non-target and explicitly approved exhaustive requests, existing free-first and policy-approved paid paths, valid A/B/C gate/contact behavior, assignment/CRM/delivery/quota/lease idempotency, duplicate submissions, duplicate realtime events, tenant-switch authorization, current response shapes, and safe error redaction.
+  - Assert the authorized projection, provider policy, tenant scope, idempotent side effects, route/API names, and persisted status shape match the observed baseline. These tests must pass on unfixed code before implementation begins.
+  - Command before implementation: `python -m pytest -q tests/runtime_preservation/test_lead_generation_preservation.py tests/runtime_preservation/test_healthy_runtime_property.py tests/test_route_contract.py tests/test_leadx16_free_first.py tests/test_pipeline_run_lifecycle.py tests/test_contact_quality.py tests/test_crm_projection_contract.py`.
+  - _Preservation: all design Preservation Requirements and `NOT isBugCondition(input)` behavior.
+  - _Requirements: 2.8, 3.2, 3.3, 4.6, 5.1, 5.2, 6.2, 6.8, 9.3, 9.7, 12.1_
 
-- [x] 3. **Property 2: Preservation** - Healthy runtime and existing product behavior exploration
-  - **IMPORTANT:** Follow observation-first methodology: run non-buggy supported configurations on the unfixed implementation and record actual route, response, authorization, job, billing/usage, cache, and portal behavior before implementation.
-  - Define `NOT isBugCondition(input)` cases for healthy database/Redis, ordinary authenticated requests and mutations, existing handler kinds, matching idempotency keys, and existing client/admin routes.
-  - Write property-based preservation tests asserting observed route coverage, response shapes, tenant scoping, auth decisions, handler/lifecycle outcomes, healthy Redis shared behavior, billing/usage/idempotency results, and portal accessibility/performance contracts.
-  - Verify these tests pass on unfixed code, document the observed baseline, and keep the same tests for post-fix regression validation.
-  - _Dependencies: 1_
-  - _Requirements: 3.1, 3.2, 3.3, 3.4, 3.5, 3.6, 3.7, 3.8, 3.9, 3.10_
+- [x] 3. [IMPLEMENT] Add the exact stuck-run inspect/cancel/reset/recovery contract and durable fencing
+  - [x] 3.1 Implement read-only scoped inspection and operation admission
+    - Target `sqlfix_latest/app/integrations/prod/pipeline.py`, `app/integrations/prod/discovery_runtime.py`, `app/integrations/prod/jobs.py`, the relevant run/ops API module under `app/api/prod/`, and existing `tests/test_scoped_reset_contract.py`, `tests/test_scoped_work_transitions.py`, and `tests/test_scoped_work_reconciliation.py`.
+    - Support authenticated `inspect | cancel | recover | reset` using tenant plus run/job identity and an idempotency key. Classify queued, live-lease, expired-lease, and terminal states before mutation. Keep the affected run ID as a dry-run inspection fixture only.
+    - Reject broad or foreign scopes without revealing metadata. A live lease is not reset or reclaimed; an expired lease is reclaimable; terminal runs are immutable; reset always creates a new run identity.
+    - _Bug_Condition: stranded active work, unsafe reset, wrong tenant/identity, or terminal reopen.
+    - _Expected_Behavior: recovery uses authenticated identity; cancel/recover/reset are explicit and observable; reset creates a new identity.
+    - _Requirements: 2.1, 2.3, 2.6, 2.7, 9.3, 9.7, 12.2, 12.5_
 
-- [x] 4. Define and validate runtime configuration policy
-  - Target `app/core/runtime_config.py` and existing configuration validation/tests.
-  - Add explicit, bounded policy parsing for `REDIS_URL`, `REQUIRE_DISTRIBUTED_RATE_LIMIT`, `REQUIRE_REDIS_FOR_API_READY`, `REQUIRE_WORKER_READY`, `JOB_QUEUE_FAIL_CLOSED`, `WORKER_QUEUE_FAILURE_POLICY`, heartbeat/stale-lock/retry/backoff values, cache fallback limits, and polling deadlines while retaining existing variable aliases/defaults.
-  - Reject unsafe production/staging combinations and invalid/non-positive timeouts with sanitized actionable errors; permit explicitly configured development behavior only where the design allows it.
-  - Acceptance criteria: API, worker, and portal profiles receive deterministic policy objects; startup errors contain no credentials/tokens/lead data; configuration unit tests cover valid, missing, conflicting, and bounded values.
-  - _Dependencies: 1_
-  - _Bug_Condition: `isBugCondition(input)` includes unsupported dependency policy or unsafe startup readiness configuration.
-  - _Expected_Behavior: `expectedBehavior(result)` requires configured dependency readiness before use and sanitized actionable failure.
-  - _Preservation: Existing supported configuration names and healthy startup behavior remain valid.
-  - _Requirements: 2.1, 2.2, 2.6, 2.7, 3.1, 3.9, 3.10_
+  - [x] 3.2 Fence cancellation races and settle quota exactly once
+    - Target `pipeline.py`, `jobs.py`, `credits.py`, `app/worker.py`, `supabase/migrations/20261025000100_leadx_scoped_work_transitions.sql`, `supabase/migrations/20261025000200_leadx_scoped_work_operation_ledger.sql`, and additive schema/RPC definitions only where current durable state cannot represent the contract.
+    - Set cancellation state and execution cancellation before stopping route producers; fence late completion, renewal, assignment, and delivery writes with owner/status predicates; preserve attempts and recovery metadata; settle or release reservations by one idempotency/settlement key.
+    - Do not reopen or overwrite the old run on reset. Record reason, actor, source run ID, terminal/degraded outcome, and safe operation identifiers.
+    - Command after implementation: `python -m pytest -q tests/test_scoped_reset_contract.py tests/test_scoped_work_transitions.py tests/test_scoped_work_reconciliation.py tests/test_scoped_work_operation_ledger.py tests/test_task2_durable_recovery.py tests/test_pipeline_run_lifecycle.py`.
+    - _Requirements: 2.1-2.8, 3.6, 3.7, 12.2, 12.5_
 
-- [x] 5. Harden Compose and Docker service wiring
-  - Target `docker-compose.yml`, `Dockerfile`, portal container build inputs, and any existing healthcheck scripts.
-  - Add a deterministic Redis healthcheck, replace process-start dependency gates with health-based conditions, configure bounded startup/restart behavior, and ensure API/worker/portal healthchecks use only required runtime tools and sanitized output.
-  - Add the existing `lead-crm-portal` as the supported portal service with `API_UPSTREAM=http://api:8000`; keep published API ports and configured worker count behavior unchanged, and do not implicitly create extra workers.
-  - Ensure service startup either reaches its configured timeout or exits with an actionable non-secret error; restart/recreate checks must not duplicate or lose durable jobs.
-  - Acceptance criteria: a clean Compose configuration validates; Redis, API, worker, and portal health gates are explicit; portal-to-API service DNS works; service count and worker identity remain bounded after restart.
-  - _Dependencies: 4_
-  - _Bug_Condition: `input.composeDependencyIsStartedButNotReady OR input.portalUpstreamResolvesToLoopback`.
-  - _Expected_Behavior: Required services start only after configured health conditions and portal resolves the API service.
-  - _Preservation: Existing API ports, worker configuration, and API-only supported profile remain available.
-  - _Requirements: 1.1, 1.6, 2.1, 2.7, 3.1, 3.9, 3.10_
+  - [x] 3.3 [CHECK-ONLY] Verify the recovery contract and record focused evidence
+    - **Property 1: Expected Behavior** - Re-run the exact exploration tests from task 1; do not write a replacement test.
+    - Verify expired reclaim once, live-lease protection, terminal immutability, cancel fencing, reset-new-identity, missing-job diagnosis, wrong-tenant non-disclosure, and exactly-once reservation settlement with fake clocks/storage.
+    - Command: `python -m pytest -q tests/runtime_exploration/test_lead_generation_runtime_remediation.py tests/test_orphaned_run_readiness_remediation.py tests/test_scoped_reset_cli.py tests/test_task10_restart_recovery.py`.
+    - _Requirements: 2.3, 2.6, 2.7, 3.6, 3.7, 12.2, 12.5_
 
-- [x] 6. Implement API liveness, readiness, and aggregate health contracts
-  - Target `app/app_service.py`, existing health routers/middleware, and API health tests.
-  - Keep `GET /health/live` process-only; strengthen `GET /health/ready` to return HTTP 200 only when configured database, Redis, worker/queue capability, and bootstrap checks pass, and HTTP 503 otherwise.
-  - Add sanitized per-component status, reason codes, timestamp, and request ID; extend `GET /health` with queue depth/age when available, worker freshness/capacity/status, dependency state, and route contract without secrets or unauthorized tenant data.
-  - Acceptance criteria: healthy and each DB-down, Redis-down, worker-stale, queue-RPC-failed, missing-config, and portal/upstream case has the expected status code and payload; readiness never claims `ok` while a required component is unavailable; logs and payloads redact credentials, tokens, raw provider responses, and lead data.
-  - _Dependencies: 4, 5_
-  - _Bug_Condition: `input.apiReadinessOmitsRequiredDependency`.
-  - _Expected_Behavior: Unavailable required dependencies produce non-success readiness and actionable component status.
-  - _Preservation: Existing health routes and additive response compatibility remain intact.
-  - _Requirements: 1.2, 1.7, 2.2, 2.10, 3.1, 3.7, 3.9, 3.10_
+- [x] 4. [IMPLEMENT] Normalize the smart planner with sub-ICPs, geography, route cells, decisions, and tranches
+  - Target `sqlfix_latest/app/integrations/prod/lead_selection_planner.py`, `discovery_requests.py`, `learning_loop.py`, `source_lanes.py`, `osm_fallback.py`, and planner fixtures under `sqlfix_latest/tests/`.
+  - Keep `lead_selection_planner.py` as the one planner entry point. Produce a deterministic JSON-safe plan containing canonical vertical/synonyms, parent ICP, bounded sub-ICPs, normalized city/localities, query families, enabled route families, source-cost order, route-cell IDs, cursor, per-cell page/result/time/credit budgets, fallback list, evidence/contact/exclusivity/freshness policy, stop policy, and tranche size.
+  - Expand geography only through existing helpers and a configured maximum. A route cell is a bounded work unit, not an unlimited provider call. Record exactly one pure decision test per cell with `admit`, `defer`, `skip`, or `exhausted` and a reason such as `duplicate_route`, `no_enabled_adapter`, `budget_exhausted`, `target_met`, `provider_isolation`, `missing_approval`, or `insufficient_expected_yield`.
+  - Implement decision fixtures for gym/New Delhi, target 5, target 500, empty geography, duplicate queries, disabled sources, and Local Validation Mode. Tranche defaults must remain target-aware: up to 5 for 1-10, 10 for 11-50, 25 for 51-200, and 50 for 201-500, with growth only after persisted yield/budget checks.
+  - Command: `python -m pytest -q tests/test_target_driven_rounds.py tests/test_discovery_scale.py tests/test_route_contract.py tests/test_task5_discovery_routes.py`.
+  - _Bug_Condition: shallow/unbounded plan, missing route cell decision/budget/cursor/provenance, or fixed tranche that ignores target and yield.
+  - _Expected_Behavior: deterministic bounded normalized plan and no admission after assignment target is met.
+  - _Requirements: 3.1-3.5, 3.8, 11.1, 11.6_
 
-- [x] 7. Enforce Redis required-operation and bounded-cache policy
-  - Target `app/middleware/rate_limit.py`, `app/services/shared_cache.py`, runtime policy wiring, and Redis/cache tests.
-  - Make required distributed rate limiting and explicitly distributed operations return a sanitized dependency-unavailable response with request ID when Redis is unavailable; never silently downgrade them to process-local state.
-  - Restrict memory fallback to named optional, tenant-scoped short-lived reads with configured operation/global TTL bounds; forbid fallback for authorization, tenant membership, billing, usage, job state, mutations, and durability; restore shared behavior after Redis recovery.
-  - Acceptance criteria: generated Redis availability transitions show required operations never use local state, optional values never exceed configured TTL or cross tenant scope, and diagnostics are visible at warning/metric level without secrets.
-  - _Dependencies: 4_
-  - _Bug_Condition: `input.redisRequiredOperationUsesProcessLocalFallback`.
-  - _Expected_Behavior: Required distributed operations fail truthfully; optional fallback is bounded and non-authoritative.
-  - _Preservation: Healthy Redis shared limits, cache TTL, invalidation, and tenant-scoped keys retain existing response shapes and data.
-  - _Requirements: 1.5, 2.6, 3.2, 3.5, 3.6, 3.9, 3.10_
+- [x] 5. [IMPLEMENT] Preserve ordered 31-agent handoffs while allowing bounded concurrency barriers
+  - Target `sqlfix_latest/app/integrations/prod/agent_registry.py`, `agent_missions.py`, `agent_fabric.py`, `agent_runner.py`, `agent_runtime.py`, `agents.py`, `jobs.py`, and the existing mission tests `tests/test_agent_mission_contracts.py`, `tests/test_mission_direct_path_contract.py`, and `tests/test_task10_durable_handoff.py`.
+  - Keep exactly 31 registry entries and exactly 30 downstream tasks, with `gtm` as the parent/orchestrator. Compile deterministic dependencies, reject cycles/unknown agents/missing executors before side effects, persist predecessor output before unblocking dependents, and compact handoffs to bounded IDs/summaries/provenance/counts/error categories.
+  - Execute by dependency levels: only dependency-ready tasks may run; independent ready antichain tasks may run concurrently under worker capacity, tenant/provider budgets, and one active claim per task. Preserve owner, attempt, lease, retry, and restart semantics.
+  - Test the logical handoff from prospecting/planning through discovery, identity, enrichment/contact research, verification, qualification, assignment/CRM, and reporting. Delay predecessors to prove dependents wait while independent branches overlap.
+  - Command: `python -m pytest -q tests/test_agent_mission_contracts.py tests/test_mission_direct_path_contract.py tests/test_task10_durable_handoff.py tests/test_agent_diagnostic_wiring.py`.
+  - _Requirements: 1.1-1.6, 2.1-2.5, 2.8_
 
-- [x] 8. Make durable queue failures and worker heartbeat semantics explicit
-  - Target `app/integrations/prod/jobs.py`, `app/worker.py`, `app/integrations/prod/scale_control.py`, `scripts/check_worker_health.py`, and worker tests.
-  - Introduce typed queue dependency failures; make successful no-row claims mean idle while connection/RPC/serialization/renew/complete/fail failures raise or report infrastructure failure.
-  - Perform startup configuration/handler/queue capability validation before publishing healthy heartbeat evidence; publish worker ID, capacity/kinds, last successful capability check, status, and timestamp; apply `WORKER_QUEUE_FAILURE_POLICY` as stop or report-unready.
-  - Enforce owner/status predicates for lease renewal, completion, failure, cancellation, retry, and stale reap; preserve graceful draining and existing job statuses/handler registry.
-  - Acceptance criteria: queue outage is never logged as empty; heartbeat file alone cannot make a worker healthy; errors include worker/job correlation when available; stale workers become unready or exit according to policy; no late non-owner completion can overwrite a job.
-  - _Dependencies: 4, 6_
-  - _Bug_Condition: `input.queueOperationFailedButWasReportedAsEmpty OR input.workerHeartbeatExistsWithoutQueueEvidence`.
-  - _Expected_Behavior: Queue failure is distinct from idle and worker readiness requires fresh queue capability.
-  - _Preservation: Existing handlers, lifecycle states, bounded retry/backoff, cancellation, and admin controls remain unchanged on healthy dependencies.
-  - _Requirements: 1.3, 1.7, 2.3, 2.4, 2.10, 3.3, 3.9, 3.10_
+- [x] 6. [IMPLEMENT] Unify discovery route pagination, budgets, fallback, provenance, and dedupe
+  - Target `sqlfix_latest/app/integrations/prod/discovery.py`, `source_lanes.py`, `multi_source_discovery.py`, `exhaustive_discovery.py`, `osm_fallback.py`, `discovery_runtime.py`, `lead_selection_planner.py`, and additive route/result persistence only if existing tables cannot represent the contract.
+  - Make maps, OSM, web, first-party, directory, and optional social adapters consume/return one route contract containing route-cell ID, source, sub-ICP, geography, query, cursor/page, bounded limit, normalized identity, stable dedupe keys, source reference, observed time, raw hash, evidence level, billable/cost data, typed error, next cursor, exhaustion, retryability, and fallback reason.
+  - Enforce the sequence: cancellation/target/budget/policy check; one bounded page or local fixture; normalization; dedupe merge preserving all source hits and strongest field evidence; durable persistence; immediate enrichment enqueue; continue only when target gap/budget remain and cursor changes; declared fallback only after typed persisted failure/empty result.
+  - Route order is free/local first, then first-party/public directories/web, optional social, and paid only through explicit paid policy. A failure is typed retry/fallback state, never zero results.
+  - Command: `python -m pytest -q tests/test_task5_discovery_routes.py tests/test_discovery_catalog_100.py tests/test_discovery_scale.py tests/test_intensive_discovery.py tests/test_batch2_security_performance.py`.
+  - _Requirements: 3.2-3.5, 3.8, 9.4, 10.4, 11.1, 11.2_
 
-- [x] 9. Add additive durable job, idempotency, and accounting migration/RPC support
-  - Target `supabase/migrations/`, existing jobs/idempotency/usage schema and RPCs, `app/integrations/prod/credits.py`, and related billing/usage modules.
-  - Add only additive constraints/functions/indexes needed to atomically normalize tenant, operation kind, request hash, and idempotency scope; claim/replay one job identity; and durably reserve required usage/credits before provider work under fail-closed policy.
-  - Preserve existing rows, statuses, RLS, free-before-paid selection, refund/release behavior, billing idempotency, and compatibility with old code during rollout; do not perform destructive rewrites.
-  - Acceptance criteria: migration applies cleanly to representative existing data; same scope/hash replays the same job/result, mismatched scope/hash conflicts, active operations return in-progress, and authorization/insufficient-credit outcomes are durable and safe.
-  - _Dependencies: 1, 4_
-  - _Bug_Condition: `input.providerWorkMayRepeatWithoutDurableJobAndAccounting`.
-  - _Expected_Behavior: One durable job/operation identity and accounting reservation exist before provider work.
-  - _Preservation: Existing schema-readable rows, RLS, billing/usage contracts, and credit selection remain valid.
-  - _Requirements: 2.4, 2.5, 3.4, 3.5, 3.6, 3.9, 3.10_
+- [x] 7. [IMPLEMENT] Stream discovery into free-first enrichment and contact validation
+  - Target `sqlfix_latest/app/integrations/prod/pipeline.py`, `enrichment_mesh.py`, `waterfall.py`, `enricher.py`, `contact_verification_mesh.py`, `enrichment_layer.py`, `crawler_enrichment.py`, and tests `tests/test_crawler_enrichment.py`, `tests/test_enrichment_mesh.py`, `tests/test_enrichment_contact_extraction.py`, `tests/test_contact_quality.py`, `tests/test_task5_3_enrichment.py`.
+  - Preserve bounded discovery, enrichment, assignment queues and cancellation-aware waits. Persist normalized/deduped source results before enqueueing enrichment, then overlap discovery/enrichment across different leads without crossing durable per-lead barriers.
+  - Run Scrapling and optional Crawl4AI public first-party fetches concurrently with URL safety checks and bounded timeouts. Merge per-field results through the waterfall: existing sufficient evidence, free first-party/Scrapling/Crawl4AI/OSM/maps/directory paths, field-specific validation, strongest-evidence preservation, provenance record, then paid only for unmet decision fields after policy/credential/gap/quota/timeout/attempt checks.
+  - Reject wrong-field values, including social URLs in email fields. Keep contact discovery separate from contact verification. Local Validation Mode uses deterministic local evidence and cannot enter web or paid connectors; skipped paid work records its reason.
+  - Command: `python -m pytest -q tests/test_crawler_enrichment.py tests/test_enrichment_mesh.py tests/test_enrichment_contact_extraction.py tests/test_contact_quality.py tests/test_task5_3_enrichment.py`.
+  - _Requirements: 3.2-3.5, 3.8, 9.4, 11.1, 11.2_
 
-- [x] 10. Implement API-to-worker job handoff and provider/credit idempotency
-  - Target supported submission routes, existing idempotency middleware, `app/integrations/prod/jobs.py`, `app/integrations/prod/job_handlers.py`, provider adapters, and usage/accounting call sites.
-  - Bind authenticated tenant, stable operation/job identity, request hash, idempotency key, durable reservation, and enqueue/replay to the transaction/RPC boundary from task 9.
-  - Pass stable identity into provider-bound handlers; retain existing handler registry and progress/lifecycle states; prevent duplicate active claims, duplicate provider calls, and double charges across timeout, retry, restart, callback, and client resubmission.
-  - Preserve configured finite retry/backoff, cancellation, stale reap, and terminal state semantics; make provider operation start fail closed if required job/accounting state is not durable.
-  - Acceptance criteria: authenticated integration tests observe queued → claimed → progress → exactly one terminal outcome; same-key retry returns original/in-progress/conflict appropriately; provider fakes and accounting records show no duplicate billable operation.
+- [x] 8. [IMPLEMENT] Make verification, scoring, gating, assignment, CRM, and delivery ordering durable
+  - Target `sqlfix_latest/app/integrations/prod/contact_verification_mesh.py`, `quality.py`, `scoring_layer.py`, `delivery_ranker.py`, `app/services/delivery.py`, `crm/crm_api.py`, `crm/crm_entities_api.py`, `persistence_layer.py`, `pipeline.py`, and stage/accounting tests `tests/test_task6_assignment_delivery_reconciliation.py`, `tests/test_crm_delivery_adapters.py`, `tests/test_quality_guarantee.py`, `tests/test_lead_quality_15_6.py`.
+  - Record explicit accepted/rejected/retryable/skipped/terminal stage transitions. Enforce verification before scoring, scoring before gating, gating before assignment, assignment before CRM persistence, and CRM persistence before delivery.
+  - Atomically reserve an assignment slot, recheck tenant/exclusivity/freshness/dormant/contact state, use one lead/run assignment idempotency key, persist assignment plus CRM projection/audit, deliver only the persisted assignment, and increment delivery only after the delivery record succeeds. A later-stage failure cannot backfill an earlier counter.
+  - Preserve quality gates for closed businesses, invalid contact data, insufficient evidence, disallowed tiers, and Tier C usable-contact requirements. Failed gates remain on `pipeline_run_leads` with a rejection reason.
+  - Command: `python -m pytest -q tests/test_task6_assignment_delivery_reconciliation.py tests/test_crm_delivery_adapters.py tests/test_quality_guarantee.py tests/test_lead_quality_15_6.py tests/test_pipeline_run_lifecycle.py`.
+  - _Requirements: 3.5-3.7, 5.1, 5.2, 6.2, 6.3, 6.8_
 
-  - [x] 10.1 Implement the durable handoff and fail-closed provider boundary
-    - Bind authenticated tenant, stable operation/job identity, request hash, idempotency key, durable reservation, and enqueue/replay to the transaction/RPC boundary from task 9.
-    - Pass stable identity into provider-bound handlers and preserve existing registry, lifecycle, retry/backoff, cancellation, stale-reap, and terminal-state semantics.
-    - _Bug_Condition: `input.providerWorkMayRepeatWithoutDurableJobAndAccounting` or a repeated claim/resubmission event.
-    - _Expected_Behavior: One durable identity, at most one active lease, and accounting durability before provider work.
-    - _Preservation: Existing job kinds, handler contracts, statuses, and healthy idempotency responses remain unchanged.
-    - _Requirements: 2.4, 2.5, 3.3, 3.4, 3.6, 3.9_
+- [x] 9. [IMPLEMENT] Add adaptive assignment-confirmed target stopping for 5 through 500
+  - Target `sqlfix_latest/app/integrations/prod/pipeline.py`, `lead6_runtime.py`, `lead_selection_planner.py`, `scale_control.py`, `discovery_runtime.py`, and `tests/test_target_driven_rounds.py`, `tests/test_batch2_security_performance.py`, plus a focused `tests/test_lead_generation_target_stop.py`.
+  - Compute the remaining gap from assignment-confirmed qualified records, not raw discoveries or optimistic counters. For target 5, stop promptly after five assignment confirmations with at most one small refill. For targets through 500, grow bounded tranches only after persisted qualifying/contactable yield and budget checks, cap concurrent route cells, and stop route producers/in-flight cancellable calls when the target is met.
+  - Reconcile already persisted records after stop; never delete them. Ensure no new route/provider spend is admitted after target stop and shortfall/stop reason is durable.
+  - Command: `python -m pytest -q tests/test_target_driven_rounds.py tests/test_lead_generation_target_stop.py tests/test_task6_assignment_delivery_reconciliation.py`.
+  - _Requirements: 3.1, 3.5, 3.6, 3.7_
 
-  - [x] 10.2 Verify the bug-condition exploration property after the fix
-    - **Property 1: Expected Behavior** - Durable job and credit safety
-    - Re-run the exact standalone exploration property from task 2; do not write a replacement test or weaken its assertions.
-    - Confirm repeated submission, timeout, restart, retry, callback, and claim-race cases produce one durable identity, no duplicate active lease/provider operation/charge, and an applicable queued, retryable, cancelled, or terminal result.
-    - **EXPECTED OUTCOME:** The property passes after implementation; its documented unfixed counterexamples remain part of the regression record.
-    - _Requirements: 2.4, 2.5_
+- [x] 10. [IMPLEMENT] Enforce shared-pool reuse, freshness, dormant cooldown, and policy-driven exclusivity
+  - Target `sqlfix_latest/app/integrations/prod/continuous_discovery.py`, `discovery.py`, `contact_state.py`, `quality.py`, `app/services/shared_cache.py`, `app/services/delivery.py`, `pipeline.py`, and `tests/test_batch2_security_performance.py`, `tests/test_task6_assignment_delivery_reconciliation.py`, `tests/test_contact_quality.py`.
+  - Use the global inventory as a low-cost candidate source only after tenant-neutral identity dedupe, closed/suppressed/opt-out/recent-contact/conflicting-campaign checks, current contact validation, freshness-window evaluation, and recheck admission.
+  - Keep stale/dormant candidates researchable but not deliverable until rechecked. Apply the existing `ENRICHMENT_REUSE_DAYS` default unless policy overrides it. Enforce tenant ICP/use-case authorization and plan-driven exclusivity; do not add blanket industry locks. Require assignment CAS for the same candidate and tenant immediately before outreach.
+  - _Requirements: 5.1, 5.2, 5.6, 6.8, 8.7, 8.8, 9.3, 9.7, 12.1_
 
-  - [x] 10.3 Verify the preservation property after the fix
-    - **Property 2: Preservation** - Existing healthy job and accounting behavior
-    - Re-run the exact standalone preservation property from task 3; do not write a replacement test.
-    - Confirm healthy handlers, matching idempotency replay, billing/usage outcomes, tenant authorization, response shapes, and existing lifecycle behavior remain unchanged.
-    - **EXPECTED OUTCOME:** The preservation property passes with no regression on non-bug-condition inputs.
-    - _Requirements: 3.3, 3.4, 3.5, 3.6_
+- [x] 11. [IMPLEMENT] Reconcile admin/client progress through private realtime invalidation and authoritative refetch
+  - Target `sqlfix_latest/supabase/migrations/20260930000800_leadx_8_frontend_runtime.sql`, `SUPABASE_FULL_MIGRATION.sql`, `app/api/prod/ops_api.py`, `app/api/prod/leads_api.py`, `lead-crm-portal/lib/crmRealtime.ts`, `lib/live.ts`, `lib/api.ts`, `lib/crm.ts`, portal layouts, `components/layout/RealtimeStatus.tsx`, and tests `tests/test_task21_realtime_migration.py`, `tests/test_task24_realtime_validation.py`, `tests/test_task6_realtime.py`, `tests/test_task6_assignment_delivery_reconciliation.py`.
+  - Treat `pipeline_runs`, discovery requests, route/results, jobs, assignments, CRM, quota, and delivery rows as authoritative. Emit private tenant-scoped invalidation hints only; never use event payloads as business state.
+  - Coalesce duplicate/out-of-order events, refetch after reconnect/visibility recovery/mutations, abort stale requests, and show stage, persisted counts, target/gap, tranche, route state, stop reason, recovery action, evidence/provenance summary, and degraded/offline state. Dispose old subscriptions, fetches, and cache on tenant switch.
+  - _Requirements: 5.1-5.7, 7.6, 7.7, 11.3_
 
-  - _Dependencies: 8, 9_
-  - _Bug_Condition: `input.providerWorkMayRepeatWithoutDurableJobAndAccounting` or a repeated claim/resubmission event.
-  - _Expected_Behavior: One durable identity, at most one active lease, fail-closed accounting, and bounded retry/reap.
-  - _Preservation: Existing job kinds, handler contracts, statuses, and healthy idempotency responses remain unchanged.
-  - _Requirements: 2.4, 2.5, 3.3, 3.4, 3.6, 3.9_
+- [x] 12. [IMPLEMENT] Make offline evidence and live boundaries explicit
+  - Target `sqlfix_latest/app/core/runtime_config.py`, `app/app_service.py`, provider adapter factories, `scripts/synthetic_validation.py`, `scripts/local_validation_gate.py`, `scripts/release_evidence.py`, `tests/test_task10_3_local_mode_contract.py`, `tests/test_task10_1_evidence_contract.py`, `tests/test_task10_2_manifest_contract.py`, `tests/test_task10_5_operational_evidence.py`, `tests/test_task10_6_evidence_redaction.py`, and `tests/test_task11_evidence.py`.
+  - Ensure Local Validation Mode uses synthetic/static/fake/local dependencies and fails immediately on attempted Serper, maps, paid enrichment, email-send, Stripe, remote Supabase, or external lead-generation calls. Label evidence as local synthetic, local integration, live provider, remote database, or deployed environment; record test name, mode, result, diagnosis, and artifacts.
+  - Keep `.env` unread and unchanged. Use `.env.example` placeholders only. Remote/unavailable evidence must be explicitly `unverified` or `not run`, never inferred from local results. Preserve secret redaction and request/tenant-safe identifiers.
+  - Command: `python -m pytest -q tests/test_task10_1_evidence_contract.py tests/test_task10_2_manifest_contract.py tests/test_task10_3_local_mode_contract.py tests/test_task10_5_operational_evidence.py tests/test_task10_6_evidence_redaction.py tests/test_task11_evidence.py`.
+  - _Requirements: 3.8, 9.4, 9.5, 10.4, 10.5, 11.1-11.6_
 
-- [x] 11. Standardize sanitized request, job, worker, queue, retry, and reap observability
-  - Target `app/layers/telemetry.py`, request middleware in `app/app_service.py`, worker/job logging, `app/integrations/prod/scale_control.py`, and existing logging/metrics tests.
-  - Ensure API responses and structured logs carry validated request ID and, where applicable, job ID, authorized-safe tenant scope, worker ID, kind, attempt/max attempts, status, dependency, queue age, lease age, and retry/reap outcome.
-  - Redact credentials, tokens, service keys, raw lead/provider data, full exception payloads, and unauthorized tenant details; correlate failures without exposing sensitive values.
-  - Acceptance criteria: unit and log-capture tests verify correlation fields for API/worker/job failures and successful transitions, sanitized output, and no cross-tenant observability leakage.
-  - _Dependencies: 6, 8, 10_
-  - _Bug_Condition: `input` is a supported runtime failure whose evidence is missing, generic, or unsafe.
-  - _Expected_Behavior: Operators can correlate dependency, queue, worker, retry, reap, and job outcomes safely.
-  - _Preservation: Existing request IDs, audit behavior, and authorized response shapes remain compatible.
-  - _Requirements: 1.7, 2.2, 2.3, 2.10, 3.7, 3.8, 3.9, 3.10_
+- [x] 13. [CHECK-ONLY] Run focused integration checks and the final offline checkpoint
+  - Run the complete synthetic path without provider credentials: request → normalized route cells → persisted discovery/dedupe → streaming free enrichment/verification → score/gate → assignment → CRM → delivery → quota settlement → private invalidation → authoritative refetch → terminal status.
+  - Include recovery/reclaim/cancel/reset, 31-agent/30-task handoffs with independent branches, gym/New Delhi target 5, bounded target 500, pagination/fallback/provenance, stale shared-pool recheck, tenant isolation, duplicate/reordered/missed realtime events, and restart recovery.
+  - First run focused tests: `python -m pytest -q tests/runtime_exploration tests/runtime_preservation tests/test_scoped_reset_contract.py tests/test_scoped_work_reconciliation.py tests/test_task2_durable_recovery.py tests/test_task3_discovery_runtime.py tests/test_task5_discovery_routes.py tests/test_task5_3_enrichment.py tests/test_task6_assignment_delivery_reconciliation.py tests/test_task6_realtime.py tests/test_agent_mission_contracts.py tests/test_task10_restart_recovery.py tests/test_task11_evidence.py`.
+  - Then run the repository offline gate: `python scripts/local_validation_gate.py`.
+  - If the gate requires the full static stack, run `python -m compileall -q app services tests`, `python scripts/check_migrations.py`, `python scripts/check_rls_coverage.py`, `python scripts/verify_runtime_schema.py`, and `cd lead-crm-portal && npm ci && npx tsc --noEmit && npm run build` as separate local checks. Record every result and artifact; do not turn a missing Docker/provider dependency into a false pass.
+  - Confirm no `.env` content, secret, remote response, or live-provider result appears in evidence. Preserve unrelated changes and stop after the checkpoint.
+  - _Requirements: 1.1-1.6, 2.1-2.8, 3.1-3.8, 5.1-5.7, 6.1-6.8, 9.1-9.7, 10.1-10.8, 11.1-11.6, 12.1-12.5_
 
-- [x] 12. Extend admin health and jobs operational surfaces
-  - Target `app/api/prod/ops_api.py`, existing admin health/jobs API contracts, admin route components, and audit/security tests.
-  - Expose aggregate dependency state, queue capability, depth/oldest age, worker freshness/capacity, retry counts, stale-reap outcomes, and safe dependency reason codes through existing platform-admin-authorized surfaces.
-  - Preserve platform-admin authentication, reject service keys on browser admin routes, retain audit records, and prevent unauthorized tenant/job detail disclosure.
-  - Acceptance criteria: authorized admin can identify healthy, degraded, stale, retrying, and terminal-failure states with actionable information; unauthorized users receive existing safe denial behavior; fields contain no secrets or raw lead data.
-  - _Dependencies: 6, 8, 11_
-  - _Bug_Condition: `input` is an incident hidden as generic loading, empty data, or uncorrelated health/jobs output.
-  - _Expected_Behavior: Existing admin surfaces expose actionable queue/worker/dependency evidence.
-  - _Preservation: Existing admin route coverage, controls, auth, audit, and response compatibility remain unchanged.
-  - _Requirements: 2.2, 2.3, 2.4, 2.10, 3.7, 3.8, 3.10_
+- [x] 14. [LIVE/UAT-BLOCKED] Run the separately authorized live-provider and deployed/UAT checks
+  - This task is not part of offline implementation and must remain blocked until an operator supplies an explicit live profile: approved credentials in the environment, test tenant, provider/source budgets, timeouts, approval, cleanup/rollback plan, deployed API/worker/portal/Redis/Supabase endpoints, and permission to spend provider quota.
+  - Use a separate command/profile, never `.env` output or Local Validation Mode fixtures. Exercise only bounded smoke cases for provider route pagination/fallback, real enrichment/contact verification, remote Supabase persistence/RLS/realtime, email/billing boundaries if explicitly included, and deployed restart/health recovery.
+  - Store evidence under the existing artifacts conventions with `environment_mode=live-provider` or `environment_mode=uat`, redacted diagnostics, provider cost, cleanup result, and explicit pass/fail/unverified status. A local pass cannot close this task.
+  - Suggested operator-run entry points, only after approval: `python scripts/uat_bootstrap.py`, `python scripts/uat_runner.py`, and the documented profile in `docs/UAT.md`. Do not execute these during this task plan without explicit authorization and credentials.
+  - _Requirements: 3.2-3.4, 5.1-5.7, 9.1-9.7, 10.3-10.8, 11.3-11.5, 12.1-12.5_
 
-- [x] 13. Add worker/queue, job safety, Redis, and readiness unit/property coverage
-  - Target existing Python test modules and test fixtures aligned with `app/app_service.py`, `app/worker.py`, `app/integrations/prod/jobs.py`, `app/middleware/rate_limit.py`, `app/services/shared_cache.py`, and credits/idempotency modules.
-  - Add unit tests for live/ready/detailed health status, queue idle versus dependency failure, heartbeat gating, owner-conditional transitions, retry/reap bounds, idempotency replay/conflict, fail-closed reservation, Redis required/fallback policy, and redaction.
-  - Add property tests for generated claim races/lease sequences, repeated matching/mismatching submissions, Redis availability/TTL transitions, and non-buggy preservation outcomes. Mark the bug-condition and preservation PBT statuses only after running the exact tests from tasks 2 and 3.
-  - Acceptance criteria: all new unit/property tests pass after the fix; Property 1 passes after previously demonstrating the unfixed counterexample; Property 2 passes before and after the fix; generated cases cannot produce two active owners, duplicate durable accounting, cross-tenant fallback, or unbounded retry.
-  - _Dependencies: 7, 8, 10, 11_
-  - _Requirements: 2.2, 2.3, 2.4, 2.5, 2.6, 2.10, 3.1, 3.2, 3.3, 3.4, 3.5, 3.6, 3.9, 3.10_
+## Completion rule
 
-- [x] 14. Implement portal upstream, process readiness, and shared request-state contracts
-  - Target `lead-crm-portal/next.config.js`, `lead-crm-portal/lib/config.ts`, `lead-crm-portal/lib/api.ts`, and `lead-crm-portal/app/api/health/route.ts`.
-  - Require/resolve `API_UPSTREAM=http://api:8000` for server-side rewrites in the supported container profile; keep browser same-origin behavior, existing Codespaces forwarding, authentication, and route guards intact.
-  - Normalize request IDs, dependency-unavailable responses, unauthorized responses, retry metadata, and safe error messages in one API client layer; add a portal health endpoint that verifies process/configured upstream contract without exposing secrets or bypassing auth.
-  - Acceptance criteria: portal container reaches API through `/backend`, loopback is rejected in production/container profiles, portal health is independently checkable, request IDs/recovery metadata survive errors, and existing auth boundaries remain enforced.
-  - _Dependencies: 5, 6, 11_
-  - _Bug_Condition: `input.portalUpstreamResolvesToLoopback OR input.portalWorkflowHasNoBoundedActionableDegradedState`.
-  - _Expected_Behavior: Portal uses the API service and exposes a safe readiness/error contract.
-  - _Preservation: Existing browser auth, same-origin routes, Codespaces behavior, and client/admin route coverage remain unchanged.
-  - _Requirements: 1.6, 2.7, 2.8, 2.10, 3.5, 3.7, 3.8, 3.10_
+The remediation is complete for local delivery only when tasks 1 and 2 have baseline evidence, implementation tasks 3 through 12 pass their focused checks, task 13 records a green or explicitly diagnosed offline checkpoint, and task 14 is either separately completed by an authorized operator or explicitly recorded as unverified/UAT-blocked. No task authorizes code changes outside the named seams, destructive migrations, production resets, secret handling, deployment, or live provider spend.
 
-- [x] 15. Implement bounded loading, success/empty, error, and polling states for existing portal workflows
-  - Target `lead-crm-portal/components/ui/States.tsx`, `components/layout/LiveWorkspaceRefresh.tsx`, `components/layout/AdminLiveRefresh.tsx`, and existing primary client/admin route pages.
-  - Use one shared state model that renders loading while pending, success or explicit empty only after successful responses, actionable dependency/retry errors with request ID, auth/authorization handling through existing guards, and a Refresh action after the configured polling deadline.
-  - Cover client dashboard, leads, pipeline, import, billing, settings and admin health, jobs, tenants, usage, security workflows without inventing new routes or changing ARIA labels, skip links, keyboard/focus behavior, responsive layout, or polling cadence except for the deadline.
-  - Acceptance criteria: each request has exactly one applicable terminal state, failed mutations are never shown as successful, polling stops at the configured deadline, retry/refresh recovers the correct view, and no uncaught runtime errors occur under API/worker degradation.
-  - _Dependencies: 12, 14_
-  - _Bug_Condition: `input.portalWorkflowHasNoBoundedActionableDegradedState`.
-  - _Expected_Behavior: Existing workflows show loading, success/empty, or actionable degraded state and stop polling.
-  - _Preservation: Existing route coverage, controls, auth, accessibility, responsiveness, and performance thresholds remain intact.
-  - _Requirements: 2.7, 2.8, 2.10, 3.5, 3.7, 3.8, 3.10_
+## Notes
 
-- [x] 16. Add portal unit/component and authenticated workflow coverage
-  - Target portal test files and Playwright configuration following existing `lead-crm-portal` conventions.
-  - Test API error normalization, request ID propagation, portal readiness, state exclusivity, bounded polling, retry actions, auth/unauthorized behavior, and tenant-safe rendering.
-  - Add authenticated smoke coverage for existing client dashboard/leads/pipeline/import/billing/settings and admin health/jobs/tenants/usage/security routes, including healthy, empty, dependency-degraded, and recovery responses.
-  - Acceptance criteria: production-like portal tests prove `/backend` upstream resolution, route guards, no misleading success/empty state, finite polling, safe errors, and all existing primary route flows.
-  - _Dependencies: 14, 15_
-  - _Requirements: 2.7, 2.8, 2.10, 3.5, 3.7, 3.8, 3.10_
-
-- [x] 17. Run end-to-end Compose, outage/recovery, and worker lifecycle integration validation
-  - Target Compose smoke scripts, integration test modules, `scripts/check_worker_health.py`, and test fixtures for fake Supabase/Redis/provider dependencies.
-  - Run a clean Compose smoke test that waits on Redis/API/worker/portal health; verify service count, ports, upstream resolution, one configured worker identity, API-to-worker queued/claimed/progress/terminal transitions, and no duplicate active claim.
-  - Kill/restart a worker during a lease; verify stale reap, bounded retry/backoff, eventual terminal state, queue preservation, and no duplicate provider/credit operation. Exercise DB/Redis outage and recovery, readiness changes, required Redis 503 behavior, worker recovery, sanitized logs, and admin health evidence.
-  - Acceptance criteria: integration runs are deterministic without real provider credentials, do not rely on sleeps, fail on premature readiness or silent queue failure, and pass after restart/recovery without durable job loss or cross-tenant leakage.
-  - _Dependencies: 5, 6, 7, 8, 10, 12, 14, 16_
-  - _Requirements: 2.1, 2.2, 2.3, 2.4, 2.5, 2.6, 2.7, 2.8, 2.10, 3.1, 3.9, 3.10_
-
-- [~] 18. Run the complete regression and production-gate suite
-  - Run existing Python tests, migrations/schema checks, route/tenant/security/RLS/CSRF/CORS/service-key checks, TypeScript validation, Next production build, authenticated client/admin Playwright smoke tests, and new unit/property/integration/Compose tests.
-  - Run the existing accessibility gate including both skip links and current ARIA/button thresholds, frontend performance and polling gates, secret/redaction checks, and security checks; ensure new runtime checks are additive rather than replacements.
-  - Review task 3 preservation results against healthy Redis, handlers, idempotency, billing/usage, auth, tenant boundaries, portal routes, response shapes, and accessibility/performance behavior.
-  - Acceptance criteria: every required gate passes; no new unrelated feature or destructive migration is present; all task dependencies are complete; failures are fixed in the relevant task rather than suppressed; the final result satisfies `expectedBehavior` for bug-condition inputs and preservation for `NOT isBugCondition` inputs.
-  - _Dependencies: 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17_
-  - _Requirements: 2.1, 2.2, 2.3, 2.4, 2.5, 2.6, 2.7, 2.8, 2.9, 2.10, 3.1, 3.2, 3.3, 3.4, 3.5, 3.6, 3.7, 3.8, 3.9, 3.10_
-
-- [~] 19. Checkpoint - Confirm implementation readiness and handoff
-  - Confirm all tasks are checked only after their acceptance criteria and required tests pass.
-  - Confirm the critical path is complete, parallel task outputs are integrated, migration rollout order is documented, and no code is implemented outside the approved files/modules and bugfix scope.
-  - If any gate fails, return to the owning task, correct the implementation or test, and rerun the affected validation before marking this checkpoint complete.
-  - _Dependencies: 18_
-  - _Requirements: 2.9, 3.10_
-
-
-## Realtime and final dashboard completion addendum
-
-- [x] 20. Build the realtime coverage matrix and baseline the final live contract
-  - Target `lead-crm-portal/lib/crmRealtime.ts`, `lead-crm-portal/lib/live.ts`, all existing `useCrmChange`/`useLiveLoader` consumers, `20260930000800_leadx_8_frontend_runtime.sql`, the baseline realtime publication block, and the client/admin run-status APIs.
-  - Enumerate every client/admin surface, API projection, table filter, database event source, publication entry, tenant/admin authorization boundary, cache invalidation path, polling fallback, and deadline. Mark navigation-only, manual-refresh-only, indefinite-polling, and missing-trigger behavior as unfixed baseline evidence.
-  - Acceptance criteria: the matrix is checked into the spec/test output; every current gap has an owning implementation task; no provider, email, enrichment, Stripe, or paid discovery call is made during baseline validation.
-  - _Dependencies: 18, 19_
-  - _Requirements: 2.7, 2.8, 2.10, 3.5, 3.7, 3.8, 3.10_
-
-- [~] 21. Complete database event capture, publication, RLS, and tenant isolation
-  - Target `supabase/migrations/`, `SUPABASE_FULL_MIGRATION.sql`, `leadx_capture_event`, `leadx_broadcast_event`, the private Broadcast authorization policy, and the existing realtime publication block.
-  - Add idempotent trigger/publication coverage for pipeline runs, discovery requests, stages, lead activities/tasks, replies, workflows, automation events, company/contact support tables, quota/usage projections, learning recommendations, and other table filters identified by task 20. Preserve append-only event behavior, compact payloads, replica identity, and service/API-only event-log access.
-  - Ensure DELETE events use the old row tenant, tables without tenant ownership never leak through tenant topics, authenticated members can receive only their own private topic, and two tenants cannot observe each other’s events. Define an explicit safe admin aggregate channel or bounded-polling contract for platform-wide data.
-  - Acceptance criteria: the migration is idempotent on the existing database, trigger/publication lists are statically reconciled, RLS tests pass for two tenants, and synthetic insert/update/delete events produce one authorized invalidation without provider work.
-  - _Dependencies: 20_
-  - _Bug_Condition: a durable mutation has no event source, a DELETE loses tenant scope, or a tenant/admin subscriber can observe unauthorized events.
-  - _Expected_Behavior: every supported projection has a safe change signal or explicit bounded fallback; tenant isolation is enforced at the database and topic layers.
-  - _Preservation: existing RLS, API/service-role event-log boundaries, response shapes, and healthy realtime behavior remain compatible.
-  - _Requirements: 2.6, 2.7, 2.10, 3.5, 3.7, 3.9, 3.10
-
-- [x] 22. Complete client realtime refetch and live lead-generation/run progress
-  - Target `lead-crm-portal/lib/crmRealtime.ts`, `lead-crm-portal/lib/api.ts`, client layouts and primary pages, `app/(portal)/search/page.tsx`, Growth, dashboard, leads, pipeline, sequences, replies, companies, contacts, deals, activities, automations, notifications, revenue, intelligence, approvals, and the tenant-safe run-status API.
-  - Keep one shared private tenant channel and 100ms event debounce, but make event filters match the completed database capture list. Connect request acceptance to the returned run identity and render full progress: discovered, stored, enriched, verified, scored, gated, assigned, delivered, target/effective target, shortfall, blockers, reuse/freshness, source lanes, and terminal reason.
-  - Refetch authoritative projections after events, deduplicate concurrent GETs, recover missed events on reconnect/visibility, and never start provider work from a UI refresh. Use visible polling only as a bounded safety net; pause hidden tabs and show an actionable deadline/retry state.
-  - Acceptance criteria: every client surface in the matrix updates without navigation/manual refresh after its synthetic mutation; search/run progress reaches terminal state; duplicate/out-of-order events do not regress state; no UI refresh adds provider or enrichment usage.
-  - _Dependencies: 21_
-  - _Bug_Condition: the database changes but the client remains stale, the client search stays approval-only while pipeline progress changes, or polling spins indefinitely.
-  - _Expected_Behavior: tenant UI updates in realtime and displays the complete lead-generation funnel with safe fallback recovery.
-  - _Preservation: client auth, tenant scoping, accessibility, route coverage, and existing API response contracts remain intact.
-  - _Requirements: 2.7, 2.8, 2.10, 3.5, 3.7, 3.8, 3.9, 3.10
-
-- [x] 23. Complete admin realtime/refresh behavior without cross-tenant leakage
-  - Target `lead-crm-portal/components/layout/AdminLiveRefresh.tsx`, `app/(admin)/layout.tsx`, admin dashboard, health, jobs, runs, pipeline, tenants, usage, security, audit, notifications, and admin API projections.
-  - Fix the no-op live refresh callback or replace it with page-owned bounded refresh. Cover health, worker/queue state, jobs, runs, tenant changes, quota/usage, security/audit, and admin notifications. Use an explicitly authorized admin aggregate signal only where it cannot expose tenant details; otherwise use visible bounded polling with a clear deadline/retry state.
-  - Acceptance criteria: synthetic admin-safe changes update the affected admin surface without navigation; run/job progress shows queue, worker, retry, reap, blocker, and terminal evidence; admin pages stop polling at the deadline; tenant-scoped details never appear on an unauthorized client channel.
-  - _Dependencies: 21, 22_
-  - _Requirements: 2.2, 2.3, 2.7, 2.8, 2.10, 3.7, 3.8, 3.9, 3.10
-
-- [x] 24. Add end-to-end realtime, reconnect, reconciliation, and low-credit validation
-  - Target Python migration/RLS tests, portal contract tests, mocked Supabase/Realtime fixtures, Compose smoke scripts, `tests/test_live_pipeline_board.py`, `tests/test_pipeline_run_lifecycle.py`, `lead-crm-portal/e2e/portal-contracts.spec.ts`, and related fixtures.
-  - Validate static trigger/filter/publication parity first; then mocked event delivery, cache invalidation, duplicate/out-of-order events, reconnect and missed-event refetch, two-tenant isolation, client/admin surface updates, hidden-tab behavior, bounded polling deadlines, and request/run terminal transitions.
-  - Only after those gates pass, run one synthetic database-first tenant smoke using existing global inventory with paid/social providers disabled; verify the full run board and dashboard update. Do not send real email, call paid providers, run exhaustive discovery, or spend enrichment credits for a UI freshness check.
-  - Acceptance criteria: all event-to-surface assertions pass, no stale dashboard remains after a committed mutation, no cross-tenant event is visible, no duplicate provider/credit operation occurs, and the final smoke reports exact database/run/dashboard state.
-  - _Dependencies: 21, 22, 23_
-  - _Requirements: 2.1, 2.2, 2.3, 2.5, 2.6, 2.7, 2.8, 2.9, 2.10, 3.1, 3.2, 3.3, 3.4, 3.5, 3.6, 3.7, 3.8, 3.9, 3.10
-
-- [~] 25. Final realtime release gate and evidence handoff
-  - Run the complete regression suite, migration/schema/RLS checks, portal typecheck/build, mocked and authenticated portal coverage, Compose health, and the final low-credit database-first smoke.
-  - Record the exact migration applied, publication/trigger verification, channel state/reconnect evidence, client/admin pages checked, run ID/request ID, quota before/after, provider calls (expected zero for synthetic checks), and any bounded polling fallback used.
-  - Acceptance criteria: every task 20–24 is complete, the dashboard and all listed UI surfaces have a proven realtime or explicitly bounded fallback path, no manual refresh is required for committed supported mutations, and no unverified live claim is presented as passing.
-  - _Dependencies: 24_
-  - _Requirements: 2.1, 2.2, 2.3, 2.4, 2.5, 2.6, 2.7, 2.8, 2.9, 2.10, 3.1, 3.2, 3.3, 3.4, 3.5, 3.6, 3.7, 3.8, 3.9, 3.10
+- The existing working tree contains unrelated edits and untracked artifacts. Do not reset, clean, amend, or overwrite them.
+- The affected run identifier is a synthetic/read-only regression fixture in this plan. No task authorizes inspecting or mutating a real production run.
+- Exact provider behavior, remote Supabase/RLS/realtime behavior, email, billing, and deployed recovery remain unverified until task 14 is authorized and run separately.

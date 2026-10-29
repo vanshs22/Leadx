@@ -57,7 +57,7 @@ export function useLiveLoader(
     let expired = false;
     const run = () => {
       if (!alive || expired) return;
-      if (Date.now() - startedAt >= deadlineMs) {
+      if (deadlineMs > 0 && Date.now() - startedAt >= deadlineMs) {
         expired = true;
         setDeadlineReached(true);
         deadlineRef.current?.();

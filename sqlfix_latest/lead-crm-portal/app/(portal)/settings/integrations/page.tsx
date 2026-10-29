@@ -1,12 +1,14 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { useCrmChange } from "@/lib/crmRealtime";
+import { useLiveLoader } from "@/lib/live";
 import { crmIntegrations } from "@/lib/api";
 import { getTenantId } from "@/lib/tenant";
 import { EmptyState, ErrorState, LoadingRows } from "@/components/ui/States";
 import { FreshnessNote, UnavailableNote } from "@/components/ui/SurfaceMeta";
-import { PageHeader, Notice } from "@/components/ui/Primitives";
+import { Badge, PageHeader, Notice, Panel, StatusBadge } from "@/components/ui/Primitives";
+import { Icon } from "@/components/ui/Icon";
 
 const BYOK_FIELDS: Record<string, Record<string, string>> = {
   gmail: { access_token: "" }, google_calendar: { access_token: "" }, google_drive: { access_token: "" }, google_sheets: { access_token: "" },
@@ -28,6 +30,8 @@ export default function IntegrationsPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<unknown>(null);
   const [msg, setMsg] = useState("");
+  const [pollingExpired, setPollingExpired] = useState(false);
+  const [pollingGeneration, setPollingGeneration] = useState(0);
   const tenant = getTenantId();
 
   async function load() {
@@ -45,7 +49,9 @@ export default function IntegrationsPage() {
   }
 
   useEffect(() => { void load(); }, []);
+  useLiveLoader(() => load(), 30_000, [pollingGeneration], { runImmediately: false, onDeadline: () => setPollingExpired(true) });
   useCrmChange(() => { void load(); }, { tables: ["integrations", "tenant_integrations"] });
+  const refresh = () => { setPollingExpired(false); setPollingGeneration((value) => value + 1); void load(); };
   const selected = useMemo(() => catalog.find((x) => x.provider === provider), [catalog, provider]);
   const filtered = catalog.filter((p) => `${p.name} ${p.purpose} ${p.category}`.toLowerCase().includes(query.toLowerCase()));
 
@@ -87,17 +93,75 @@ export default function IntegrationsPage() {
     finally { setBusy(false); }
   }
 
-  if (loading) return <div className="page"><h1 className="page-title">Integrations</h1><LoadingRows rows={5} cols={3} /></div>;
-  if (error) return <div className="page"><ErrorState error={error} onRetry={load} /></div>;
+  const header = (actions?: ReactNode) => <PageHeader eyebrow="LeadX Connect" title="Integrations" description="Connect managed OAuth or your own credentials. Credentials stay server-side and are never rendered back to the browser." actions={actions} meta={catalog.length ? <><FreshnessNote label="Connector catalog" detail={`${catalog.length} providers available`} /><span className="tabular-nums">{connections.length} connected</span></> : null} />;
+  if (loading) return <div className="page">{header()}<div className="card"><LoadingRows rows={5} cols={3} /></div></div>;
+  if (error) return <div className="page">{header()}<ErrorState error={error} onRetry={load} /></div>;
 
-  return <div className="page max-w-7xl space-y-5">
-    <PageHeader eyebrow="LeadX Connect" title="Integrations" description="Connect managed OAuth or your own credentials. Credentials stay server-side and are never rendered back to the browser." actions={<button className="btn-secondary" onClick={() => void load()} disabled={loading}>Refresh</button>} />
-    <div className="mb-3"><FreshnessNote label="Connector catalog" detail={`${catalog.length} providers available`} /></div>
+  const connectedProviders = new Set(connections.map((c) => c.provider));
+  return <div className="page max-w-7xl">
+    {header(<button className="btn-secondary" onClick={refresh} disabled={loading}><Icon name="refresh" size={14} aria-hidden="true" />Refresh</button>)}
+    {pollingExpired ? <Notice tone="warning" title="Live integration updates paused">Refresh to start a new bounded live-update window.</Notice> : null}
     {msg && <Notice tone={msg.includes("failed") || msg.includes("Failed") ? "danger" : "neutral"}>{msg}</Notice>}
-    <div className="grid gap-5 lg:grid-cols-[1.1fr_.9fr]">
-      <section className="card-pad"><div className="flex items-center justify-between gap-3"><h2 className="text-sm font-semibold">Connector catalog</h2><span className="pill bg-brand-50 text-brand-800 dark:bg-brand-500/15 dark:text-brand-200">{catalog.length} connectors</span></div><input className="input mt-4" placeholder="Search connectors by purpose or provider…" value={query} onChange={(e) => setQuery(e.target.value)} />{filtered.length ? <div className="mt-4 grid gap-2 sm:grid-cols-2">{filtered.map((p) => <button aria-label={`Select ${p.name}`} key={p.provider} onClick={() => select(p)} className={`rounded-xl border p-3 text-left transition ${provider === p.provider ? "border-brand-400 bg-brand-50/70 dark:bg-brand-500/10" : "border-line bg-surface-2 hover:border-brand-300"}`}><div className="font-semibold text-sm text-ink">{p.name}</div><div className="mt-1 text-xs text-ink-muted">{p.purpose || "Provider purpose unavailable"}</div><div className="mt-2 text-[10px] uppercase tracking-wide text-ink-faint">{p.category || "Category unavailable"} · {p.auth || "Auth unavailable"}</div></button>)}</div> : <EmptyState title="No connectors match" hint="Try a broader provider or purpose search." />}</section>
-      <section className="card-pad"><div className="label">Connect account</div><h2 className="mt-1 text-lg font-semibold text-ink">{selected?.name || provider}</h2><div className="mt-4 grid grid-cols-2 rounded-xl border border-line bg-surface-2 p-1"><button aria-label="Use LeadX OAuth" onClick={() => setMode("platform")} className={`rounded-lg px-3 py-2 text-sm ${mode === "platform" ? "bg-brand-400 text-black" : "text-ink-muted"}`}>LeadX OAuth</button><button aria-label="Use BYOK" onClick={() => { setMode("byok"); setConfig(BYOK_FIELDS[provider] || {}); }} className={`rounded-lg px-3 py-2 text-sm ${mode === "byok" ? "bg-brand-400 text-black" : "text-ink-muted"}`}>My BYOK</button></div>{mode === "byok" && <label className="mt-4 block text-xs font-semibold text-ink-muted">Connection name<input className="input mt-1" placeholder="e.g. Sales Gmail" value={name} onChange={(e) => setName(e.target.value)} /></label>}{mode === "byok" && <div className="mt-4 space-y-3">{Object.entries(config).map(([k, v]) => <label key={k} className="block text-xs font-semibold text-ink-muted">{k.replace(/_/g, " ")}<input className="input mt-1" type={k.includes("token") || k.includes("key") || k.includes("secret") ? "password" : "text"} value={v} onChange={(e) => setConfig({ ...config, [k]: e.target.value })} /></label>)}</div>}<button aria-label="Connect selected provider" className="btn-primary mt-4 w-full" disabled={busy} onClick={connect}>{busy ? "Connecting…" : mode === "platform" ? `Connect ${selected?.name || provider}` : "Save encrypted BYOK connection"}</button><p className="mt-3 text-[11px] leading-4 text-ink-faint">OAuth follows the provider authorization flow; BYOK encrypts the supplied credential server-side.</p></section>
+    <div className="grid items-start gap-4 lg:grid-cols-3">
+      <Panel
+        title="Connector catalog"
+        description="Pick a provider to configure it on the right."
+        className="lg:col-span-2"
+        actions={<Badge tone="brand"><span className="tabular-nums">{catalog.length}</span> connectors</Badge>}
+      >
+        <label htmlFor="integration-search" className="sr-only">Search connectors</label>
+        <div className="relative">
+          <Icon name="search" size={14} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-ink-faint" aria-hidden="true" />
+          <input id="integration-search" type="search" className="input pl-8" placeholder="Search connectors by purpose or provider…" value={query} onChange={(e) => setQuery(e.target.value)} />
+        </div>
+        {filtered.length ? (
+          <div className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+            {filtered.map((p) => {
+              const isSelected = provider === p.provider, isConnected = connectedProviders.has(p.provider);
+              return (
+                <button aria-label={`Select ${p.name}`} aria-pressed={isSelected} key={p.provider} onClick={() => select(p)} className={`flex flex-col rounded-lg border p-3.5 text-left transition-colors ${isSelected ? "border-brand-500 bg-brand-50 ring-1 ring-brand-500/30 dark:border-brand-300 dark:bg-brand-500/10" : "border-line bg-surface-2 hover:border-line-strong hover:bg-surface-3/50"}`}>
+                  <div className="flex w-full items-start justify-between gap-2">
+                    <span className="flex min-w-0 items-center gap-2"><span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md border border-line bg-surface-3 text-[11px] font-semibold uppercase text-ink-muted" aria-hidden="true">{String(p.name || p.provider).slice(0, 2)}</span><span className="truncate text-[0.8125rem] font-semibold text-ink">{p.name}</span></span>
+                    <StatusBadge status={isConnected ? "connected" : "cancelled"} label={isConnected ? "Connected" : "Not connected"} />
+                  </div>
+                  <div className="mt-2 line-clamp-2 text-xs leading-5 text-ink-muted">{p.purpose || "Provider purpose unavailable"}</div>
+                  <div className="mt-auto pt-2.5 text-[11px] text-ink-faint"><span className="capitalize">{p.category || "Category unavailable"}</span> · {p.auth || "Auth unavailable"}</div>
+                </button>
+              );
+            })}
+          </div>
+        ) : <EmptyState title="No connectors match" hint="Try a broader provider or purpose search." />}
+      </Panel>
+      <Panel
+        title={<>Connect {selected?.name || provider}</>}
+        description="OAuth follows the provider authorization flow; BYOK encrypts the supplied credential server-side."
+        className="lg:sticky lg:top-20"
+        footer={<><span>{mode === "platform" ? "You'll be redirected to the provider." : "Credentials are not shown again."}</span><button aria-label="Connect selected provider" className="btn-primary shrink-0" disabled={busy} onClick={connect}>{busy ? "Connecting…" : mode === "platform" ? `Connect ${selected?.name || provider}` : "Save encrypted BYOK connection"}</button></>}
+      >
+        <div className="space-y-4">
+          <div>
+            <span className="field-label">Authentication</span>
+            <div className="tabs grid w-full grid-cols-2" role="group" aria-label="Authentication mode">
+              <button aria-label="Use LeadX OAuth" aria-pressed={mode === "platform"} onClick={() => setMode("platform")} className={mode === "platform" ? "tab-active" : "tab"}>LeadX OAuth</button>
+              <button aria-label="Use BYOK" aria-pressed={mode === "byok"} onClick={() => { setMode("byok"); setConfig(BYOK_FIELDS[provider] || {}); }} className={mode === "byok" ? "tab-active" : "tab"}>My BYOK</button>
+            </div>
+          </div>
+          {mode === "byok" && <div><label htmlFor="integration-connection-name" className="field-label">Connection name</label><input id="integration-connection-name" className="input" placeholder="e.g. Sales Gmail" value={name} onChange={(e) => setName(e.target.value)} /><p className="field-hint">Optional label to tell multiple accounts apart.</p></div>}
+          {mode === "byok" && Object.entries(config).map(([k, v]) => <div key={k}><label htmlFor={`integration-field-${k}`} className="field-label capitalize">{k.replace(/_/g, " ")}</label><input id={`integration-field-${k}`} className={`input ${k.includes("token") || k.includes("key") || k.includes("secret") ? "font-mono" : ""}`} type={k.includes("token") || k.includes("key") || k.includes("secret") ? "password" : "text"} value={v} onChange={(e) => setConfig({ ...config, [k]: e.target.value })} /></div>)}
+          {mode === "platform" ? <p className="text-[0.8125rem] leading-6 text-ink-muted">LeadX manages the OAuth app. You approve access on the provider&apos;s consent screen.</p> : null}
+        </div>
+      </Panel>
     </div>
-    <section className="card-pad"><div className="flex items-center justify-between"><div><h2 className="text-sm font-semibold">Connected accounts</h2><FreshnessNote label="Connection status" detail="from integrations API" /></div><span className="text-xs text-ink-faint">{connections.length} connected</span></div><div className="mt-3 space-y-2">{connections.length ? connections.map((c) => <div key={c.id} className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-line bg-surface-3/50 p-3"><div><div className="font-semibold text-sm text-ink">{c.connection_name || catalog.find((x) => x.provider === c.provider)?.name || c.provider}</div><div className="text-xs text-ink-muted">{catalog.find((x) => x.provider === c.provider)?.name || c.provider} · {c.auth_mode || "platform"} · {c.status || "status unavailable"}</div></div><button aria-label={`Test ${c.connection_name || c.provider}`} className="btn-secondary" disabled={busy} onClick={() => test(c.id)}>Test connection</button></div>) : <EmptyState title="No connected accounts" hint="Choose a provider above to connect LeadX to your revenue stack." action={<UnavailableNote label="Connection health" /> } />}</div></section>
+    <Panel title="Connected accounts" description="Health is checked on demand from the integrations API." actions={<FreshnessNote label="Connection status" detail="from integrations API" />} bodyClassName={connections.length ? "p-0" : "panel-body"}>
+      {connections.length ? (
+        <div className="overflow-x-auto">
+          <table className="data-table">
+            <caption className="sr-only">Connected accounts</caption>
+            <thead><tr><th scope="col">Account</th><th scope="col">Provider</th><th scope="col">Auth</th><th scope="col">Status</th><th scope="col" className="!text-right"><span className="sr-only">Actions</span></th></tr></thead>
+            <tbody>{connections.map((c) => <tr key={c.id}><td className="font-medium text-ink">{c.connection_name || catalog.find((x) => x.provider === c.provider)?.name || c.provider}</td><td className="text-ink-muted">{catalog.find((x) => x.provider === c.provider)?.name || c.provider}</td><td><Badge tone="neutral" className="uppercase">{c.auth_mode || "platform"}</Badge></td><td>{c.status ? <StatusBadge status={c.status} /> : <span className="text-xs text-ink-faint">status unavailable</span>}</td><td className="text-right"><button aria-label={`Test ${c.connection_name || c.provider}`} className="btn-secondary btn-sm" disabled={busy} onClick={() => test(c.id)}>Test connection</button></td></tr>)}</tbody>
+          </table>
+        </div>
+      ) : <EmptyState title="No connected accounts" hint="Choose a provider above to connect LeadX to your revenue stack." action={<UnavailableNote label="Connection health" /> } />}
+    </Panel>
   </div>;
 }

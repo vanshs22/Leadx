@@ -142,13 +142,15 @@ async def write_sequence_step(
     industry: str = "",
     goal: str = "",
     subject_hint: str = "",
+    custom_prompt: str = "",
 ) -> dict[str, Any]:
     prompt = (
         f"Write step {step_index} of a follow-up email sequence "
         f"(send after {delay_days} day(s) from enrollment).\n"
         f"Industry/context: {industry or 'local B2B services'}.\n"
         f"Goal: {goal or 'book a short call / introduce our service'}.\n"
-        f"Subject hint (optional): {subject_hint or 'none'}.\n\n"
+        f"Subject hint (optional): {subject_hint or 'none'}.\n"
+        f"User instructions: {custom_prompt.strip() or 'none'}.\n\n"
         "Respond in this exact format:\n"
         "SUBJECT: <one line subject, may use merge tags>\n"
         "BODY:\n"

@@ -192,3 +192,25 @@ async def run_quality_guarantee_tick(limit: int = 250) -> dict:
                     r=await credit_dead_contact(str(a["tenant_id"]),str(a["id"]),"dead_email",v); credited += int(r.get("credited") or 0)
             except Exception as exc: __import__("logging").getLogger(__name__).debug("suppressed optional failure: %s", exc)
     return {"ok":True,"checked":checked,"credited":credited,"window_days":14}
+
+
+@to_async
+def settle_discovery_quota(
+    tenant_id: str,
+    reservation_id: str,
+    settlement_key: str,
+    *,
+    billable: int,
+    reserved: int,
+) -> dict:
+    """Settle a discovery reservation once, charging persisted billable work."""
+    from app.integrations.prod.discovery_runtime import settle_reservation
+    result = settle_reservation(
+        _sb(), reservation_id=reservation_id, tenant_id=tenant_id,
+        settlement_key=settlement_key, billable=billable, reserved=reserved,
+    )
+    return {
+        "ok": result.ok, "outcome": result.outcome, "committed": result.committed,
+        "released": result.released, "replayed": result.replayed,
+        "recoverable": result.recoverable, "reason": result.reason,
+    }

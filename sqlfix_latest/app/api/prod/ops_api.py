@@ -8,16 +8,21 @@ one API surface from the frontend's point of view.
 from __future__ import annotations
 
 from datetime import datetime, timezone
+import logging
 import os
 import re
 from typing import Optional
+from uuid import uuid4
 
+from app.core.runtime_config import MAX_LEADS_PER_RUN
 from app.services.aio import aexec
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from pydantic import BaseModel, Field
 
 from app.middleware.platform_auth import require_platform_admin
 from app.middleware.service_auth import require_service_key
+
+logger = logging.getLogger("lead_engine.ops_api")
 
 router = APIRouter(
     prefix="/leads/v2",
@@ -242,8 +247,8 @@ def _admin_operational_snapshot(*, queue_stats: dict | None = None, scale: dict 
                 reaped += 1
                 if status == "failed":
                     reaped_terminal += 1
-    except Exception:
-        pass
+    except Exception as exc:
+        logger.warning("ops.job_outcomes_unavailable", extra={"error_type": type(exc).__name__})
 
     dependencies = _runtime_dependency_state()
     dependencies["durable_queue"] = {
@@ -339,6 +344,65 @@ def _audit_admin_action(request: Request | None, action: str, *, resource_id: st
 
 
 # ---------------------------------------------------------------- jobs
+
+
+class ScopedWorkAdmissionBody(BaseModel):
+    """Read-only admission request for one authenticated tenant/run scope."""
+
+    operation: str
+    idempotency_key: str = Field(min_length=1, max_length=200)
+    tenant_id: str = Field(min_length=1, max_length=200)
+    run_id: str = Field(min_length=1, max_length=200)
+    job_id: Optional[str] = Field(default=None, max_length=200)
+
+
+@router.post("/admin/scoped-work/admission")
+def scoped_work_admission(req: ScopedWorkAdmissionBody, request: Request):
+    """Classify one scoped operation without cancelling, recovering, or resetting it."""
+    from app.integrations.prod import jobs
+
+    admin = getattr(request.state, "platform_admin", None)
+    actor = getattr(admin, "user_id", None) or (admin.get("user_id") if isinstance(admin, dict) else None)
+    payload = req.model_dump() if hasattr(req, "model_dump") else req.dict()
+    payload["actor"] = str(actor or "platform_admin")
+    try:
+        result = jobs.admit_scoped_work_operation(payload)
+    except jobs.ScopedOperationContractError as exc:
+        raise HTTPException(status_code=422, detail={"code": exc.code, "field": exc.field}) from exc
+    except jobs.QueueDependencyError as exc:
+        raise HTTPException(status_code=503, detail={"code": "queue_unavailable", "operation": exc.operation}) from exc
+    return {"ok": bool(result.get("ok")), "admission": result}
+
+
+class ScopedResetRequestBody(BaseModel):
+    """Explicit reset scope; the authenticated platform admin supplies actor."""
+
+    operation_key: str = Field(min_length=1, max_length=200)
+    scope_kind: str
+    run_id: Optional[str] = None
+    tenant_id: Optional[str] = None
+    cutoff: Optional[str] = None
+    status_allowlist: Optional[list[str]] = None
+    dry_run: bool = True
+    confirmation: bool = False
+
+
+@router.post("/admin/scoped-work/reset")
+def reset_scoped_work(req: ScopedResetRequestBody, request: Request):
+    """Preview or explicitly confirm one bounded reset as a platform admin."""
+    from app.integrations.prod import jobs
+
+    admin = getattr(request.state, "platform_admin", None)
+    actor = getattr(admin, "user_id", None) or (admin.get("user_id") if isinstance(admin, dict) else None)
+    payload = req.model_dump() if hasattr(req, "model_dump") else req.dict()
+    payload["actor"] = str(actor or "platform_admin")
+    try:
+        result = jobs.transition_scoped_work(payload)
+    except jobs.ScopedResetContractError as exc:
+        raise HTTPException(status_code=422, detail={"code": exc.code, "field": exc.field}) from exc
+    except jobs.QueueDependencyError as exc:
+        raise HTTPException(status_code=503, detail={"code": "queue_unavailable", "operation": exc.operation}) from exc
+    return {"ok": bool(result.get("ok", True)), "reset": _safe_value(result)}
 
 
 @router.get("/admin/jobs")
@@ -440,6 +504,42 @@ def retry_job(job_id: str, request: Request):
     if result.get("error"):
         result["reason_code"] = _failure_reason(result["error"])
     return result
+
+
+@router.post("/admin/runs/{run_id}/stop")
+def stop_run(run_id: str, request: Request):
+    """Stop one active pipeline run through the durable cancellation fence."""
+    from app.integrations.prod import jobs
+    from app.memory.supabase_client import get_supabase
+    sb = get_supabase()
+    rows = (sb.table("pipeline_runs").select("id,tenant_id,status,meta")
+            .eq("id", str(run_id)).limit(1).execute().data or [])
+    if not rows:
+        raise HTTPException(404, "run not found")
+    run = rows[0]
+    status = str(run.get("status") or "").lower()
+    if status not in {"queued", "running"}:
+        raise HTTPException(409, f"run is {status or 'terminal'}")
+    meta = run.get("meta") if isinstance(run.get("meta"), dict) else {}
+    job_id = str(run.get("job_id") or meta.get("job_id") or run_id)
+    admin = getattr(getattr(request, "state", None), "platform_admin", None)
+    actor = str(getattr(admin, "user_id", None) or "platform-admin")
+    operation_id = str(uuid4())
+    admission = jobs.admit_scoped_work_operation({
+        "operation_key": f"admin-stop:{run_id}:{operation_id}",
+        "actor": actor,
+        "operation": "cancel",
+        "tenant_id": str(run.get("tenant_id") or ""),
+        "run_id": str(run_id),
+        "job_id": job_id,
+    })
+    if not admission.get("admitted"):
+        raise HTTPException(409, str(admission.get("reason") or "run is not cancellable"))
+    result = jobs.cancel_job(job_id, actor=actor, reason="operator_stop", operation_id=operation_id)
+    _audit_admin_action(request, "admin_run_stop", resource_id=str(run_id), reason="cancelled" if result.get("ok") else "stop_rejected")
+    if not result.get("ok"):
+        raise HTTPException(409, str(result.get("error") or "run could not be stopped"))
+    return {"ok": True, "run_id": str(run_id), "job_id": job_id, "status": "cancelled", "operation_id": operation_id}
 
 
 @router.post("/admin/jobs/{job_id}/cancel")
@@ -629,7 +729,7 @@ class OperatorProspectRequest(BaseModel):
     locations: list[str] = Field(default_factory=list)
     queries: list[str] = Field(default_factory=list)
     limit_per_location: int = Field(default=40, ge=1, le=200)
-    target_new_leads: int = Field(default=0, ge=0, le=20000)
+    target_new_leads: int = Field(default=0, ge=0, le=MAX_LEADS_PER_RUN)
     skip_enrichment: bool = False
 
 
@@ -805,7 +905,7 @@ class ScheduleRequest(BaseModel):
     locations: list[str] = Field(default_factory=list)
     queries: list[str] = Field(default_factory=list)
     params: dict = Field(default_factory=dict)
-    target_new_leads: int = Field(default=25, ge=1, le=5000)
+    target_new_leads: int = Field(default=25, ge=1, le=MAX_LEADS_PER_RUN)
     # Floor of 1h and ceiling of 30 days: below an hour the 5-minute tick makes
     # the cadence a lie, and anything longer is better modelled as "off".
     interval_hours: int = Field(default=24, ge=1, le=720)
@@ -820,7 +920,7 @@ class ScheduleUpdate(BaseModel):
     locations: Optional[list[str]] = None
     queries: Optional[list[str]] = None
     params: Optional[dict] = None
-    target_new_leads: Optional[int] = Field(default=None, ge=1, le=5000)
+    target_new_leads: Optional[int] = Field(default=None, ge=1, le=MAX_LEADS_PER_RUN)
     interval_hours: Optional[int] = Field(default=None, ge=1, le=720)
     auto_enroll_sequence_id: Optional[str] = None
     active: Optional[bool] = None
@@ -1372,16 +1472,22 @@ def admin_platform_summary():
 @router.get('/admin/audit-log')
 def admin_audit_log(limit:int=100, tenant_id:Optional[str]=None):
     from app.memory.supabase_client import get_supabase
-    q=get_supabase().table('audit_log').select('*').order('created_at',desc=True).limit(min(max(limit,1),500))
+    from app.integrations.prod.audit_log import safe_audit_row
+    q=get_supabase().table('audit_log').select(
+        'id,tenant_id,actor_id,actor_type,action,resource_type,resource_id,reason,created_at'
+    ).order('created_at',desc=True).limit(min(max(limit,1),500))
     if tenant_id:q=q.eq('tenant_id',tenant_id)
-    return {'ok':True,'events':q.execute().data or []}
+    return {'ok':True,'events':[safe_audit_row(row) for row in (q.execute().data or [])]}
 
 @router.get('/admin/security-events')
 def admin_security_events(limit:int=100, severity:Optional[str]=None):
     from app.memory.supabase_client import get_supabase
-    q=get_supabase().table('security_events').select('*').order('created_at',desc=True).limit(min(max(limit,1),500))
+    from app.integrations.prod.audit_log import safe_security_event
+    q=get_supabase().table('security_events').select(
+        'id,severity,event_type,actor_id,tenant_id,created_at'
+    ).order('created_at',desc=True).limit(min(max(limit,1),500))
     if severity:q=q.eq('severity',severity)
-    return {'ok':True,'events':q.execute().data or []}
+    return {'ok':True,'events':[safe_security_event(row) for row in (q.execute().data or [])]}
 
 @router.get('/admin/provider-health')
 def admin_provider_health():

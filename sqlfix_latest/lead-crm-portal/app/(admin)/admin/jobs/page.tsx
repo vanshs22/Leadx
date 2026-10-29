@@ -48,6 +48,16 @@ function JobsMonitor() {
   const [loading, setLoading] = useState(true);
   const [pollingExpired, setPollingExpired] = useState(false);
   const [pollingReset, setPollingReset] = useState(0);
+  const [resetForm, setResetForm] = useState(() => ({
+    runId,
+    tenantId: "",
+    statuses: "queued,running,retrying",
+    cutoff: "",
+    apply: false,
+    confirm: false,
+    operationKey: "",
+  }));
+  const [resetNotice, setResetNotice] = useState("");
 
   const load = useCallback(async () => {
     try {
@@ -93,6 +103,39 @@ function JobsMonitor() {
     }
   }
 
+  async function submitScopedReset() {
+    const runScope = resetForm.runId.trim();
+    const tenantScope = resetForm.tenantId.trim();
+    if (Boolean(runScope) === Boolean(tenantScope)) {
+      setResetNotice("Enter exactly one run ID or tenant ID.");
+      return;
+    }
+    const statusAllowlist = resetForm.statuses.split(",").map((value) => value.trim()).filter(Boolean);
+    if (!runScope && !statusAllowlist.length) {
+      setResetNotice("Tenant scope requires at least one status.");
+      return;
+    }
+    setBusy("scoped-reset");
+    setResetNotice("");
+    try {
+      const result = await adminExtras.scopedWorkReset({
+        operation_key: resetForm.operationKey.trim() || `ui-reset-${crypto.randomUUID()}`,
+        scope_kind: runScope ? "run" : resetForm.cutoff.trim() ? "tenant_stale" : "tenant_active",
+        run_id: runScope || undefined,
+        tenant_id: tenantScope || undefined,
+        status_allowlist: runScope ? undefined : statusAllowlist,
+        cutoff: resetForm.cutoff.trim() || undefined,
+        dry_run: !resetForm.apply,
+        confirmation: resetForm.confirm,
+      });
+      setResetNotice(result?.reset?.outcome === "conflict" ? "Operation key conflict; no work was changed." : `${resetForm.apply ? "Apply" : "Dry-run"} completed. No broad reset is available.`);
+    } catch (e: unknown) {
+      setError(e);
+    } finally {
+      setBusy("");
+    }
+  }
+
   // A worker that died mid-job leaves the row 'running' forever; a growing
   // oldest-queued age means no worker is consuming at all.
   const stalled = (stats.oldest_queued_seconds || 0) > 900;
@@ -125,6 +168,36 @@ function JobsMonitor() {
           </div>
         </section>
       )}
+
+      <section className="card-pad space-y-3" aria-labelledby="scoped-reset-title">
+        <div>
+          <h2 id="scoped-reset-title" className="text-sm font-semibold text-ink">Scoped work reset</h2>
+          <p className="mt-1 text-xs text-ink-faint">Dry-run is the default. Select one run or one tenant scope; reset-all is not available.</p>
+        </div>
+        <div className="grid gap-3 sm:grid-cols-2">
+          <label className="text-xs text-ink-muted">Run ID
+            <input aria-label="Scoped reset run ID" className="input mt-1" value={resetForm.runId} onChange={(e) => setResetForm({ ...resetForm, runId: e.target.value, tenantId: "" })} placeholder="run-id" />
+          </label>
+          <label className="text-xs text-ink-muted">Tenant ID
+            <input aria-label="Scoped reset tenant ID" className="input mt-1" value={resetForm.tenantId} onChange={(e) => setResetForm({ ...resetForm, tenantId: e.target.value, runId: "" })} placeholder="tenant-id" />
+          </label>
+          <label className="text-xs text-ink-muted">Statuses (tenant scope)
+            <input aria-label="Scoped reset statuses" className="input mt-1" value={resetForm.statuses} onChange={(e) => setResetForm({ ...resetForm, statuses: e.target.value })} placeholder="queued,running,retrying" />
+          </label>
+          <label className="text-xs text-ink-muted">Cutoff (optional stale scope)
+            <input aria-label="Scoped reset cutoff" className="input mt-1" value={resetForm.cutoff} onChange={(e) => setResetForm({ ...resetForm, cutoff: e.target.value })} placeholder="2026-10-25T00:00:00Z" />
+          </label>
+        </div>
+        <label className="block text-xs text-ink-muted">Operation key (optional)
+          <input aria-label="Scoped reset operation key" className="input mt-1" value={resetForm.operationKey} onChange={(e) => setResetForm({ ...resetForm, operationKey: e.target.value })} placeholder="generated when blank" />
+        </label>
+        <div className="flex flex-wrap items-center gap-4 text-xs text-ink-muted">
+          <label className="inline-flex items-center gap-2"><input type="checkbox" checked={resetForm.apply} onChange={(e) => setResetForm({ ...resetForm, apply: e.target.checked, confirm: false })} /> Apply reset</label>
+          {resetForm.apply ? <label className="inline-flex items-center gap-2"><input type="checkbox" checked={resetForm.confirm} onChange={(e) => setResetForm({ ...resetForm, confirm: e.target.checked })} /> I confirm this exact scope</label> : null}
+          <button type="button" className="btn-secondary" disabled={busy === "scoped-reset" || (resetForm.apply && !resetForm.confirm)} onClick={submitScopedReset}>{busy === "scoped-reset" ? "Submitting…" : resetForm.apply ? "Apply scoped reset" : "Preview scoped reset"}</button>
+        </div>
+        {resetNotice ? <p role="status" className="text-xs text-ink-muted">{resetNotice}</p> : null}
+      </section>
 
       {stalled && (
         <div className="card-pad border-l-2 border-l-rust-500">

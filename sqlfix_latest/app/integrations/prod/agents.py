@@ -11,7 +11,10 @@ CAPABILITIES=[("GTM Mission Manager","gtm"),("ICP Builder","prospecting"),("Pros
 def _sb(): return get_supabase()
 def _now(): return datetime.now(timezone.utc).isoformat()
 def _sb(): return get_supabase()
-def list_agents(): return [{"id":k,**v,"capabilities":[n for n,a in CAPABILITIES if a==k]} for k,v in AGENT_REGISTRY.items()]
+def list_agents():
+    """Expose the authoritative registry metadata without recomputing contracts."""
+    return [{"id": agent_id, **dict(contract), "capabilities": list(contract.get("capabilities") or [])}
+            for agent_id, contract in AGENT_REGISTRY.items()]
 def create_run(tenant_id,agent_id,task="",input_data=None,created_by="user"):
     if agent_id not in AGENT_REGISTRY: raise ValueError("unknown_agent")
     row={"tenant_id":tenant_id,"agent_id":agent_id,"task":task[:2000],"input_data":input_data or {},"status":"queued","created_by":created_by,"created_at":_now(),"updated_at":_now()}

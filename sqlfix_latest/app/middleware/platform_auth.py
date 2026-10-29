@@ -1,4 +1,4 @@
-"""Platform-admin JWT authentication.
+﻿"""Platform-admin JWT authentication.
 
 Service-key auth remains available for internal workers/backward compatibility,
 but browser-facing admin sessions can use Supabase Auth + platform_admins.
@@ -8,7 +8,7 @@ from app.services.aio import aexec
 from dataclasses import dataclass
 from fastapi import Depends, HTTPException, Request, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
-from app.middleware.auth import _verify_supabase_jwt
+from app.middleware.auth import _verify_supabase_jwt, local_authentication_enabled
 from app.memory.supabase_client import get_supabase
 
 bearer=HTTPBearer(auto_error=False)
@@ -27,6 +27,10 @@ async def require_platform_admin(request:Request, creds:HTTPAuthorizationCredent
     payload=await _verify_supabase_jwt(token)
     uid=payload.get('sub')
     if not uid: raise HTTPException(status.HTTP_401_UNAUTHORIZED,'Invalid admin token')
+    if payload.get('iss') == 'leadx-local' and local_authentication_enabled():
+        admin = PlatformAdmin(user_id=str(uid), email=payload.get('email'), role='owner')
+        request.state.platform_admin = admin
+        return admin
     try:
         rows=(await aexec(_sb().table('platform_admins').select('user_id,email,role,active').eq('user_id',uid).eq('active',True).limit(1))).data or []
     except Exception:
@@ -51,6 +55,10 @@ async def require_control_plane(request: Request, creds: HTTPAuthorizationCreden
         # Browser admin calls authenticate through the HttpOnly session cookie;
         # machine callers may still supply a bearer credential.
         admin=await require_platform_admin(request, creds)
+        request.state.platform_admin=admin
+        return
+    if request.cookies.get("leadx_session"):
+        admin=await require_platform_admin(request, None)
         request.state.platform_admin=admin
         return
     if creds and creds.credentials:

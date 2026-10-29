@@ -10,8 +10,28 @@ import { crm } from "@/lib/api";
 import { getTenantId } from "@/lib/tenant";
 import { useEffect } from "react";
 import { QuietBreadcrumbs } from "@/components/ui/Primitives";
+import { NotificationBell } from "@/components/layout/NotificationBell";
+import { Icon } from "@/components/ui/Icon";
+import Link from "next/link";
 
 const PUBLIC_PATHS = ["/login", "/signup", "/accept-invite", "/verify-email"];
+
+const ROUTE_LABELS: Record<string, string> = {
+  dashboard: "Overview", growth: "Growth", today: "Today", intelligence: "Intelligence", agents: "Agents", approvals: "Approvals",
+  search: "Discover", leads: "Leads", companies: "Accounts", contacts: "Contacts", deals: "Deals", pipeline: "Lead lifecycle",
+  sequences: "Sequences", automations: "Automations", compose: "Write email", replies: "Replies", activities: "Activity",
+  reports: "Reports", revenue: "Revenue", logs: "Logs", team: "Team", settings: "Settings", integrations: "Integrations",
+  billing: "Billing", email: "Email", notifications: "Notifications", docs: "Docs", import: "Import", onboarding: "Onboarding",
+};
+
+function crumbs(path: string | null): Array<{ label: string; href?: string }> {
+  const parts = (path || "").split("/").filter(Boolean);
+  if (!parts.length) return [];
+  return parts.map((part, index) => {
+    const label = ROUTE_LABELS[part] || (index > 0 && parts[index - 1] === "leads" ? "Lead detail" : part.replace(/-/g, " "));
+    return index < parts.length - 1 ? { label, href: "/" + parts.slice(0, index + 1).join("/") } : { label };
+  });
+}
 
 export default function PortalLayout({ children }: { children: React.ReactNode }) {
   const path = usePathname();
@@ -49,13 +69,14 @@ export default function PortalLayout({ children }: { children: React.ReactNode }
       <SupportChat />
       <div className="flex min-h-screen bg-surface text-ink">
         <Sidebar />
-        <div className="pointer-events-none fixed right-4 top-3 z-30 hidden md:block"><RealtimeStatus /></div>
         <main id="main-content" className="min-w-0 flex-1 pt-12 md:pt-0">
-          <div className="topbar sticky top-0 z-30 hidden h-12 items-center justify-between px-6 md:flex">
-            <QuietBreadcrumbs items={[{ label: "Workspace", href: "/dashboard" }, { label: path === "/dashboard" ? "Overview" : path === "/growth" ? "Growth workspace" : (path?.split("/").filter(Boolean).slice(-1)[0] || "Workspace").replace(/-/g, " ") }]} />
+          <div className="topbar sticky top-0 z-30 hidden h-14 items-center justify-between gap-4 px-6 md:flex lg:px-8">
+            <QuietBreadcrumbs items={[{ label: "Workspace", href: "/dashboard" }, ...crumbs(path)]} />
             <div className="flex items-center gap-2">
-              <a href="/growth" className="quiet-action"><span>⌁</span><span>Growth workspace</span></a><a href="/search" className="quiet-action"><span>⌕</span><span>Search prospects</span><kbd className="rounded border border-line px-1.5 py-0.5 text-[9px] text-ink-faint">⌘K</kbd></a>
-              <a href="/pricing" className="btn-primary px-3 py-1.5 text-xs">Upgrade</a>
+              <RealtimeStatus />
+              <Link href="/search" className="quiet-action"><Icon name="search" size={14} /><span>Search prospects</span><span className="kbd">⌘K</span></Link>
+              <NotificationBell />
+              <Link href="/pricing" className="btn-accent btn-sm">Upgrade</Link>
             </div>
           </div>
           {children}

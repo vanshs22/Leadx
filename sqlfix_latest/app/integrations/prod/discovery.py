@@ -15,6 +15,7 @@ from app.integrations.prod.key_pool import with_key_rotation, KeyPoolExhausted
 from app.integrations.prod.utils import (
     normalize_phone, to_e164, extract_domain, fingerprint,
 )
+from app.integrations.prod.discovery_runtime import annotate_route_result, route_page, route_cell_id
 
 logger = logging.getLogger("lead_engine.discovery")
 
@@ -40,7 +41,7 @@ def normalize_maps_result(raw: dict, industry: str, location: str) -> dict:
     if status not in ("OPERATIONAL", "CLOSED", "TEMPORARILY_CLOSED"):
         status = "UNKNOWN"
 
-    return {
+    return annotate_route_result({
         "name": name,
         "company_name": name,
         "phone": phone,
@@ -65,10 +66,15 @@ def normalize_maps_result(raw: dict, industry: str, location: str) -> dict:
             k: raw.get(k) for k in ("title", "address", "phoneNumber", "website", "rating", "ratingCount", "placeId", "category", "businessStatus")
             if raw.get(k) is not None
         },
-    }
+    }, route_cell={"source": "google_maps_serper", "source_family": "local", "geography": location,
+                   "query": industry, "result_budget": 1}, raw=raw, requested_limit=1,
+       cursor={"page": 1, "token": None}, page=1, exhausted=False,
+       evidence_level="L1", billable=False)
 
 
 async def _serper_maps_page(api_key: str, query: str, location: str, page: int, num: int) -> list[dict]:
+    from app.integrations.prod.discovery_runtime import assert_provider_allowed
+    assert_provider_allowed("serper_maps")
     async with httpx.AsyncClient(timeout=45.0) as client:
         resp = await client.post(
             SERPER_MAPS,
@@ -106,7 +112,16 @@ async def search_maps_paginated(
         page += 1
         if len(all_raw) < total:
             await asyncio.sleep(page_delay)
-    return [normalize_maps_result(r, industry, location) for r in all_raw[:total]]
+    return [annotate_route_result(
+        normalize_maps_result(raw, industry, location),
+        route_cell={"source": "google_maps_serper", "source_family": "local", "geography": location,
+                    "query": query, "result_budget": min(max(0, int(total or 0)), max(1, int(per_page or 1)))},
+        page=(index // max(1, int(per_page or 1))) + 1,
+        cursor={"page": (index // max(1, int(per_page or 1))) + 1, "token": None},
+        requested_limit=max(0, int(per_page or 0)),
+        next_cursor={"page": (index // max(1, int(per_page or 1))) + 2, "token": None} if index + 1 < min(len(all_raw), total) else None,
+        exhausted=index + 1 >= min(len(all_raw), total), evidence_level="L1", billable=False,
+    ) for index, raw in enumerate(all_raw[:total])]
 
 
 async def discover_leads(
@@ -130,6 +145,13 @@ async def discover_leads(
     Multi-source discovery. Maps / LinkedIn / Instagram / Web / Yelp / Facebook
     are peer channels — merge + boost multi-hit businesses.
     """
+    # Local Validation Mode is a hard isolation boundary, not merely a paid
+    # fallback preference. Return deterministic fixtures before importing or
+    # invoking any adapter that could perform I/O.
+    from app.integrations.prod.discovery_runtime import local_validation_mode, synthetic_discovery
+    if local_validation_mode():
+        return synthetic_discovery(industry, locations, limit_per_location=limit_per_location)
+
     enabled = {
         "maps": include_maps,
         "linkedin": (include_linkedin and os.getenv("ENABLE_LINKEDIN", "false").lower() in {"1", "true", "yes"}),

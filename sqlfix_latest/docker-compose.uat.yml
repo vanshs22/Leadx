@@ -1,0 +1,142 @@
+# Real-provider UAT only. Invoke with --env-file .env.uat and project name leadx-uat.
+# This file deliberately does not load the workstation .env or local services.
+name: leadx-uat
+
+services:
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    env_file:
+      - .env.uat
+    environment:
+      ENVIRONMENT: staging
+      LEADX_UAT_TARGET: uat
+      LEADX_UAT_ENVIRONMENT: staging
+      LEAD_ENGINE_DEV_AUTH_BYPASS: "0"
+      LOCAL_AUTHENTICATION_FLAG: "0"
+      LOCAL_VALIDATION_MODE: "0"
+      JOB_QUEUE_FAIL_CLOSED: "1"
+      REQUIRE_REDIS_FOR_API_READY: "1"
+      REQUIRE_WORKER_READY: "1"
+      REQUIRE_DISTRIBUTED_RATE_LIMIT: "1"
+      REDIS_URL: redis://redis:6379/5
+      LEADX_REDIS_NAMESPACE: leadx-uat
+      LEADX_PROCESS: api
+      LEADX_UAT_API_URL: ${LEADX_UAT_API_URL:?set UAT API URL in .env.uat}
+      LEADX_UAT_PORTAL_URL: ${LEADX_UAT_PORTAL_URL:?set UAT portal URL in .env.uat}
+    ports:
+      - "28000:8000"
+    volumes:
+      - leadx-uat-durable-data:/var/lib/leadx
+    networks: [leadx-uat-network]
+    init: true
+    restart: "on-failure:5"
+    stop_grace_period: 20s
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health/ready', timeout=4)"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    depends_on:
+      redis:
+        condition: service_healthy
+
+  worker:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    env_file:
+      - .env.uat
+    environment:
+      ENVIRONMENT: staging
+      LEADX_UAT_TARGET: uat
+      LEADX_UAT_ENVIRONMENT: staging
+      LEAD_ENGINE_DEV_AUTH_BYPASS: "0"
+      LOCAL_AUTHENTICATION_FLAG: "0"
+      LOCAL_VALIDATION_MODE: "0"
+      JOB_QUEUE_FAIL_CLOSED: "1"
+      REDIS_URL: redis://redis:6379/5
+      LEADX_REDIS_NAMESPACE: leadx-uat
+      LEADX_PROCESS: worker
+      WORKER_ID: leadx-uat-worker
+      WORKER_CONCURRENCY: "1"
+      WORKER_QUEUE_FAILURE_POLICY: report_unready
+    volumes:
+      - leadx-uat-durable-data:/var/lib/leadx
+    networks: [leadx-uat-network]
+    init: true
+    restart: "on-failure:5"
+    stop_grace_period: 20s
+    healthcheck:
+      test: ["CMD", "python", "scripts/check_worker_health.py"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    depends_on:
+      redis:
+        condition: service_healthy
+
+  portal:
+    build:
+      context: ./lead-crm-portal
+      dockerfile: Dockerfile
+      args:
+        API_UPSTREAM: http://api:8000
+        NEXT_PUBLIC_SUPABASE_URL: ${SUPABASE_URL:?set UAT Supabase URL in .env.uat}
+        NEXT_PUBLIC_SUPABASE_ANON_KEY: ${SUPABASE_ANON_KEY:?set UAT Supabase anon key in .env.uat}
+        NEXT_PUBLIC_LEADX_LOCAL_AUTH: "0"
+    env_file:
+      - .env.uat
+    environment:
+      API_UPSTREAM: http://api:8000
+      LEADX_PORTAL_PROFILE: container
+      NODE_ENV: production
+      PORT: "3000"
+      NEXT_PUBLIC_SUPABASE_URL: ${SUPABASE_URL:?set UAT Supabase URL in .env.uat}
+      NEXT_PUBLIC_SUPABASE_ANON_KEY: ${SUPABASE_ANON_KEY:?set UAT Supabase anon key in .env.uat}
+      NEXT_PUBLIC_LEADX_LOCAL_AUTH: "0"
+      NEXT_PUBLIC_LEADX_UAT_API_URL: ${LEADX_UAT_API_URL:?set UAT API URL in .env.uat}
+    ports:
+      - "23000:3000"
+    networks: [leadx-uat-network]
+    init: true
+    restart: "on-failure:5"
+    stop_grace_period: 20s
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3000/api/health').then(async r => { if (!r.ok) process.exit(1) }).catch(() => process.exit(1))"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    depends_on:
+      api:
+        condition: service_healthy
+
+  redis:
+    image: redis:7-alpine
+    command: ["redis-server", "--databases", "16", "--appendonly", "yes"]
+    ports:
+      - "26379:6379"
+    networks: [leadx-uat-network]
+    volumes:
+      - leadx-uat-redis-data:/data
+    restart: "on-failure:5"
+    healthcheck:
+      test: ["CMD", "redis-cli", "-n", "5", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+      start_period: 5s
+
+volumes:
+  leadx-uat-durable-data:
+    name: leadx-uat-durable-data
+  leadx-uat-redis-data:
+    name: leadx-uat-redis-data
+
+networks:
+  leadx-uat-network:
+    name: leadx-uat-network

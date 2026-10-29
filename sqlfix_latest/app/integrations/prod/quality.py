@@ -5,6 +5,7 @@ from __future__ import annotations
 
 from app.services.aio import aexec, to_async
 import logging
+import os
 from datetime import datetime, timezone, timedelta
 from typing import Optional
 
@@ -108,13 +109,16 @@ def passes_quality_gate(
     allow_tier_b: bool = False,
     min_enrichment_fields: int = 1,
     require_contact: str = "phone_or_email",
+    allow_tier_c: bool = False,
 ) -> tuple[bool, str]:
     """
     High-quality gate: contactable + tier + not closed + some enrichment signal.
     Website alone is no longer mandatory (LinkedIn/IG-origin leads allowed if contactable).
     """
     tier = lead.get("tier") or "C"
-    allowed = {"A", "B"} if allow_tier_b else {"A"}
+    allowed = {"A"}
+    if allow_tier_b: allowed.add("B")
+    if allow_tier_c: allowed.add("C")
     if tier not in allowed:
         return False, f"tier={tier}"
 
@@ -122,6 +126,7 @@ def passes_quality_gate(
         return False, "closed"
 
     from app.integrations.prod.contact_state import email_ok as _email_ok, phone_ok as _phone_ok
+    # Both predicates validate the supplied value as well as its verification state.
     has_phone = _phone_ok(lead)
     has_email = _email_ok(lead)
     social = lead.get("social_links") if isinstance(lead.get("social_links"), dict) else {}
@@ -171,6 +176,70 @@ def passes_quality_gate(
         return False, f"enrichment_fields={fields}"
 
     return True, "ok"
+
+
+def _utc(value: object) -> datetime | None:
+    """Parse an optional timestamp without allowing naive local time to leak in."""
+    if not value:
+        return None
+    try:
+        parsed = datetime.fromisoformat(str(value).replace("Z", "+00:00"))
+    except (TypeError, ValueError):
+        return None
+    return parsed.replace(tzinfo=timezone.utc) if parsed.tzinfo is None else parsed.astimezone(timezone.utc)
+
+
+def shared_pool_admission(
+    candidate: dict,
+    *,
+    now: datetime | None = None,
+    reuse_days: int = 14,
+    dormant_cooldown_days: int = 30,
+    recent_contact_days: int = 90,
+) -> dict[str, object]:
+    """Return the shared-inventory decision before a candidate enters outreach.
+
+    Stale or dormant inventory remains researchable, but carries a recheck
+    requirement. Explicit suppression, closed state, active opt-out, recent
+    contact, and an unexpired dormant cooldown are hard blocks.
+    """
+    current = now or datetime.now(timezone.utc)
+    status = str(candidate.get("business_status") or "").strip().upper()
+    suppression = str(candidate.get("suppression_status") or candidate.get("contact_status") or "").strip().lower()
+    if status in {"CLOSED", "PERMANENTLY_CLOSED"}:
+        return {"allowed": False, "recheck_required": False, "reason": "closed"}
+    if candidate.get("suppressed") is True or candidate.get("opted_out") is True or candidate.get("global_opt_out") is True:
+        return {"allowed": False, "recheck_required": False, "reason": "suppressed_or_opted_out"}
+    if suppression in {"suppressed", "opted_out", "do_not_contact", "do_not_mail"}:
+        return {"allowed": False, "recheck_required": False, "reason": "suppressed_or_opted_out"}
+
+    contacted = _utc(candidate.get("last_contacted_at"))
+    if contacted and contacted >= current - timedelta(days=max(1, int(recent_contact_days))):
+        return {"allowed": False, "recheck_required": False, "reason": "recently_contacted"}
+
+    dormant = bool(candidate.get("dormant") or candidate.get("dormant_blocked"))
+    dormant_since = _utc(candidate.get("dormant_since"))
+    if dormant and dormant_since and current < dormant_since + timedelta(days=max(1, int(dormant_cooldown_days))):
+        return {"allowed": False, "recheck_required": True, "reason": "dormant_cooldown"}
+
+    expiry = _utc(candidate.get("freshness_expires_at"))
+    verified = max(
+        (stamp for stamp in (
+            _utc(candidate.get("last_verified_at")),
+            _utc(candidate.get("contact_rechecked_at")),
+            _utc(candidate.get("rechecked_at")),
+        ) if stamp),
+        default=None,
+    )
+    fresh = bool((expiry and expiry > current) or (verified and verified >= current - timedelta(days=max(1, int(reuse_days)))))
+    recheck_required = dormant or not fresh
+    return {
+        "allowed": True,
+        "fresh": fresh,
+        "dormant": dormant,
+        "recheck_required": recheck_required,
+        "reason": "recheck_required" if recheck_required else "fresh",
+    }
 
 
 def _norm_offer(value: Optional[str]) -> str:
@@ -253,9 +322,9 @@ def check_exclusivity_conflict(
                 )
                 if not icp_rows:
                     continue
-                exclusivity = (icp.get("exclusivity") or "shared").strip().lower()
-                other_offer = _norm_offer(icp.get("offer_category") or a.get("offer_category"))
-                other_geo = set(icp.get("geo") or [])
+                exclusivity = (icp_rows[0].get("exclusivity") or "shared").strip().lower()
+                other_offer = _norm_offer(icp_rows[0].get("offer_category") or a.get("offer_category"))
+                other_geo = set(icp_rows[0].get("geo") or [])
             if exclusivity != "exclusive":
                 continue
             if other_offer != my_offer:
@@ -274,14 +343,22 @@ def check_exclusivity_conflict(
 @to_async
 def quota_remaining(tenant_id: str) -> int:
     sb = get_supabase()
+    rpc_value: int | None = None
     try:
         r = sb.rpc("tenant_quota_remaining", {"p_tenant_id": tenant_id}).execute()
         if r.data is not None:
-            return int(r.data)
-    except Exception as exc: __import__("logging").getLogger(__name__).debug("suppressed optional failure: %s", exc)
+            rpc_value = max(0, int(r.data))
+    except Exception as exc:
+        __import__("logging").getLogger(__name__).debug("suppressed optional quota RPC failure: %s", exc)
+    # Read the tenant and usage ledger directly as the compatibility authority.
+    # Older deployed RPCs can legally return 0 when usage_log has no current
+    # period row, even when the tenant has a positive plan limit. Trusting that
+    # stale zero caused fresh real tenants to fail before discovery began.
     try:
         t = sb.table("tenants").select("leads_per_month_limit").eq("id", tenant_id).limit(1).execute().data
-        lim = (t[0]["leads_per_month_limit"] if t else 100) or 100
+        if not t:
+            return rpc_value or 0
+        lim = int(t[0].get("leads_per_month_limit") or 0)
         period = datetime.now(timezone.utc).replace(day=1).date().isoformat()
         try:
             u = (
@@ -309,7 +386,7 @@ def quota_remaining(tenant_id: str) -> int:
         rollover = int(row.get("rollover_credits") or 0)
         return max(lim + rollover - used - reserved, 0)
     except Exception:
-        return 0
+        return rpc_value or 0
 
 
 async def _tenant_exclusivity_entitled(tenant_id: str) -> bool:
@@ -338,12 +415,79 @@ async def assign_lead(
     offer_category: Optional[str] = None,
     discovery_request_id: Optional[str] = None,
     run_id: Optional[str] = None,
+    lead: Optional[dict] = None,
+    assignment_key: Optional[str] = None,
 ) -> dict:
     """
     Quota + exclusivity + 90-day recency → insert assignment → bump usage.
     Returns {"assigned": bool, "reason": str}.
     """
     sb = get_supabase()
+    assignment_key = str(assignment_key or f"{run_id or 'direct'}:{lead_id}")[:240]
+    existing_assignment_id: str | None = None
+
+    # The unique (lead_id, tenant_id) assignment is the durable idempotency
+    # boundary. Check it before reserving quota so a retry cannot bill twice.
+    try:
+        # Keep the admission read compatible with deployments before the
+        # additive CRM-status migration. The lead/tenant uniqueness and legacy
+        # delivery fields are the durable idempotency boundary.
+        existing = (await aexec(
+            sb.table("lead_assignments").select("id,status,delivered_at,delivery_status")
+            .eq("lead_id", str(lead_id)).eq("tenant_id", str(tenant_id)).limit(1)
+        )).data or []
+        if existing:
+            row = existing[0]
+            delivered_at = _utc(row.get("delivered_at"))
+            if delivered_at and delivered_at >= datetime.now(timezone.utc) - timedelta(days=90):
+                return {"assigned": False, "reason": "already_delivered_90d"}
+            if delivered_at and delivered_at < datetime.now(timezone.utc) - timedelta(days=90):
+                # Historical delivery is eligible again after 90 days. Reuse the
+                # unique tenant/lead row instead of creating a duplicate row.
+                existing_assignment_id = str(row.get("id") or "") or None
+            elif str(row.get("status") or "new") not in {"rejected", "expired"}:
+                crm_saved = row.get("crm_status") in (None, "saved", "not_configured")
+                return {"assigned": bool(crm_saved), "reason": "idempotent_replay" if crm_saved else "crm_pending", "assignment_id": row.get("id"), "crm_saved": crm_saved, "idempotent": True}
+    except Exception as exc:
+        logger.error("assignment idempotency check unavailable; refusing assignment: %s", exc, exc_info=True)
+        return {"assigned": False, "reason": "assignment_idempotency_unavailable"}
+
+    # Recheck mutable lead state immediately before reservation. Missing
+    # optional freshness fields are compatible with legacy rows; explicit stale,
+    # suppressed, closed, or invalid contact state always fails closed.
+    candidate = dict(lead or {})
+    if not candidate:
+        try:
+            rows = (await aexec(sb.table("leads_global").select("*").eq("id", str(lead_id)).limit(1))).data or []
+            candidate = dict(rows[0]) if rows else {}
+        except Exception as exc:
+            logger.error("assignment lead recheck unavailable: %s", exc, exc_info=True)
+            return {"assigned": False, "reason": "lead_recheck_unavailable"}
+    if candidate:
+        if candidate.get("_shared_pool_candidate"):
+            pool_decision = shared_pool_admission(
+                candidate,
+                reuse_days=int(os.getenv("ENRICHMENT_REUSE_DAYS", "14")),
+                dormant_cooldown_days=int(os.getenv("DORMANT_COOLDOWN_DAYS", "30")),
+            )
+            if not pool_decision.get("allowed"):
+                return {"assigned": False, "reason": str(pool_decision.get("reason") or "shared_pool_blocked")}
+            if pool_decision.get("recheck_required") and not candidate.get("_shared_pool_rechecked"):
+                return {"assigned": False, "reason": "recheck_required"}
+        if str(candidate.get("business_status") or "").upper() == "CLOSED":
+            return {"assigned": False, "reason": "closed"}
+        if candidate.get("suppressed") is True or candidate.get("opted_out") is True or candidate.get("dormant_blocked") is True:
+            return {"assigned": False, "reason": "suppressed_or_dormant"}
+        expiry = candidate.get("freshness_expires_at")
+        if expiry:
+            try:
+                if datetime.fromisoformat(str(expiry).replace("Z", "+00:00")) <= datetime.now(timezone.utc):
+                    return {"assigned": False, "reason": "freshness_expired"}
+            except (TypeError, ValueError):
+                return {"assigned": False, "reason": "freshness_invalid"}
+        from app.integrations.prod.contact_state import has_contact
+        if not has_contact(candidate):
+            return {"assigned": False, "reason": "no_verified_contact"}
 
     # 9.0: a run-level atomic slot prevents retries/concurrent workers from
     # delivering more than the explicit "Total leads this run" target.
@@ -397,14 +541,37 @@ async def assign_lead(
         try:
             rows = (
                 (await aexec(sb.table("icp_profiles")
-                .select("offer_category, exclusivity")
+                .select("tenant_id, vertical, geo, offer_category, exclusivity")
                 .eq("id", icp_id)
                 .limit(1)))
                 .data or []
             )
             if rows:
-                resolved_offer = resolved_offer or _norm_offer(rows[0].get("offer_category"))
-                icp_exclusivity = (rows[0].get("exclusivity") or "shared").strip().lower()
+                icp = rows[0]
+                owner = icp.get("tenant_id")
+                if owner and str(owner) != str(tenant_id):
+                    if run_slot_claimed:
+                        await aexec(sb.rpc("release_pipeline_run_slot", {"p_run_id": run_id, "p_tenant_id": tenant_id}))
+                    return {"assigned": False, "reason": "icp_not_authorized"}
+                expected_vertical = str(icp.get("vertical") or "").strip().lower()
+                if expected_vertical and str(vertical or "").strip().lower() != expected_vertical:
+                    if run_slot_claimed:
+                        await aexec(sb.rpc("release_pipeline_run_slot", {"p_run_id": run_id, "p_tenant_id": tenant_id}))
+                    return {"assigned": False, "reason": "icp_use_case_mismatch"}
+                expected_geo_values = icp.get("geo") or []
+                requested_geo_values = geo or []
+                if isinstance(expected_geo_values, str):
+                    expected_geo_values = [expected_geo_values]
+                if isinstance(requested_geo_values, str):
+                    requested_geo_values = [requested_geo_values]
+                expected_geo = {str(value).strip().lower() for value in expected_geo_values if str(value).strip()}
+                requested_geo = {str(value).strip().lower() for value in requested_geo_values if str(value).strip()}
+                if expected_geo and requested_geo and not expected_geo.intersection(requested_geo):
+                    if run_slot_claimed:
+                        await aexec(sb.rpc("release_pipeline_run_slot", {"p_run_id": run_id, "p_tenant_id": tenant_id}))
+                    return {"assigned": False, "reason": "icp_geo_mismatch"}
+                resolved_offer = resolved_offer or _norm_offer(icp.get("offer_category"))
+                icp_exclusivity = (icp.get("exclusivity") or "shared").strip().lower()
         except Exception as exc: __import__("logging").getLogger(__name__).debug("suppressed optional failure: %s", exc)
 
     if icp_exclusivity == "exclusive" and resolved_offer:
@@ -482,7 +649,7 @@ async def assign_lead(
         except Exception:
             logger.warning("could not resolve New stage for tenant %s", tenant_id, exc_info=True)
 
-        (await aexec(sb.table("lead_assignments").upsert({
+        assignment_payload = {
             "lead_id": lead_id,
             "tenant_id": tenant_id,
             "icp_id": icp_id,
@@ -490,13 +657,22 @@ async def assign_lead(
             "offer_category": resolved_offer,
             "geo_tags": geo or [],
             "tier": (tier or "C").upper() if tier else "C",
-            "delivered_at": datetime.now(timezone.utc).isoformat(),
+            "delivered_at": None,
             "delivery_channel": delivery_channel,
             "delivery_status": "pending",
             "status": "new",
             "stage_id": new_stage_id,
             "discovery_request_id": discovery_request_id,
-        }, on_conflict="lead_id,tenant_id")))
+        }
+        if existing_assignment_id:
+            updated = (await aexec(
+                sb.table("lead_assignments").update(assignment_payload)
+                .eq("id", existing_assignment_id).eq("tenant_id", tenant_id)
+            )).data or []
+            if not updated:
+                raise RuntimeError("historical_assignment_reuse_failed")
+        else:
+            await aexec(sb.table("lead_assignments").insert(assignment_payload))
     except Exception as e:
         logger.exception("assign upsert failed")
         if reserved_quota:
@@ -562,6 +738,64 @@ async def assign_lead(
         except Exception as exc:
             logger.warning("CRM projection boundary failed tenant=%s assignment=%s: %s", tenant_id, assignment_id, type(exc).__name__)
             crm_projection = {"crm_saved": False, "crm_status": "retryable", "crm_error": "crm_projection_unavailable", "retryable": True}
+        # Persist the CRM outcome on the assignment before any delivery worker
+        # can treat this row as ready. Retries update the same assignment.
+        try:
+            await aexec(sb.table("lead_assignments").update({
+                "crm_status": "saved" if crm_projection.get("crm_saved") else str(crm_projection.get("crm_status") or "retryable"),
+                "crm_company_id": crm_projection.get("company_id"),
+                "crm_contact_id": crm_projection.get("contact_id"),
+            }).eq("id", str(assignment_id)).eq("tenant_id", str(tenant_id)))
+        except Exception as exc:
+            logger.debug("CRM assignment status projection skipped: %s", type(exc).__name__)
+        if not crm_projection.get("crm_saved"):
+            # A CRM-pending assignment is not deliverable and must not consume
+            # the run target or tenant quota. Keep the rejected row for audit,
+            # release its reservation, and let the target stream replace it.
+            try:
+                if discovery_request_id:
+                    await aexec(sb.rpc("release_tenant_discovery_slot", {
+                        "p_tenant_id": tenant_id, "p_request_id": discovery_request_id,
+                    }))
+                else:
+                    await aexec(sb.rpc("release_tenant_lead_slot", {
+                        "p_tenant_id": tenant_id, "p_tier": (tier or "A").upper(),
+                    }))
+                if run_slot_claimed:
+                    await aexec(sb.rpc("release_pipeline_run_slot", {"p_run_id": run_id, "p_tenant_id": tenant_id}))
+            except Exception as release_exc:
+                logger.error("CRM-failed assignment quota release failed: %s", type(release_exc).__name__)
+            try:
+                await aexec(sb.table("lead_assignments").update({
+                    "status": "rejected", "delivery_status": "failed",
+                }).eq("id", str(assignment_id)).eq("tenant_id", str(tenant_id)))
+            except Exception:
+                logger.debug("CRM-failed assignment rejection projection skipped", exc_info=True)
+            return {
+                "assigned": False,
+                "reason": "crm_persistence_failed",
+                "assignment_id": assignment_id,
+                "crm_saved": False,
+                "retryable": bool(crm_projection.get("retryable", True)),
+            }
+        if not run_id:
+            try:
+                from app.layers.persistence_layer import record_stage_transition
+                stage_run_id = str(f"direct:{assignment_id}")
+                await record_stage_transition(
+                    str(tenant_id), stage_run_id, str(lead_id), "assignment", "accepted",
+                    assignment_id=str(assignment_id), metadata={"assignment_key": assignment_key},
+                    supabase=sb,
+                )
+                await record_stage_transition(
+                    str(tenant_id), stage_run_id, str(lead_id), "crm",
+                    "accepted" if crm_projection.get("crm_saved") else "retryable",
+                    reason=None if crm_projection.get("crm_saved") else str(crm_projection.get("reason") or "crm_projection_failed"),
+                    assignment_id=str(assignment_id), metadata={"assignment_key": assignment_key},
+                    supabase=sb,
+                )
+            except Exception as exc:
+                logger.debug("stage transition projection skipped: %s", type(exc).__name__)
         try:
             from app.integrations.prod.lead7_runtime import record_assignment
             await record_assignment(str(lead_id), str(tenant_id), str(assignment_id), reason="quota+quality+exclusivity")

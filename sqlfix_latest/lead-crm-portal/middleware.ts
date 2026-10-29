@@ -1,8 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
+import { getServerApiUpstream, isLocalAuthProfile } from "@/lib/config";
 
 const PUBLIC = new Set(["/", "/login", "/signup", "/accept-invite", "/verify-email", "/pricing", "/audit"]);
 const PORTAL_PREFIXES = ["/client", "/portal"];
-const PORTAL_ROUTES = new Set(["dashboard","growth","today","search","leads","companies","contacts","deals","sequences","compose","replies","notifications","pipeline","activities","reports","revenue","import","team","docs","settings","login","accept-invite"]);
+const PORTAL_ROUTES = new Set(["dashboard","growth","today","search","leads","companies","contacts","deals","sequences","automations","agents","compose","replies","notifications","pipeline","activities","reports","revenue","import","team","docs","settings","login","accept-invite"]);
 
 function authCookie(req: NextRequest) {
   const cookies = req.cookies.getAll().filter(c => c.name === "leadx_session");
@@ -10,6 +11,18 @@ function authCookie(req: NextRequest) {
 }
 
 async function sessionStatus(req: NextRequest) {
+  if (isLocalAuthProfile()) {
+    try {
+      const upstream = getServerApiUpstream();
+      const response = await fetch(`${upstream}/auth/session`, {
+        headers: { cookie: req.headers.get("cookie") || "" },
+        cache: "no-store",
+      });
+      return { ok: response.ok, access: "" };
+    } catch {
+      return { ok: false, access: "" };
+    }
+  }
   const token = authCookie(req);
   const url = (process.env.NEXT_PUBLIC_SUPABASE_URL || "").replace(/\/$/, "");
   const anon = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || "";
@@ -30,7 +43,12 @@ async function sessionStatus(req: NextRequest) {
   } catch { return { ok: false, access: "" }; }
 }
 
-function csp(nonce: string) {
+function isHttpsRequest(req: NextRequest) {
+  const forwarded = req.headers.get("x-forwarded-proto")?.split(",")[0]?.trim().toLowerCase();
+  return forwarded ? forwarded === "https" : req.nextUrl.protocol === "https:";
+}
+
+function csp(nonce: string, secureRequest: boolean) {
   const supabase = (process.env.NEXT_PUBLIC_SUPABASE_URL || "").replace(/\/$/, "");
   let supabaseOrigin = "";
   let supabaseWs = "";
@@ -39,13 +57,14 @@ function csp(nonce: string) {
     supabaseOrigin = parsed.origin;
     supabaseWs = parsed.origin.replace(/^http/, "ws");
   } catch {}
-  return ["default-src 'self'","base-uri 'self'","object-src 'none'","frame-ancestors 'none'","img-src 'self' data: blob: https:","font-src 'self' data: https:","style-src 'self' 'unsafe-inline'",`script-src 'self' 'nonce-${nonce}' 'strict-dynamic'`,`connect-src 'self' ${supabaseOrigin} ${supabaseWs}`.trim(),"form-action 'self'","frame-src 'none'",...(process.env.NODE_ENV === "production" ? ["upgrade-insecure-requests"] : [])].join("; ");
+  return ["default-src 'self'","base-uri 'self'","object-src 'none'","frame-ancestors 'none'","img-src 'self' data: blob: https:","font-src 'self' data: https:","style-src 'self' 'unsafe-inline'",`script-src 'self' 'nonce-${nonce}' 'strict-dynamic'`,`connect-src 'self' ${supabaseOrigin} ${supabaseWs}`.trim(),"form-action 'self'","frame-src 'none'",...(secureRequest ? ["upgrade-insecure-requests"] : [])].join("; ");
 }
 
 export async function middleware(req: NextRequest) {
   const { pathname } = req.nextUrl;
   const nonce = btoa(String.fromCharCode(...crypto.getRandomValues(new Uint8Array(16))));
-  const policy = csp(nonce);
+  const secureRequest = isHttpsRequest(req);
+  const policy = csp(nonce, secureRequest);
   const requestHeaders = new Headers(req.headers);
   requestHeaders.set("x-nonce", nonce);
   requestHeaders.set("Content-Security-Policy", policy);
@@ -70,7 +89,7 @@ export async function middleware(req: NextRequest) {
       if (!session.ok) { const url=req.nextUrl.clone(); url.pathname=pathname.startsWith("/admin") ? "/admin/login" : "/login"; url.searchParams.set("next",pathname); res=NextResponse.redirect(url); res.headers.set("Content-Security-Policy",policy); return res; }
       res=NextResponse.next({ request: { headers: requestHeaders } });
       if (session.refresh) {
-        const secure = process.env.NODE_ENV === "production";
+        const secure = secureRequest;
         res.cookies.set("leadx_session", session.access, {
           path: "/", maxAge: session.expires || 3600, httpOnly: true,
           sameSite: "lax", secure,
@@ -90,7 +109,7 @@ export async function middleware(req: NextRequest) {
   res.headers.set("X-Frame-Options","DENY");
   res.headers.set("Referrer-Policy","strict-origin-when-cross-origin");
   res.headers.set("Permissions-Policy","camera=(), microphone=(), geolocation=()");
-  if (process.env.NODE_ENV === "production") res.headers.set("Strict-Transport-Security","max-age=31536000; includeSubDomains");
+  if (secureRequest) res.headers.set("Strict-Transport-Security","max-age=31536000; includeSubDomains");
   res.headers.set("Cross-Origin-Opener-Policy","same-origin");
   return res;
 }

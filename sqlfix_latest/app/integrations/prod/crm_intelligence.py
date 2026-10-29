@@ -24,7 +24,7 @@ def pipeline_health(tenant_id: str) -> dict:
     at_risk=[x for x in deals if x.get("health_score") is not None and int(x["health_score"]) < 50]
     no_next=[x for x in deals if not x.get("next_action_at")]
     stale=[x for x in deals if x.get("last_activity_at") and x["last_activity_at"] < (_now()-timedelta(days=14)).isoformat()]
-    return {"open_deals":len(deals),"pipeline_value":round(total,2),"weighted_value":round(weighted,2),"at_risk":len(at_risk),"missing_next_action":len(no_next),"stale":len(stale)}
+    return {"open_deals":len(deals),"pipeline_value":round(total,2),"weighted_value":round(weighted,2),"pipeline_value_source":"sum of open deals.value","weighted_value_method":"sum of open deals.value * probability / 100","at_risk":len(at_risk),"missing_next_action":len(no_next),"stale":len(stale)}
 
 
 def attribution(tenant_id: str, days: int = 365) -> dict:

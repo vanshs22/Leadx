@@ -7,9 +7,11 @@ import { useCrmChange } from "@/lib/crmRealtime";
 import { FunnelChart } from "@/components/charts/FunnelChart";
 import { EmptyState, ErrorState, LoadingRows, PollingDeadlineState } from "@/components/ui/States";
 import { useLiveLoader } from "@/lib/live";
-import { PageHeader } from "@/components/ui/Primitives";
+import { Badge, PageHeader, Panel, StatCard, StatGrid } from "@/components/ui/Primitives";
+import { Icon } from "@/components/ui/Icon";
 import { FreshnessNote } from "@/components/ui/SurfaceMeta";
 import dynamic from "next/dynamic";
+import Link from "next/link";
 
 const TierDonut = dynamic(() => import("@/components/charts/TierDonut").then((m) => m.TierDonut), { ssr: false, loading: () => <div className="skeleton h-12 w-full rounded-lg" /> });
 
@@ -88,28 +90,60 @@ export default function ReportsPage() {
     }
   }
 
-  if (error && !data) return <div className="page"><ErrorState error={error} onRetry={() => setRefreshKey((value) => value + 1)} /></div>;
-  if (loading && !data) return <div className="page"><h1 className="page-title">Reports</h1><LoadingRows rows={4} cols={4} /></div>;
-  if (!data) return <div className="page"><EmptyState title="Reports are unavailable" hint="No report snapshot was returned for this workspace." action={<button type="button" className="btn-secondary" onClick={() => setRefreshKey((value) => value + 1)}>Try again</button>} /></div>;
+  if (error && !data) return <div className="page"><PageHeader eyebrow="Measure" title="Reports" description="Quality mix and conversion snapshot." /><ErrorState error={error} onRetry={() => setRefreshKey((value) => value + 1)} /></div>;
+  if (loading && !data) return <div className="page"><PageHeader eyebrow="Measure" title="Reports" description="Loading the latest report snapshot…" /><StatGrid cols={4}>{Array.from({ length: 4 }).map((_, i) => <div key={i} className="kpi"><div className="skeleton h-3 w-20" /><div className="skeleton mt-3 h-6 w-24" /></div>)}</StatGrid><div className="card"><LoadingRows rows={4} cols={4} /></div></div>;
+  if (!data) return <div className="page"><PageHeader eyebrow="Measure" title="Reports" /><div className="card"><EmptyState title="Reports are unavailable" hint="No report snapshot was returned for this workspace." action={<button type="button" className="btn-secondary" onClick={() => setRefreshKey((value) => value + 1)}>Try again</button>} /></div></div>;
 
   const byTier = data.by_tier || {};
   const byStage = Object.entries(data.by_stage || {}).map(([stage, count]) => ({ stage, count: count as number }));
+  const stageTotal = byStage.reduce((sum, s) => sum + (Number(s.count) || 0), 0);
+  const tierRows = [
+    { tier: "A", count: Number(byTier.A || 0), tone: "accent" as const },
+    { tier: "B", count: Number(byTier.B || 0), tone: "brand" as const },
+    { tier: "C", count: Number(byTier.C || 0), tone: "neutral" as const },
+  ];
+  const tierTotal = tierRows.reduce((sum, t) => sum + t.count, 0);
+  const pct = (n: number, d: number) => (d ? `${Math.round((n / d) * 100)}%` : "—");
+  const num = (v: unknown) => (typeof v === "number" ? v.toLocaleString() : String(v ?? "—"));
 
   return (
     <div className="page">
-        <PageHeader eyebrow="Measure" title="Reports" description="Quality mix and conversion snapshot; cached data remains visible when the API is restarting." actions={<><button type="button" aria-label="Refresh reports" className="btn-secondary" onClick={() => { setDeadline(false); setRefreshKey((value) => value + 1); }} disabled={loading}>{loading ? "Refreshing…" : "Refresh"}</button><button type="button" aria-label="Export report as CSV" onClick={exportCsv} disabled={exporting} className="btn-secondary disabled:opacity-50">{exporting ? "Exporting…" : "Export CSV"}</button></>} meta={<FreshnessNote label={stale ? "Cached report" : "Fresh report"} detail={stale ? "refreshing in background" : "from CRM API"} />} />
-        {deadline ? <PollingDeadlineState onRefresh={() => { setDeadline(false); setRefreshKey((value) => value + 1); }} /> : null}
+      <PageHeader eyebrow="Measure" title="Reports" description="Quality mix and conversion snapshot; cached data remains visible when the API is restarting." actions={<><button type="button" aria-label="Refresh reports" className="btn-secondary" onClick={() => { setDeadline(false); setRefreshKey((value) => value + 1); }} disabled={loading}><Icon name="refresh" size={14} aria-hidden="true" />{loading ? "Refreshing…" : "Refresh"}</button><button type="button" aria-label="Export report as CSV" onClick={exportCsv} disabled={exporting} className="btn-secondary"><Icon name="download" size={14} aria-hidden="true" />{exporting ? "Exporting…" : "Export CSV"}</button><Link href="/reports/deals" className="btn-ghost">Deal reporting</Link></>} meta={<FreshnessNote label={stale ? "Cached report" : "Fresh report"} detail={stale ? "refreshing in background" : "from CRM API"} />} />
+      {deadline ? <PollingDeadlineState onRefresh={() => { setDeadline(false); setRefreshKey((value) => value + 1); }} /> : null}
+      {error && data ? <ErrorState error={error} onRetry={() => setRefreshKey((value) => value + 1)} /> : null}
 
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        {[{ label: "Total leads", value: data.total }, { label: "With email", value: `${data.with_email} (${data.with_email_pct}%)` }, { label: "With booking", value: data.with_booking }, { label: "Avg score", value: data.avg_score }].map((c) => (
-          <div key={c.label} className="kpi"><div className="label">{c.label}</div><div className="kpi-value mt-2">{c.value}</div></div>
-        ))}
-      </div>
+      <StatGrid cols={4}>
+        <StatCard label="Total leads" value={num(data.total)} tone="brand" />
+        <StatCard label="With email" value={num(data.with_email)} hint={<span className="tabular-nums">{data.with_email_pct}% of leads</span>} tone="success" />
+        <StatCard label="With booking" value={num(data.with_booking)} />
+        <StatCard label="Avg score" value={num(data.avg_score)} />
+      </StatGrid>
 
       <div className="grid gap-4 lg:grid-cols-3">
-        <div className="card-pad flex flex-col items-center justify-center gap-4"><h2 className="self-start text-sm font-semibold text-ink">Quality mix</h2><TierDonut a={byTier.A || 0} b={byTier.B || 0} c={byTier.C || 0} /></div>
-        <div className="card-pad lg:col-span-2"><h2 className="text-sm font-semibold text-ink">By stage</h2><div className="mt-4">{byStage.length ? <FunnelChart stages={byStage} /> : <EmptyState title="No stage data yet" hint="Move leads through the lifecycle to populate this funnel." />}</div></div>
+        <Panel title="Quality mix" description="Lead tiers in this workspace." bodyClassName="panel-body flex flex-col items-center gap-5">
+          <TierDonut a={byTier.A || 0} b={byTier.B || 0} c={byTier.C || 0} />
+          <table className="w-full text-[0.8125rem]">
+            <caption className="sr-only">Leads by tier</caption>
+            <thead><tr><th scope="col" className="label pb-2 text-left">Tier</th><th scope="col" className="label pb-2 text-right">Leads</th><th scope="col" className="label pb-2 text-right">Share</th></tr></thead>
+            <tbody>{tierRows.map((t) => <tr key={t.tier} className="border-t border-line"><td className="py-2"><Badge tone={t.tone}>Tier {t.tier}</Badge></td><td className="py-2 text-right tabular-nums text-ink">{t.count.toLocaleString()}</td><td className="py-2 text-right tabular-nums text-ink-muted">{pct(t.count, tierTotal)}</td></tr>)}</tbody>
+          </table>
+        </Panel>
+        <Panel title="By stage" description="Where leads sit in the lifecycle right now." className="lg:col-span-2">
+          {byStage.length ? <FunnelChart stages={byStage} /> : <EmptyState title="No stage data yet" hint="Move leads through the lifecycle to populate this funnel." />}
+        </Panel>
       </div>
+
+      {byStage.length ? (
+        <Panel title="Stage breakdown" description="Counts and share of all staged leads." bodyClassName="p-0">
+          <div className="overflow-x-auto">
+            <table className="data-table">
+              <caption className="sr-only">Leads by stage</caption>
+              <thead><tr><th scope="col">Stage</th><th scope="col" className="!text-right">Leads</th><th scope="col" className="!text-right">Share</th></tr></thead>
+              <tbody>{byStage.map((s) => <tr key={s.stage}><td className="font-medium capitalize">{s.stage.replace(/_/g, " ")}</td><td className="text-right tabular-nums">{(Number(s.count) || 0).toLocaleString()}</td><td className="text-right tabular-nums text-ink-muted">{pct(Number(s.count) || 0, stageTotal)}</td></tr>)}</tbody>
+            </table>
+          </div>
+        </Panel>
+      ) : null}
     </div>
   );
 }

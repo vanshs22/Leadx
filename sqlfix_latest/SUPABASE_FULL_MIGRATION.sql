@@ -9371,6 +9371,9 @@ create table if not exists public.agent_missions (
   objective text not null,
   input_data jsonb not null default '{}'::jsonb,
   mode text not null default 'supervised' check (mode in ('manual','supervised','autonomous')),
+  parent_agent_id text not null default 'gtm',
+  graph_version text not null default 'gtm-v1',
+  graph_count integer not null default 30 check (graph_count = 30),
   status text not null default 'queued' check (status in ('queued','running','completed','failed','cancelled')),
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
@@ -9384,6 +9387,9 @@ ALTER TABLE IF EXISTS public.agent_missions ADD COLUMN IF NOT EXISTS tenant_id u
 ALTER TABLE IF EXISTS public.agent_missions ADD COLUMN IF NOT EXISTS objective text;
 ALTER TABLE IF EXISTS public.agent_missions ADD COLUMN IF NOT EXISTS input_data jsonb;
 ALTER TABLE IF EXISTS public.agent_missions ADD COLUMN IF NOT EXISTS mode text;
+ALTER TABLE IF EXISTS public.agent_missions ADD COLUMN IF NOT EXISTS parent_agent_id text DEFAULT 'gtm';
+ALTER TABLE IF EXISTS public.agent_missions ADD COLUMN IF NOT EXISTS graph_version text DEFAULT 'gtm-v1';
+ALTER TABLE IF EXISTS public.agent_missions ADD COLUMN IF NOT EXISTS graph_count integer DEFAULT 30;
 ALTER TABLE IF EXISTS public.agent_missions ADD COLUMN IF NOT EXISTS status text;
 ALTER TABLE IF EXISTS public.agent_missions ADD COLUMN IF NOT EXISTS created_at timestamptz;
 ALTER TABLE IF EXISTS public.agent_missions ADD COLUMN IF NOT EXISTS updated_at timestamptz;
@@ -9395,6 +9401,9 @@ create table if not exists public.agent_mission_tasks (
   tenant_id uuid not null references public.tenants(id) on delete cascade,
   agent_id text not null,
   objective text not null,
+  task_id text not null,
+  topological_order integer not null check (topological_order >= 0 and topological_order < 30),
+  executor_key text not null,
   depends_on jsonb not null default '[]'::jsonb,
   input_data jsonb not null default '{}'::jsonb,
   output_data jsonb not null default '{}'::jsonb,
@@ -9415,6 +9424,9 @@ ALTER TABLE IF EXISTS public.agent_mission_tasks ADD COLUMN IF NOT EXISTS missio
 ALTER TABLE IF EXISTS public.agent_mission_tasks ADD COLUMN IF NOT EXISTS tenant_id uuid;
 ALTER TABLE IF EXISTS public.agent_mission_tasks ADD COLUMN IF NOT EXISTS agent_id text;
 ALTER TABLE IF EXISTS public.agent_mission_tasks ADD COLUMN IF NOT EXISTS objective text;
+ALTER TABLE IF EXISTS public.agent_mission_tasks ADD COLUMN IF NOT EXISTS task_id text;
+ALTER TABLE IF EXISTS public.agent_mission_tasks ADD COLUMN IF NOT EXISTS topological_order integer;
+ALTER TABLE IF EXISTS public.agent_mission_tasks ADD COLUMN IF NOT EXISTS executor_key text;
 ALTER TABLE IF EXISTS public.agent_mission_tasks ADD COLUMN IF NOT EXISTS depends_on jsonb;
 ALTER TABLE IF EXISTS public.agent_mission_tasks ADD COLUMN IF NOT EXISTS input_data jsonb;
 ALTER TABLE IF EXISTS public.agent_mission_tasks ADD COLUMN IF NOT EXISTS output_data jsonb;
@@ -9451,6 +9463,8 @@ ALTER TABLE IF EXISTS public.agent_mission_events ADD COLUMN IF NOT EXISTS creat
 
 create index if not exists agent_missions_tenant_created_idx on public.agent_missions(tenant_id, created_at desc);
 create index if not exists agent_mission_tasks_mission_status_idx on public.agent_mission_tasks(tenant_id, mission_id, status);
+create unique index if not exists agent_mission_tasks_task_key_idx on public.agent_mission_tasks(mission_id, task_id);
+create unique index if not exists agent_mission_tasks_topological_order_idx on public.agent_mission_tasks(mission_id, topological_order);
 create index if not exists agent_mission_tasks_run_idx on public.agent_mission_tasks(tenant_id, agent_run_id);
 create index if not exists agent_mission_events_mission_idx on public.agent_mission_events(tenant_id, mission_id, created_at desc);
 
@@ -10706,7 +10720,92 @@ END; $$;
 REVOKE ALL ON FUNCTION public.leadx_reopen_job_operation(uuid) FROM PUBLIC, anon, authenticated;
 GRANT EXECUTE ON FUNCTION public.leadx_reopen_job_operation(uuid) TO service_role;
 -- ============================================================================
--- CANONICAL MIGRATION 26: 20261001001000_leadx_16_migration_preflight.sql
+-- CANONICAL MIGRATION 26: 20261001000950_leadx_16_durable_task_recovery.sql
+-- ============================================================================
+-- LeadX 16.0: additive durable task recovery and accounting identity.
+-- This migration preserves all existing status values, rows, RLS, and job
+-- operation semantics. New columns are nullable/defaulted for old rows.
+ALTER TABLE IF EXISTS public.jobs ADD COLUMN IF NOT EXISTS lease_expires_at timestamptz;
+ALTER TABLE IF EXISTS public.jobs ADD COLUMN IF NOT EXISTS retry_after timestamptz;
+ALTER TABLE IF EXISTS public.jobs ADD COLUMN IF NOT EXISTS error_category text;
+ALTER TABLE IF EXISTS public.jobs ADD COLUMN IF NOT EXISTS dependency_outcome text;
+ALTER TABLE IF EXISTS public.jobs ADD COLUMN IF NOT EXISTS terminal_result jsonb;
+ALTER TABLE IF EXISTS public.jobs ADD COLUMN IF NOT EXISTS accounting_reconciliation_status text DEFAULT 'not_required';
+CREATE INDEX IF NOT EXISTS idx_jobs_due_lease ON public.jobs(status, run_after, lease_expires_at);
+CREATE INDEX IF NOT EXISTS idx_jobs_retry_after ON public.jobs(retry_after) WHERE status = 'queued';
+ALTER TABLE IF EXISTS public.job_operations ADD COLUMN IF NOT EXISTS principal_scope text NOT NULL DEFAULT '';
+ALTER TABLE IF EXISTS public.job_operations ADD COLUMN IF NOT EXISTS terminal_result jsonb;
+ALTER TABLE IF EXISTS public.job_operations ADD COLUMN IF NOT EXISTS settlement_key text;
+CREATE INDEX IF NOT EXISTS idx_job_operations_principal ON public.job_operations(tenant_id, principal_scope, operation_kind, idempotency_key);
+ALTER TABLE IF EXISTS public.agent_missions ADD COLUMN IF NOT EXISTS progress_total integer NOT NULL DEFAULT 0;
+ALTER TABLE IF EXISTS public.agent_missions ADD COLUMN IF NOT EXISTS progress_completed integer NOT NULL DEFAULT 0;
+ALTER TABLE IF EXISTS public.agent_missions ADD COLUMN IF NOT EXISTS progress_failed integer NOT NULL DEFAULT 0;
+ALTER TABLE IF EXISTS public.agent_missions ADD COLUMN IF NOT EXISTS progress_skipped integer NOT NULL DEFAULT 0;
+ALTER TABLE IF EXISTS public.agent_missions ADD COLUMN IF NOT EXISTS progress_remaining integer NOT NULL DEFAULT 30;
+ALTER TABLE IF EXISTS public.agent_missions ADD COLUMN IF NOT EXISTS failure_summary jsonb;
+ALTER TABLE IF EXISTS public.agent_missions ADD COLUMN IF NOT EXISTS terminal_result jsonb;
+ALTER TABLE IF EXISTS public.agent_missions ADD COLUMN IF NOT EXISTS completed_at timestamptz;
+ALTER TABLE IF EXISTS public.agent_mission_tasks ADD COLUMN IF NOT EXISTS attempts integer NOT NULL DEFAULT 0;
+ALTER TABLE IF EXISTS public.agent_mission_tasks ADD COLUMN IF NOT EXISTS max_attempts integer NOT NULL DEFAULT 3;
+ALTER TABLE IF EXISTS public.agent_mission_tasks ADD COLUMN IF NOT EXISTS run_after timestamptz NOT NULL DEFAULT now();
+ALTER TABLE IF EXISTS public.agent_mission_tasks ADD COLUMN IF NOT EXISTS lease_owner text;
+ALTER TABLE IF EXISTS public.agent_mission_tasks ADD COLUMN IF NOT EXISTS lease_expires_at timestamptz;
+ALTER TABLE IF EXISTS public.agent_mission_tasks ADD COLUMN IF NOT EXISTS lease_renewed_at timestamptz;
+ALTER TABLE IF EXISTS public.agent_mission_tasks ADD COLUMN IF NOT EXISTS error_category text;
+ALTER TABLE IF EXISTS public.agent_mission_tasks ADD COLUMN IF NOT EXISTS dependency_outcome text;
+ALTER TABLE IF EXISTS public.agent_mission_tasks ADD COLUMN IF NOT EXISTS terminal_result jsonb;
+CREATE INDEX IF NOT EXISTS idx_mission_tasks_due_lease ON public.agent_mission_tasks(status, run_after, lease_expires_at);
+CREATE INDEX IF NOT EXISTS idx_mission_tasks_owner ON public.agent_mission_tasks(tenant_id, lease_owner) WHERE status = 'running';
+CREATE TABLE IF NOT EXISTS public.job_attempts (id uuid PRIMARY KEY DEFAULT gen_random_uuid(), job_id uuid NOT NULL REFERENCES public.jobs(id) ON DELETE CASCADE, tenant_id uuid REFERENCES public.tenants(id) ON DELETE CASCADE, attempt integer NOT NULL CHECK (attempt > 0), owner text, claimed_at timestamptz NOT NULL DEFAULT now(), lease_expires_at timestamptz, finished_at timestamptz, outcome text, retryable boolean, error_category text, error text, result jsonb, UNIQUE(job_id, attempt));
+CREATE INDEX IF NOT EXISTS idx_job_attempts_tenant_job ON public.job_attempts(tenant_id, job_id, attempt);
+ALTER TABLE public.job_attempts ENABLE ROW LEVEL SECURITY;
+REVOKE ALL ON TABLE public.job_attempts FROM PUBLIC, anon, authenticated;
+GRANT ALL ON TABLE public.job_attempts TO service_role;
+CREATE TABLE IF NOT EXISTS public.agent_mission_task_attempts (id uuid PRIMARY KEY DEFAULT gen_random_uuid(), task_id uuid NOT NULL REFERENCES public.agent_mission_tasks(id) ON DELETE CASCADE, mission_id uuid NOT NULL REFERENCES public.agent_missions(id) ON DELETE CASCADE, tenant_id uuid NOT NULL REFERENCES public.tenants(id) ON DELETE CASCADE, attempt integer NOT NULL CHECK (attempt > 0), owner text NOT NULL, claimed_at timestamptz NOT NULL DEFAULT now(), lease_expires_at timestamptz, finished_at timestamptz, outcome text, retryable boolean, error_category text, error text, result jsonb, UNIQUE(task_id, attempt));
+CREATE INDEX IF NOT EXISTS idx_mission_task_attempts_task ON public.agent_mission_task_attempts(tenant_id, task_id, attempt);
+ALTER TABLE public.agent_mission_task_attempts ENABLE ROW LEVEL SECURITY;
+REVOKE ALL ON TABLE public.agent_mission_task_attempts FROM PUBLIC, anon, authenticated;
+GRANT ALL ON TABLE public.agent_mission_task_attempts TO service_role;
+CREATE TABLE IF NOT EXISTS public.quota_reservations (id uuid PRIMARY KEY DEFAULT gen_random_uuid(), tenant_id uuid NOT NULL REFERENCES public.tenants(id) ON DELETE CASCADE, job_id uuid REFERENCES public.jobs(id) ON DELETE SET NULL, operation_id uuid REFERENCES public.job_operations(id) ON DELETE SET NULL, requested_quantity integer NOT NULL DEFAULT 0 CHECK (requested_quantity >= 0), reserved_quantity integer NOT NULL DEFAULT 0 CHECK (reserved_quantity >= 0), committed_quantity integer NOT NULL DEFAULT 0 CHECK (committed_quantity >= 0), released_quantity integer NOT NULL DEFAULT 0 CHECK (released_quantity >= 0), status text NOT NULL DEFAULT 'reserved' CHECK (status IN ('reserved','committed','released','rejected')), settlement_key text NOT NULL, created_at timestamptz NOT NULL DEFAULT now(), updated_at timestamptz NOT NULL DEFAULT now(), UNIQUE(tenant_id, settlement_key));
+CREATE INDEX IF NOT EXISTS idx_quota_reservations_job ON public.quota_reservations(tenant_id, job_id);
+CREATE INDEX IF NOT EXISTS idx_quota_reservations_status ON public.quota_reservations(tenant_id, status, updated_at);
+ALTER TABLE public.quota_reservations ENABLE ROW LEVEL SECURITY;
+REVOKE ALL ON TABLE public.quota_reservations FROM PUBLIC, anon, authenticated;
+GRANT ALL ON TABLE public.quota_reservations TO service_role;
+CREATE TABLE IF NOT EXISTS public.quota_settlements (id uuid PRIMARY KEY DEFAULT gen_random_uuid(), reservation_id uuid NOT NULL REFERENCES public.quota_reservations(id) ON DELETE CASCADE, tenant_id uuid NOT NULL REFERENCES public.tenants(id) ON DELETE CASCADE, settlement_key text NOT NULL, outcome text NOT NULL CHECK (outcome IN ('committed','released','rejected')), quantity integer NOT NULL DEFAULT 0 CHECK (quantity >= 0), created_at timestamptz NOT NULL DEFAULT now(), UNIQUE(reservation_id, settlement_key));
+CREATE INDEX IF NOT EXISTS idx_quota_settlements_tenant ON public.quota_settlements(tenant_id, created_at DESC);
+ALTER TABLE public.quota_settlements ENABLE ROW LEVEL SECURITY;
+REVOKE ALL ON TABLE public.quota_settlements FROM PUBLIC, anon, authenticated;
+GRANT ALL ON TABLE public.quota_settlements TO service_role;
+ALTER TABLE IF EXISTS public.worker_heartbeats ADD COLUMN IF NOT EXISTS queue_capability boolean NOT NULL DEFAULT false;
+ALTER TABLE IF EXISTS public.worker_heartbeats ADD COLUMN IF NOT EXISTS queue_checked_at timestamptz;
+ALTER TABLE IF EXISTS public.worker_heartbeats ADD COLUMN IF NOT EXISTS reclaim_capability boolean NOT NULL DEFAULT false;
+ALTER TABLE IF EXISTS public.worker_heartbeats ADD COLUMN IF NOT EXISTS reclaim_checked_at timestamptz;
+ALTER TABLE IF EXISTS public.worker_heartbeats ADD COLUMN IF NOT EXISTS last_terminal_error_category text;
+CREATE INDEX IF NOT EXISTS idx_worker_heartbeats_capability ON public.worker_heartbeats(status, queue_checked_at, reclaim_checked_at);
+
+CREATE OR REPLACE FUNCTION public.leadx_claim_next_job(p_worker_id text, p_kinds text[] DEFAULT NULL) RETURNS SETOF public.jobs LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$ DECLARE r public.jobs%rowtype; v_lease_seconds integer := GREATEST(30, COALESCE(NULLIF(current_setting('app.job_lease_seconds', true), '')::integer, 2700)); BEGIN SELECT * INTO r FROM public.jobs WHERE status='queued' AND run_after <= now() AND (p_kinds IS NULL OR kind = ANY(p_kinds)) ORDER BY priority DESC, created_at FOR UPDATE SKIP LOCKED LIMIT 1; IF r.id IS NULL THEN RETURN; END IF; UPDATE public.jobs SET status='running', locked_by=p_worker_id, locked_at=now(), lease_renewed_at=now(), lease_expires_at=now() + make_interval(secs => v_lease_seconds), started_at=COALESCE(started_at, now()), attempts=COALESCE(attempts,0)+1, error_category=NULL, dependency_outcome='claimed' WHERE id=r.id AND status='queued' RETURNING * INTO r; INSERT INTO public.job_attempts(job_id,tenant_id,attempt,owner,lease_expires_at) VALUES(r.id,r.tenant_id,r.attempts,p_worker_id,r.lease_expires_at) ON CONFLICT(job_id,attempt) DO NOTHING; RETURN NEXT r; END $$;
+REVOKE ALL ON FUNCTION public.leadx_claim_next_job(text,text[]) FROM PUBLIC, anon, authenticated;
+GRANT EXECUTE ON FUNCTION public.leadx_claim_next_job(text,text[]) TO service_role;
+CREATE OR REPLACE FUNCTION public.leadx_probe_queue_capability(p_worker_id text, p_checked_at timestamptz DEFAULT now()) RETURNS jsonb LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$ BEGIN IF p_worker_id IS NULL OR btrim(p_worker_id) = '' THEN RETURN jsonb_build_object('ok',false,'reclaim_capability',false,'reason','worker_id_required'); END IF; RETURN jsonb_build_object('ok',true,'worker_id',p_worker_id,'checked_at',COALESCE(p_checked_at,now()),'queue_capability',true,'reclaim_capability',to_regprocedure('public.leadx_reap_stale_mission_tasks(integer)') IS NOT NULL); END $$;
+REVOKE ALL ON FUNCTION public.leadx_probe_queue_capability(text,timestamptz) FROM PUBLIC, anon, authenticated;
+GRANT EXECUTE ON FUNCTION public.leadx_probe_queue_capability(text,timestamptz) TO service_role;
+CREATE OR REPLACE FUNCTION public.leadx_claim_mission_task(p_task_id uuid, p_tenant_id uuid, p_owner text, p_lease_seconds integer DEFAULT 900) RETURNS SETOF public.agent_mission_tasks LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$ DECLARE r public.agent_mission_tasks%rowtype; v_attempt integer; BEGIN SELECT * INTO r FROM public.agent_mission_tasks WHERE id=p_task_id AND tenant_id=p_tenant_id AND status='queued' AND run_after <= now() FOR UPDATE SKIP LOCKED; IF r.id IS NULL THEN RETURN; END IF; v_attempt := COALESCE(r.attempts,0)+1; UPDATE public.agent_mission_tasks SET status='running', attempts=v_attempt, lease_owner=p_owner, lease_renewed_at=now(), lease_expires_at=now()+make_interval(secs=>GREATEST(30,p_lease_seconds)), started_at=COALESCE(started_at,now()), error=NULL, error_category=NULL, dependency_outcome='claimed', updated_at=now() WHERE id=r.id AND tenant_id=p_tenant_id AND status='queued' RETURNING * INTO r; INSERT INTO public.agent_mission_task_attempts(task_id,mission_id,tenant_id,attempt,owner,lease_expires_at) VALUES(r.id,r.mission_id,r.tenant_id,r.attempts,r.lease_owner,r.lease_expires_at) ON CONFLICT(task_id,attempt) DO NOTHING; RETURN NEXT r; END $$;
+REVOKE ALL ON FUNCTION public.leadx_claim_mission_task(uuid,uuid,text,integer) FROM PUBLIC, anon, authenticated;
+GRANT EXECUTE ON FUNCTION public.leadx_claim_mission_task(uuid,uuid,text,integer) TO service_role;
+CREATE OR REPLACE FUNCTION public.leadx_renew_mission_task(p_task_id uuid, p_tenant_id uuid, p_owner text, p_lease_seconds integer DEFAULT 900) RETURNS SETOF public.agent_mission_tasks LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$ BEGIN RETURN QUERY UPDATE public.agent_mission_tasks SET lease_renewed_at=now(), lease_expires_at=now()+make_interval(secs=>GREATEST(30,p_lease_seconds)), updated_at=now() WHERE id=p_task_id AND tenant_id=p_tenant_id AND status='running' AND lease_owner=p_owner AND (lease_expires_at IS NULL OR lease_expires_at > now()) RETURNING *; END $$;
+REVOKE ALL ON FUNCTION public.leadx_renew_mission_task(uuid,uuid,text,integer) FROM PUBLIC, anon, authenticated;
+GRANT EXECUTE ON FUNCTION public.leadx_renew_mission_task(uuid,uuid,text,integer) TO service_role;
+CREATE OR REPLACE FUNCTION public.leadx_reap_stale_mission_tasks(p_limit integer DEFAULT 500) RETURNS SETOF public.agent_mission_tasks LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$ DECLARE r public.agent_mission_tasks%rowtype; v_status text; BEGIN FOR r IN SELECT * FROM public.agent_mission_tasks WHERE status='running' AND lease_expires_at IS NOT NULL AND lease_expires_at < now() ORDER BY lease_expires_at LIMIT GREATEST(1,LEAST(p_limit,500)) FOR UPDATE SKIP LOCKED LOOP v_status := CASE WHEN COALESCE(r.attempts,0) < COALESCE(r.max_attempts,3) THEN 'queued' ELSE 'failed' END; UPDATE public.agent_mission_tasks SET status=v_status, lease_owner=NULL, lease_expires_at=NULL, error='worker_lost_reaped', error_category='lease_expired', dependency_outcome=CASE WHEN v_status='queued' THEN 'recovered' ELSE 'terminal' END, run_after=CASE WHEN v_status='queued' THEN now()+make_interval(secs=>LEAST(3600,60*2^GREATEST(0,r.attempts-1))) ELSE now() END, finished_at=CASE WHEN v_status='failed' THEN now() ELSE NULL END, terminal_result=CASE WHEN v_status='failed' THEN jsonb_build_object('status','failed','error_category','lease_expired') ELSE NULL END, updated_at=now() WHERE id=r.id AND status='running' AND lease_expires_at < now() RETURNING * INTO r; UPDATE public.agent_mission_task_attempts SET finished_at=now(), outcome=v_status, retryable=(v_status='queued'), error_category='lease_expired' WHERE task_id=r.id AND attempt=r.attempts AND finished_at IS NULL; RETURN NEXT r; END LOOP; END $$;
+REVOKE ALL ON FUNCTION public.leadx_reap_stale_mission_tasks(integer) FROM PUBLIC, anon, authenticated;
+GRANT EXECUTE ON FUNCTION public.leadx_reap_stale_mission_tasks(integer) TO service_role;
+CREATE OR REPLACE FUNCTION public.leadx_record_quota_settlement(p_reservation_id uuid, p_tenant_id uuid, p_settlement_key text, p_outcome text, p_quantity integer DEFAULT 0) RETURNS jsonb LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$ DECLARE r public.quota_reservations%rowtype; v_outcome text := lower(btrim(coalesce(p_outcome,''))); BEGIN IF v_outcome NOT IN ('committed','released','rejected') OR p_quantity < 0 THEN RETURN jsonb_build_object('ok',false,'reason','invalid_settlement'); END IF; SELECT * INTO r FROM public.quota_reservations WHERE id=p_reservation_id AND tenant_id=p_tenant_id FOR UPDATE; IF NOT FOUND THEN RETURN jsonb_build_object('ok',false,'reason','reservation_not_found'); END IF; INSERT INTO public.quota_settlements(reservation_id,tenant_id,settlement_key,outcome,quantity) VALUES(r.id,r.tenant_id,p_settlement_key,v_outcome,p_quantity) ON CONFLICT(reservation_id,settlement_key) DO NOTHING; IF NOT FOUND THEN RETURN jsonb_build_object('ok',true,'outcome','replay','settlement_key',p_settlement_key); END IF; IF r.status <> 'reserved' THEN RETURN jsonb_build_object('ok',true,'outcome','replay','status',r.status); END IF; UPDATE public.quota_reservations SET status=v_outcome, committed_quantity=CASE WHEN v_outcome='committed' THEN p_quantity ELSE committed_quantity END, released_quantity=CASE WHEN v_outcome IN ('released','rejected') THEN p_quantity ELSE released_quantity END, updated_at=now() WHERE id=r.id; RETURN jsonb_build_object('ok',true,'outcome',v_outcome,'settlement_key',p_settlement_key); END $$;
+REVOKE ALL ON FUNCTION public.leadx_record_quota_settlement(uuid,uuid,text,text,integer) FROM PUBLIC, anon, authenticated;
+GRANT EXECUTE ON FUNCTION public.leadx_record_quota_settlement(uuid,uuid,text,text,integer) TO service_role;
+NOTIFY pgrst, 'reload schema';
+-- ============================================================================
+-- CANONICAL MIGRATION 27: 20261001001000_leadx_16_migration_preflight.sql
+-- ============================================================================
 -- ============================================================================
 CREATE OR REPLACE FUNCTION public.leadx_verify_durable_preflight()
 RETURNS jsonb LANGUAGE plpgsql STABLE SECURITY DEFINER
@@ -10714,6 +10813,11 @@ SET search_path = pg_catalog, public AS $$
 DECLARE v_missing text[] := ARRAY[]::text[]; v_rls boolean;
 BEGIN
   IF to_regclass('public.job_operations') IS NULL THEN v_missing := v_missing || 'table:job_operations'; END IF;
+  IF to_regclass('public.job_attempts') IS NULL THEN v_missing := v_missing || 'table:job_attempts'; END IF;
+  IF to_regclass('public.agent_mission_task_attempts') IS NULL THEN v_missing := v_missing || 'table:agent_mission_task_attempts'; END IF;
+  IF to_regclass('public.quota_reservations') IS NULL THEN v_missing := v_missing || 'table:quota_reservations'; END IF;
+  IF to_regprocedure('public.leadx_reap_stale_mission_tasks(integer)') IS NULL THEN v_missing := v_missing || 'function:leadx_reap_stale_mission_tasks'; END IF;
+  IF to_regprocedure('public.leadx_probe_queue_capability(text,timestamptz)') IS NULL THEN v_missing := v_missing || 'function:leadx_probe_queue_capability'; END IF;
   IF to_regclass('public.uq_job_operations_operation_key') IS NULL THEN v_missing := v_missing || 'index:uq_job_operations_operation_key'; END IF;
   IF to_regclass('public.uq_job_operations_job') IS NULL THEN v_missing := v_missing || 'index:uq_job_operations_job'; END IF;
   IF to_regclass('public.idx_job_operations_tenant_created') IS NULL THEN v_missing := v_missing || 'index:idx_job_operations_tenant_created'; END IF;
@@ -10724,7 +10828,7 @@ BEGIN
   IF COALESCE(v_rls,false) IS NOT TRUE THEN v_missing := v_missing || 'rls:job_operations'; END IF;
   IF to_regclass('public.job_operations') IS NOT NULL AND NOT has_table_privilege('service_role','public.job_operations','SELECT') THEN v_missing := v_missing || 'grant:service_role.job_operations'; END IF;
   IF to_regprocedure('public.leadx_prepare_job(uuid,text,text,text,text,text,jsonb,integer,boolean,integer,integer,integer,text)') IS NOT NULL AND NOT has_function_privilege('service_role','public.leadx_prepare_job(uuid,text,text,text,text,text,jsonb,integer,boolean,integer,integer,integer,text)','EXECUTE') THEN v_missing := v_missing || 'grant:service_role.leadx_prepare_job'; END IF;
-  RETURN jsonb_build_object('ok',cardinality(v_missing)=0,'migration_chain','20261001000800..20261001000900','checked_at',clock_timestamp(),'missing',to_jsonb(v_missing),'safe_to_start_provider_work',cardinality(v_missing)=0);
+  RETURN jsonb_build_object('ok',cardinality(v_missing)=0,'migration_chain','20261001000800..20261001000950','checked_at',clock_timestamp(),'missing',to_jsonb(v_missing),'safe_to_start_provider_work',cardinality(v_missing)=0);
 END; $$;
 CREATE OR REPLACE FUNCTION public.leadx_require_durable_preflight() RETURNS jsonb LANGUAGE plpgsql SECURITY DEFINER SET search_path=pg_catalog,public AS $$
 DECLARE v_result jsonb;
@@ -10735,7 +10839,7 @@ GRANT EXECUTE ON FUNCTION public.leadx_verify_durable_preflight() TO service_rol
 GRANT EXECUTE ON FUNCTION public.leadx_require_durable_preflight() TO service_role;
 
 -- ============================================================================
--- CANONICAL MIGRATION 27: 20261001001100_leadx_16_canonical_data_plane.sql
+-- CANONICAL MIGRATION 28: 20261001001100_leadx_16_canonical_data_plane.sql
 -- ============================================================================
 CREATE TABLE IF NOT EXISTS public.canonical_accounts (id uuid PRIMARY KEY DEFAULT gen_random_uuid(), tenant_id uuid NOT NULL REFERENCES public.tenants(id) ON DELETE CASCADE, source_company_id uuid REFERENCES public.companies(id) ON DELETE SET NULL, source_lead_id uuid REFERENCES public.leads_global(id) ON DELETE SET NULL, canonical_key text NOT NULL, name text NOT NULL, normalized_domain text, website text, phone text, field_confidence jsonb NOT NULL DEFAULT '{}'::jsonb, provenance jsonb NOT NULL DEFAULT '{}'::jsonb, created_at timestamptz NOT NULL DEFAULT now(), updated_at timestamptz NOT NULL DEFAULT now(), UNIQUE(tenant_id,canonical_key));
 CREATE TABLE IF NOT EXISTS public.canonical_locations (id uuid PRIMARY KEY DEFAULT gen_random_uuid(), tenant_id uuid NOT NULL REFERENCES public.tenants(id) ON DELETE CASCADE, account_id uuid NOT NULL REFERENCES public.canonical_accounts(id) ON DELETE CASCADE, location_key text NOT NULL, address_line1 text, address_line2 text, city text, state text, postal_code text, country text, latitude numeric(9,6), longitude numeric(9,6), is_primary boolean NOT NULL DEFAULT false, field_confidence jsonb NOT NULL DEFAULT '{}'::jsonb, provenance jsonb NOT NULL DEFAULT '{}'::jsonb, created_at timestamptz NOT NULL DEFAULT now(), updated_at timestamptz NOT NULL DEFAULT now(), UNIQUE(tenant_id,account_id,location_key));
@@ -10761,7 +10865,49 @@ REVOKE ALL ON TABLE public.canonical_accounts,public.canonical_locations,public.
 GRANT SELECT,INSERT,UPDATE,DELETE ON TABLE public.canonical_accounts,public.canonical_locations,public.canonical_people,public.canonical_contact_methods,public.canonical_titles,public.canonical_buying_groups,public.canonical_buying_group_roles,public.canonical_field_evidence,public.canonical_freshness,public.canonical_consents,public.canonical_suppressions TO service_role;
 
 -- ============================================================================
--- CANONICAL MIGRATION 28: 20261001001200_leadx_16_verification_quality.sql
+-- CANONICAL MIGRATION 29: 20261001001150_leadx_task4_approval_scheduling.sql
+-- ============================================================================
+-- LeadX Task 4: approval CAS, durable automation executions, and sequence transitions.
+ALTER TABLE IF EXISTS public.discovery_requests
+  ADD COLUMN IF NOT EXISTS expires_at timestamptz,
+  ADD COLUMN IF NOT EXISTS decision_actor text,
+  ADD COLUMN IF NOT EXISTS decision_at timestamptz,
+  ADD COLUMN IF NOT EXISTS transition_error text,
+  ADD COLUMN IF NOT EXISTS approved_by text,
+  ADD COLUMN IF NOT EXISTS approved_at timestamptz,
+  ADD COLUMN IF NOT EXISTS approved_leads integer;
+DO $$ DECLARE c record; BEGIN
+  FOR c IN SELECT conname FROM pg_constraint WHERE conrelid='public.discovery_requests'::regclass AND contype='c' AND pg_get_constraintdef(oid) ILIKE '%status%' LOOP
+    EXECUTE format('ALTER TABLE public.discovery_requests DROP CONSTRAINT IF EXISTS %I', c.conname);
+  END LOOP;
+EXCEPTION WHEN undefined_table THEN NULL; END $$;
+DO $$ BEGIN
+  ALTER TABLE public.discovery_requests ADD CONSTRAINT discovery_requests_status_check CHECK (status IN ('pending_approval','approved','queued','running','completed','partially_completed','rejected','expired','cancelled','failed'));
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+CREATE INDEX IF NOT EXISTS idx_discovery_requests_expiry ON public.discovery_requests(status,expires_at) WHERE status='pending_approval';
+CREATE OR REPLACE FUNCTION public.leadx_transition_discovery_request(p_request_id uuid,p_decision text,p_actor text,p_reason text DEFAULT '',p_approved_leads integer DEFAULT NULL,p_now timestamptz DEFAULT now()) RETURNS jsonb LANGUAGE plpgsql SECURITY DEFINER SET search_path=public AS $$
+DECLARE r public.discovery_requests%rowtype; v_status text; v_release integer:=0; v_settlement_key text;
+BEGIN
+ SELECT * INTO r FROM public.discovery_requests WHERE id=p_request_id FOR UPDATE;
+ IF NOT FOUND THEN RETURN jsonb_build_object('ok',false,'reason','not_found'); END IF;
+ IF r.status<>'pending_approval' THEN RETURN jsonb_build_object('ok',false,'reason','already_decided','status',r.status,'request',row_to_json(r)); END IF;
+ IF p_decision NOT IN ('approve','reject','expire') THEN RETURN jsonb_build_object('ok',false,'reason','invalid_decision'); END IF;
+ IF p_decision='approve' THEN IF coalesce(p_approved_leads,0)<1 OR p_approved_leads>coalesce(r.requested_leads,p_approved_leads) THEN RETURN jsonb_build_object('ok',false,'reason','invalid_approved_leads'); END IF; v_status:='approved'; ELSIF p_decision='reject' THEN v_status:='rejected'; ELSE v_status:='expired'; END IF;
+ UPDATE public.discovery_requests SET status=v_status,approved_leads=CASE WHEN p_decision='approve' THEN p_approved_leads ELSE approved_leads END,admin_reason=CASE WHEN p_decision='approve' THEN p_reason ELSE admin_reason END,rejection_reason=CASE WHEN p_decision<>'approve' THEN p_reason ELSE rejection_reason END,approved_by=CASE WHEN p_decision='approve' THEN nullif(btrim(p_actor),'') ELSE approved_by END,approved_at=CASE WHEN p_decision='approve' THEN p_now ELSE approved_at END,decision_actor=nullif(btrim(p_actor),''),decision_at=p_now,updated_at=p_now,transition_error=NULL WHERE id=p_request_id AND status='pending_approval';
+ IF NOT FOUND THEN RETURN jsonb_build_object('ok',false,'reason','already_decided'); END IF;
+ IF p_decision<>'approve' AND r.reservation_id IS NOT NULL THEN v_release:=greatest(coalesce(r.requested_leads,0),0); v_settlement_key:=coalesce(r.settlement_key,'discovery:'||r.id::text||':'||v_status); INSERT INTO public.quota_settlements(reservation_id,tenant_id,settlement_key,outcome,quantity,released_quantity) VALUES(r.reservation_id,r.tenant_id,v_settlement_key,'released',v_release,v_release) ON CONFLICT(reservation_id,settlement_key) DO NOTHING; UPDATE public.quota_reservations SET status='released',released_quantity=v_release,updated_at=p_now WHERE id=r.reservation_id AND tenant_id=r.tenant_id AND status='reserved'; END IF;
+ SELECT * INTO r FROM public.discovery_requests WHERE id=p_request_id; RETURN jsonb_build_object('ok',true,'status',v_status,'released',v_release,'request',row_to_json(r));
+END $$;
+REVOKE ALL ON FUNCTION public.leadx_transition_discovery_request(uuid,text,text,text,integer,timestamptz) FROM PUBLIC,anon,authenticated;
+GRANT EXECUTE ON FUNCTION public.leadx_transition_discovery_request(uuid,text,text,text,integer,timestamptz) TO service_role;
+CREATE TABLE IF NOT EXISTS public.automation_executions (execution_id uuid PRIMARY KEY,tenant_id uuid NOT NULL REFERENCES public.tenants(id) ON DELETE CASCADE,source_event_id uuid NOT NULL REFERENCES public.automation_events(id) ON DELETE CASCADE,workflow_id uuid REFERENCES public.workflow_definitions(id) ON DELETE CASCADE,due_at timestamptz NOT NULL DEFAULT now(),rule_version integer NOT NULL DEFAULT 1,action_version integer NOT NULL DEFAULT 1,status text NOT NULL DEFAULT 'queued' CHECK(status IN ('queued','processing','completed','retryable','failed','cancelled')),attempts integer NOT NULL DEFAULT 0,retry_at timestamptz,terminal_reason text,job_id uuid REFERENCES public.jobs(id) ON DELETE SET NULL,created_at timestamptz NOT NULL DEFAULT now(),updated_at timestamptz NOT NULL DEFAULT now(),UNIQUE(tenant_id,source_event_id,workflow_id));
+CREATE INDEX IF NOT EXISTS idx_automation_executions_due ON public.automation_executions(status,due_at,retry_at); CREATE INDEX IF NOT EXISTS idx_automation_executions_tenant ON public.automation_executions(tenant_id,created_at DESC); ALTER TABLE public.automation_executions ENABLE ROW LEVEL SECURITY; REVOKE ALL ON TABLE public.automation_executions FROM PUBLIC,anon,authenticated; GRANT ALL ON TABLE public.automation_executions TO service_role;
+ALTER TABLE IF EXISTS public.email_sequences ADD COLUMN IF NOT EXISTS last_transition_error text,ADD COLUMN IF NOT EXISTS transitioned_at timestamptz; ALTER TABLE IF EXISTS public.email_sequence_enrollments ADD COLUMN IF NOT EXISTS paused_at timestamptz; CREATE INDEX IF NOT EXISTS idx_email_sequence_enrollments_paused ON public.email_sequence_enrollments(sequence_id,status,next_send_at);
+ALTER TABLE IF EXISTS public.automation_events ADD COLUMN IF NOT EXISTS due_at timestamptz,ADD COLUMN IF NOT EXISTS rule_version integer NOT NULL DEFAULT 1,ADD COLUMN IF NOT EXISTS action_version integer NOT NULL DEFAULT 1; CREATE INDEX IF NOT EXISTS idx_automation_events_tenant_source ON public.automation_events(tenant_id,id,available_at);
+NOTIFY pgrst,'reload schema';
+
+-- ============================================================================
+-- CANONICAL MIGRATION 30: 20261001001200_leadx_16_verification_quality.sql
 -- ============================================================================
 CREATE TABLE IF NOT EXISTS public.canonical_contact_states (id uuid PRIMARY KEY DEFAULT gen_random_uuid(),tenant_id uuid NOT NULL REFERENCES public.tenants(id) ON DELETE CASCADE,person_id uuid REFERENCES public.canonical_people(id) ON DELETE CASCADE,contact_method_id uuid REFERENCES public.canonical_contact_methods(id) ON DELETE CASCADE,state text NOT NULL CHECK(state IN ('unknown','probable','verified','risky','catch-all','invalid','unreachable','suppressed','expired')),state_reason text,verification_id uuid,verified_at timestamptz,freshness_expires_at timestamptz,replacement_eligible boolean NOT NULL DEFAULT false,credit_reason text,updated_at timestamptz NOT NULL DEFAULT now(),CHECK(num_nonnulls(person_id,contact_method_id)=1),UNIQUE(tenant_id,person_id),UNIQUE(tenant_id,contact_method_id));
 CREATE TABLE IF NOT EXISTS public.canonical_verification_observations (id uuid PRIMARY KEY DEFAULT gen_random_uuid(),tenant_id uuid NOT NULL REFERENCES public.tenants(id) ON DELETE CASCADE,person_id uuid REFERENCES public.canonical_people(id) ON DELETE CASCADE,contact_method_id uuid REFERENCES public.canonical_contact_methods(id) ON DELETE CASCADE,state text NOT NULL CHECK(state IN ('unknown','probable','verified','risky','catch-all','invalid','unreachable','suppressed','expired')),provider text NOT NULL,provider_operation_id text,confidence numeric(5,4) CHECK(confidence IS NULL OR confidence BETWEEN 0 AND 1),evidence jsonb NOT NULL DEFAULT '{}'::jsonb,verified_at timestamptz NOT NULL DEFAULT now(),freshness_expires_at timestamptz,bounce_code text,bounce_feedback text,replacement_eligible boolean NOT NULL DEFAULT false,credit_reason text,observation_key text NOT NULL,created_at timestamptz NOT NULL DEFAULT now(),CHECK(num_nonnulls(person_id,contact_method_id)=1),UNIQUE(tenant_id,observation_key));
@@ -10978,6 +11124,11 @@ BEGIN
 END;
 $$;
 
+DROP TRIGGER IF EXISTS leadx_event_broadcast ON public.leadx_event_log;
+CREATE TRIGGER leadx_event_broadcast
+AFTER INSERT ON public.leadx_event_log
+FOR EACH ROW EXECUTE FUNCTION public.leadx_broadcast_event();
+
 -- The event log is append-only and API/service-role only. No browser role can
 -- read, write, update, or delete the operational trail directly.
 ALTER TABLE IF EXISTS public.leadx_event_log ENABLE ROW LEVEL SECURITY;
@@ -10991,10 +11142,10 @@ GRANT EXECUTE ON FUNCTION public.leadx_broadcast_event() TO service_role;
 -- One authoritative table list drives both capture triggers and realtime
 -- publication/replica identity. It intentionally excludes global tables,
 -- views, and child tables with no safe row-local tenant ownership:
--- leads_global, lead_crm_cards, email_sequence_steps, support_messages.
--- The portal's team_invites filter names a table absent from this schema;
--- tenant_invites is the actual tenant-owned source and the filter remains an
--- explicit bounded fallback until the client contract is reconciled.
+-- leads_global, lead_crm_cards, email_sequence_steps, support_messages,
+-- tenant_integrations, deal_activities, and integrations are not durable
+-- tenant-owned event sources in this schema. Their portal consumers use the
+-- authoritative API with a bounded fallback: visibility-aware polling.
 DO $$
 DECLARE
   t text;
@@ -11054,4 +11205,681 @@ CREATE POLICY leadx_workspace_broadcast_read
 
 COMMENT ON TABLE public.leadx_event_log IS
   'Tenant-scoped append-only metadata events; browser roles have no table privileges.';
+-- ============================================================================
+-- Additive durable leases, attempt history, quota settlement identity, and
+-- fresh worker capability evidence.  Mirrors the standalone migration.
+ALTER TABLE IF EXISTS public.jobs ADD COLUMN IF NOT EXISTS lease_expires_at timestamptz;
+ALTER TABLE IF EXISTS public.jobs ADD COLUMN IF NOT EXISTS retry_after timestamptz;
+ALTER TABLE IF EXISTS public.jobs ADD COLUMN IF NOT EXISTS error_category text;
+ALTER TABLE IF EXISTS public.jobs ADD COLUMN IF NOT EXISTS dependency_outcome text;
+ALTER TABLE IF EXISTS public.jobs ADD COLUMN IF NOT EXISTS terminal_result jsonb;
+ALTER TABLE IF EXISTS public.jobs ADD COLUMN IF NOT EXISTS accounting_reconciliation_status text DEFAULT 'not_required';
+ALTER TABLE IF EXISTS public.job_operations ADD COLUMN IF NOT EXISTS principal_scope text NOT NULL DEFAULT '';
+ALTER TABLE IF EXISTS public.job_operations ADD COLUMN IF NOT EXISTS terminal_result jsonb;
+ALTER TABLE IF EXISTS public.job_operations ADD COLUMN IF NOT EXISTS settlement_key text;
+ALTER TABLE IF EXISTS public.agent_missions ADD COLUMN IF NOT EXISTS progress_total integer NOT NULL DEFAULT 0;
+ALTER TABLE IF EXISTS public.agent_missions ADD COLUMN IF NOT EXISTS progress_completed integer NOT NULL DEFAULT 0;
+ALTER TABLE IF EXISTS public.agent_missions ADD COLUMN IF NOT EXISTS progress_failed integer NOT NULL DEFAULT 0;
+ALTER TABLE IF EXISTS public.agent_missions ADD COLUMN IF NOT EXISTS progress_skipped integer NOT NULL DEFAULT 0;
+ALTER TABLE IF EXISTS public.agent_missions ADD COLUMN IF NOT EXISTS progress_remaining integer NOT NULL DEFAULT 30;
+ALTER TABLE IF EXISTS public.agent_missions ADD COLUMN IF NOT EXISTS failure_summary jsonb;
+ALTER TABLE IF EXISTS public.agent_missions ADD COLUMN IF NOT EXISTS terminal_result jsonb;
+ALTER TABLE IF EXISTS public.agent_missions ADD COLUMN IF NOT EXISTS completed_at timestamptz;
+ALTER TABLE IF EXISTS public.agent_mission_tasks ADD COLUMN IF NOT EXISTS attempts integer NOT NULL DEFAULT 0;
+ALTER TABLE IF EXISTS public.agent_mission_tasks ADD COLUMN IF NOT EXISTS max_attempts integer NOT NULL DEFAULT 3;
+ALTER TABLE IF EXISTS public.agent_mission_tasks ADD COLUMN IF NOT EXISTS run_after timestamptz NOT NULL DEFAULT now();
+ALTER TABLE IF EXISTS public.agent_mission_tasks ADD COLUMN IF NOT EXISTS lease_owner text;
+ALTER TABLE IF EXISTS public.agent_mission_tasks ADD COLUMN IF NOT EXISTS lease_expires_at timestamptz;
+ALTER TABLE IF EXISTS public.agent_mission_tasks ADD COLUMN IF NOT EXISTS lease_renewed_at timestamptz;
+ALTER TABLE IF EXISTS public.agent_mission_tasks ADD COLUMN IF NOT EXISTS error_category text;
+ALTER TABLE IF EXISTS public.agent_mission_tasks ADD COLUMN IF NOT EXISTS dependency_outcome text;
+ALTER TABLE IF EXISTS public.agent_mission_tasks ADD COLUMN IF NOT EXISTS terminal_result jsonb;
+CREATE INDEX IF NOT EXISTS idx_jobs_due_lease ON public.jobs(status,run_after,lease_expires_at);
+CREATE INDEX IF NOT EXISTS idx_mission_tasks_due_lease ON public.agent_mission_tasks(status,run_after,lease_expires_at);
+CREATE TABLE IF NOT EXISTS public.job_attempts (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(), job_id uuid NOT NULL REFERENCES public.jobs(id) ON DELETE CASCADE,
+  tenant_id uuid REFERENCES public.tenants(id) ON DELETE CASCADE, attempt integer NOT NULL,
+  owner text, claimed_at timestamptz NOT NULL DEFAULT now(), lease_expires_at timestamptz,
+  finished_at timestamptz, outcome text, retryable boolean, error_category text, error text, result jsonb,
+  UNIQUE(job_id,attempt)
+);
+CREATE TABLE IF NOT EXISTS public.agent_mission_task_attempts (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(), task_id uuid NOT NULL REFERENCES public.agent_mission_tasks(id) ON DELETE CASCADE,
+  mission_id uuid NOT NULL REFERENCES public.agent_missions(id) ON DELETE CASCADE,
+  tenant_id uuid NOT NULL REFERENCES public.tenants(id) ON DELETE CASCADE, attempt integer NOT NULL,
+  owner text NOT NULL, claimed_at timestamptz NOT NULL DEFAULT now(), lease_expires_at timestamptz,
+  finished_at timestamptz, outcome text, retryable boolean, error_category text, error text, result jsonb,
+  UNIQUE(task_id,attempt)
+);
+CREATE TABLE IF NOT EXISTS public.quota_reservations (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(), tenant_id uuid NOT NULL REFERENCES public.tenants(id) ON DELETE CASCADE,
+  job_id uuid REFERENCES public.jobs(id) ON DELETE SET NULL, operation_id uuid REFERENCES public.job_operations(id) ON DELETE SET NULL,
+  requested_quantity integer NOT NULL DEFAULT 0, reserved_quantity integer NOT NULL DEFAULT 0,
+  committed_quantity integer NOT NULL DEFAULT 0, released_quantity integer NOT NULL DEFAULT 0,
+  status text NOT NULL DEFAULT 'reserved' CHECK(status IN ('reserved','committed','released','rejected')),
+  settlement_key text NOT NULL, created_at timestamptz NOT NULL DEFAULT now(), updated_at timestamptz NOT NULL DEFAULT now(),
+  UNIQUE(tenant_id,settlement_key)
+);
+CREATE TABLE IF NOT EXISTS public.quota_settlements (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(), reservation_id uuid NOT NULL REFERENCES public.quota_reservations(id) ON DELETE CASCADE,
+  tenant_id uuid NOT NULL REFERENCES public.tenants(id) ON DELETE CASCADE, settlement_key text NOT NULL,
+  outcome text NOT NULL CHECK(outcome IN ('committed','released','rejected')), quantity integer NOT NULL DEFAULT 0,
+  created_at timestamptz NOT NULL DEFAULT now(), UNIQUE(reservation_id,settlement_key)
+);
+ALTER TABLE IF EXISTS public.worker_heartbeats ADD COLUMN IF NOT EXISTS queue_capability boolean NOT NULL DEFAULT false;
+ALTER TABLE IF EXISTS public.worker_heartbeats ADD COLUMN IF NOT EXISTS queue_checked_at timestamptz;
+ALTER TABLE IF EXISTS public.worker_heartbeats ADD COLUMN IF NOT EXISTS reclaim_capability boolean NOT NULL DEFAULT false;
+ALTER TABLE IF EXISTS public.worker_heartbeats ADD COLUMN IF NOT EXISTS reclaim_checked_at timestamptz;
+ALTER TABLE IF EXISTS public.worker_heartbeats ADD COLUMN IF NOT EXISTS last_terminal_error_category text;
+ALTER TABLE public.job_attempts ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.agent_mission_task_attempts ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.quota_reservations ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.quota_settlements ENABLE ROW LEVEL SECURITY;
+REVOKE ALL ON TABLE public.job_attempts, public.agent_mission_task_attempts, public.quota_reservations, public.quota_settlements FROM PUBLIC,anon,authenticated;
+GRANT ALL ON TABLE public.job_attempts, public.agent_mission_task_attempts, public.quota_reservations, public.quota_settlements TO service_role;
+CREATE OR REPLACE FUNCTION public.leadx_claim_next_job(p_worker_id text,p_kinds text[] DEFAULT NULL) RETURNS SETOF public.jobs LANGUAGE plpgsql SECURITY DEFINER SET search_path=public AS $$
+DECLARE r public.jobs%rowtype; BEGIN SELECT * INTO r FROM public.jobs WHERE status='queued' AND run_after<=now() AND (p_kinds IS NULL OR kind=ANY(p_kinds)) ORDER BY priority DESC,created_at FOR UPDATE SKIP LOCKED LIMIT 1; IF r.id IS NULL THEN RETURN; END IF; UPDATE public.jobs SET status='running',locked_by=p_worker_id,locked_at=now(),lease_renewed_at=now(),lease_expires_at=now()+make_interval(secs=>greatest(30,2700)),started_at=coalesce(started_at,now()),attempts=coalesce(attempts,0)+1,dependency_outcome='claimed' WHERE id=r.id AND status='queued' RETURNING * INTO r; INSERT INTO public.job_attempts(job_id,tenant_id,attempt,owner,lease_expires_at) VALUES(r.id,r.tenant_id,r.attempts,p_worker_id,r.lease_expires_at) ON CONFLICT(job_id,attempt) DO NOTHING; RETURN NEXT r; END $$;
+REVOKE ALL ON FUNCTION public.leadx_claim_next_job(text,text[]) FROM PUBLIC,anon,authenticated;
+GRANT EXECUTE ON FUNCTION public.leadx_claim_next_job(text,text[]) TO service_role;
+CREATE OR REPLACE FUNCTION public.leadx_probe_queue_capability(p_worker_id text,p_checked_at timestamptz DEFAULT now()) RETURNS jsonb LANGUAGE sql SECURITY DEFINER SET search_path=public AS $$
+  SELECT jsonb_build_object('ok',p_worker_id IS NOT NULL AND btrim(p_worker_id)<>'','worker_id',p_worker_id,'checked_at',coalesce(p_checked_at,now()),'queue_capability',true,'reclaim_capability',to_regprocedure('public.leadx_reap_stale_mission_tasks(integer)') IS NOT NULL)
+$$;
+CREATE OR REPLACE FUNCTION public.leadx_claim_mission_task(p_task_id uuid,p_tenant_id uuid,p_owner text,p_lease_seconds integer DEFAULT 900) RETURNS SETOF public.agent_mission_tasks LANGUAGE sql SECURITY DEFINER SET search_path=public AS $$
+  UPDATE public.agent_mission_tasks SET status='running',attempts=coalesce(attempts,0)+1,lease_owner=p_owner,lease_renewed_at=now(),lease_expires_at=now()+make_interval(secs=>greatest(30,p_lease_seconds)),updated_at=now() WHERE id=p_task_id AND tenant_id=p_tenant_id AND status='queued' AND run_after<=now() RETURNING *
+$$;
+CREATE OR REPLACE FUNCTION public.leadx_renew_mission_task(p_task_id uuid,p_tenant_id uuid,p_owner text,p_lease_seconds integer DEFAULT 900) RETURNS SETOF public.agent_mission_tasks LANGUAGE sql SECURITY DEFINER SET search_path=public AS $$
+  UPDATE public.agent_mission_tasks SET lease_renewed_at=now(),lease_expires_at=now()+make_interval(secs=>greatest(30,p_lease_seconds)),updated_at=now() WHERE id=p_task_id AND tenant_id=p_tenant_id AND status='running' AND lease_owner=p_owner AND (lease_expires_at IS NULL OR lease_expires_at>now()) RETURNING *
+$$;
+CREATE OR REPLACE FUNCTION public.leadx_reap_stale_mission_tasks(p_limit integer DEFAULT 500) RETURNS SETOF public.agent_mission_tasks LANGUAGE plpgsql SECURITY DEFINER SET search_path=public AS $$
+DECLARE r public.agent_mission_tasks%rowtype; v_status text; BEGIN FOR r IN SELECT * FROM public.agent_mission_tasks WHERE status='running' AND lease_expires_at IS NOT NULL AND lease_expires_at<now() ORDER BY lease_expires_at LIMIT greatest(1,least(p_limit,500)) FOR UPDATE SKIP LOCKED LOOP v_status:=case when coalesce(r.attempts,0)<coalesce(r.max_attempts,3) then 'queued' else 'failed' end; UPDATE public.agent_mission_tasks SET status=v_status,lease_owner=NULL,lease_expires_at=NULL,error='worker_lost_reaped',error_category='lease_expired',dependency_outcome=case when v_status='queued' then 'recovered' else 'terminal' end,run_after=now(),finished_at=case when v_status='failed' then now() else NULL end,updated_at=now() WHERE id=r.id AND status='running' AND lease_expires_at<now() RETURNING * INTO r; RETURN NEXT r; END LOOP; END $$;
+CREATE OR REPLACE FUNCTION public.leadx_record_quota_settlement(p_reservation_id uuid,p_tenant_id uuid,p_settlement_key text,p_outcome text,p_quantity integer DEFAULT 0) RETURNS jsonb LANGUAGE plpgsql SECURITY DEFINER SET search_path=public AS $$
+DECLARE r public.quota_reservations%rowtype; BEGIN SELECT * INTO r FROM public.quota_reservations WHERE id=p_reservation_id AND tenant_id=p_tenant_id FOR UPDATE; IF NOT FOUND THEN RETURN jsonb_build_object('ok',false,'reason','reservation_not_found'); END IF; INSERT INTO public.quota_settlements(reservation_id,tenant_id,settlement_key,outcome,quantity) VALUES(r.id,r.tenant_id,p_settlement_key,lower(p_outcome),greatest(0,p_quantity)) ON CONFLICT(reservation_id,settlement_key) DO NOTHING; IF NOT FOUND THEN RETURN jsonb_build_object('ok',true,'outcome','replay'); END IF; UPDATE public.quota_reservations SET status=lower(p_outcome),committed_quantity=case when lower(p_outcome)='committed' then p_quantity else committed_quantity end,released_quantity=case when lower(p_outcome) in ('released','rejected') then p_quantity else released_quantity end,updated_at=now() WHERE id=r.id AND status='reserved'; RETURN jsonb_build_object('ok',true,'outcome',lower(p_outcome),'settlement_key',p_settlement_key); END $$;
+REVOKE ALL ON FUNCTION public.leadx_probe_queue_capability(text,timestamptz), public.leadx_claim_mission_task(uuid,uuid,text,integer), public.leadx_renew_mission_task(uuid,uuid,text,integer), public.leadx_reap_stale_mission_tasks(integer), public.leadx_record_quota_settlement(uuid,uuid,text,text,integer) FROM PUBLIC, anon, authenticated;
+GRANT EXECUTE ON FUNCTION public.leadx_probe_queue_capability(text,timestamptz), public.leadx_claim_mission_task(uuid,uuid,text,integer), public.leadx_renew_mission_task(uuid,uuid,text,integer), public.leadx_reap_stale_mission_tasks(integer), public.leadx_record_quota_settlement(uuid,uuid,text,text,integer) TO service_role;
+NOTIFY pgrst, 'reload schema';
+-- Task 3: local-first discovery identity, persisted progress, and quota settlement.
+ALTER TABLE IF EXISTS public.discovery_requests
+  ADD COLUMN IF NOT EXISTS mission_id uuid,
+  ADD COLUMN IF NOT EXISTS job_id uuid,
+  ADD COLUMN IF NOT EXISTS reservation_id uuid,
+  ADD COLUMN IF NOT EXISTS settlement_key text,
+  ADD COLUMN IF NOT EXISTS mode text NOT NULL DEFAULT 'production',
+  ADD COLUMN IF NOT EXISTS progress_total integer NOT NULL DEFAULT 0,
+  ADD COLUMN IF NOT EXISTS progress_completed integer NOT NULL DEFAULT 0,
+  ADD COLUMN IF NOT EXISTS progress_failed integer NOT NULL DEFAULT 0,
+  ADD COLUMN IF NOT EXISTS progress_skipped integer NOT NULL DEFAULT 0,
+  ADD COLUMN IF NOT EXISTS progress_remaining integer NOT NULL DEFAULT 0,
+  ADD COLUMN IF NOT EXISTS progress_qualifying integer NOT NULL DEFAULT 0,
+  ADD COLUMN IF NOT EXISTS progress_billable integer NOT NULL DEFAULT 0,
+  ADD COLUMN IF NOT EXISTS progress_shortfall integer NOT NULL DEFAULT 0;
+CREATE UNIQUE INDEX IF NOT EXISTS uq_discovery_requests_settlement_key ON public.discovery_requests(tenant_id, settlement_key) WHERE settlement_key IS NOT NULL;
+ALTER TABLE IF EXISTS public.quota_reservations ADD COLUMN IF NOT EXISTS request_id uuid;
+ALTER TABLE IF EXISTS public.quota_settlements ADD COLUMN IF NOT EXISTS committed_quantity integer NOT NULL DEFAULT 0, ADD COLUMN IF NOT EXISTS released_quantity integer NOT NULL DEFAULT 0;
+CREATE TABLE IF NOT EXISTS public.discovery_tasks (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(), request_id uuid NOT NULL REFERENCES public.discovery_requests(id) ON DELETE CASCADE,
+  tenant_id uuid NOT NULL REFERENCES public.tenants(id) ON DELETE CASCADE, task_key text NOT NULL,
+  status text NOT NULL DEFAULT 'queued' CHECK (status IN ('queued','running','completed','failed','skipped','cancelled')),
+  provider text, started_at timestamptz, finished_at timestamptz, error_category text,
+  created_at timestamptz NOT NULL DEFAULT now(), updated_at timestamptz NOT NULL DEFAULT now(), UNIQUE(request_id,task_key)
+);
+CREATE INDEX IF NOT EXISTS idx_discovery_tasks_projection ON public.discovery_tasks(request_id,tenant_id,status);
+CREATE TABLE IF NOT EXISTS public.discovery_provider_results (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(), request_id uuid NOT NULL REFERENCES public.discovery_requests(id) ON DELETE CASCADE,
+  tenant_id uuid NOT NULL REFERENCES public.tenants(id) ON DELETE CASCADE, lead_id uuid, task_id uuid REFERENCES public.discovery_tasks(id) ON DELETE SET NULL,
+  status text NOT NULL DEFAULT 'persisted' CHECK (status IN ('persisted','completed','qualified','failed','skipped')),
+  persisted boolean NOT NULL DEFAULT true, qualifying boolean NOT NULL DEFAULT false, billable boolean NOT NULL DEFAULT false,
+  source text, provenance jsonb NOT NULL DEFAULT '{}'::jsonb, result jsonb NOT NULL DEFAULT '{}'::jsonb,
+  created_at timestamptz NOT NULL DEFAULT now(), updated_at timestamptz NOT NULL DEFAULT now(), UNIQUE(request_id,lead_id)
+);
+CREATE INDEX IF NOT EXISTS idx_discovery_results_projection ON public.discovery_provider_results(request_id,tenant_id,status);
+ALTER TABLE public.discovery_tasks ENABLE ROW LEVEL SECURITY; ALTER TABLE public.discovery_provider_results ENABLE ROW LEVEL SECURITY;
+REVOKE ALL ON TABLE public.discovery_tasks,public.discovery_provider_results FROM PUBLIC,anon,authenticated;
+GRANT ALL ON TABLE public.discovery_tasks,public.discovery_provider_results TO service_role;
+CREATE OR REPLACE FUNCTION public.leadx_reserve_discovery_quota(p_reservation_id uuid,p_tenant_id uuid,p_request_id uuid,p_requested integer,p_settlement_key text) RETURNS jsonb LANGUAGE plpgsql SECURITY DEFINER SET search_path=public AS $$
+DECLARE v_period date:=date_trunc('month',now())::date; v_limit integer; v_used integer; v_reserved integer; v_available integer; v_existing public.quota_reservations%ROWTYPE;
+BEGIN
+ IF p_reservation_id IS NULL OR p_tenant_id IS NULL OR p_request_id IS NULL OR p_requested IS NULL OR p_requested<=0 OR nullif(btrim(coalesce(p_settlement_key,'')),'') IS NULL THEN RETURN jsonb_build_object('ok',false,'reason','invalid_reservation'); END IF;
+ SELECT leads_per_month_limit INTO v_limit FROM public.tenants WHERE id=p_tenant_id FOR UPDATE; IF NOT FOUND THEN RETURN jsonb_build_object('ok',false,'reason','tenant_not_found'); END IF;
+ SELECT * INTO v_existing FROM public.quota_reservations WHERE tenant_id=p_tenant_id AND settlement_key=p_settlement_key FOR UPDATE; IF FOUND THEN RETURN jsonb_build_object('ok',true,'replayed',true,'reservation_id',v_existing.id,'granted',v_existing.reserved_quantity,'status',v_existing.status); END IF;
+ INSERT INTO public.usage_log(tenant_id,period,leads_delivered,quota_reserved) VALUES(p_tenant_id,v_period,0,0) ON CONFLICT(tenant_id,period) DO NOTHING;
+ SELECT coalesce(leads_delivered,0),coalesce(quota_reserved,0) INTO v_used,v_reserved FROM public.usage_log WHERE tenant_id=p_tenant_id AND period=v_period FOR UPDATE;
+ v_available:=greatest(coalesce(v_limit,0)-v_used-v_reserved,0); IF v_available<p_requested THEN RETURN jsonb_build_object('ok',false,'reason','quota_exhausted','granted',v_available); END IF;
+ INSERT INTO public.quota_reservations(id,tenant_id,request_id,requested_quantity,reserved_quantity,settlement_key) VALUES(p_reservation_id,p_tenant_id,p_request_id,p_requested,p_requested,p_settlement_key);
+ UPDATE public.usage_log SET quota_reserved=quota_reserved+p_requested,updated_at=now() WHERE tenant_id=p_tenant_id AND period=v_period;
+ RETURN jsonb_build_object('ok',true,'replayed',false,'reservation_id',p_reservation_id,'granted',p_requested);
+END $$;
+CREATE OR REPLACE FUNCTION public.leadx_settle_discovery_reservation(p_reservation_id uuid,p_tenant_id uuid,p_settlement_key text,p_committed integer DEFAULT 0,p_released integer DEFAULT 0) RETURNS jsonb LANGUAGE plpgsql SECURITY DEFINER SET search_path=public AS $$
+DECLARE r public.quota_reservations%ROWTYPE; v_period date:=date_trunc('month',now())::date;
+BEGIN
+ IF p_committed<0 OR p_released<0 OR nullif(btrim(coalesce(p_settlement_key,'')),'') IS NULL THEN RETURN jsonb_build_object('ok',false,'reason','invalid_settlement'); END IF;
+ SELECT * INTO r FROM public.quota_reservations WHERE id=p_reservation_id AND tenant_id=p_tenant_id FOR UPDATE; IF NOT FOUND THEN RETURN jsonb_build_object('ok',false,'reason','reservation_not_found'); END IF;
+ IF r.status<>'reserved' THEN RETURN jsonb_build_object('ok',true,'replayed',true,'status',r.status,'committed',r.committed_quantity,'released',r.released_quantity); END IF;
+ IF p_committed+p_released>r.reserved_quantity THEN RETURN jsonb_build_object('ok',false,'reason','settlement_exceeds_reservation'); END IF;
+ INSERT INTO public.quota_settlements(reservation_id,tenant_id,settlement_key,outcome,quantity,committed_quantity,released_quantity) VALUES(r.id,r.tenant_id,p_settlement_key,CASE WHEN p_committed>0 THEN 'committed' ELSE 'released' END,p_committed,p_committed,p_released) ON CONFLICT(reservation_id,settlement_key) DO NOTHING;
+ IF NOT FOUND THEN RETURN jsonb_build_object('ok',true,'replayed',true,'status',r.status); END IF;
+ UPDATE public.quota_reservations SET status=CASE WHEN p_committed>0 THEN 'committed' ELSE 'released' END,committed_quantity=p_committed,released_quantity=p_released,updated_at=now() WHERE id=r.id;
+ UPDATE public.usage_log SET quota_reserved=greatest(quota_reserved-p_committed-p_released,0),leads_delivered=leads_delivered+p_committed,updated_at=now() WHERE tenant_id=p_tenant_id AND period=v_period;
+ RETURN jsonb_build_object('ok',true,'replayed',false,'status',CASE WHEN p_committed>0 THEN 'committed' ELSE 'released' END,'committed',p_committed,'released',p_released,'settlement_key',p_settlement_key);
+END $$;
+REVOKE ALL ON FUNCTION public.leadx_reserve_discovery_quota(uuid,uuid,uuid,integer,text), public.leadx_settle_discovery_reservation(uuid,uuid,text,integer,integer) FROM PUBLIC, anon, authenticated;
+GRANT EXECUTE ON FUNCTION public.leadx_reserve_discovery_quota(uuid,uuid,uuid,integer,text), public.leadx_settle_discovery_reservation(uuid,uuid,text,integer,integer) TO service_role;
+NOTIFY pgrst, 'reload schema';
+
+-- ============================================================================
+-- CANONICAL MIGRATION 33: 20261020001700_leadx_5_tenant_scope_hardening.sql
+-- ============================================================================
+-- LeadX Task 5: additive tenant scope and security checks.
+ALTER TABLE IF EXISTS public.job_operations
+  ADD COLUMN IF NOT EXISTS principal_scope text NOT NULL DEFAULT '';
+UPDATE public.job_operations
+SET principal_scope = COALESCE(NULLIF(principal_scope, ''), NULLIF(scope_hash, ''), 'legacy')
+WHERE principal_scope IS NULL OR principal_scope = '';
+CREATE UNIQUE INDEX IF NOT EXISTS uq_job_operations_scoped_identity
+  ON public.job_operations(tenant_id, principal_scope, operation_kind, idempotency_key);
+CREATE INDEX IF NOT EXISTS idx_job_operations_tenant_principal
+  ON public.job_operations(tenant_id, principal_scope, operation_kind, idempotency_key);
+CREATE OR REPLACE FUNCTION public.leadx_set_job_operation_scope()
+RETURNS trigger LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
+BEGIN
+  IF NEW.principal_scope IS NULL OR btrim(NEW.principal_scope) = '' THEN
+    NEW.principal_scope := COALESCE(NULLIF(btrim(NEW.scope_hash), ''), 'legacy');
+  END IF;
+  RETURN NEW;
+END;
+$$;
+DROP TRIGGER IF EXISTS trg_job_operation_scope ON public.job_operations;
+CREATE TRIGGER trg_job_operation_scope
+BEFORE INSERT OR UPDATE OF scope_hash, principal_scope ON public.job_operations
+FOR EACH ROW EXECUTE FUNCTION public.leadx_set_job_operation_scope();
+REVOKE ALL ON FUNCTION public.leadx_set_job_operation_scope() FROM PUBLIC, anon, authenticated;
+GRANT EXECUTE ON FUNCTION public.leadx_set_job_operation_scope() TO service_role;
+DO $$
+DECLARE table_name text;
+BEGIN
+  FOREACH table_name IN ARRAY ARRAY[
+    'job_operations','jobs','job_attempts','agent_missions','agent_mission_tasks',
+    'agent_mission_task_attempts','quota_reservations','quota_settlements',
+    'operation_idempotency','audit_log','security_events','tenant_members',
+    'companies','contacts','deals','activities','tasks','notes','sequences',
+    'automations','automation_executions'
+  ] LOOP
+    IF to_regclass('public.' || table_name) IS NOT NULL THEN
+      EXECUTE format('ALTER TABLE public.%I ENABLE ROW LEVEL SECURITY', table_name);
+      EXECUTE format('REVOKE ALL ON public.%I FROM anon, authenticated', table_name);
+    END IF;
+  END LOOP;
+END $$;
+DO $$
+BEGIN
+  IF to_regclass('public.audit_log') IS NOT NULL THEN
+    DROP POLICY IF EXISTS audit_log_tenant_select_task5 ON public.audit_log;
+    CREATE POLICY audit_log_tenant_select_task5 ON public.audit_log FOR SELECT
+      USING (tenant_id IS NULL OR public.is_tenant_member(tenant_id));
+  END IF;
+  IF to_regclass('public.security_events') IS NOT NULL THEN
+    DROP POLICY IF EXISTS security_events_tenant_select_task5 ON public.security_events;
+    CREATE POLICY security_events_tenant_select_task5 ON public.security_events FOR SELECT
+      USING (tenant_id IS NULL OR public.is_tenant_member(tenant_id));
+  END IF;
+END $$;
+CREATE OR REPLACE FUNCTION public.leadx_verify_tenant_security()
+RETURNS jsonb LANGUAGE plpgsql STABLE SECURITY DEFINER SET search_path = pg_catalog, public AS $$
+DECLARE table_name text; missing_rls text[] := ARRAY[]::text[];
+BEGIN
+  FOREACH table_name IN ARRAY ARRAY[
+    'tenants','tenant_members','jobs','job_operations','operation_idempotency',
+    'agent_missions','agent_mission_tasks','quota_reservations','audit_log','security_events',
+    'companies','contacts','deals','activities','tasks','notes','sequences','automations'
+  ] LOOP
+    IF to_regclass('public.' || table_name) IS NOT NULL AND NOT EXISTS (
+      SELECT 1 FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace
+      WHERE n.nspname = 'public' AND c.relname = table_name AND c.relrowsecurity
+    ) THEN
+      missing_rls := missing_rls || ('rls:' || table_name);
+    END IF;
+  END LOOP;
+  RETURN jsonb_build_object('ok', cardinality(missing_rls) = 0, 'missing', to_jsonb(missing_rls), 'browser_roles', 'revoked', 'checked_at', clock_timestamp());
+END;
+$$;
+REVOKE ALL ON FUNCTION public.leadx_verify_tenant_security() FROM PUBLIC, anon, authenticated;
+GRANT EXECUTE ON FUNCTION public.leadx_verify_tenant_security() TO service_role;
+NOTIFY pgrst,'reload schema';
+
+-- Canonical migration parity repair for 20261001000950_leadx_16_durable_task_recovery.sql.
+-- Keep the clean-install mirror behaviorally identical to the ordered file.
+CREATE INDEX IF NOT EXISTS idx_jobs_retry_after ON public.jobs(retry_after) WHERE status = 'queued';
+CREATE INDEX IF NOT EXISTS idx_job_operations_principal ON public.job_operations(tenant_id, principal_scope, operation_kind, idempotency_key);
+CREATE INDEX IF NOT EXISTS idx_mission_tasks_owner ON public.agent_mission_tasks(tenant_id, lease_owner) WHERE status = 'running';
+CREATE INDEX IF NOT EXISTS idx_job_attempts_tenant_job ON public.job_attempts(tenant_id, job_id, attempt);
+CREATE INDEX IF NOT EXISTS idx_mission_task_attempts_task ON public.agent_mission_task_attempts(tenant_id, task_id, attempt);
+CREATE INDEX IF NOT EXISTS idx_quota_reservations_job ON public.quota_reservations(tenant_id, job_id);
+CREATE INDEX IF NOT EXISTS idx_quota_reservations_status ON public.quota_reservations(tenant_id, status, updated_at);
+CREATE INDEX IF NOT EXISTS idx_quota_settlements_tenant ON public.quota_settlements(tenant_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_worker_heartbeats_capability ON public.worker_heartbeats(status, queue_checked_at, reclaim_checked_at);
+
+CREATE OR REPLACE FUNCTION public.leadx_claim_mission_task(
+  p_task_id uuid, p_tenant_id uuid, p_owner text, p_lease_seconds integer DEFAULT 900
+) RETURNS SETOF public.agent_mission_tasks LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
+DECLARE r public.agent_mission_tasks%rowtype; v_attempt integer;
+BEGIN
+  SELECT * INTO r FROM public.agent_mission_tasks WHERE id=p_task_id AND tenant_id=p_tenant_id
+    AND status='queued' AND run_after <= now() FOR UPDATE SKIP LOCKED;
+  IF r.id IS NULL THEN RETURN; END IF;
+  v_attempt := COALESCE(r.attempts,0)+1;
+  UPDATE public.agent_mission_tasks SET status='running', attempts=v_attempt,
+    lease_owner=p_owner, lease_renewed_at=now(), lease_expires_at=now()+make_interval(secs=>GREATEST(30,p_lease_seconds)),
+    started_at=COALESCE(started_at,now()), error=NULL, error_category=NULL, dependency_outcome='claimed', updated_at=now()
+    WHERE id=r.id AND tenant_id=p_tenant_id AND status='queued' RETURNING * INTO r;
+  INSERT INTO public.agent_mission_task_attempts(task_id,mission_id,tenant_id,attempt,owner,lease_expires_at)
+    VALUES(r.id,r.mission_id,r.tenant_id,r.attempts,r.lease_owner,r.lease_expires_at)
+    ON CONFLICT(task_id,attempt) DO NOTHING;
+  RETURN NEXT r;
+END $$;
+
+CREATE OR REPLACE FUNCTION public.leadx_reap_stale_mission_tasks(p_limit integer DEFAULT 500)
+RETURNS SETOF public.agent_mission_tasks LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
+DECLARE r public.agent_mission_tasks%rowtype; v_status text;
+BEGIN
+  FOR r IN SELECT * FROM public.agent_mission_tasks
+    WHERE status='running' AND lease_expires_at IS NOT NULL AND lease_expires_at < now()
+    ORDER BY lease_expires_at LIMIT GREATEST(1,LEAST(p_limit,500)) FOR UPDATE SKIP LOCKED LOOP
+    v_status := CASE WHEN COALESCE(r.attempts,0) < COALESCE(r.max_attempts,3) THEN 'queued' ELSE 'failed' END;
+    UPDATE public.agent_mission_tasks SET status=v_status, lease_owner=NULL, lease_expires_at=NULL,
+      error='worker_lost_reaped', error_category='lease_expired', dependency_outcome=CASE WHEN v_status='queued' THEN 'recovered' ELSE 'terminal' END,
+      run_after=CASE WHEN v_status='queued' THEN now()+make_interval(secs=>LEAST(3600,60*2^GREATEST(0,r.attempts-1))) ELSE now() END,
+      finished_at=CASE WHEN v_status='failed' THEN now() ELSE NULL END,
+      terminal_result=CASE WHEN v_status='failed' THEN jsonb_build_object('status','failed','error_category','lease_expired') ELSE NULL END,
+      updated_at=now()
+      WHERE id=r.id AND status='running' AND lease_expires_at < now() RETURNING * INTO r;
+    UPDATE public.agent_mission_task_attempts SET finished_at=now(), outcome=v_status, retryable=(v_status='queued'), error_category='lease_expired'
+      WHERE task_id=r.id AND attempt=r.attempts AND finished_at IS NULL;
+    RETURN NEXT r;
+  END LOOP;
+END $$;
+-- ============================================================================
+-- CANONICAL MIGRATION 36: 20261025000100_leadx_scoped_work_transitions.sql
+-- ============================================================================
+-- Clean-install mirror of the additive scoped transition RPC. The executable
+-- migration contains the full comments; this mirror keeps the same function,
+-- lock predicates, terminal labels, lease cleanup, and accounting calls.
+CREATE OR REPLACE FUNCTION public.leadx_transition_scoped_work(
+  p_scope_kind text, p_run_id uuid DEFAULT NULL, p_tenant_id uuid DEFAULT NULL,
+  p_cutoff timestamptz DEFAULT NULL,
+  p_status_allowlist text[] DEFAULT ARRAY['queued','running','retrying']::text[],
+  p_apply boolean DEFAULT false
+) RETURNS jsonb LANGUAGE plpgsql SECURITY DEFINER SET search_path=public AS $$
+DECLARE
+  v_scope text := lower(btrim(coalesce(p_scope_kind,'')));
+  v_runs uuid[] := ARRAY[]::uuid[]; v_jobs uuid[] := ARRAY[]::uuid[];
+  v_missions uuid[] := ARRAY[]::uuid[]; v_tasks uuid[] := ARRAY[]::uuid[];
+  v_agent_runs uuid[] := ARRAY[]::uuid[]; v_reservations uuid[] := ARRAY[]::uuid[];
+  v_pending integer := 0; v_remaining integer := 0; v_remaining_stale integer := 0;
+  v_report_limit integer := 500; v_result jsonb;
+  v_selected_by_status jsonb := '{}'::jsonb;
+  v_transitioned_by_table jsonb := '{}'::jsonb;
+  v_skipped_by_table jsonb := '{}'::jsonb;
+  v_failed_reason_codes jsonb := '[]'::jsonb;
+  v_skipped_reason_codes jsonb := '[]'::jsonb;
+  v_id uuid; v_tenant uuid; v_quantity integer;
+BEGIN
+  IF v_scope NOT IN ('run','tenant_active','tenant_stale') THEN
+    RETURN jsonb_build_object('ok',false,'reason','unsupported_scope');
+  END IF;
+  IF p_status_allowlist IS NULL OR cardinality(p_status_allowlist)=0
+     OR NOT (p_status_allowlist <@ ARRAY['queued','running','retrying']::text[]) THEN
+    RETURN jsonb_build_object('ok',false,'reason','invalid_status_allowlist');
+  END IF;
+  IF v_scope='run' AND (p_run_id IS NULL OR p_tenant_id IS NOT NULL OR p_cutoff IS NOT NULL) THEN
+    RETURN jsonb_build_object('ok',false,'reason','invalid_run_scope');
+  END IF;
+  IF v_scope<>'run' AND (p_tenant_id IS NULL OR p_run_id IS NOT NULL
+      OR (v_scope='tenant_stale' AND p_cutoff IS NULL)
+      OR (v_scope='tenant_active' AND p_cutoff IS NOT NULL)) THEN
+    RETURN jsonb_build_object('ok',false,'reason','invalid_tenant_scope');
+  END IF;
+
+  SELECT coalesce(array_agg(x.id ORDER BY x.id),'{}') INTO v_runs
+  FROM (SELECT pr.id FROM public.pipeline_runs pr
+    WHERE pr.status=ANY(p_status_allowlist)
+      AND ((v_scope='run' AND pr.id=p_run_id) OR (v_scope<>'run' AND pr.tenant_id=p_tenant_id
+        AND (v_scope='tenant_active' OR coalesce(pr.updated_at,pr.started_at,pr.created_at)<=p_cutoff)))
+    ORDER BY pr.id FOR UPDATE) x;
+  SELECT coalesce(array_agg(x.id ORDER BY x.id),'{}') INTO v_jobs
+  FROM (SELECT j.id FROM public.jobs j
+    WHERE j.status=ANY(p_status_allowlist)
+      AND ((v_scope='run' AND (j.id=ANY(v_runs) OR j.payload->>'run_id'=ANY(v_runs::text[])))
+        OR (v_scope<>'run' AND j.tenant_id=p_tenant_id
+          AND (v_scope='tenant_active' OR coalesce(j.locked_at,j.created_at)<=p_cutoff)))
+    ORDER BY j.id FOR UPDATE) x;
+  SELECT coalesce(array_agg(x.id ORDER BY x.id),'{}') INTO v_agent_runs
+  FROM (SELECT ar.id FROM public.agent_runs ar
+    WHERE ar.status IN ('queued','running')
+      AND ((v_scope='run' AND ar.input_data->>'run_id'=ANY(v_runs::text[]))
+        OR (v_scope<>'run' AND ar.tenant_id=p_tenant_id
+          AND (v_scope='tenant_active' OR coalesce(ar.updated_at,ar.created_at)<=p_cutoff)))
+    ORDER BY ar.id FOR UPDATE) x;
+  SELECT coalesce(array_agg(x.id ORDER BY x.id),'{}') INTO v_missions
+  FROM (SELECT m.id FROM public.agent_missions m
+    WHERE m.status IN ('queued','running')
+      AND ((v_scope='run' AND m.input_data->>'run_id'=ANY(v_runs::text[]))
+        OR (v_scope<>'run' AND m.tenant_id=p_tenant_id
+          AND (v_scope='tenant_active' OR coalesce(m.updated_at,m.created_at)<=p_cutoff)))
+    ORDER BY m.id FOR UPDATE) x;
+  SELECT coalesce(array_agg(x.id ORDER BY x.id),'{}') INTO v_tasks
+  FROM (SELECT t.id FROM public.agent_mission_tasks t
+    WHERE (t.status=ANY(p_status_allowlist) OR t.status='blocked')
+      AND ((t.mission_id=ANY(v_missions)) OR (v_scope='run' AND t.agent_run_id=ANY(v_agent_runs))
+        OR (v_scope<>'run' AND t.tenant_id=p_tenant_id
+          AND (v_scope='tenant_active' OR coalesce(t.lease_expires_at,t.updated_at,t.created_at)<=p_cutoff)))
+    ORDER BY t.id FOR UPDATE) x;
+  SELECT coalesce(array_agg(x.id ORDER BY x.id),'{}') INTO v_reservations
+  FROM (SELECT q.id FROM public.quota_reservations q
+    WHERE q.status='reserved' AND (q.job_id=ANY(v_jobs) OR q.operation_id IN
+      (SELECT jo.id FROM public.job_operations jo WHERE jo.job_id=ANY(v_jobs)))
+    ORDER BY q.id FOR UPDATE) x;
+  v_selected_by_status := jsonb_build_object(
+    'pipeline_runs',coalesce((SELECT jsonb_object_agg(status,least(row_count,v_report_limit)) FROM
+      (SELECT status,count(*)::integer AS row_count FROM public.pipeline_runs WHERE id=ANY(v_runs) GROUP BY status) s),'{}'::jsonb),
+    'jobs',coalesce((SELECT jsonb_object_agg(status,least(row_count,v_report_limit)) FROM
+      (SELECT status,count(*)::integer AS row_count FROM public.jobs WHERE id=ANY(v_jobs) GROUP BY status) s),'{}'::jsonb),
+    'agent_runs',coalesce((SELECT jsonb_object_agg(status,least(row_count,v_report_limit)) FROM
+      (SELECT status,count(*)::integer AS row_count FROM public.agent_runs WHERE id=ANY(v_agent_runs) GROUP BY status) s),'{}'::jsonb),
+    'missions',coalesce((SELECT jsonb_object_agg(status,least(row_count,v_report_limit)) FROM
+      (SELECT status,count(*)::integer AS row_count FROM public.agent_missions WHERE id=ANY(v_missions) GROUP BY status) s),'{}'::jsonb),
+    'mission_tasks',coalesce((SELECT jsonb_object_agg(status,least(row_count,v_report_limit)) FROM
+      (SELECT status,count(*)::integer AS row_count FROM public.agent_mission_tasks WHERE id=ANY(v_tasks) GROUP BY status) s),'{}'::jsonb),
+    'quota_reservations',coalesce((SELECT jsonb_object_agg(status,least(row_count,v_report_limit)) FROM
+      (SELECT status,count(*)::integer AS row_count FROM public.quota_reservations WHERE id=ANY(v_reservations) GROUP BY status) s),'{}'::jsonb));
+
+  IF NOT p_apply THEN
+    RETURN jsonb_build_object('ok',true,'applied',false,'scope_kind',v_scope,
+      'selected',jsonb_build_object('pipeline_runs',LEAST(coalesce(array_length(v_runs,1),0),v_report_limit),
+        'jobs',LEAST(coalesce(array_length(v_jobs,1),0),v_report_limit),'agent_runs',LEAST(coalesce(array_length(v_agent_runs,1),0),v_report_limit),
+        'missions',LEAST(coalesce(array_length(v_missions,1),0),v_report_limit),'mission_tasks',LEAST(coalesce(array_length(v_tasks,1),0),v_report_limit),
+        'quota_reservations',LEAST(coalesce(array_length(v_reservations,1),0),v_report_limit)),
+      'counts',jsonb_build_object('selected_by_status',v_selected_by_status,
+        'transitioned_by_table',jsonb_build_object('pipeline_runs',0,'jobs',0,'agent_runs',0,'missions',0,'mission_tasks',0,'quota_reservations',0),
+        'skipped_by_table',jsonb_build_object('pipeline_runs',LEAST(coalesce(array_length(v_runs,1),0),v_report_limit),
+          'jobs',LEAST(coalesce(array_length(v_jobs,1),0),v_report_limit),'agent_runs',LEAST(coalesce(array_length(v_agent_runs,1),0),v_report_limit),
+          'missions',LEAST(coalesce(array_length(v_missions,1),0),v_report_limit),'mission_tasks',LEAST(coalesce(array_length(v_tasks,1),0),v_report_limit)),
+        'remaining',jsonb_build_object('active',0,'stale',0)),
+      'remaining_active',0,'remaining_stale',0,'accounting_pending',0,
+      'pending_reconciliation',jsonb_build_object('status','not_required','count',0,'reason_codes',v_failed_reason_codes),
+      'skipped_reason_codes','["dry_run"]'::jsonb,'failed_reason_codes',v_failed_reason_codes,
+      'ready_for_fresh_run',false);
+  END IF;
+
+  UPDATE public.pipeline_runs SET status='failed', error_message='scoped_reset', finished_at=now(),
+    meta=coalesce(meta,'{}'::jsonb)||jsonb_build_object(
+      'stage','failed','message','Stopped by scoped reset',
+      'recovery',jsonb_build_object('reason','scoped_reset','outcome','cancelled','source_run_id',id::text,'terminal',true))
+    WHERE id=ANY(v_runs) AND status=ANY(p_status_allowlist);
+  UPDATE public.jobs j SET status='cancelled', error='scoped_reset', error_category='scoped_reset',
+    dependency_outcome='terminal', terminal_result=jsonb_build_object(
+      'status','cancelled','reason','scoped_reset',
+      'recovery',jsonb_build_object('source_job_id',j.id::text,'outcome','cancelled','terminal',true)),
+    finished_at=now(), locked_by=NULL, locked_at=NULL, lease_expires_at=NULL,
+    lease_renewed_at=NULL, retry_after=NULL, accounting_reconciliation_status='pending'
+    WHERE id=ANY(v_jobs) AND status=ANY(p_status_allowlist);
+  UPDATE public.agent_runs SET status='cancelled', error='scoped_reset', finished_at=now(), updated_at=now()
+    WHERE id=ANY(v_agent_runs) AND status IN ('queued','running');
+  UPDATE public.agent_mission_tasks SET status='cancelled', error='scoped_reset', error_category='scoped_reset',
+    dependency_outcome='terminal', terminal_result=jsonb_build_object('status','cancelled','reason','scoped_reset'),
+    lease_owner=NULL, lease_expires_at=NULL, lease_renewed_at=NULL, run_after=now(), finished_at=now(), updated_at=now()
+    WHERE id=ANY(v_tasks) AND (status=ANY(p_status_allowlist) OR status='blocked');
+  UPDATE public.agent_missions SET status='cancelled', completed_at=now(), updated_at=now(),
+    failure_summary=jsonb_build_object('reason','scoped_reset'), terminal_result=jsonb_build_object('status','cancelled','reason','scoped_reset')
+    WHERE id=ANY(v_missions) AND status IN ('queued','running');
+  UPDATE public.job_attempts SET finished_at=coalesce(finished_at,now()), outcome='cancelled', retryable=false,
+    error_category='scoped_reset', error='scoped_reset' WHERE job_id=ANY(v_jobs) AND finished_at IS NULL;
+  UPDATE public.agent_mission_task_attempts SET finished_at=coalesce(finished_at,now()), outcome='cancelled', retryable=false,
+    error_category='scoped_reset', error='scoped_reset' WHERE task_id=ANY(v_tasks) AND finished_at IS NULL;
+
+  FOREACH v_id IN ARRAY v_jobs LOOP
+    BEGIN
+      v_result:=public.leadx_finish_job_operation(v_id,'cancelled',jsonb_build_object('reason','scoped_reset'));
+      IF NOT (v_result ? 'reason' AND v_result->>'reason'='job_operation_not_found')
+         AND coalesce(v_result->>'accounting_status','') NOT IN ('released','none')
+         AND NOT (v_result ? 'outcome' AND v_result->>'outcome'='replay') THEN
+        v_pending:=v_pending+1;
+        IF NOT (v_failed_reason_codes ? 'job_accounting_pending') THEN
+          v_failed_reason_codes:=v_failed_reason_codes||'["job_accounting_pending"]'::jsonb;
+        END IF;
+      END IF;
+    EXCEPTION WHEN OTHERS THEN
+      v_pending:=v_pending+1;
+      IF NOT (v_failed_reason_codes ? 'accounting_dependency_unavailable') THEN
+        v_failed_reason_codes:=v_failed_reason_codes||'["accounting_dependency_unavailable"]'::jsonb;
+      END IF;
+    END;
+  END LOOP;
+  FOREACH v_id IN ARRAY v_reservations LOOP
+    BEGIN
+      SELECT tenant_id,greatest(coalesce(reserved_quantity,0)-coalesce(committed_quantity,0),0)
+        INTO v_tenant,v_quantity FROM public.quota_reservations WHERE id=v_id;
+      v_result:=public.leadx_record_quota_settlement(v_id,v_tenant,'scoped-reset:'||v_id::text,'released',v_quantity);
+      IF NOT coalesce((v_result->>'ok')::boolean,false) THEN
+        v_pending:=v_pending+1;
+        IF NOT (v_failed_reason_codes ? 'quota_settlement_pending') THEN
+          v_failed_reason_codes:=v_failed_reason_codes||'["quota_settlement_pending"]'::jsonb;
+        END IF;
+      END IF;
+    EXCEPTION WHEN OTHERS THEN
+      v_pending:=v_pending+1;
+      IF NOT (v_failed_reason_codes ? 'quota_accounting_unavailable') THEN
+        v_failed_reason_codes:=v_failed_reason_codes||'["quota_accounting_unavailable"]'::jsonb;
+      END IF;
+    END;
+  END LOOP;
+  SELECT count(*) INTO v_remaining FROM public.pipeline_runs WHERE id=ANY(v_runs) AND status=ANY(p_status_allowlist);
+  SELECT v_remaining+count(*) INTO v_remaining FROM public.jobs WHERE id=ANY(v_jobs) AND status=ANY(p_status_allowlist);
+  SELECT v_remaining+count(*) INTO v_remaining FROM public.agent_runs WHERE id=ANY(v_agent_runs) AND status IN ('queued','running');
+  SELECT v_remaining+count(*) INTO v_remaining FROM public.agent_mission_tasks WHERE id=ANY(v_tasks) AND (status=ANY(p_status_allowlist) OR status='blocked');
+  SELECT v_remaining+count(*) INTO v_remaining FROM public.agent_missions WHERE id=ANY(v_missions) AND status IN ('queued','running');
+  v_remaining_stale:=CASE WHEN v_scope='tenant_stale' THEN v_remaining ELSE 0 END;
+  v_transitioned_by_table:=jsonb_build_object(
+    'pipeline_runs',LEAST(coalesce(array_length(v_runs,1),0),v_report_limit),
+    'jobs',LEAST(coalesce(array_length(v_jobs,1),0),v_report_limit),
+    'agent_runs',LEAST(coalesce(array_length(v_agent_runs,1),0),v_report_limit),
+    'missions',LEAST(coalesce(array_length(v_missions,1),0),v_report_limit),
+    'mission_tasks',LEAST(coalesce(array_length(v_tasks,1),0),v_report_limit),
+    'quota_reservations',0);
+  v_skipped_by_table:=jsonb_build_object('pipeline_runs',0,'jobs',0,'agent_runs',0,'missions',0,'mission_tasks',0);
+  RETURN jsonb_build_object('ok',v_pending=0,'applied',true,'scope_kind',v_scope,
+    'selected',jsonb_build_object('pipeline_runs',LEAST(coalesce(array_length(v_runs,1),0),v_report_limit),
+      'jobs',LEAST(coalesce(array_length(v_jobs,1),0),v_report_limit),'agent_runs',LEAST(coalesce(array_length(v_agent_runs,1),0),v_report_limit),
+      'missions',LEAST(coalesce(array_length(v_missions,1),0),v_report_limit),'mission_tasks',LEAST(coalesce(array_length(v_tasks,1),0),v_report_limit),
+      'quota_reservations',LEAST(coalesce(array_length(v_reservations,1),0),v_report_limit)),
+    'counts',jsonb_build_object('selected_by_status',v_selected_by_status,
+      'transitioned_by_table',v_transitioned_by_table,'skipped_by_table',v_skipped_by_table,
+      'remaining',jsonb_build_object('active',LEAST(v_remaining,v_report_limit),'stale',LEAST(v_remaining_stale,v_report_limit))),
+    'accounting_pending',v_pending,
+    'pending_reconciliation',jsonb_build_object('status',CASE WHEN v_pending=0 THEN 'reconciled' ELSE 'pending' END,
+      'count',LEAST(v_pending,v_report_limit),'reason_codes',v_failed_reason_codes),
+    'skipped_reason_codes',v_skipped_reason_codes,'failed_reason_codes',v_failed_reason_codes,
+    'remaining_active',LEAST(v_remaining,v_report_limit),'remaining_stale',LEAST(v_remaining_stale,v_report_limit),
+    'ready_for_fresh_run',v_remaining=0 AND v_pending=0);
+END; $$;
+REVOKE ALL ON FUNCTION public.leadx_transition_scoped_work(text,uuid,uuid,timestamptz,text[],boolean) FROM PUBLIC,anon,authenticated;
+GRANT EXECUTE ON FUNCTION public.leadx_transition_scoped_work(text,uuid,uuid,timestamptz,text[],boolean) TO service_role;
+NOTIFY pgrst, 'reload schema';
+
+-- ============================================================================
+-- CANONICAL MIGRATION 37: 20261025000200_leadx_scoped_work_operation_ledger.sql
+-- ============================================================================
+CREATE TABLE IF NOT EXISTS public.scoped_work_reset_operations (
+  operation_id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  operation_key text NOT NULL UNIQUE,
+  request_hash text NOT NULL,
+  canonical_request jsonb NOT NULL DEFAULT '{}'::jsonb,
+  scope_hash text NOT NULL,
+  actor_hash text NOT NULL,
+  status text NOT NULL DEFAULT 'processing' CHECK (status IN ('processing','completed')),
+  result jsonb NOT NULL DEFAULT '{}'::jsonb,
+  created_at timestamptz NOT NULL DEFAULT now(),
+  completed_at timestamptz
+);
+ALTER TABLE IF EXISTS public.scoped_work_reset_operations ADD COLUMN IF NOT EXISTS operation_id uuid;
+ALTER TABLE IF EXISTS public.scoped_work_reset_operations ADD COLUMN IF NOT EXISTS operation_key text;
+ALTER TABLE IF EXISTS public.scoped_work_reset_operations ADD COLUMN IF NOT EXISTS request_hash text;
+ALTER TABLE IF EXISTS public.scoped_work_reset_operations ADD COLUMN IF NOT EXISTS canonical_request jsonb;
+ALTER TABLE IF EXISTS public.scoped_work_reset_operations ADD COLUMN IF NOT EXISTS scope_hash text;
+ALTER TABLE IF EXISTS public.scoped_work_reset_operations ADD COLUMN IF NOT EXISTS actor_hash text;
+ALTER TABLE IF EXISTS public.scoped_work_reset_operations ADD COLUMN IF NOT EXISTS status text;
+ALTER TABLE IF EXISTS public.scoped_work_reset_operations ADD COLUMN IF NOT EXISTS result jsonb;
+ALTER TABLE IF EXISTS public.scoped_work_reset_operations ADD COLUMN IF NOT EXISTS created_at timestamptz;
+ALTER TABLE IF EXISTS public.scoped_work_reset_operations ADD COLUMN IF NOT EXISTS completed_at timestamptz;
+CREATE UNIQUE INDEX IF NOT EXISTS uq_scoped_reset_operation_key ON public.scoped_work_reset_operations(operation_key);
+CREATE INDEX IF NOT EXISTS idx_scoped_reset_operations_scope ON public.scoped_work_reset_operations(scope_hash,created_at DESC);
+
+CREATE OR REPLACE FUNCTION public.leadx_reset_scoped_work(
+  p_operation_key text, p_actor text, p_scope_kind text,
+  p_run_id uuid DEFAULT NULL, p_tenant_id uuid DEFAULT NULL,
+  p_cutoff timestamptz DEFAULT NULL,
+  p_status_allowlist text[] DEFAULT ARRAY['queued','running','retrying']::text[],
+  p_apply boolean DEFAULT false, p_confirmation boolean DEFAULT false
+) RETURNS jsonb LANGUAGE plpgsql SECURITY DEFINER SET search_path=public AS $$
+DECLARE
+  v_operation_id uuid; v_existing public.scoped_work_reset_operations%ROWTYPE;
+  v_canonical jsonb; v_statuses jsonb; v_request_hash text; v_scope_hash text; v_result jsonb;
+  v_started_at timestamptz := clock_timestamp();
+BEGIN
+  IF p_operation_key IS NULL OR btrim(p_operation_key)='' OR p_actor IS NULL OR btrim(p_actor)=''
+     OR (coalesce(p_apply,false) AND NOT coalesce(p_confirmation,false)) THEN
+    RETURN jsonb_build_object('ok',false,'outcome','conflict','reason',CASE WHEN coalesce(p_apply,false) THEN 'confirmation_required' ELSE 'invalid_reset_request' END);
+  END IF;
+  SELECT coalesce(jsonb_agg(value ORDER BY value),'[]'::jsonb) INTO v_statuses
+    FROM unnest(coalesce(p_status_allowlist,ARRAY[]::text[])) AS statuses(value);
+  v_canonical:=jsonb_build_object('actor_hash',md5(p_actor),'scope_kind',lower(btrim(coalesce(p_scope_kind,''))),
+    'run_id',p_run_id,'tenant_id',p_tenant_id,'cutoff',p_cutoff,'status_allowlist',v_statuses,
+    'apply',coalesce(p_apply,false),'confirmation',coalesce(p_confirmation,false));
+  v_request_hash:=md5(v_canonical::text);
+  v_scope_hash:=md5(jsonb_build_object('scope_kind',lower(btrim(coalesce(p_scope_kind,''))),
+    'run_id',p_run_id,'tenant_id',p_tenant_id,'cutoff',p_cutoff,'status_allowlist',v_statuses)::text);
+  INSERT INTO public.scoped_work_reset_operations(operation_key,request_hash,canonical_request,scope_hash,actor_hash)
+    VALUES(p_operation_key,v_request_hash,v_canonical,v_scope_hash,md5(p_actor))
+    ON CONFLICT(operation_key) DO NOTHING RETURNING operation_id INTO v_operation_id;
+  IF v_operation_id IS NULL THEN
+    SELECT * INTO v_existing FROM public.scoped_work_reset_operations WHERE operation_key=p_operation_key FOR UPDATE;
+    IF v_existing.request_hash<>v_request_hash THEN
+      RETURN jsonb_build_object('ok',false,'outcome','conflict','reason','operation_key_conflict');
+    END IF;
+    IF v_existing.status='completed' THEN
+      RETURN coalesce(v_existing.result,'{}'::jsonb)||jsonb_build_object('replayed',true);
+    END IF;
+    RETURN jsonb_build_object('ok',false,'outcome','conflict','reason','operation_in_progress');
+  END IF;
+  v_result:=public.leadx_transition_scoped_work(p_scope_kind,p_run_id,p_tenant_id,p_cutoff,p_status_allowlist,p_apply);
+  IF p_apply THEN
+    UPDATE public.pipeline_runs
+    SET meta=coalesce(meta,'{}'::jsonb)||jsonb_build_object('recovery',coalesce(meta->'recovery','{}'::jsonb)||jsonb_build_object(
+      'operation_id',v_operation_id,'actor_hash',md5(p_actor),'source_run_id',id::text))
+    WHERE status='failed' AND error_message='scoped_reset'
+      AND finished_at >= v_started_at
+      AND ((lower(btrim(coalesce(p_scope_kind,'')))='run' AND id=p_run_id)
+        OR (lower(btrim(coalesce(p_scope_kind,'')))<>'run' AND tenant_id=p_tenant_id));
+    UPDATE public.jobs
+    SET terminal_result=coalesce(terminal_result,'{}'::jsonb)||jsonb_build_object('recovery',coalesce(terminal_result->'recovery','{}'::jsonb)||jsonb_build_object(
+      'operation_id',v_operation_id,'actor_hash',md5(p_actor),'source_job_id',id::text))
+    WHERE status='cancelled' AND error_category='scoped_reset'
+      AND finished_at >= v_started_at
+      AND ((lower(btrim(coalesce(p_scope_kind,'')))='run' AND (id=p_run_id OR payload->>'run_id'=p_run_id::text))
+        OR (lower(btrim(coalesce(p_scope_kind,'')))<>'run' AND tenant_id=p_tenant_id));
+  END IF;
+  v_result:=coalesce(v_result,'{}'::jsonb)||jsonb_build_object('operation_id',v_operation_id,
+    'scope_hash',v_scope_hash,'outcome',CASE WHEN p_apply THEN 'applied' ELSE 'dry_run' END,
+    'replayed',false,'event_recorded',true);
+  UPDATE public.scoped_work_reset_operations SET status='completed',result=v_result,completed_at=now()
+    WHERE operation_id=v_operation_id;
+  INSERT INTO public.audit_log(tenant_id,actor_id,actor_type,action,resource_type,resource_id,after_state,reason)
+    VALUES(p_tenant_id,'principal_'||left(md5(p_actor),24),'platform_admin','admin.scoped_work_reset',
+      'scoped_work_reset',v_operation_id::text,jsonb_build_object('operation_id',v_operation_id,
+      'scope_hash',v_scope_hash,'run_id',p_run_id,'selected',v_result->'selected',
+      'outcome',v_result->>'outcome','reason_code',coalesce(v_result->>'reason','scoped_reset')),'scoped_reset');
+  RETURN v_result;
+END; $$;
+ALTER TABLE IF EXISTS public.scoped_work_reset_operations ENABLE ROW LEVEL SECURITY;
+REVOKE ALL ON TABLE public.scoped_work_reset_operations FROM PUBLIC,anon,authenticated;
+GRANT ALL ON TABLE public.scoped_work_reset_operations TO service_role;
+REVOKE ALL ON FUNCTION public.leadx_reset_scoped_work(text,text,text,uuid,uuid,timestamptz,text[],boolean,boolean) FROM PUBLIC,anon,authenticated;
+GRANT EXECUTE ON FUNCTION public.leadx_reset_scoped_work(text,text,text,uuid,uuid,timestamptz,text[],boolean,boolean) TO service_role;
+NOTIFY pgrst, 'reload schema';
+
+-- ============================================================================
+-- CANONICAL MIGRATION 38: 20261025000300_leadx_task8_stage_accounting.sql
+-- ============================================================================
+-- Additive only. Legacy board/status fields remain readable by existing clients.
+ALTER TABLE IF EXISTS public.pipeline_run_leads
+  ADD COLUMN IF NOT EXISTS stage_status text NOT NULL DEFAULT 'accepted',
+  ADD COLUMN IF NOT EXISTS stage_reason text,
+  ADD COLUMN IF NOT EXISTS stage_idempotency_key text,
+  ADD COLUMN IF NOT EXISTS crm_assignment_id uuid;
+
+DO $$
+BEGIN
+  ALTER TABLE public.pipeline_run_leads
+    ADD CONSTRAINT pipeline_run_leads_stage_status_check
+    CHECK (stage_status IN ('accepted','rejected','retryable','skipped','terminal'))
+    NOT VALID;
+EXCEPTION WHEN duplicate_object THEN NULL;
+END $$;
+
+CREATE UNIQUE INDEX IF NOT EXISTS uq_pipeline_run_leads_stage_operation
+  ON public.pipeline_run_leads(run_id, lead_id, stage_idempotency_key)
+  WHERE stage_idempotency_key IS NOT NULL;
+
+ALTER TABLE IF EXISTS public.lead_assignments
+  ADD COLUMN IF NOT EXISTS assignment_idempotency_key text,
+  ADD COLUMN IF NOT EXISTS crm_status text,
+  ADD COLUMN IF NOT EXISTS crm_company_id uuid,
+  ADD COLUMN IF NOT EXISTS crm_contact_id uuid;
+
+CREATE UNIQUE INDEX IF NOT EXISTS uq_lead_assignments_idempotency
+  ON public.lead_assignments(tenant_id, assignment_idempotency_key)
+  WHERE assignment_idempotency_key IS NOT NULL;
+
+CREATE INDEX IF NOT EXISTS idx_lead_assignments_tenant_delivery
+  ON public.lead_assignments(tenant_id, delivery_status, created_at DESC);
+
+NOTIFY pgrst, 'reload schema';
+
+-- ============================================================================
+-- CANONICAL MIGRATION 39: 20261028000400_leadx_delivery_timestamp_semantics.sql
+-- ============================================================================
+-- Pending/failed assignments have never reached a successful delivery state.
+UPDATE public.lead_assignments
+SET delivered_at = NULL
+WHERE delivery_status IN ('pending', 'failed')
+  AND delivered_at IS NOT NULL;
+
+COMMENT ON COLUMN public.lead_assignments.delivered_at IS
+  'Timestamp of successful delivery confirmation; NULL while assignment is pending or failed.';
+
+NOTIFY pgrst, 'reload schema';
+
+-- ============================================================================
+-- CANONICAL MIGRATION 40: 20261029000500_leadx_pipeline_run_cancelled_status.sql
+-- ============================================================================
+-- Allow durable operator/client cancellation as a terminal pipeline state.
+DO $$
+DECLARE constraint_name text;
+BEGIN
+  IF to_regclass('public.pipeline_runs') IS NOT NULL THEN
+    FOR constraint_name IN
+      SELECT conname
+      FROM pg_constraint
+      WHERE conrelid = 'public.pipeline_runs'::regclass
+        AND contype = 'c'
+        AND pg_get_constraintdef(oid) ILIKE '%status%'
+        AND pg_get_constraintdef(oid) ILIKE '%completed%'
+    LOOP
+      EXECUTE format('ALTER TABLE public.pipeline_runs DROP CONSTRAINT IF EXISTS %I', constraint_name);
+    END LOOP;
+    ALTER TABLE public.pipeline_runs
+      ADD CONSTRAINT pipeline_runs_status_check
+      CHECK (status IN ('queued','running','completed','failed','partial','cancelled'));
+  END IF;
+EXCEPTION WHEN duplicate_object THEN NULL;
+END $$;
+NOTIFY pgrst, 'reload schema';
 COMMIT;

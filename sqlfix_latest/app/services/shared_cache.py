@@ -99,7 +99,9 @@ def _memory_set(key: str, value: Any, ttl: float) -> None:
 def _tenant_key_matches(key: str, tenant_id: str | None) -> bool:
     if not tenant_id or not re.fullmatch(r"[A-Za-z0-9_-]{1,128}", tenant_id):
         return False
-    return any(match.group("tenant") == tenant_id for match in _TENANT_SEGMENT.finditer(key))
+    # Require tenant_id to occupy a complete key segment. Splitting avoids a
+    # non-overlapping regex match swallowing the prefix before the tenant.
+    return tenant_id in re.split(r"[:|]", key)
 
 
 def _safe_fallback_ttl(

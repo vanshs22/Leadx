@@ -4,6 +4,10 @@
  */
 const LOOPBACK_HOSTS = new Set(["localhost", "127.0.0.1", "::1"]);
 
+export function isLocalAuthProfile(): boolean {
+  return ["1", "true", "yes", "on"].includes(String(process.env.NEXT_PUBLIC_LEADX_LOCAL_AUTH || "").trim().toLowerCase());
+}
+
 export function isRemoteBrowser() {
   if (typeof window === "undefined") return false;
   const host = window.location.hostname;

@@ -212,3 +212,84 @@ def test_inbound_multipart_prefers_plain_text_and_ignores_attachments():
     text=_extract_text(message_from_string(raw))
     assert "let's talk" in text.lower()
     assert "unsubscribe" not in text.lower()
+
+
+@pytest.mark.asyncio
+async def test_unverified_tenant_sender_is_rejected_without_platform_fallback(monkeypatch):
+    from app.integrations.prod import email_outreach
+
+    class Q:
+        def select(self, *a, **k): return self
+        def eq(self, *a, **k): return self
+        def limit(self, *a, **k): return self
+        def execute(self):
+            return type("R", (), {"data": [{
+                "domain": "client.com", "domain_verified": False,
+                "from_email": "sales@client.com", "from_name": "Client",
+            }]})()
+
+    monkeypatch.setattr(email_outreach, "_sb", lambda: type("SB", (), {"table": lambda self, _: Q()})())
+    async def cascade(*a, **k):
+        raise AssertionError("unverified tenant sender must not use platform fallback")
+    monkeypatch.setattr(email_outreach, "send_with_cascade", cascade)
+
+    result = await email_outreach.send_for_tenant("t1", "x@example.com", "Hi", "<p>Hi</p>")
+    assert result == {"ok": False, "error": "tenant_sender_unverified", "provider": "ses"}
+
+
+@pytest.mark.asyncio
+async def test_verified_tenant_sender_domain_mismatch_is_rejected(monkeypatch):
+    from app.integrations.prod import email_outreach
+
+    class Q:
+        def select(self, *a, **k): return self
+        def eq(self, *a, **k): return self
+        def limit(self, *a, **k): return self
+        def execute(self):
+            return type("R", (), {"data": [{
+                "domain": "client.com", "domain_verified": True,
+                "from_email": "sales@other.example", "from_name": "Client",
+            }]})()
+
+    monkeypatch.setattr(email_outreach, "_sb", lambda: type("SB", (), {"table": lambda self, _: Q()})())
+    monkeypatch.setattr(email_outreach, "send_with_cascade", lambda *a, **k: pytest.fail("must not fallback"))
+
+    result = await email_outreach.send_for_tenant("t1", "x@example.com", "Hi", "<p>Hi</p>")
+    assert result == {"ok": False, "error": "tenant_sender_domain_mismatch", "provider": "ses"}
+
+
+def test_email_settings_returns_public_ses_status_and_dns_without_secrets(monkeypatch):
+    from app.crm import crm_api
+    from app.integrations.prod import ses_domain
+    from app.middleware.auth import TenantContext
+    from tests.conftest import FakeSupabase
+
+    fake = FakeSupabase({"tenant_email_settings": [{
+        "tenant_id": "t1", "domain": "client.com", "from_email": "sales@client.com",
+        "domain_verified": False, "dns_records": [{"type": "CNAME", "name": "token._domainkey.client.com", "value": "token.dkim.amazonses.com"}],
+        "aws_secret_access_key": "must-not-leak",
+    }]})
+    monkeypatch.setattr(crm_api, "_sb", lambda: fake)
+    monkeypatch.setattr(ses_domain, "ses_status", lambda: {
+        "ok": False, "ready": False, "reason": "missing_credentials", "message": "not configured",
+        "region": "us-east-1", "key_prefix": "AKIA-secret-prefix", "error": "secret-token",
+    })
+
+    result = crm_api.get_email_settings("t1", TenantContext(tenant_id="t1", user_id="u1", role="owner"))
+    assert result["ses_status"] == {
+        "ok": False, "ready": False, "reason": "missing_credentials",
+        "message": "not configured", "region": "us-east-1",
+    }
+    assert result["settings"]["dns_records"][0]["type"] == "CNAME"
+    assert "key_prefix" not in result["ses_status"]
+    assert "secret" not in repr(result).lower()
+
+
+def test_email_settings_rejects_cross_tenant_context():
+    from fastapi import HTTPException
+    from app.crm import crm_api
+    from app.middleware.auth import TenantContext
+
+    with pytest.raises(HTTPException) as exc:
+        crm_api.get_email_settings("other-tenant", TenantContext(tenant_id="tenant-a", user_id="u1", role="owner"))
+    assert exc.value.status_code == 403

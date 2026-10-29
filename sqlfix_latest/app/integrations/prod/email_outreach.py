@@ -492,6 +492,8 @@ async def send_to_lead(
     explicit intent that shouldn't be silently deferred. The domain cap
     is enforced either way — that one protects deliverability, not
     politeness."""
+    from app.integrations.prod.discovery_runtime import assert_provider_allowed
+    assert_provider_allowed("email_send")
     sb = _sb()
     rows = (
         (await aexec(sb.table("lead_assignments")
@@ -785,18 +787,24 @@ async def send_for_tenant(
         row = (r.data or [None])[0]
     except Exception:
         row = None
-    if row and row.get("domain_verified") and row.get("from_email"):
-        from_addr = row.get("from_email")
+    if row and (row.get("domain") or row.get("from_email")):
+        configured_domain = str(row.get("domain") or "").strip().lower()
+        configured_from = str(row.get("from_email") or "").strip()
+        sender_domain = configured_from.rsplit("@", 1)[-1].lower() if "@" in configured_from else ""
+        if not row.get("domain_verified"):
+            return {"ok": False, "error": "tenant_sender_unverified", "provider": "ses"}
+        if not configured_from or not configured_domain or sender_domain != configured_domain:
+            return {"ok": False, "error": "tenant_sender_domain_mismatch", "provider": "ses"}
+        from_addr = configured_from
         if row.get("from_name"):
-            from_addr = f'{row.get("from_name")} <{row.get("from_email")}>'
+            from_addr = f'{row.get("from_name")} <{configured_from}>'
         try:
             from app.integrations.prod.ses_domain import send_via_ses, ses_configured
             if not ses_configured():
                 return {"ok": False, "error": "ses_not_configured", "provider": "ses"}
-            # Once a tenant explicitly verified a domain, do NOT silently fall
-            # back to another sender. A fallback could send from the platform
-            # identity, break reply routing, and make a sequence step appear
-            # duplicated. The caller can retry the same durable step instead.
+            # Once a tenant explicitly configured an identity, do NOT silently
+            # fall back to another sender. A fallback could send from the
+            # platform identity or bypass the tenant's verification boundary.
             result = await send_via_ses(
                 to, subject, html, text,
                 from_addr=from_addr,

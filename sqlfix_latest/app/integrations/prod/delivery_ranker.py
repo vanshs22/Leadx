@@ -7,17 +7,20 @@ from __future__ import annotations
 
 from typing import Any, Optional
 
+from app.integrations.prod.contact_state import email_level, phone_ok
+
 
 def contactability(lead: dict) -> tuple[int, list[str]]:
     """0-100: can the client actually reach this business?"""
     score = 0
     reasons = []
-    if lead.get("phone_verified") is True or str(lead.get("phone_status") or "").lower() == "valid":
+    if phone_ok(lead):
         score += 40
         reasons.append("verified_phone")
-    if str(lead.get("email_status") or "").lower() in {"valid", "deliverable"}:
-        score += 35
-        reasons.append("verified_email")
+    email_level_value = email_level(lead)
+    if email_level_value:
+        score += 35 if email_level_value == "valid" else 25
+        reasons.append("verified_email" if email_level_value == "valid" else "probable_email")
     if lead.get("website"):
         score += 10
         reasons.append("website")
@@ -55,8 +58,8 @@ def composite_quality(lead: dict) -> int:
 
 
 def is_contactable(lead: dict, require: str = "phone_or_email") -> bool:
-    has_phone = lead.get("phone_verified") is True or str(lead.get("phone_status") or "").lower() == "valid"
-    has_email = str(lead.get("email_status") or "").lower() in {"valid", "deliverable"}
+    has_phone = phone_ok(lead)
+    has_email = email_level(lead) is not None
     social = lead.get("social_links") if isinstance(lead.get("social_links"), dict) else {}
     has_social = bool(
         lead.get("linkedin_url")
@@ -80,6 +83,7 @@ def is_deliverable(
     lead: dict,
     *,
     allow_tier_b: bool = False,
+    allow_tier_c: bool = False,
     require_contact: str = "phone_or_email",
     min_composite: int = 55,
     min_score: int = 50,
@@ -97,7 +101,9 @@ def is_deliverable(
     except Exception as exc: __import__("logging").getLogger(__name__).debug("suppressed optional failure: %s", exc)
 
     tier = (lead.get("tier") or "C").upper()
-    allowed = {"A", "B"} if allow_tier_b else {"A"}
+    allowed = {"A"}
+    if allow_tier_b: allowed.add("B")
+    if allow_tier_c: allowed.add("C")
     if tier not in allowed:
         if not (allow_tier_b and tier == "B"):
             if tier == "C" and composite_quality(lead) < 70:
@@ -115,6 +121,7 @@ def rank_for_delivery(
     leads: list[dict],
     *,
     allow_tier_b: bool = False,
+    allow_tier_c: bool = False,
     require_contact: str = "phone_or_email",
     min_composite: int = 55,
     max_deliver: Optional[int] = None,
@@ -129,6 +136,7 @@ def rank_for_delivery(
         ok, reason = is_deliverable(
             lead,
             allow_tier_b=allow_tier_b,
+            allow_tier_c=allow_tier_c,
             require_contact=require_contact,
             min_composite=min_composite,
         )

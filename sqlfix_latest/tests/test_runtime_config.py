@@ -23,6 +23,23 @@ def _env(**overrides: str) -> dict[str, str]:
     return values
 
 
+def _hardened_env(environment: str) -> dict[str, str]:
+    return _env(
+        ENVIRONMENT=environment,
+        SUPABASE_ANON_KEY="synthetic-anon-key",
+        UNSUBSCRIBE_SECRET="synthetic-unsubscribe-secret-1234567890",
+        INTEGRATION_OAUTH_STATE_SECRET="synthetic-oauth-secret-1234567890",
+        REDIS_URL="redis://synthetic-cache:6379/0",
+        DELIVERY_CONFIG_KEY="synthetic-delivery-config-key-123456",
+        LEAD_ENGINE_SERVICE_KEY="synthetic-lead-engine-key-123456",
+        CORS_ORIGINS="https://acelune.com,https://www.acelune.com",
+        PUBLIC_API_URL="https://api.acelune.com",
+        REQUIRE_DISTRIBUTED_RATE_LIMIT="true",
+        REQUIRE_REDIS_FOR_API_READY="true",
+        JOB_QUEUE_FAIL_CLOSED="true",
+    )
+
+
 def test_development_defaults_preserve_existing_runtime_values():
     policy = load_runtime_policy(process="api", environ=_env())
 
@@ -211,3 +228,24 @@ def test_legacy_validation_still_accepts_development_environment(monkeypatch):
 
     assert policy.environment == "development"
     assert policy.process == "api"
+
+
+@pytest.mark.parametrize("environment", ("production", "prod", "staging"))
+def test_hardened_missing_diagnostics_exclude_optional_stripe(
+    monkeypatch: pytest.MonkeyPatch,
+    environment: str,
+):
+    values = _hardened_env(environment)
+    values.pop("CORS_ORIGINS")
+    for key, value in values.items():
+        monkeypatch.setenv(key, value)
+    monkeypatch.delenv("STRIPE_SECRET_KEY", raising=False)
+    monkeypatch.delenv("STRIPE_WEBHOOK_SECRET", raising=False)
+
+    with pytest.raises(RuntimeError) as raised:
+        validate_runtime_configuration(process="api")
+
+    message = str(raised.value)
+    assert "CORS_ORIGINS" in message
+    assert "STRIPE_SECRET_KEY" not in message
+    assert "STRIPE_WEBHOOK_SECRET" not in message

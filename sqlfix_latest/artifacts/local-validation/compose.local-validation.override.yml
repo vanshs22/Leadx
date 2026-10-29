@@ -1,0 +1,61 @@
+services:
+  api:
+    env_file: []
+    environment:
+      ENVIRONMENT: development
+      LEAD_ENGINE_DEV_AUTH_BYPASS: "0"
+      LOCAL_VALIDATION_MODE: "1"
+      LOCAL_AUTHENTICATION_FLAG: "1"
+      LOCAL_AUTH_EMAIL: local@example.test
+      LOCAL_AUTH_PASSWORD: synthetic-password
+      LOCAL_AUTH_SECRET: local-validation-secret-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+      LOCAL_AUTH_USER_ID: local-user
+      LOCAL_AUTH_TENANT_ID: local-tenant
+      LOCAL_AUTH_RATE_LIMIT: "60"
+      LOCAL_DURABLE_PATH: /var/lib/leadx/local-durable.sqlite3
+      LOCAL_DURABLE_BACKEND: sqlite
+      REQUIRE_REDIS_FOR_API_READY: "1"
+      REQUIRE_WORKER_READY: "1"
+      JOB_QUEUE_FAIL_CLOSED: "1"
+      PAID_PROVIDER_ISOLATION: "1"
+      SUPABASE_URL: ""
+      SUPABASE_ANON_KEY: ""
+      SUPABASE_SERVICE_KEY: ""
+      STRIPE_SECRET_KEY: ""
+      STRIPE_WEBHOOK_SECRET: ""
+      SERPER_API_KEY: ""
+  worker:
+    env_file: []
+    environment:
+      ENVIRONMENT: development
+      LEAD_ENGINE_DEV_AUTH_BYPASS: "0"
+      LOCAL_VALIDATION_MODE: "1"
+      LOCAL_AUTHENTICATION_FLAG: "1"
+      LOCAL_AUTH_EMAIL: local@example.test
+      LOCAL_AUTH_PASSWORD: synthetic-password
+      LOCAL_AUTH_SECRET: local-validation-secret-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+      LOCAL_AUTH_USER_ID: local-user
+      LOCAL_AUTH_TENANT_ID: local-tenant
+      LOCAL_AUTH_RATE_LIMIT: "60"
+      LOCAL_DURABLE_PATH: /var/lib/leadx/local-durable.sqlite3
+      LOCAL_DURABLE_BACKEND: sqlite
+      REQUIRE_REDIS_FOR_API_READY: "1"
+      REQUIRE_WORKER_READY: "1"
+      JOB_QUEUE_FAIL_CLOSED: "1"
+      PAID_PROVIDER_ISOLATION: "1"
+      SUPABASE_URL: ""
+      SUPABASE_ANON_KEY: ""
+      SUPABASE_SERVICE_KEY: ""
+      STRIPE_SECRET_KEY: ""
+      STRIPE_WEBHOOK_SECRET: ""
+      SERPER_API_KEY: ""
+  portal:
+    build:
+      args:
+        NEXT_PUBLIC_SUPABASE_URL: ""
+        NEXT_PUBLIC_SUPABASE_ANON_KEY: ""
+        NEXT_PUBLIC_LEADX_LOCAL_AUTH: "1"
+    environment:
+      NEXT_PUBLIC_SUPABASE_URL: ""
+      NEXT_PUBLIC_SUPABASE_ANON_KEY: ""
+      NEXT_PUBLIC_LEADX_LOCAL_AUTH: "1"

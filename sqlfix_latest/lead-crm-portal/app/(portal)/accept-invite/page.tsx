@@ -56,71 +56,107 @@ export default function AcceptInvitePage() {
   }
 
   return (
-    <div className="flex min-h-screen items-center justify-center p-6">
-      <form
-        onSubmit={submit}
-        className="w-full max-w-md space-y-4 rounded-2xl border border-line bg-panel p-8 shadow-lg"
-      >
-        <div>
-          <h1 className="text-xl font-semibold text-ink">Accept invite</h1>
-          <p className="mt-1 text-sm text-ink-muted">
-            Create an account (set your password) or sign in, then you join this workspace with the role you were invited with.
-          </p>
-          {!token && (
-            <p className="mt-2 text-sm text-rust-500">
-              No invite token in the URL — open this page from your invite link.
-            </p>
-          )}
-        </div>
-        <div className="flex gap-2 text-xs">
-          <button
-            type="button"
-            onClick={() => setMode("new")}
-            className={mode === "new" ? "btn-primary" : "btn-secondary"}
-          >
-            I'm new
-          </button>
-          <button
-            type="button"
-            onClick={() => setMode("existing")}
-            className={mode === "existing" ? "btn-primary" : "btn-secondary"}
-          >
-            I already have an account
-          </button>
-        </div>
-        {mode === "new" && (
-          <input
-            value={fullName}
-            onChange={(e) => setFullName(e.target.value)}
-            placeholder="Full name"
-            className="input w-full"
-          />
-        )}
-        <input
-          type="email"
-          value={email}
-          onChange={(e) => setEmail(e.target.value)}
-          placeholder="Email"
-          className="input w-full"
-          required
-        />
-        <input
-          type="password"
-          value={password}
-          onChange={(e) => setPassword(e.target.value)}
-          placeholder="Password"
-          className="input w-full"
-          required
-        />
-        {error && <p className="text-sm text-rust-500">{error}</p>}
-        <button
-          type="submit"
-          disabled={busy || !token}
-          className="btn-primary w-full disabled:opacity-50"
+    <div className="auth-shell">
+      <div className="relative z-10 flex w-full max-w-[860px] items-stretch justify-center">
+        <AuthAside />
+        <form
+          onSubmit={submit}
+          className="auth-card space-y-5 lg:rounded-l-none lg:border-l-0"
         >
-          {busy ? "Joining…" : "Join workspace"}
-        </button>
-      </form>
+          <div>
+            <span className="auth-logo">LX</span>
+            <h1 className="auth-title">Accept invite</h1>
+            <p className="auth-copy">
+              Create an account (set your password) or sign in, then you join this workspace with the role you were invited with.
+            </p>
+            {!token && (
+              <div className="mt-3 notice notice-danger" role="alert">
+                No invite token in the URL — open this page from your invite link.
+              </div>
+            )}
+          </div>
+          <div className="tabs grid w-full grid-cols-2" role="group" aria-label="Account type">
+            <button
+              type="button"
+              aria-pressed={mode === "new"}
+              onClick={() => setMode("new")}
+              className={mode === "new" ? "tab-active" : "tab"}
+            >
+              I'm new
+            </button>
+            <button
+              type="button"
+              aria-pressed={mode === "existing"}
+              onClick={() => setMode("existing")}
+              className={mode === "existing" ? "tab-active" : "tab"}
+            >
+              I already have an account
+            </button>
+          </div>
+          {mode === "new" && (
+            <div>
+              <label htmlFor="invite-full-name" className="field-label">Full name</label>
+              <input
+                id="invite-full-name"
+                value={fullName}
+                onChange={(e) => setFullName(e.target.value)}
+                placeholder="Full name"
+                autoComplete="name"
+                className="input w-full"
+              />
+            </div>
+          )}
+          <div>
+            <label htmlFor="invite-email" className="field-label">Email</label>
+            <input
+              id="invite-email"
+              type="email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              placeholder="Email"
+              autoComplete="email"
+              className="input w-full"
+              required
+            />
+          </div>
+          <div>
+            <label htmlFor="invite-password" className="field-label">Password</label>
+            <input
+              id="invite-password"
+              type="password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              placeholder="Password"
+              autoComplete={mode === "new" ? "new-password" : "current-password"}
+              className="input w-full"
+              required
+            />
+            {mode === "new" ? <p className="field-hint">We&apos;ll email a verification code before you join.</p> : null}
+          </div>
+          {error && <p role="alert" className="notice notice-danger">{error}</p>}
+          <button
+            type="submit"
+            disabled={busy || !token}
+            className="btn-primary w-full"
+          >
+            {busy ? "Joining…" : "Join workspace"}
+          </button>
+        </form>
+      </div>
     </div>
+  );
+}
+
+/** Restrained product statement shown beside the card on large screens. */
+function AuthAside() {
+  return (
+    <aside className="hidden w-[400px] shrink-0 flex-col justify-between rounded-l-xl border border-r-0 border-brand-800 bg-brand-900 p-8 text-white lg:flex" aria-label="About LeadX">
+      <div className="flex items-center gap-2.5"><span className="brand-mark ring-1 ring-white/15">LX</span><span className="font-display text-[15px] font-semibold tracking-[-0.02em]">LeadX</span></div>
+      <div>
+        <p className="font-display text-[1.375rem] font-semibold leading-snug tracking-[-0.02em]">You&apos;ve been invited to a LeadX workspace.</p>
+        <p className="mt-4 text-[0.8125rem] leading-6 text-brand-100">Your role was set by the workspace admin. Once you join, you&apos;ll see the same leads, pipeline and reports as the rest of your team.</p>
+      </div>
+      <p className="text-xs text-brand-200">Growth intelligence for agencies and revenue teams.</p>
+    </aside>
   );
 }

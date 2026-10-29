@@ -11,10 +11,17 @@ Usage:
 """
 from __future__ import annotations
 
+import base64
+import hashlib
+import hmac
+import json
 import logging
 import os
+import secrets
+import time
 from dataclasses import dataclass
-from typing import Optional
+from datetime import datetime, timezone
+from typing import Mapping, Optional
 from uuid import UUID
 
 from fastapi import Depends, HTTPException, Request, status
@@ -32,8 +39,154 @@ _bearer = HTTPBearer(auto_error=False)
 # ENVIRONMENT is production/staging, regardless of how the flag is set.
 _ENVIRONMENT = os.getenv("ENVIRONMENT", "development").lower()
 _IS_PRODUCTION = _ENVIRONMENT in ("production", "prod", "staging")
+_IS_LOCAL = _ENVIRONMENT in ("development", "dev", "local", "test")
 _BYPASS_REQUESTED = os.getenv("LEAD_ENGINE_DEV_AUTH_BYPASS", "").lower() in ("1", "true", "yes")
-ALLOW_DEV_BYPASS = _BYPASS_REQUESTED and not _IS_PRODUCTION
+_EMAIL_VERIFICATION_REQUESTED = os.getenv("LEADX_REQUIRE_EMAIL_VERIFICATION", "false").lower() in ("1", "true", "yes")
+# Local Docker can use email/password without a verification-code loop. Production
+# and staging always retain the verified-email membership gate.
+REQUIRE_EMAIL_VERIFICATION = _EMAIL_VERIFICATION_REQUESTED or _IS_PRODUCTION
+# Local email/password auth is a synthetic fixture, not a second production
+# identity provider. Both switches and an explicit credential/signing
+# configuration are required; all local tokens carry a distinct issuer.
+def _flag(value: object) -> bool:
+    return str(value or "").strip().lower() in {"1", "true", "yes", "on"}
+
+
+def local_validation_mode(environ: Mapping[str, str] | None = None) -> bool:
+    env = os.environ if environ is None else environ
+    return _flag(env.get("LOCAL_VALIDATION_MODE"))
+
+
+def local_authentication_enabled(environ: Mapping[str, str] | None = None) -> bool:
+    env = os.environ if environ is None else environ
+    return local_validation_mode(env) and _flag(env.get("LOCAL_AUTHENTICATION_FLAG"))
+
+
+def require_email_verification() -> bool:
+    """Require provider-confirmed email except for the explicit local fixture."""
+
+    environment = os.getenv("ENVIRONMENT", "development").strip().lower()
+    return (
+        environment in {"production", "prod", "staging"}
+        or _flag(os.getenv("LEADX_REQUIRE_EMAIL_VERIFICATION"))
+        or not local_authentication_enabled()
+    )
+
+
+def _local_auth_secret() -> str:
+    return os.getenv("LOCAL_AUTH_SECRET", "")
+
+
+def _local_identity() -> tuple[str, str, str]:
+    return (
+        os.getenv("LOCAL_AUTH_EMAIL", "").strip().lower(),
+        os.getenv("LOCAL_AUTH_USER_ID", "local-user").strip() or "local-user",
+        os.getenv("LOCAL_AUTH_TENANT_ID", "local-tenant").strip() or "local-tenant",
+    )
+
+
+def _password_matches(password: str, expected: str | None, expected_hash: str | None) -> bool:
+    if expected_hash:
+        # Optional hash format: pbkdf2_sha256$iterations$salt_b64$digest_b64.
+        parts = expected_hash.split("$", 3)
+        if len(parts) == 4 and parts[0] == "pbkdf2_sha256":
+            try:
+                iterations = int(parts[1])
+                salt = base64.urlsafe_b64decode(parts[2].encode("ascii"))
+                actual = hashlib.pbkdf2_hmac("sha256", password.encode(), salt, iterations)
+                expected_digest = base64.urlsafe_b64decode(parts[3].encode("ascii"))
+                return hmac.compare_digest(actual, expected_digest)
+            except (ValueError, TypeError):
+                return False
+        return False
+    return bool(expected) and hmac.compare_digest(password, expected)
+
+
+def _local_claims(email: str) -> dict:
+    configured_email, user_id, tenant_id = _local_identity()
+    now = int(time.time())
+    # The synthetic account is not externally email-verified.  The local
+    # issuer is treated as trusted only by this local validation mode.
+    return {
+        "sub": user_id,
+        "email": email or configured_email,
+        "email_verified": False,
+        "email_confirmed_at": None,
+        "aud": "authenticated",
+        "iss": "leadx-local",
+        "iat": now,
+        "exp": now + 3600,
+        "local_validation": True,
+        "local_tenant_id": tenant_id,
+    }
+
+
+def authenticate_local_credentials(email: str, password: str) -> dict:
+    """Validate the one configured synthetic account without network I/O."""
+
+    if not local_authentication_enabled():
+        raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Invalid email or password")
+    configured_email, _user_id, _tenant_id = _local_identity()
+    candidate = (email or "").strip().lower()
+    expected = os.getenv("LOCAL_AUTH_PASSWORD")
+    expected_hash = os.getenv("LOCAL_AUTH_PASSWORD_HASH")
+    valid = (
+        bool(configured_email)
+        and hmac.compare_digest(candidate, configured_email)
+        and _password_matches(password or "", expected, expected_hash)
+    )
+    if not valid:
+        # One response for unknown account and wrong password; never reveal
+        # which part of the credential failed.
+        raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Invalid email or password")
+    return _local_claims(configured_email)
+
+
+def _jwt_part(value: bytes) -> str:
+    return base64.urlsafe_b64encode(value).rstrip(b"=").decode("ascii")
+
+
+def _jwt_bytes(value: str) -> bytes:
+    return base64.urlsafe_b64decode((value + "=" * (-len(value) % 4)).encode("ascii"))
+
+
+def issue_local_token(claims: dict) -> str:
+    secret = _local_auth_secret()
+    if not secret:
+        raise HTTPException(status.HTTP_503_SERVICE_UNAVAILABLE, "Local authentication is not configured")
+    header = _jwt_part(json.dumps({"alg": "HS256", "typ": "JWT"}, separators=(",", ":")).encode())
+    body = _jwt_part(json.dumps(claims, separators=(",", ":")).encode())
+    signing_input = f"{header}.{body}".encode("ascii")
+    signature = _jwt_part(hmac.new(secret.encode("utf-8"), signing_input, hashlib.sha256).digest())
+    return f"{header}.{body}.{signature}"
+
+
+def verify_local_token(token: str) -> dict:
+    if not local_authentication_enabled() or not _local_auth_secret():
+        raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Invalid or expired token")
+    try:
+        header, body, signature = token.split(".", 2)
+        if json.loads(_jwt_bytes(header)).get("alg") != "HS256":
+            raise ValueError("algorithm")
+        signing_input = f"{header}.{body}".encode("ascii")
+        expected = _jwt_part(hmac.new(_local_auth_secret().encode("utf-8"), signing_input, hashlib.sha256).digest())
+        if not hmac.compare_digest(signature, expected):
+            raise ValueError("signature")
+        payload = json.loads(_jwt_bytes(body))
+        if payload.get("aud") != "authenticated" or payload.get("iss") != "leadx-local":
+            raise ValueError("claims")
+        if int(payload.get("exp", 0)) <= int(time.time()):
+            raise ValueError("expired")
+    except (TypeError, ValueError, KeyError, json.JSONDecodeError, UnicodeError):
+        raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Invalid or expired token") from None
+    if payload.get("local_validation") is not True:
+        raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Invalid or expired token")
+    return payload
+
+
+# A bypass is a local synthetic-fixture convenience only. Unknown or custom
+# environments fail closed rather than inheriting development behavior.
+ALLOW_DEV_BYPASS = _BYPASS_REQUESTED and _IS_LOCAL and not _IS_PRODUCTION and local_authentication_enabled()
 
 if _BYPASS_REQUESTED and _IS_PRODUCTION:
     logger.critical(
@@ -149,9 +302,13 @@ async def _get_jwks() -> dict:
 
 
 async def _verify_supabase_jwt(token: str) -> dict:
-    """Verify Supabase JWT locally when possible; use pooled Auth API only as fallback."""
-    from jose import jwt as jose_jwt, JWTError
+    """Verify a local synthetic JWT or a Supabase JWT, never both in local mode."""
+    # Local validation is an offline mode.  It must not silently fall through to
+    # JWKS/Auth API/Supabase when a synthetic token is malformed or expired.
+    if local_validation_mode():
+        return verify_local_token(token)
 
+    from jose import jwt as jose_jwt, JWTError
     jwt_secret = os.getenv("SUPABASE_JWT_SECRET") or os.getenv("JWT_SECRET")
     if jwt_secret:
         try:
@@ -196,7 +353,13 @@ async def _verify_supabase_jwt(token: str) -> dict:
 
 
 async def _email_verified(payload: dict, token: str) -> bool:
-    """Use an explicit verified claim; otherwise ask Supabase Auth."""
+    """Require provider verification except for the explicit local fixture."""
+    if payload.get("iss") == "leadx-local" and local_authentication_enabled():
+        # Local synthetic credentials are intentionally not email-confirmed; the
+        # two explicit local switches are the trust boundary for this issuer.
+        return True
+    if not require_email_verification():
+        return True
     if payload.get("email_verified") is True or payload.get("email_confirmed") is True or payload.get("email_confirmed_at"):
         return True
     url = os.getenv("SUPABASE_URL", "").rstrip("/")
@@ -220,6 +383,9 @@ async def _rest_membership(user_id: str, tenant_id: Optional[str], email: Option
         return []
     params: list[tuple[str, str]] = [
         ("select", "id,tenant_id,role,email,status,auth_user_id"),
+        # Never return inactive memberships to the authorization layer. This
+        # prevents a stale/inactive row from becoming an accidental grant.
+        ("status", "eq.active"),
         ("limit", "5"),
     ]
     if tenant_id:
@@ -235,10 +401,12 @@ async def _rest_membership(user_id: str, tenant_id: Optional[str], email: Option
         )
         if r.status_code < 300:
             rows = r.json() or []
-            active = [row for row in rows if (row.get("status") or "active") == "active"]
-            return active or rows
+            return [
+                row for row in rows
+                if str(row.get("status") or "").lower() == "active"
+            ]
     except Exception as e:
-        logger.warning("Async tenant membership lookup failed: %s", e)
+        logger.warning("Async tenant membership lookup failed: %s", type(e).__name__)
     return []
 
 
@@ -253,21 +421,25 @@ async def _resolve_membership(
     cache_key = (user_id, tenant_id)
     now = time.monotonic()
     cached = _membership_cache.get(cache_key)
-    if cached and cached[0] > now:
-        if cached[1] is None:
-            raise HTTPException(status.HTTP_403_FORBIDDEN, "Not a member of this workspace")
-        return cached[1]
+    # Negative results are safe to cache briefly. Positive membership and role
+    # grants are always revalidated so revocation/demotion cannot be hidden by
+    # client or process cache state.
+    if cached and cached[0] > now and cached[1] is None:
+        raise HTTPException(status.HTTP_403_FORBIDDEN, "Not a member of this workspace")
 
     # Stampede protection: many tabs/users hitting the same workspace at once
     # should share one membership lookup rather than creating a DB burst.
     async with _membership_lock_for(cache_key):
         now = time.monotonic()
         cached = _membership_cache.get(cache_key)
-        if cached and cached[0] > now:
-            if cached[1] is None:
-                raise HTTPException(status.HTTP_403_FORBIDDEN, "Not a member of this workspace")
-            return cached[1]
-        rows = [r for r in (await _rest_membership(user_id, tenant_id, email)) if str(r.get("auth_user_id") or "") == str(user_id)]
+        if cached and cached[0] > now and cached[1] is None:
+            raise HTTPException(status.HTTP_403_FORBIDDEN, "Not a member of this workspace")
+        rows = [
+            r for r in (await _rest_membership(user_id, tenant_id, email))
+            if str(r.get("auth_user_id") or "") == str(user_id)
+            and str(r.get("status") or "").lower() == "active"
+            and str(r.get("role") or "member").lower() in {"owner", "admin", "member", "viewer"}
+        ]
     if not rows and email:
         # Legacy migration path: an email may claim ONLY an unowned row, and
         # only after Supabase has confirmed the JWT email. Never return a row
@@ -304,8 +476,10 @@ async def _resolve_membership(
                         )
                         if patch.status_code < 300 and patch.json():
                             rows = patch.json()
-            except Exception:
-                logger.warning("legacy membership claim failed", exc_info=True)
+            except Exception as exc:
+                # Never emit membership URLs, response bodies, or exception
+                # payloads; the type is sufficient for local diagnosis.
+                logger.warning("legacy membership claim failed: %s", type(exc).__name__)
 
     if not rows:
         _cache_put(cache_key, (now + 5, None))
@@ -314,11 +488,16 @@ async def _resolve_membership(
     if tenant_id is None and len(rows) > 1:
         raise HTTPException(status.HTTP_409_CONFLICT, "Multiple workspaces found; select a tenant explicitly")
     row = rows[0]
+    role = str(row.get("role") or "member").lower()
+    if str(row.get("status") or "").lower() != "active" or role not in {"owner", "admin", "member", "viewer"}:
+        _cache_put(cache_key, (now + 5, None))
+        raise HTTPException(status.HTTP_403_FORBIDDEN, "Not a member of this workspace")
     ctx = TenantContext(
-        tenant_id=row["tenant_id"], user_id=user_id,
-        role=row.get("role") or "member", email=row.get("email") or email,
+        tenant_id=str(row["tenant_id"]), user_id=user_id,
+        role=role, email=row.get("email") or email,
     )
-    _cache_put(cache_key, (now + float(os.getenv("AUTH_MEMBERSHIP_CACHE_SECONDS", "30")), ctx))
+    # Do not cache positive authorization. A membership revocation or role
+    # change must block the very next request, not after a TTL expires.
     return ctx
 
 
@@ -334,7 +513,10 @@ async def require_tenant(
     if ALLOW_DEV_BYPASS and not creds:
         dev_tenant = request.headers.get("X-Tenant-Id") or request.path_params.get("tenant_id")
         if dev_tenant:
-            logger.warning("DEV AUTH BYPASS active for tenant %s", dev_tenant)
+            logger.warning(
+                "DEV AUTH BYPASS active for tenant_scope=%s",
+                hashlib.sha256(str(dev_tenant).encode("utf-8", "replace")).hexdigest()[:16],
+            )
             return TenantContext(tenant_id=str(dev_tenant), user_id="dev", role="owner")
 
     token = creds.credentials if creds and creds.credentials else request.cookies.get("leadx_session")
@@ -350,23 +532,40 @@ async def require_tenant(
     if not user_id:
         raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Invalid token")
 
+    # Synthetic local sessions never consult tenant membership or a remote
+    # Supabase resource. They are restricted to the one configured local tenant.
+    if payload.get("iss") == "leadx-local" and local_authentication_enabled():
+        local_tenant = str(payload.get("local_tenant_id") or os.getenv("LOCAL_AUTH_TENANT_ID", "local-tenant"))
+        selected = request.headers.get("X-Tenant-Id") or request.path_params.get("tenant_id")
+        if selected and str(selected) != local_tenant:
+            raise HTTPException(status.HTTP_403_FORBIDDEN, "Access denied to this tenant")
+        ctx = TenantContext(
+            tenant_id=local_tenant,
+            user_id=str(user_id),
+            role="owner",
+            email=payload.get("email"),
+        )
+        request.state.tenant = ctx
+        return ctx
+
     # Prefer explicit tenant header; else path param; else first membership
     header_tenant = request.headers.get("X-Tenant-Id")
     path_tenant = request.path_params.get("tenant_id")
+    if header_tenant and path_tenant and str(header_tenant) != str(path_tenant):
+        # Conflicting selectors are rejected without revealing either tenant's
+        # membership or object existence.
+        raise HTTPException(status.HTTP_403_FORBIDDEN, "Access denied to this tenant")
     preferred = header_tenant or path_tenant
 
-    # SECURITY: path tenant_id is only a HINT — membership is verified
+    # SECURITY: selectors are only hints — membership is verified server-side.
     email = payload.get("email")
     verified = await _email_verified(payload, token)
     ctx = await _resolve_membership(user_id, preferred if preferred else None, email=email, email_verified=verified)
 
-    # If path claimed a different tenant, reject
+    # The selected tenant was already resolved against active membership. Do
+    # not re-resolve a conflicting path and accidentally disclose membership.
     if path_tenant and str(path_tenant) != ctx.tenant_id:
-        # User might be member of path tenant — re-resolve
-        try:
-            ctx = await _resolve_membership(user_id, str(path_tenant), email=email, email_verified=verified)
-        except HTTPException:
-            raise HTTPException(status.HTTP_403_FORBIDDEN, "Access denied to this tenant")
+        raise HTTPException(status.HTTP_403_FORBIDDEN, "Access denied to this tenant")
 
     # Attach for downstream logging
     request.state.tenant = ctx

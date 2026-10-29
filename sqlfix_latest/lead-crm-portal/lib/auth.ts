@@ -1,11 +1,13 @@
 import { getSupabase } from "./supabaseClient";
 import { clearTenant } from "./tenant";
-import { getApiBase } from "./config";
+import { getApiBase, isLocalAuthProfile } from "./config";
 
 let cachedAccessToken: string | null = null;
 let cachedTokenAt = 0;
 let cachedSession: any = null;
 let sessionReadPromise: Promise<any> | null = null;
+let serverSessionPromise: Promise<boolean> | null = null;
+let serverSessionAt = 0;
 let authListenerStarted = false;
 const TOKEN_CACHE_MS = 60_000;
 
@@ -14,17 +16,81 @@ function readCsrf(): string {
   return document.cookie.split(";").map(x => x.trim()).find(x => x.startsWith("leadx_csrf="))?.slice("leadx_csrf=".length) || "";
 }
 
+async function establishLocalServerSession(email: string, password: string) {
+  const response = await fetch(`${getApiBase()}/auth/session`, {
+    method: "POST", credentials: "include",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ email, password }),
+  });
+  if (!response.ok) {
+    let detail = "Invalid email or password";
+    try {
+      const body = await response.json() as { detail?: string; message?: string; error?: string };
+      detail = body.detail || body.message || body.error || detail;
+    } catch {}
+    throw new Error(detail);
+  }
+  return response.json() as Promise<{ ok: boolean; user: any }>;
+}
+
+async function readLocalServerSession(): Promise<any | null> {
+  try {
+    let response = await fetch(`${getApiBase()}/auth/session`, { credentials: "include", cache: "no-store" });
+    if (!response.ok && response.status === 401) {
+      response = await fetch(`${getApiBase()}/auth/session/refresh`, {
+        method: "POST", credentials: "include", headers: { "X-CSRF-Token": readCsrf() },
+      });
+      if (response.ok) response = await fetch(`${getApiBase()}/auth/session`, { credentials: "include", cache: "no-store" });
+    }
+    if (!response.ok) return null;
+    const body = await response.json();
+    return body?.user ? { user: body.user, access_token: null, refresh_token: null } : null;
+  } catch {
+    return null;
+  }
+}
+
 async function establishServerSession(session: any) {
   if (!session?.access_token) return;
-  await fetch(`${getApiBase()}/auth/session`, {
+  const response = await fetch(`${getApiBase()}/auth/session`, {
     method: "POST", credentials: "include",
     headers: { "Content-Type": "application/json", Authorization: `Bearer ${session.access_token}` },
     body: JSON.stringify({ access_token: session.access_token, refresh_token: session.refresh_token || null }),
   });
+  if (!response.ok) {
+    let detail = "Session exchange failed";
+    try {
+      const body = await response.json() as { detail?: string; message?: string };
+      detail = body.detail || body.message || detail;
+    } catch {}
+    throw new Error(`${detail}. Please try signing in again.`);
+  }
+  serverSessionAt = Date.now();
+}
+
+/** Refresh the HttpOnly LeadX session bridge from the current Supabase session. */
+export async function renewServerSession(): Promise<boolean> {
+  if (serverSessionPromise) return serverSessionPromise;
+  serverSessionPromise = (async () => {
+    try {
+      if (isLocalAuthProfile()) return !!(await readLocalServerSession());
+      const { data } = await getSupabase().auth.getSession();
+      const session = data.session;
+      if (!session?.access_token) return false;
+      cachedSession = session;
+      cachedAccessToken = session.access_token || null;
+      cachedTokenAt = Date.now();
+      await establishServerSession(session);
+      return true;
+    } catch {
+      return false;
+    }
+  })().finally(() => { serverSessionPromise = null; });
+  return serverSessionPromise;
 }
 
 function ensureAuthListener() {
-  if (authListenerStarted || typeof window === "undefined") return;
+  if (isLocalAuthProfile() || authListenerStarted || typeof window === "undefined") return;
   authListenerStarted = true;
   try {
     getSupabase().auth.onAuthStateChange((_event, session) => {
@@ -36,6 +102,18 @@ function ensureAuthListener() {
 }
 
 export async function getSessionFast() {
+  if (isLocalAuthProfile()) {
+    if (cachedSession) return cachedSession;
+    if (!sessionReadPromise) {
+      sessionReadPromise = readLocalServerSession().then((session) => {
+        cachedSession = session;
+        cachedAccessToken = null;
+        cachedTokenAt = Date.now();
+        return session;
+      }).finally(() => { sessionReadPromise = null; });
+    }
+    return sessionReadPromise;
+  }
   ensureAuthListener();
   if (cachedSession) return cachedSession;
   if (!sessionReadPromise) {
@@ -103,6 +181,12 @@ async function withTimeout<T>(promise: Promise<T>, ms: number, label: string): P
 }
 
 export async function signInWithPassword(email: string, password: string) {
+  if (isLocalAuthProfile()) {
+    const result = await withTimeout(establishLocalServerSession(email, password), 10000, "Sign-in");
+    const session = { user: result.user, access_token: null, refresh_token: null };
+    primeSession(session);
+    return session;
+  }
   const client = getSupabase();
   const result: Awaited<ReturnType<typeof client.auth.signInWithPassword>> = await withTimeout(
     client.auth.signInWithPassword({ email, password }),
@@ -140,7 +224,7 @@ export async function signOut() {
   cachedTokenAt = 0;
   cachedSession = null;
   try { await fetch(`${getApiBase()}/auth/session`, { method: "DELETE", credentials: "include", headers: { "X-CSRF-Token": readCsrf() } }); } catch {}
-  await getSupabase().auth.signOut();
+  if (!isLocalAuthProfile()) await getSupabase().auth.signOut();
 }
 
 export async function isLoggedIn(): Promise<boolean> {

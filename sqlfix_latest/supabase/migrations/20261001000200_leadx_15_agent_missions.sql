@@ -5,6 +5,9 @@ create table if not exists public.agent_missions (
   objective text not null,
   input_data jsonb not null default '{}'::jsonb,
   mode text not null default 'supervised' check (mode in ('manual','supervised','autonomous')),
+  parent_agent_id text not null default 'gtm',
+  graph_version text not null default 'gtm-v1',
+  graph_count integer not null default 30 check (graph_count = 30),
   status text not null default 'queued' check (status in ('queued','running','completed','failed','cancelled')),
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
@@ -16,6 +19,9 @@ create table if not exists public.agent_mission_tasks (
   tenant_id uuid not null references public.tenants(id) on delete cascade,
   agent_id text not null,
   objective text not null,
+  task_id text not null,
+  topological_order integer not null check (topological_order >= 0 and topological_order < 30),
+  executor_key text not null,
   depends_on jsonb not null default '[]'::jsonb,
   input_data jsonb not null default '{}'::jsonb,
   output_data jsonb not null default '{}'::jsonb,
@@ -40,6 +46,8 @@ create table if not exists public.agent_mission_events (
 
 create index if not exists agent_missions_tenant_created_idx on public.agent_missions(tenant_id, created_at desc);
 create index if not exists agent_mission_tasks_mission_status_idx on public.agent_mission_tasks(tenant_id, mission_id, status);
+create unique index if not exists agent_mission_tasks_task_key_idx on public.agent_mission_tasks(mission_id, task_id);
+create unique index if not exists agent_mission_tasks_topological_order_idx on public.agent_mission_tasks(mission_id, topological_order);
 create index if not exists agent_mission_tasks_run_idx on public.agent_mission_tasks(tenant_id, agent_run_id);
 create index if not exists agent_mission_events_mission_idx on public.agent_mission_events(tenant_id, mission_id, created_at desc);
 

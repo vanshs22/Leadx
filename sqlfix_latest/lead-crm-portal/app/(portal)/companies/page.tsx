@@ -15,24 +15,29 @@ import { useChangedIds } from "@/lib/live";
 import { BulkActionBar } from "@/components/BulkActionBar";
 import { EmptyState, ErrorState, LoadingRows } from "@/components/ui/States";
 import { EvidenceNote, FreshnessNote } from "@/components/ui/SurfaceMeta";
-import { PageHeader, FilterBar, Pagination } from "@/components/ui/Primitives";
+import { PageHeader, FilterBar, Pagination, Panel, Badge, Drawer, type Tone } from "@/components/ui/Primitives";
+import { Icon } from "@/components/ui/Icon";
 
 const PAGE_SIZE = 25;
 
-const STATUS_STYLES: Record<string, string> = {
-  active: "bg-signal-50 text-signal-700 dark:bg-signal-500/15 dark:text-signal-300",
-  prospect: "bg-brand-50 text-brand-700 dark:bg-brand-500/15 dark:text-brand-300",
-  customer: "bg-signal-50 text-signal-700 dark:bg-signal-500/15 dark:text-signal-300",
-  churned: "bg-rust-50 text-rust-700 dark:bg-rust-500/15 dark:text-rust-300",
-  archived: "bg-surface-3 text-ink-muted",
+/* Account lifecycle statuses are CRM-specific, so they get their own tone map. */
+const STATUS_TONES: Record<string, Tone> = {
+  active: "success",
+  prospect: "brand",
+  customer: "success",
+  churned: "danger",
+  archived: "neutral",
 };
 
 function StatusPill({ status }: { status?: string | null }) {
   if (!status) return <span className="text-ink-faint">—</span>;
+  const tone = STATUS_TONES[status] ?? "neutral";
+  const dot = tone === "success" ? "bg-emerald-600 dark:bg-emerald-400" : tone === "brand" ? "bg-brand-600 dark:bg-brand-300" : tone === "danger" ? "bg-rust-500" : "bg-line-strong";
   return (
-    <span className={`pill ${STATUS_STYLES[status] || "bg-surface-3 text-ink-muted"}`}>
+    <Badge tone={tone} className="capitalize">
+      <span className={`h-1.5 w-1.5 rounded-full ${dot}`} aria-hidden="true" />
       {status}
-    </span>
+    </Badge>
   );
 }
 
@@ -56,24 +61,25 @@ function CompanyTimeline({ tenantId, companyId }: { tenantId: string; companyId:
     };
   }, [tenantId, companyId]);
 
-  if (error) return <p className="text-sm text-rust-500 dark:text-rust-500">{error}</p>;
-  if (!rows) return <p className="text-sm text-ink-faint">Loading timeline…</p>;
+  if (error) return <p role="alert" className="text-[0.8125rem] text-rust-600 dark:text-rust-300">{error}</p>;
+  if (!rows) return <p className="text-[0.8125rem] text-ink-faint" aria-busy="true">Loading timeline…</p>;
   if (rows.length === 0)
-    return <p className="text-sm text-ink-faint">No activity logged for this account yet.</p>;
+    return <p className="text-[0.8125rem] text-ink-faint">No activity logged for this account yet.</p>;
 
   return (
-    <ol className="space-y-2.5">
+    <ol className="relative space-y-3 border-l border-line pl-4">
       {rows.map((a) => (
-        <li key={a.id} className="flex gap-3 text-sm">
-          <span className="pill shrink-0 bg-surface-3 text-ink-muted">{a.activity_type}</span>
-          <div className="min-w-0">
-            <div className="font-medium text-ink">{a.subject || a.outcome || "Activity"}</div>
-            {a.body && <p className="mt-0.5 text-ink-muted">{a.body}</p>}
-            <div className="mt-0.5 text-xs text-ink-faint">
-              {formatDate(a.occurred_at || a.created_at)}
-              {a.direction ? ` · ${a.direction}` : ""}
-              {a.duration_minutes ? ` · ${a.duration_minutes} min` : ""}
-            </div>
+        <li key={a.id} className="relative text-[0.8125rem]">
+          <span className="absolute -left-[21px] top-1.5 h-2 w-2 rounded-full border-2 border-surface-2 bg-brand-600 dark:bg-brand-300" aria-hidden="true" />
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="badge-neutral capitalize">{a.activity_type}</span>
+            <span className="font-medium text-ink">{a.subject || a.outcome || "Activity"}</span>
+          </div>
+          {a.body && <p className="mt-1 leading-5 text-ink-muted">{a.body}</p>}
+          <div className="mt-0.5 text-xs tabular-nums text-ink-faint">
+            {formatDate(a.occurred_at || a.created_at)}
+            {a.direction ? ` · ${a.direction}` : ""}
+            {a.duration_minutes ? ` · ${a.duration_minutes} min` : ""}
           </div>
         </li>
       ))}
@@ -227,299 +233,308 @@ export default function CompaniesPage() {
 
   const pageCount = Math.max(1, Math.ceil(total / PAGE_SIZE));
 
+  const closeForm = useCallback(() => setFormOpen(false), []);
+  const fieldCls = "input";
+
   return (
     <div className="page">
-      <PageHeader title="Companies" description={`${total} accounts · inspect activity, ownership, and next steps without losing your place.`} meta={<><FreshnessNote label="Live CRM view" detail="account records" /><span>Timeline opens inline; fields not returned by the API stay unavailable.</span></>} actions={<><button aria-label="Create company" type="button" onClick={() => setFormOpen(true)} className="btn-primary">New company</button><button aria-label="Refresh companies" type="button" onClick={load} className="btn-secondary">Refresh</button></>} />
+      <PageHeader
+        eyebrow="CRM"
+        title="Companies"
+        description={<><span className="tabular-nums">{total.toLocaleString()}</span> accounts. Inspect activity, ownership and next steps without losing your place.</>}
+        meta={<><FreshnessNote label="Live CRM view" detail="account records" /><span>Timeline opens inline; fields not returned by the API stay unavailable.</span></>}
+        actions={<>
+          <button aria-label="Refresh companies" type="button" onClick={load} className="btn-secondary"><Icon name="refresh" size={14} />Refresh</button>
+          <button aria-label="Create company" type="button" onClick={() => setFormOpen(true)} className="btn-primary"><Icon name="plus" size={14} />New company</button>
+        </>}
+      />
 
       {msg && (
-        <div className="rounded-xl border border-line bg-surface-2 px-4 py-2.5 text-sm text-ink-muted">
-          {msg}
+        <div role="status" className="notice notice-neutral items-center">
+          <span className="min-w-0">{msg}</span>
+          <button type="button" className="btn-ghost btn-sm -mr-2 px-2" aria-label="Dismiss message" onClick={() => setMsg("")}><Icon name="close" size={14} /></button>
         </div>
       )}
 
-      <FilterBar onClear={() => { setSearch(""); setStatus(""); setPage(0); }}><label className="sr-only" htmlFor="company-search">Search companies</label><input id="company-search" className="input min-w-[200px] flex-1" type="search" placeholder="Search name, domain, city…" value={search} onChange={(e) => { setSearch(e.target.value); setPage(0); }} /><label className="sr-only" htmlFor="company-status">Filter by status</label><select id="company-status" className="input max-w-[180px]" value={status} onChange={(e) => { setStatus(e.target.value); setPage(0); }}><option value="">All statuses</option>{COMPANY_STATUSES.map((s) => <option key={s} value={s}>{s}</option>)}</select></FilterBar>
+      <FilterBar onClear={() => { setSearch(""); setStatus(""); setPage(0); }}>
+        <label className="sr-only" htmlFor="company-search">Search companies</label>
+        <div className="relative min-w-[220px] flex-1">
+          <Icon name="search" size={14} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-ink-faint" />
+          <input id="company-search" className="input h-9 pl-8" type="search" placeholder="Search name, domain, city…" value={search} onChange={(e) => { setSearch(e.target.value); setPage(0); }} />
+        </div>
+        <label className="sr-only" htmlFor="company-status">Filter by status</label>
+        <select id="company-status" className="select h-9 w-auto min-w-[160px] capitalize" value={status} onChange={(e) => { setStatus(e.target.value); setPage(0); }}><option value="">All statuses</option>{COMPANY_STATUSES.map((s) => <option key={s} value={s}>{s}</option>)}</select>
+      </FilterBar>
 
-      {loading ? (
-        <LoadingRows rows={6} cols={5} />
-      ) : loadError ? (
-        // Distinct from the empty state below: a failed fetch used to leave
-        // rows=[] and render "No companies match these filters".
-        <ErrorState error={loadError} onRetry={load} />
-      ) : rows.length === 0 ? (
-        <EmptyState
-          title="No companies match these filters"
-          hint="Clear the filters, or add your first account with New company."
-        />
-      ) : (
-        <div className="card overflow-x-auto">
-          <table className="w-full min-w-[760px] text-sm">
-            <caption className="sr-only">
-              Companies with domain, location, industry and status
-            </caption>
-            <thead>
-              <tr className="border-b border-line text-left">
-                <th scope="col" className="w-10 px-4 py-3">
-                  <input
-                    type="checkbox"
-                    aria-label={
-                      allSelected
-                        ? "Deselect all companies"
-                        : "Select all companies on this page"
-                    }
-                    checked={allSelected}
-                    onChange={toggleAll}
-                  />
-                </th>
-                <th scope="col" className="label px-4 py-3">
-                  Name
-                </th>
-                <th scope="col" className="label px-4 py-3">
-                  Domain
-                </th>
-                <th scope="col" className="label px-4 py-3">
-                  City
-                </th>
-                <th scope="col" className="label px-4 py-3">
-                  Industry
-                </th>
-                <th scope="col" className="label px-4 py-3">
-                  Status
-                </th>
-                <th scope="col" className="label px-4 py-3 text-right">
-                  Timeline
-                </th>
-              </tr>
-            </thead>
-            <tbody>
-              {rows.map((c) => {
-                const open = expanded === c.id;
-                return (
-                  <Fragment key={c.id}>
-                    <tr className={`border-b border-line/60 hover:bg-surface-3/50 ${changedCompanyIds.has(String(c.id)) ? "row-flash" : ""}`}>
-                      <td className="px-4 py-3">
-                        <input
-                          type="checkbox"
-                          aria-label={`Select ${c.name}`}
-                          checked={selected.has(c.id)}
-                          onChange={() => toggleOne(c.id)}
-                        />
-                      </td>
-                      <td className="px-4 py-3 font-medium text-ink">{c.name}</td>
-                      <td className="px-4 py-3 text-ink-muted">
-                        {c.domain ? (
-                          <a
-                            className="hover:underline"
-                            href={c.website || `https://${c.domain}`}
-                            target="_blank"
-                            rel="noreferrer"
-                          >
-                            {c.domain}
-                          </a>
-                        ) : (
-                          <span className="text-ink-faint">—</span>
-                        )}
-                      </td>
-                      <td className="px-4 py-3 text-ink-muted">
-                        {[c.city, c.state].filter(Boolean).join(", ") || (
-                          <span className="text-ink-faint">—</span>
-                        )}
-                      </td>
-                      <td className="px-4 py-3 text-ink-muted">
-                        {c.industry || <span className="text-ink-faint">—</span>}
-                      </td>
-                      <td className="px-4 py-3 text-ink-muted">
-                        <div className="flex flex-col gap-1">
-                          <StatusPill status={c.status} />
+      <Panel
+        title="Accounts"
+        actions={<span className="text-xs tabular-nums text-ink-faint" aria-live="polite">{selected.size ? `${selected.size} selected · ` : ""}{rows.length} of {total.toLocaleString()} shown</span>}
+        bodyClassName="p-0"
+        footer={!loading && rows.length > 0 && pageCount > 1 ? <div className="w-full"><Pagination page={page} pageCount={pageCount} onPageChange={setPage} /></div> : undefined}
+      >
+        {loading ? (
+          <LoadingRows rows={6} cols={5} />
+        ) : loadError ? (
+          // Distinct from the empty state below: a failed fetch used to leave
+          // rows=[] and render "No companies match these filters".
+          <div className="p-5"><ErrorState error={loadError} onRetry={load} /></div>
+        ) : rows.length === 0 ? (
+          <EmptyState
+            title="No companies match these filters"
+            hint="Clear the filters, or add your first account with New company."
+          />
+        ) : (
+          <div className="max-h-[calc(100vh-18rem)] min-h-[280px] overflow-auto">
+            <table className="data-table min-w-[860px]">
+              <caption className="sr-only">
+                Companies with domain, location, industry and status
+              </caption>
+              <thead>
+                <tr className="[&>th]:bg-surface-3">
+                  <th scope="col" className="w-11 !pr-0">
+                    <input
+                      type="checkbox"
+                      className="h-4 w-4 rounded border-line-strong accent-brand-700"
+                      aria-label={
+                        allSelected
+                          ? "Deselect all companies"
+                          : "Select all companies on this page"
+                      }
+                      checked={allSelected}
+                      onChange={toggleAll}
+                    />
+                  </th>
+                  <th scope="col">Name</th>
+                  <th scope="col">Domain</th>
+                  <th scope="col">City</th>
+                  <th scope="col">Industry</th>
+                  <th scope="col">Status</th>
+                  <th scope="col" className="!text-right">Tags</th>
+                  <th scope="col" className="!text-right">Timeline</th>
+                </tr>
+              </thead>
+              <tbody>
+                {rows.map((c) => {
+                  const open = expanded === c.id;
+                  const isSelected = selected.has(c.id);
+                  const place = [c.city, c.state].filter(Boolean).join(", ");
+                  return (
+                    <Fragment key={c.id}>
+                      <tr className={`${isSelected ? "bg-brand-50/70 dark:bg-brand-500/10" : ""} ${open ? "bg-surface-3/40" : ""} ${changedCompanyIds.has(String(c.id)) ? "row-flash" : ""}`}>
+                        <td className="!pr-0 !py-2.5">
+                          <input
+                            type="checkbox"
+                            className="h-4 w-4 rounded border-line-strong accent-brand-700"
+                            aria-label={`Select ${c.name}`}
+                            checked={isSelected}
+                            onChange={() => toggleOne(c.id)}
+                          />
+                        </td>
+                        <td className="max-w-[260px] !py-2.5"><span className="block truncate font-semibold text-ink" title={c.name}>{c.name}</span></td>
+                        <td className="max-w-[200px] !py-2.5 text-ink-muted">
+                          {c.domain ? (
+                            <a
+                              className="inline-flex max-w-full items-center gap-1 truncate text-brand-700 hover:underline dark:text-brand-300"
+                              href={c.website || `https://${c.domain}`}
+                              target="_blank"
+                              rel="noreferrer"
+                              title={c.website || c.domain}
+                            >
+                              <span className="truncate">{c.domain}</span>
+                              <Icon name="external" size={12} className="shrink-0 opacity-60" />
+                            </a>
+                          ) : (
+                            <span className="text-ink-faint">—</span>
+                          )}
+                        </td>
+                        <td className="max-w-[180px] !py-2.5 text-ink-muted">
+                          {place ? <span className="block truncate" title={place}>{place}</span> : <span className="text-ink-faint">—</span>}
+                        </td>
+                        <td className="max-w-[180px] !py-2.5 text-ink-muted">
+                          {c.industry ? <span className="block truncate" title={c.industry}>{c.industry}</span> : <span className="text-ink-faint">—</span>}
+                        </td>
+                        <td className="!py-2.5"><StatusPill status={c.status} /></td>
+                        <td className="!py-2.5 text-right tabular-nums">
                           <EvidenceNote count={Array.isArray(c.tags) ? c.tags.length : undefined} label="tags" />
-                        </div>
-                      </td>
-                      <td className="px-4 py-3 text-right">
-                        <button
-                          type="button"
-                          className="btn-ghost text-xs"
-                          aria-expanded={open}
-                          aria-controls={`timeline-${c.id}`}
-                          onClick={() => setExpanded(open ? null : c.id)}
-                        >
-                          {open ? "Hide" : "Show"}
-                        </button>
-                      </td>
-                    </tr>
-                    {open && (
-                      <tr className="border-b border-line/60 bg-surface-3/30">
-                        <td colSpan={7} className="px-4 py-4" id={`timeline-${c.id}`}>
-                          <div className="mb-2 text-sm font-semibold text-ink">
-                            {c.name} · activity
-                          </div>
-                          <CompanyTimeline tenantId={tenantId} companyId={c.id} />
+                        </td>
+                        <td className="!py-2.5 text-right">
+                          <button
+                            type="button"
+                            className="btn-ghost btn-sm"
+                            aria-expanded={open}
+                            aria-controls={`timeline-${c.id}`}
+                            aria-label={`${open ? "Hide" : "Show"} activity timeline for ${c.name}`}
+                            onClick={() => setExpanded(open ? null : c.id)}
+                          >
+                            {open ? "Hide" : "Show"}
+                            <Icon name="chevron" size={12} className={`transition-transform ${open ? "rotate-90" : ""}`} />
+                          </button>
                         </td>
                       </tr>
-                    )}
-                  </Fragment>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
-      )}
+                      {open && (
+                        <tr className="bg-surface-3/40">
+                          <td colSpan={8} className="!px-5 !py-4" id={`timeline-${c.id}`}>
+                            <div className="mb-3 section-title">
+                              {c.name} · activity
+                            </div>
+                            <CompanyTimeline tenantId={tenantId} companyId={c.id} />
+                          </td>
+                        </tr>
+                      )}
+                    </Fragment>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </Panel>
 
-      {!loading && rows.length > 0 && <Pagination page={page} pageCount={pageCount} onPageChange={setPage} />}
-
-      {formOpen && (
-        <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
-          role="dialog"
-          aria-modal="true"
-          aria-labelledby="new-company-title"
-        >
-          <form
-            onSubmit={handleCreate}
-            className="card-pad max-h-[90vh] w-full max-w-lg space-y-3 overflow-y-auto shadow-lift"
-          >
-            <div className="flex items-center justify-between">
-              <h2 id="new-company-title" className="text-lg font-semibold text-ink">
-                New company
-              </h2>
-              <button type="button" className="btn-ghost" onClick={() => setFormOpen(false)}>
-                Close
-              </button>
+      <Drawer
+        open={formOpen}
+        title="New company"
+        onClose={closeForm}
+        footer={
+          <div className="flex justify-end gap-2">
+            <button type="button" className="btn-secondary" onClick={() => setFormOpen(false)}>
+              Cancel
+            </button>
+            <button type="submit" form="new-company-form" disabled={saving} className="btn-primary">
+              {saving ? "Saving…" : "Create company"}
+            </button>
+          </div>
+        }
+      >
+        <form id="new-company-form" onSubmit={handleCreate} aria-labelledby="new-company-title" className="space-y-4">
+          <p id="new-company-title" className="section-sub !mt-0">Add an account to the CRM. Only the name is required.</p>
+          <div className="grid gap-4 sm:grid-cols-2">
+            <div className="sm:col-span-2">
+              <label className="field-label" htmlFor="cf-name">
+                Name <span className="text-rust-600 dark:text-rust-300" aria-hidden="true">*</span>
+              </label>
+              <input
+                id="cf-name"
+                className={fieldCls}
+                required
+                aria-required="true"
+                value={form.name}
+                onChange={(e) => setForm({ ...form, name: e.target.value })}
+              />
             </div>
-
-            <div className="grid gap-3 sm:grid-cols-2">
-              <div className="sm:col-span-2">
-                <label className="label" htmlFor="cf-name">
-                  Name *
-                </label>
-                <input
-                  id="cf-name"
-                  className="input mt-1"
-                  required
-                  value={form.name}
-                  onChange={(e) => setForm({ ...form, name: e.target.value })}
-                />
-              </div>
-              <div>
-                <label className="label" htmlFor="cf-domain">
-                  Domain
-                </label>
-                <input
-                  id="cf-domain"
-                  className="input mt-1"
-                  placeholder="acme.com"
-                  value={form.domain}
-                  onChange={(e) => setForm({ ...form, domain: e.target.value })}
-                />
-              </div>
-              <div>
-                <label className="label" htmlFor="cf-website">
-                  Website
-                </label>
-                <input
-                  id="cf-website"
-                  className="input mt-1"
-                  placeholder="https://acme.com"
-                  value={form.website}
-                  onChange={(e) => setForm({ ...form, website: e.target.value })}
-                />
-              </div>
-              <div>
-                <label className="label" htmlFor="cf-phone">
-                  Phone
-                </label>
-                <input
-                  id="cf-phone"
-                  className="input mt-1"
-                  value={form.phone}
-                  onChange={(e) => setForm({ ...form, phone: e.target.value })}
-                />
-              </div>
-              <div>
-                <label className="label" htmlFor="cf-industry">
-                  Industry
-                </label>
-                <input
-                  id="cf-industry"
-                  className="input mt-1"
-                  value={form.industry}
-                  onChange={(e) => setForm({ ...form, industry: e.target.value })}
-                />
-              </div>
-              <div>
-                <label className="label" htmlFor="cf-city">
-                  City
-                </label>
-                <input
-                  id="cf-city"
-                  className="input mt-1"
-                  value={form.city}
-                  onChange={(e) => setForm({ ...form, city: e.target.value })}
-                />
-              </div>
-              <div>
-                <label className="label" htmlFor="cf-state">
-                  State
-                </label>
-                <input
-                  id="cf-state"
-                  className="input mt-1"
-                  value={form.state}
-                  onChange={(e) => setForm({ ...form, state: e.target.value })}
-                />
-              </div>
-              <div>
-                <label className="label" htmlFor="cf-status">
-                  Status
-                </label>
-                <select
-                  id="cf-status"
-                  className="input mt-1"
-                  value={form.status}
-                  onChange={(e) => setForm({ ...form, status: e.target.value })}
-                >
-                  {COMPANY_STATUSES.map((s) => (
-                    <option key={s} value={s}>
-                      {s}
-                    </option>
-                  ))}
-                </select>
-              </div>
-              <div>
-                <label className="label" htmlFor="cf-owner">
-                  Owner
-                </label>
-                <input
-                  id="cf-owner"
-                  className="input mt-1"
-                  placeholder="rep@agency.com"
-                  value={form.owner}
-                  onChange={(e) => setForm({ ...form, owner: e.target.value })}
-                />
-              </div>
-              <div className="sm:col-span-2">
-                <label className="label" htmlFor="cf-tags">
-                  Tags (comma separated)
-                </label>
-                <input
-                  id="cf-tags"
-                  className="input mt-1"
-                  placeholder="enterprise, inbound"
-                  value={form.tags}
-                  onChange={(e) => setForm({ ...form, tags: e.target.value })}
-                />
-              </div>
+            <div>
+              <label className="field-label" htmlFor="cf-domain">
+                Domain
+              </label>
+              <input
+                id="cf-domain"
+                className={fieldCls}
+                placeholder="acme.com"
+                value={form.domain}
+                onChange={(e) => setForm({ ...form, domain: e.target.value })}
+              />
             </div>
-
-            <div className="flex gap-2">
-              <button type="submit" disabled={saving} className="btn-primary">
-                {saving ? "Saving…" : "Create company"}
-              </button>
-              <button type="button" className="btn-secondary" onClick={() => setFormOpen(false)}>
-                Cancel
-              </button>
+            <div>
+              <label className="field-label" htmlFor="cf-website">
+                Website
+              </label>
+              <input
+                id="cf-website"
+                className={fieldCls}
+                placeholder="https://acme.com"
+                value={form.website}
+                onChange={(e) => setForm({ ...form, website: e.target.value })}
+              />
             </div>
-          </form>
-        </div>
-      )}
+            <div>
+              <label className="field-label" htmlFor="cf-phone">
+                Phone
+              </label>
+              <input
+                id="cf-phone"
+                className={fieldCls}
+                value={form.phone}
+                onChange={(e) => setForm({ ...form, phone: e.target.value })}
+              />
+            </div>
+            <div>
+              <label className="field-label" htmlFor="cf-industry">
+                Industry
+              </label>
+              <input
+                id="cf-industry"
+                className={fieldCls}
+                value={form.industry}
+                onChange={(e) => setForm({ ...form, industry: e.target.value })}
+              />
+            </div>
+            <div>
+              <label className="field-label" htmlFor="cf-city">
+                City
+              </label>
+              <input
+                id="cf-city"
+                className={fieldCls}
+                value={form.city}
+                onChange={(e) => setForm({ ...form, city: e.target.value })}
+              />
+            </div>
+            <div>
+              <label className="field-label" htmlFor="cf-state">
+                State
+              </label>
+              <input
+                id="cf-state"
+                className={fieldCls}
+                value={form.state}
+                onChange={(e) => setForm({ ...form, state: e.target.value })}
+              />
+            </div>
+            <div>
+              <label className="field-label" htmlFor="cf-status">
+                Status
+              </label>
+              <select
+                id="cf-status"
+                className="select capitalize"
+                value={form.status}
+                onChange={(e) => setForm({ ...form, status: e.target.value })}
+              >
+                {COMPANY_STATUSES.map((s) => (
+                  <option key={s} value={s}>
+                    {s}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label className="field-label" htmlFor="cf-owner">
+                Owner
+              </label>
+              <input
+                id="cf-owner"
+                className={fieldCls}
+                placeholder="rep@agency.com"
+                value={form.owner}
+                onChange={(e) => setForm({ ...form, owner: e.target.value })}
+              />
+            </div>
+            <div className="sm:col-span-2">
+              <label className="field-label" htmlFor="cf-tags">
+                Tags
+              </label>
+              <input
+                id="cf-tags"
+                className={fieldCls}
+                placeholder="enterprise, inbound"
+                aria-describedby="cf-tags-hint"
+                value={form.tags}
+                onChange={(e) => setForm({ ...form, tags: e.target.value })}
+              />
+              <p id="cf-tags-hint" className="field-hint">Comma separated.</p>
+            </div>
+          </div>
+        </form>
+      </Drawer>
 
       <BulkActionBar
         count={selected.size}

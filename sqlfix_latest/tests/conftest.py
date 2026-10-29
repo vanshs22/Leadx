@@ -20,7 +20,7 @@ sys.modules.setdefault("conftest", sys.modules[__name__])
 
 import pytest
 
-# Import the app package as `backend.*` regardless of where pytest is invoked.
+# Import the app package consistently regardless of where pytest is invoked.
 ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
@@ -193,7 +193,7 @@ def fake_supabase(monkeypatch):
 
     # Modules that did `from ... import get_supabase` hold their own reference.
     for mod in list(sys.modules.values()):
-        if mod and getattr(mod, "__name__", "").startswith("backend."):
+        if mod and getattr(mod, "__name__", "").startswith("app."):
             if hasattr(mod, "get_supabase"):
                 monkeypatch.setattr(mod, "get_supabase", lambda: fake, raising=False)
     return fake

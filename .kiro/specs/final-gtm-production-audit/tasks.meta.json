@@ -1,0 +1,131 @@
+{
+  "pbtResults": {},
+  "executionHistory": {
+    "1. Write bug-condition exploration tests for unsafe audit classification": [
+      {
+        "executionId": "5e92d0f3-5d65-4017-ae3d-502ed4aaa69e",
+        "chatSessionId": "sess_04c0a8cd-f6f5-434b-b17e-8d89acafffcf",
+        "timestamp": 1792956703349
+      },
+      {
+        "executionId": "5e92d0f3-5d65-4017-ae3d-502ed4aaa69e",
+        "chatSessionId": "sess_04c0a8cd-f6f5-434b-b17e-8d89acafffcf",
+        "timestamp": 1792956723378
+      },
+      {
+        "executionId": "5e92d0f3-5d65-4017-ae3d-502ed4aaa69e",
+        "chatSessionId": "sess_04c0a8cd-f6f5-434b-b17e-8d89acafffcf",
+        "timestamp": 1792956971958
+      }
+    ],
+    "2. Write preservation property tests before implementation": [
+      {
+        "executionId": "5e92d0f3-5d65-4017-ae3d-502ed4aaa69e",
+        "chatSessionId": "sess_04c0a8cd-f6f5-434b-b17e-8d89acafffcf",
+        "timestamp": 1792956703497
+      },
+      {
+        "executionId": "5e92d0f3-5d65-4017-ae3d-502ed4aaa69e",
+        "chatSessionId": "sess_04c0a8cd-f6f5-434b-b17e-8d89acafffcf",
+        "timestamp": 1792956982594
+      },
+      {
+        "executionId": "5e92d0f3-5d65-4017-ae3d-502ed4aaa69e",
+        "chatSessionId": "sess_04c0a8cd-f6f5-434b-b17e-8d89acafffcf",
+        "timestamp": 1792957244306
+      }
+    ],
+    "3.1 Extend the release evidence contracts": [
+      {
+        "executionId": "5e92d0f3-5d65-4017-ae3d-502ed4aaa69e",
+        "chatSessionId": "sess_04c0a8cd-f6f5-434b-b17e-8d89acafffcf",
+        "timestamp": 1792956703555
+      },
+      {
+        "executionId": "5e92d0f3-5d65-4017-ae3d-502ed4aaa69e",
+        "chatSessionId": "sess_04c0a8cd-f6f5-434b-b17e-8d89acafffcf",
+        "timestamp": 1792957260356
+      },
+      {
+        "executionId": "5e92d0f3-5d65-4017-ae3d-502ed4aaa69e",
+        "chatSessionId": "sess_04c0a8cd-f6f5-434b-b17e-8d89acafffcf",
+        "timestamp": 1792957624310
+      }
+    ],
+    "3.2 Add deterministic release-gate evaluation and report rendering": [
+      {
+        "executionId": "5e92d0f3-5d65-4017-ae3d-502ed4aaa69e",
+        "chatSessionId": "sess_04c0a8cd-f6f5-434b-b17e-8d89acafffcf",
+        "timestamp": 1792956703614
+      },
+      {
+        "executionId": "5e92d0f3-5d65-4017-ae3d-502ed4aaa69e",
+        "chatSessionId": "sess_04c0a8cd-f6f5-434b-b17e-8d89acafffcf",
+        "timestamp": 1792957633901
+      },
+      {
+        "executionId": "5e92d0f3-5d65-4017-ae3d-502ed4aaa69e",
+        "chatSessionId": "sess_04c0a8cd-f6f5-434b-b17e-8d89acafffcf",
+        "timestamp": 1792957868726
+      }
+    ],
+    "3.3 Implement the thin offline-first audit manifest and orchestration": [
+      {
+        "executionId": "5e92d0f3-5d65-4017-ae3d-502ed4aaa69e",
+        "chatSessionId": "sess_04c0a8cd-f6f5-434b-b17e-8d89acafffcf",
+        "timestamp": 1792956703664
+      },
+      {
+        "executionId": "5e92d0f3-5d65-4017-ae3d-502ed4aaa69e",
+        "chatSessionId": "sess_04c0a8cd-f6f5-434b-b17e-8d89acafffcf",
+        "timestamp": 1792957878392
+      },
+      {
+        "executionId": "5e92d0f3-5d65-4017-ae3d-502ed4aaa69e",
+        "chatSessionId": "sess_04c0a8cd-f6f5-434b-b17e-8d89acafffcf",
+        "timestamp": 1792958139486
+      }
+    ],
+    "3.4 Complete focused report, gate, manifest, and failure-path tests": [
+      {
+        "executionId": "5e92d0f3-5d65-4017-ae3d-502ed4aaa69e",
+        "chatSessionId": "sess_04c0a8cd-f6f5-434b-b17e-8d89acafffcf",
+        "timestamp": 1792956703720
+      },
+      {
+        "executionId": "5e92d0f3-5d65-4017-ae3d-502ed4aaa69e",
+        "chatSessionId": "sess_04c0a8cd-f6f5-434b-b17e-8d89acafffcf",
+        "timestamp": 1792958148399
+      },
+      {
+        "executionId": "5e92d0f3-5d65-4017-ae3d-502ed4aaa69e",
+        "chatSessionId": "sess_04c0a8cd-f6f5-434b-b17e-8d89acafffcf",
+        "timestamp": 1792958324731
+      }
+    ],
+    "4. Offline validation checkpoint": [
+      {
+        "executionId": "5e92d0f3-5d65-4017-ae3d-502ed4aaa69e",
+        "chatSessionId": "sess_04c0a8cd-f6f5-434b-b17e-8d89acafffcf",
+        "timestamp": 1792956703804
+      },
+      {
+        "executionId": "5e92d0f3-5d65-4017-ae3d-502ed4aaa69e",
+        "chatSessionId": "sess_04c0a8cd-f6f5-434b-b17e-8d89acafffcf",
+        "timestamp": 1792958333822
+      },
+      {
+        "executionId": "5e92d0f3-5d65-4017-ae3d-502ed4aaa69e",
+        "chatSessionId": "sess_04c0a8cd-f6f5-434b-b17e-8d89acafffcf",
+        "timestamp": 1792958424758
+      }
+    ],
+    "3. Implement the evidence-first audit fix": [
+      {
+        "executionId": "5e92d0f3-5d65-4017-ae3d-502ed4aaa69e",
+        "chatSessionId": "sess_04c0a8cd-f6f5-434b-b17e-8d89acafffcf",
+        "timestamp": 1792958324815
+      }
+    ]
+  }
+}

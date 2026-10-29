@@ -385,5 +385,20 @@ async def _signals_refresh(payload: dict) -> dict:
 
 @register("automations.process_events")
 async def _automations_process_events(payload: dict) -> dict:
+    from app.integrations.prod.automation_engine import dispatch_due_events
+    return await dispatch_due_events(limit=int(payload.get("limit") or 100))
+
+
+@register("automations.execute")
+async def _automations_execute(payload: dict) -> dict:
     from app.integrations.prod.automation_engine import process_events
-    return await process_events(limit=int(payload.get("limit") or 100))
+    # The event-level durable job owns all matching workflow executions for the
+    # source event; workflow_runs/execution rows prevent duplicate action replay.
+    return await process_events(limit=1)
+
+
+@register("approvals.expire")
+async def _approvals_expire(payload: dict) -> dict:
+    from app.integrations.prod.discovery_requests import expire_pending_requests
+    from app.memory.supabase_client import get_supabase
+    return expire_pending_requests(sb=get_supabase(), limit=int(payload.get("limit") or 100))

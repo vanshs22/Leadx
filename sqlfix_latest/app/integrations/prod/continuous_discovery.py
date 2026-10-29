@@ -508,14 +508,17 @@ async def discover_continuous(
     for lead in collected:
         for source in (lead.get("sources_hit") or [lead.get("source") or "unknown"]):
             source_counts[str(source)] = source_counts.get(str(source), 0) + 1
+    stop_reason = "target_met" if len(collected) >= target_new_leads else "shortfall"
     coverage = coverage_estimate(
         source_counts, len(collected), len(qlist),
-        {"saturated": len(collected) == 0, "reason": "empty_result" if not collected else "target_tranche_complete"},
+        {"saturated": len(collected) == 0, "reason": "empty_result" if not collected else stop_reason},
     )
     lane_telemetry["coverage"] = coverage
     lane_telemetry["cells_scanned"] = len(cells)
     lane_telemetry["unique_new"] = len(collected)
     lane_telemetry["raw_hits"] = sum(source_counts.values())
+    lane_telemetry["shortfall"] = max(0, int(target_new_leads) - len(collected))
+    lane_telemetry["stop_reason"] = stop_reason
 
     try:
         from app.integrations.prod.source_lanes import pack_with_lane_reserves, annotate_lane

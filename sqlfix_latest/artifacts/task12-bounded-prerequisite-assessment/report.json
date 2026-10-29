@@ -1,0 +1,113 @@
+{
+  "schema": "leadx.task12-bounded-prerequisite-assessment.v1",
+  "decision": "CLOSED",
+  "mode": "prerequisite-assessment-only",
+  "external_contacts": false,
+  "env_file_read": false,
+  "credentials_requested_or_printed": false,
+  "checks_run": [
+    {
+      "check_id": "task10.2.manifest_contract",
+      "status": "PASS\u2014automated",
+      "details": "python -m pytest -q tests/test_task10_2_manifest_contract.py; 4 passed"
+    },
+    {
+      "check_id": "task12.audit_scripts_syntax",
+      "status": "PASS\u2014automated",
+      "details": "py_compile completed for scripts/final_gtm_audit.py and scripts/release_evidence.py"
+    },
+    {
+      "check_id": "task12.remote_prerequisite_presence",
+      "status": "BLOCKED",
+      "details": "All manifest-declared remote prerequisite variables were absent; values were not printed or inspected"
+    },
+    {
+      "check_id": "task12.live_execution",
+      "status": "NOT TESTED",
+      "details": "No approved selection, target environment, execution adapter, or operator authorization"
+    }
+  ],
+  "required_live_checks": [
+    {
+      "check_id": "discovery.provider_coverage",
+      "scope": "Maps, OSM, web, social provider yield and quota",
+      "status": "NOT TESTED",
+      "prerequisites": ["LEADX_PROVIDER_TEST_MODE", "LEADX_PROVIDER_BUDGET"],
+      "prerequisites_present": false,
+      "adapter_present": false,
+      "blocker": "No approved provider selection or execution adapter; no provider request made"
+    },
+    {
+      "check_id": "economics.provider_cost",
+      "scope": "Paid enrichment/provider yield, quota, and cost",
+      "status": "NOT TESTED",
+      "prerequisites": ["SUPABASE_URL", "SUPABASE_SERVICE_KEY"],
+      "prerequisites_present": false,
+      "adapter_present": false,
+      "blocker": "No approved integration selection or provider-cost adapter; no paid call made"
+    },
+    {
+      "check_id": "email.provider_delivery",
+      "scope": "SES send and sender/domain identity verification",
+      "status": "NOT TESTED",
+      "prerequisites": ["AWS_ACCESS_KEY_ID", "AWS_SECRET_ACCESS_KEY", "AWS_DEFAULT_REGION"],
+      "prerequisites_present": false,
+      "adapter_present": false,
+      "blocker": "No approved SES selection or adapter; sender/domain and sandbox verification not observed"
+    },
+    {
+      "check_id": "email.inbound_receipt",
+      "scope": "SES receipt-rule/SNS/Lambda or IMAP/API inbound receipt",
+      "status": "NOT TESTED",
+      "manifest_entry": false,
+      "blocker": "No inbound transport configuration or adapter supplied; send success would not prove receipt"
+    },
+    {
+      "check_id": "staging.end_to_end",
+      "scope": "Staging Supabase, RLS, tenant isolation, and session behavior",
+      "status": "NOT TESTED",
+      "prerequisites": ["LEADX_STAGING_URL", "LEADX_TENANT_A_TOKEN", "LEADX_TENANT_B_ID"],
+      "prerequisites_present": false,
+      "adapter_present": false,
+      "blocker": "No approved staging target or identities; no staging request made"
+    },
+    {
+      "check_id": "staging.realtime",
+      "scope": "Staging realtime after refresh/reconnect",
+      "status": "NOT TESTED",
+      "prerequisites": ["LEADX_STAGING_URL", "LEADX_TENANT_A_TOKEN"],
+      "prerequisites_present": false,
+      "adapter_present": false,
+      "blocker": "No approved staging target or identity; no deployed realtime connection made"
+    },
+    {
+      "check_id": "deployment.live_staging",
+      "scope": "Deployed API, portal, worker, deployment health, DNS, and TLS",
+      "status": "NOT TESTED",
+      "prerequisites": ["LEADX_STAGING_URL", "LEADX_STAGING_HEALTH_URL", "LEADX_STAGING_RELEASE_ID"],
+      "prerequisites_present": false,
+      "adapter_present": false,
+      "blocker": "No approved deployment target or manifest; no endpoint, DNS, or TLS request made"
+    },
+    {
+      "check_id": "deployment.worker_redis",
+      "scope": "Deployed worker and Redis health",
+      "status": "NOT TESTED",
+      "manifest_entry": false,
+      "blocker": "No separate live check ID, approved health target, or adapter; local Compose evidence is not deployed evidence"
+    },
+    {
+      "check_id": "billing.provider_cost",
+      "scope": "Billing and provider-cost behavior",
+      "status": "NOT TESTED",
+      "manifest_check": "economics.provider_cost",
+      "blocker": "No approved integration selection or cost adapter; no billing/provider call made"
+    }
+  ],
+  "gate": {
+    "integration": "CLOSED",
+    "live_staging": "CLOSED",
+    "go_live": "CLOSED",
+    "reason": "Required live evidence is absent; no BLOCKED/NOT TESTED check was converted to PASS"
+  }
+}

@@ -38,7 +38,7 @@ async def create_mission(tenant_id: str, req: MissionRequest, ctx: TenantContext
         priority=1, created_by="gtm-agent", provider_required=True,
     )
     jid = jobs.accepted_job_id(handoff)
-    return {"ok":True,"mission":mission,"job_id":jid}
+    return {"ok":True,"mission":mission,"graph_count":int(mission.get("graph_count") or 30),"job_id":jid}
 
 @router.post("/{tenant_id}/agent-missions/{mission_id}/tick")
 async def tick_mission(tenant_id: str, mission_id: str, ctx: TenantContext = Depends(require_tenant)):

@@ -20,6 +20,8 @@ _OPTIONAL = app_service._health_component(
 def _stub_healthy_components(monkeypatch):
     monkeypatch.setattr(app_service, "_check_database", lambda: dict(_READY))
     monkeypatch.setattr(app_service, "_check_redis", lambda _policy: dict(_OPTIONAL))
+    monkeypatch.setattr(app_service, "_check_auth_configuration", lambda _policy: dict(_READY))
+    monkeypatch.setattr(app_service, "_check_provider_isolation", lambda _policy: dict(_READY))
     monkeypatch.setattr(
         app_service,
         "_check_worker_queue",

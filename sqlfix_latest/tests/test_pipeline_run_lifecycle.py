@@ -10,6 +10,7 @@ def test_pipeline_run_creation_is_durable_and_queued_with_legacy_fallback():
     end = text.index('\n\n@router.post("/pipeline/run-all-icps")', start)
     block = text[start:end]
     assert '"status": "queued"' in block
+    assert 'allow_tier_c' in block
     assert 'legacy_row = {**run_row, "status": "running"}' in block
     assert 'same durable row identity' in block
     assert 'pipeline_runs INSERT returned no readable row' in block
@@ -28,6 +29,7 @@ def test_frontend_authoritative_run_hydration_and_terminal_contract():
     assert 'was not found. Refresh or start a new pipeline run.' in text
     assert 'min={1}' in text
     assert 'target_new_leads: 5' in text
+    assert 'allow_tier_c' in text
     assert 'Math.max(1, Number(e.target.value) || 1)' in text
 
 
@@ -38,7 +40,18 @@ def test_pipeline_executor_requires_run_row_persistence():
     block = text[start:end]
     assert 'pipeline_runs lifecycle write was not readable after persistence' in block
     assert 'CRITICAL pipeline run persistence failed' in block
+    assert 'duplicate' in block and 'different tenant' in block
     assert 'non-fatal fallback exception' not in block
+
+
+def test_pipeline_queue_race_is_reconciled_in_api_and_worker():
+    api = (ROOT / "app/api/prod/leads_api.py").read_text()
+    worker = (ROOT / "app/worker.py").read_text()
+    assert 'row was created by worker' in api
+    assert '_reconcile_pipeline_run_failure' in worker
+    assert '"queued", "running"' in worker
+    jobs = (ROOT / "app/integrations/prod/jobs.py").read_text()
+    assert 'pipeline_runs' in jobs and 'accounting_reconciliation_status' in jobs
 
 
 def test_pipeline_runs_support_queued_lifecycle_on_existing_databases():
@@ -71,3 +84,27 @@ def test_required_route_contract_is_fail_closed():
     ):
         assert route in text
     assert "Required LeadX routes failed to mount" in text
+
+
+def test_c_tier_and_custom_email_prompt_contracts():
+    ui = (ROOT / "lead-crm-portal/app/(admin)/admin/pipeline/page.tsx").read_text()
+    api = (ROOT / "app/crm/crm_api.py").read_text()
+    llm = (ROOT / "app/integrations/prod/llm_copy.py").read_text()
+    assert 'aria-label="Allow Tier C"' in ui
+    assert 'allow_tier_c: form.allow_tier_c' in ui
+    assert 'prompt: str = ""' in api
+    assert 'custom_prompt=body.prompt' in api
+    assert 'custom_prompt: str = ""' in llm
+
+
+def test_small_target_discovery_can_continue_past_first_batch():
+    from app.integrations.prod.pipeline import _max_rounds_for_target
+    assert _max_rounds_for_target(5) > 5
+
+
+def test_decodo_fallback_and_pipeline_persistence_retry_contracts():
+    discovery = (ROOT / "app/integrations/prod/multi_source_discovery.py").read_text()
+    pipeline = (ROOT / "app/integrations/prod/pipeline.py").read_text()
+    assert "DECODO_API_KEY" in discovery
+    assert "_web_search" in discovery
+    assert "async def _pipeline_db" in pipeline

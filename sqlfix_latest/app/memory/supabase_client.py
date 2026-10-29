@@ -6,7 +6,6 @@ from __future__ import annotations
 
 import os
 import logging
-from functools import lru_cache
 from typing import Any
 
 logger = logging.getLogger("lead_engine.supabase")
@@ -53,13 +52,24 @@ def _set_modern_secret_headers(client: Any, key: str) -> None:
         headers["apikey"] = key
 
 
-@lru_cache(maxsize=1)
 def get_supabase():
     """
     Returns a supabase-py client using the service role key.
     Required env: SUPABASE_URL, SUPABASE_SERVICE_KEY (or SUPABASE_SERVICE_ROLE_KEY).
     """
     global _client
+    # Local validation may opt into the explicitly bounded SQLite data plane.
+    # It is shared by API/worker through a Compose volume and never contacts
+    # Supabase or any other provider. All other local-mode data access remains
+    # denied before client construction.
+    local_backend = os.getenv("LOCAL_DURABLE_BACKEND", "").strip().lower()
+    local_mode = os.getenv("LOCAL_VALIDATION_MODE", "").strip().lower() in {"1", "true", "yes", "on"}
+    if local_mode and local_backend == "sqlite":
+        from app.memory.local_durable import get_local_durable_client
+        return get_local_durable_client()
+
+    from app.integrations.prod.discovery_runtime import assert_provider_allowed
+    assert_provider_allowed("remote_supabase")
     if _client is not None:
         return _client
 
@@ -96,9 +106,14 @@ def get_supabase():
 
 
 def reset_supabase_client() -> None:
-    """For tests."""
+    """For tests and switching between local/prod runtime profiles."""
     global _client
     _client = None
+    try:
+        from app.memory.local_durable import reset_local_durable_client
+        reset_local_durable_client()
+    except ImportError:
+        pass
     clear_cache = getattr(get_supabase, "cache_clear", None)
     if callable(clear_cache):
         clear_cache()

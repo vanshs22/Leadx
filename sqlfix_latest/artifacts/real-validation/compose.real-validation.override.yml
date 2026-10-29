@@ -1,0 +1,27 @@
+services:
+  api:
+    environment:
+      ENVIRONMENT: development
+      LEAD_ENGINE_DEV_AUTH_BYPASS: "0"
+      LOCAL_VALIDATION_MODE: "0"
+      LOCAL_AUTHENTICATION_FLAG: "0"
+      PAID_PROVIDER_ISOLATION: "0"
+      REQUIRE_REDIS_FOR_API_READY: "1"
+      REQUIRE_WORKER_READY: "1"
+      REQUIRE_DISTRIBUTED_RATE_LIMIT: "1"
+      JOB_QUEUE_FAIL_CLOSED: "1"
+  worker:
+    environment:
+      ENVIRONMENT: development
+      LEAD_ENGINE_DEV_AUTH_BYPASS: "0"
+      LOCAL_VALIDATION_MODE: "0"
+      LOCAL_AUTHENTICATION_FLAG: "0"
+      PAID_PROVIDER_ISOLATION: "0"
+      REQUIRE_DISTRIBUTED_RATE_LIMIT: "1"
+      JOB_QUEUE_FAIL_CLOSED: "1"
+  portal:
+    build:
+      args:
+        NEXT_PUBLIC_LEADX_LOCAL_AUTH: "0"
+    environment:
+      NEXT_PUBLIC_LEADX_LOCAL_AUTH: "0"

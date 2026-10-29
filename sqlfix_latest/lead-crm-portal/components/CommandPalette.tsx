@@ -14,6 +14,16 @@ import { useRouter } from "next/navigation";
 import { crm } from "@/lib/api";
 import { crmEntities, contactName } from "@/lib/crm";
 import { getTenantId } from "@/lib/tenant";
+import { Icon, type IconName } from "@/components/ui/Icon";
+
+/** Row icon by item key prefix ("nav:", "lead:", ...). Presentation only. */
+const KIND_ICON: Record<string, IconName> = {
+  nav: "arrow",
+  lead: "leads",
+  contact: "team",
+  company: "clients",
+  deal: "deal",
+};
 
 interface Item {
   key: string;
@@ -173,6 +183,8 @@ export function CommandPalette() {
 
   function row(item: Item, index: number) {
     const on = item.key === active?.key;
+    const kind = item.key.split(":")[0];
+    const icon: IconName = KIND_ICON[kind] ?? "arrow";
     return (
       <button aria-label={`Open ${item.label}`}
         key={item.key}
@@ -180,19 +192,25 @@ export function CommandPalette() {
         onMouseEnter={() => setSel(index)}
         onClick={() => go(item)}
         aria-current={on || undefined}
-        className={`flex w-full items-baseline gap-2 rounded-lg px-3 py-2 text-left text-sm ${
-          on ? "bg-brand-50 text-brand-900 dark:bg-brand-500/15 dark:text-brand-100" : "text-ink"
+        className={`group flex w-full items-center gap-3 rounded-lg px-2.5 py-2 text-left text-[0.8125rem] transition-colors ${
+          on ? "bg-brand-50 text-brand-900 dark:bg-brand-500/15 dark:text-brand-100" : "text-ink hover:bg-surface-3"
         }`}
       >
-        <span className="truncate font-medium">{item.label}</span>
-        {item.hint && <span className="truncate text-xs text-ink-faint">{item.hint}</span>}
+        <span className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-md border ${on ? "border-brand-200 bg-surface-2 text-brand-700 dark:border-brand-500/30 dark:text-brand-200" : "border-line bg-surface-3 text-ink-faint"}`}>
+          <Icon name={icon} size={14} />
+        </span>
+        <span className="min-w-0 flex-1">
+          <span className="block truncate font-medium">{item.label}</span>
+          {item.hint && <span className="block truncate text-xs text-ink-faint">{item.hint}</span>}
+        </span>
+        {on ? <span className="kbd shrink-0" aria-hidden="true">↵</span> : null}
       </button>
     );
   }
 
   return (
     <div
-      className="fixed inset-0 z-[60] flex items-start justify-center bg-black/40 p-4 pt-[12vh]"
+      className="dialog-layer !items-start pt-[12vh]"
       onMouseDown={(e) => {
         if (e.target === e.currentTarget) close();
       }}
@@ -201,40 +219,49 @@ export function CommandPalette() {
         role="dialog"
         aria-modal="true"
         aria-label="Command palette"
-        className="card-pad w-full max-w-lg space-y-2 shadow-lift"
+        className="w-full max-w-xl overflow-hidden rounded-xl border border-line bg-surface-2 shadow-lift"
       >
-        <input
-          ref={inputRef}
-          className="input"
-          type="text"
-          placeholder="Jump to a page, or search leads, contacts, companies, deals…"
-          aria-label="Search pages and records"
-          value={q}
-          onChange={(e) => setQ(e.target.value)}
-          onKeyDown={onKeyDown}
-        />
+        <div className="flex items-center gap-2.5 border-b border-line px-4">
+          <Icon name="search" size={16} className="shrink-0 text-ink-faint" />
+          <input
+            ref={inputRef}
+            className="h-12 w-full min-w-0 bg-transparent text-sm text-ink placeholder:text-ink-faint focus:outline-none"
+            type="text"
+            placeholder="Jump to a page, or search leads, contacts, companies, deals…"
+            aria-label="Search pages and records"
+            value={q}
+            onChange={(e) => setQ(e.target.value)}
+            onKeyDown={onKeyDown}
+          />
+          <span className="kbd shrink-0" aria-hidden="true">Esc</span>
+        </div>
 
-        <div className="max-h-[55vh] space-y-2 overflow-y-auto">
+        <div className="max-h-[55vh] space-y-3 overflow-y-auto p-2">
           {navHits.length > 0 && (
             <div>
-              <p className="px-3 pb-1 text-[11px] uppercase tracking-wide text-ink-faint">Go to</p>
+              <p className="label px-2.5 pb-1.5 pt-1">Go to</p>
               {navHits.map((n, i) => row(n, i))}
             </div>
           )}
           {records.length > 0 && (
             <div>
-              <p className="px-3 pb-1 text-[11px] uppercase tracking-wide text-ink-faint">Records</p>
+              <p className="label px-2.5 pb-1.5 pt-1">Records</p>
               {records.map((r, i) => row(r, navHits.length + i))}
             </div>
           )}
           {flat.length === 0 && (
-            <p className="px-3 py-6 text-center text-sm text-ink-faint">
+            <p className="px-3 py-8 text-center text-[0.8125rem] text-ink-faint">
               {q.trim().length < 2 ? "Type at least 2 characters to search records." : "No matches."}
             </p>
           )}
         </div>
 
-        <p className="px-1 text-[11px] text-ink-faint">↑↓ move · Enter open · Esc close</p>
+        <div className="flex flex-wrap items-center gap-x-4 gap-y-1 border-t border-line bg-surface-3/50 px-4 py-2.5 text-[11px] text-ink-faint">
+          <span className="inline-flex items-center gap-1.5"><span className="kbd">↑</span><span className="kbd">↓</span> move</span>
+          <span className="inline-flex items-center gap-1.5"><span className="kbd">Enter</span> open</span>
+          <span className="inline-flex items-center gap-1.5"><span className="kbd">Esc</span> close</span>
+          <span className="ml-auto hidden items-center gap-1.5 sm:inline-flex"><span className="kbd">Ctrl</span><span className="kbd">K</span> toggle</span>
+        </div>
       </div>
     </div>
   );

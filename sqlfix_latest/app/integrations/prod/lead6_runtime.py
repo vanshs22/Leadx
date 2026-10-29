@@ -72,12 +72,22 @@ def _has_verified_contact(lead: dict[str, Any]) -> bool:
 
 
 async def _paid_contact_refill(out: dict[str, Any], observations: list[dict]) -> dict[str, Any]:
-    from app.integrations.prod.paid_policy import paid_fallback_mode
+    from app.integrations.prod.paid_policy import paid_fallback_mode, paid_stage_allowed
     if paid_fallback_mode() == "never" or _has_verified_contact(out) or out.get("_paid_refill_done"):
         return out
     try:
         from app.integrations.prod.enrichment_mesh import configured_enrichment_providers, enrich_with_paid_connectors
-        if not configured_enrichment_providers():
+        providers = configured_enrichment_providers()
+        gap = not _has_verified_contact(out)
+        quota = int(out.get("_remaining_quota", 0) or 0)
+        allowed, reason = paid_stage_allowed(
+            [out], 1, credential_available=bool(providers), unmet_gap=gap,
+            remaining_quota=quota,
+        )
+        if not allowed:
+            out.setdefault("verification_observations", observations).append({
+                "provider": "paid_gate", "status": "skipped", "reason": reason, "billable": False,
+            })
             return out
         out["_paid_refill_done"] = True
         res = await enrich_with_paid_connectors(out, ["email", "phone"], max_providers=int(__import__("os").getenv("LEADX_MAX_REFILL_PROVIDERS", "3")))

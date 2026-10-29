@@ -27,23 +27,27 @@ export function BulkActionBar({
     <div
       role="region"
       aria-label="Bulk actions"
-      className="fixed bottom-6 left-1/2 z-40 flex -translate-x-1/2 flex-wrap items-center gap-3 rounded-2xl border border-line bg-surface-2 px-4 py-3 shadow-lift"
+      className="fixed inset-x-3 bottom-4 z-40 mx-auto flex max-w-max flex-wrap items-center gap-2 rounded-xl border border-line-strong bg-surface-2 py-2 pl-4 pr-2 shadow-lift sm:bottom-6"
     >
-      <span aria-live="polite" className="text-sm font-medium text-ink">
-        {count} {noun}
+      <span aria-live="polite" className="mr-1 flex items-center gap-2 text-[0.8125rem] font-semibold text-ink">
+        <span className="inline-flex min-w-[1.5rem] items-center justify-center rounded-md bg-brand-700 px-1.5 py-0.5 text-xs tabular-nums text-white dark:bg-brand-300 dark:text-brand-900">
+          {count}
+        </span>
+        <span className="font-medium text-ink-muted">{noun}</span>
       </span>
-      {actions.map((a) => (
+      <span className="hidden h-5 w-px bg-line sm:block" aria-hidden="true" />
+      {actions.map((a, i) => (
         <button aria-label={a.label}
           key={a.label}
           type="button"
-          className="btn-primary"
+          className={`${i === 0 ? "btn-primary" : "btn-secondary"} btn-sm`}
           disabled={a.disabled}
           onClick={a.onClick}
         >
           {a.label}
         </button>
       ))}
-      <button aria-label="Clear selected items" type="button" className="btn-secondary" onClick={onClear}>
+      <button aria-label="Clear selected items" type="button" className="btn-ghost btn-sm" onClick={onClear}>
         Clear
       </button>
     </div>

@@ -66,3 +66,56 @@ def test_target_pipeline_supports_independent_worker_concurrency_envs():
     assert 'TARGET_ASSIGN_WORKERS' in target
     assert 'TARGET_DISCOVERY_MULTIPLIER' in target
     assert 'assign_lead(' in target
+
+
+def test_shared_pool_admission_blocks_suppression_contact_and_dormant_cooldown():
+    from app.integrations.prod.quality import shared_pool_admission
+
+    now = datetime(2026, 10, 25, tzinfo=timezone.utc)
+    assert shared_pool_admission({"suppressed": True}, now=now)["allowed"] is False
+    assert shared_pool_admission({"last_contacted_at": "2026-10-01T00:00:00+00:00"}, now=now)["reason"] == "recently_contacted"
+    dormant = shared_pool_admission(
+        {"dormant": True, "dormant_since": "2026-10-20T00:00:00+00:00"},
+        now=now,
+    )
+    assert dormant == {"allowed": False, "recheck_required": True, "reason": "dormant_cooldown"}
+
+
+def test_shared_pool_loader_dedupes_and_marks_stale_candidates_for_recheck(monkeypatch):
+    from app.integrations.prod import pipeline
+    from conftest import FakeSupabase
+
+    now = datetime.now(timezone.utc)
+    fake = FakeSupabase({
+        "leads_global": [
+            {"id": "fresh", "fingerprint": "same", "category": "gym", "city": "Newark", "last_verified_at": now.isoformat(), "google_rating": 5, "review_count": 20},
+            {"id": "duplicate", "fingerprint": "same", "category": "gym", "city": "Newark", "last_verified_at": now.isoformat(), "google_rating": 4, "review_count": 10},
+            {"id": "stale", "fingerprint": "stale", "category": "gym", "city": "Newark", "last_verified_at": "2026-01-01T00:00:00+00:00", "google_rating": 3, "review_count": 5},
+            {"id": "suppressed", "fingerprint": "suppressed", "category": "gym", "city": "Newark", "suppressed": True, "last_verified_at": now.isoformat(), "google_rating": 4, "review_count": 4},
+        ],
+        "lead_assignments": [],
+    })
+    monkeypatch.setattr(pipeline, "get_supabase", lambda: fake)
+
+    candidates = asyncio.run(pipeline._load_global_inventory_candidates("tenant-a", "gym", ["Newark"], 20))
+    assert [row["id"] for row in candidates] == ["fresh", "stale"]
+    assert candidates[0]["_shared_pool_recheck_required"] is False
+    assert candidates[1]["_shared_pool_recheck_required"] is True
+    assert all(row["_shared_pool_candidate"] is True for row in candidates)
+
+
+def test_shared_pool_assignment_requires_recheck_for_stale_candidate(monkeypatch):
+    from app.integrations.prod import quality
+    from conftest import FakeSupabase
+
+    fake = FakeSupabase({"lead_assignments": []})
+    monkeypatch.setattr(quality, "get_supabase", lambda: fake)
+    result = asyncio.run(quality.assign_lead(
+        "stale", "tenant-a", None, "gym", ["Newark"],
+        lead={
+            "id": "stale", "_shared_pool_candidate": True,
+            "last_verified_at": "2026-01-01T00:00:00+00:00",
+            "phone": "+12015550100", "phone_status": "valid",
+        },
+    ))
+    assert result == {"assigned": False, "reason": "recheck_required"}

@@ -115,8 +115,8 @@ async def extract_outcome_features(lead_id: str, assignment_id: str | None = Non
                     "geo": row[0].get("geo_tags") or [],
                     "icp_id": row[0].get("icp_id"),
                 })
-        except Exception:
-            pass
+        except Exception as exc:
+            logger.warning("feedback.assignment_features_unavailable", extra={"error_type": type(exc).__name__})
     return features
 
 

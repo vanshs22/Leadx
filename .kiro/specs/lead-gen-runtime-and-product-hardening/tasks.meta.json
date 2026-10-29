@@ -1,14 +1,12 @@
 {
   "pbtResults": {
     "10.2 Verify the bug-condition exploration property after the fix": {
-      "status": "not_run",
-      "failingExample": "The exact command `python -m pytest -q tests/runtime_exploration/test_runtime_readiness_property.py` could not start: PowerShell reported `python : The term 'python' is not recognized`; no `py`, `python3`, `pytest`, `uv`, `poetry`, repository-local virtualenv, or Docker fallback was available.",
-      "lastRunTimestamp": 1792505249543
+      "status": "passed",
+      "lastRunTimestamp": 1792794325267
     },
     "10.3 Verify the preservation property after the fix": {
-      "status": "not_run",
-      "failingExample": "The exact standalone command could not execute because Python and pytest tooling are unavailable: `python`, `py`, `python3`, and `pytest` were all not found on PATH.",
-      "lastRunTimestamp": 1792505364405
+      "status": "passed",
+      "lastRunTimestamp": 1792794196650
     }
   },
   "executionHistory": {
@@ -400,6 +398,11 @@
         "executionId": "80ee0f80-b052-420d-8462-b00322cd07dc",
         "chatSessionId": "sess_a6e13ab9-7b17-4a7a-b44a-4f6b0c1fce8a",
         "timestamp": 1792504204487
+      },
+      {
+        "executionId": "abd295b8-25c6-4f80-ab8b-aa8a616e2df5",
+        "chatSessionId": "sess_a6e13ab9-7b17-4a7a-b44a-4f6b0c1fce8a",
+        "timestamp": 1792791395021
       }
     ],
     "19. Checkpoint - Confirm implementation readiness and handoff": [
@@ -412,6 +415,11 @@
         "executionId": "80ee0f80-b052-420d-8462-b00322cd07dc",
         "chatSessionId": "sess_a6e13ab9-7b17-4a7a-b44a-4f6b0c1fce8a",
         "timestamp": 1792504204535
+      },
+      {
+        "executionId": "abd295b8-25c6-4f80-ab8b-aa8a616e2df5",
+        "chatSessionId": "sess_a6e13ab9-7b17-4a7a-b44a-4f6b0c1fce8a",
+        "timestamp": 1792793869235
       }
     ],
     "10. Implement API-to-worker job handoff and provider/credit idempotency": [
@@ -419,6 +427,337 @@
         "executionId": "80ee0f80-b052-420d-8462-b00322cd07dc",
         "chatSessionId": "sess_a6e13ab9-7b17-4a7a-b44a-4f6b0c1fce8a",
         "timestamp": 1792505380891
+      }
+    ],
+    "26. Repair the run-board blocker model and scroll containment": [
+      {
+        "executionId": "abd295b8-25c6-4f80-ab8b-aa8a616e2df5",
+        "chatSessionId": "sess_a6e13ab9-7b17-4a7a-b44a-4f6b0c1fce8a",
+        "timestamp": 1792791375912
+      }
+    ],
+    "27. Replace the generic visual system with the final LeadX professional theme": [
+      {
+        "executionId": "abd295b8-25c6-4f80-ab8b-aa8a616e2df5",
+        "chatSessionId": "sess_a6e13ab9-7b17-4a7a-b44a-4f6b0c1fce8a",
+        "timestamp": 1792791376010
+      }
+    ],
+    "28. Complete the client/public page consistency pass": [
+      {
+        "executionId": "abd295b8-25c6-4f80-ab8b-aa8a616e2df5",
+        "chatSessionId": "sess_a6e13ab9-7b17-4a7a-b44a-4f6b0c1fce8a",
+        "timestamp": 1792791376137
+      }
+    ],
+    "29. Complete the admin/control-plane consistency pass": [
+      {
+        "executionId": "abd295b8-25c6-4f80-ab8b-aa8a616e2df5",
+        "chatSessionId": "sess_a6e13ab9-7b17-4a7a-b44a-4f6b0c1fce8a",
+        "timestamp": 1792791376210
+      }
+    ],
+    "30. Prove realtime and dashboard consistency across the full page inventory": [
+      {
+        "executionId": "abd295b8-25c6-4f80-ab8b-aa8a616e2df5",
+        "chatSessionId": "sess_a6e13ab9-7b17-4a7a-b44a-4f6b0c1fce8a",
+        "timestamp": 1792791376275
+      }
+    ],
+    "31. Final frontend acceptance and release gate": [
+      {
+        "executionId": "abd295b8-25c6-4f80-ab8b-aa8a616e2df5",
+        "chatSessionId": "sess_a6e13ab9-7b17-4a7a-b44a-4f6b0c1fce8a",
+        "timestamp": 1792791376338
+      }
+    ],
+    "1. [CHECK-ONLY] Write and run the bug-condition exploration tests before implementation": [
+      {
+        "executionId": "7498e865-f92d-43f0-bbff-90f7a750bac7",
+        "chatSessionId": "sess_04c0a8cd-f6f5-434b-b17e-8d89acafffcf",
+        "timestamp": 1793131141565
+      },
+      {
+        "executionId": "7498e865-f92d-43f0-bbff-90f7a750bac7",
+        "chatSessionId": "sess_04c0a8cd-f6f5-434b-b17e-8d89acafffcf",
+        "timestamp": 1793131151306
+      },
+      {
+        "executionId": "7498e865-f92d-43f0-bbff-90f7a750bac7",
+        "chatSessionId": "sess_04c0a8cd-f6f5-434b-b17e-8d89acafffcf",
+        "timestamp": 1793131362210
+      }
+    ],
+    "2. [CHECK-ONLY] Write and run preservation tests before implementation": [
+      {
+        "executionId": "7498e865-f92d-43f0-bbff-90f7a750bac7",
+        "chatSessionId": "sess_04c0a8cd-f6f5-434b-b17e-8d89acafffcf",
+        "timestamp": 1793131141703
+      },
+      {
+        "executionId": "7498e865-f92d-43f0-bbff-90f7a750bac7",
+        "chatSessionId": "sess_04c0a8cd-f6f5-434b-b17e-8d89acafffcf",
+        "timestamp": 1793131371236
+      },
+      {
+        "executionId": "7498e865-f92d-43f0-bbff-90f7a750bac7",
+        "chatSessionId": "sess_04c0a8cd-f6f5-434b-b17e-8d89acafffcf",
+        "timestamp": 1793131609279
+      }
+    ],
+    "3.1 Implement read-only scoped inspection and operation admission": [
+      {
+        "executionId": "7498e865-f92d-43f0-bbff-90f7a750bac7",
+        "chatSessionId": "sess_04c0a8cd-f6f5-434b-b17e-8d89acafffcf",
+        "timestamp": 1793131141771
+      },
+      {
+        "executionId": "7498e865-f92d-43f0-bbff-90f7a750bac7",
+        "chatSessionId": "sess_04c0a8cd-f6f5-434b-b17e-8d89acafffcf",
+        "timestamp": 1793131618046
+      },
+      {
+        "executionId": "7498e865-f92d-43f0-bbff-90f7a750bac7",
+        "chatSessionId": "sess_04c0a8cd-f6f5-434b-b17e-8d89acafffcf",
+        "timestamp": 1793131995535
+      }
+    ],
+    "3.2 Fence cancellation races and settle quota exactly once": [
+      {
+        "executionId": "7498e865-f92d-43f0-bbff-90f7a750bac7",
+        "chatSessionId": "sess_04c0a8cd-f6f5-434b-b17e-8d89acafffcf",
+        "timestamp": 1793131141836
+      },
+      {
+        "executionId": "7498e865-f92d-43f0-bbff-90f7a750bac7",
+        "chatSessionId": "sess_04c0a8cd-f6f5-434b-b17e-8d89acafffcf",
+        "timestamp": 1793132004251
+      },
+      {
+        "executionId": "7498e865-f92d-43f0-bbff-90f7a750bac7",
+        "chatSessionId": "sess_04c0a8cd-f6f5-434b-b17e-8d89acafffcf",
+        "timestamp": 1793133122708
+      }
+    ],
+    "3.3 [CHECK-ONLY] Verify the recovery contract and record focused evidence": [
+      {
+        "executionId": "7498e865-f92d-43f0-bbff-90f7a750bac7",
+        "chatSessionId": "sess_04c0a8cd-f6f5-434b-b17e-8d89acafffcf",
+        "timestamp": 1793131141938
+      },
+      {
+        "executionId": "7498e865-f92d-43f0-bbff-90f7a750bac7",
+        "chatSessionId": "sess_04c0a8cd-f6f5-434b-b17e-8d89acafffcf",
+        "timestamp": 1793133131679
+      },
+      {
+        "executionId": "7498e865-f92d-43f0-bbff-90f7a750bac7",
+        "chatSessionId": "sess_04c0a8cd-f6f5-434b-b17e-8d89acafffcf",
+        "timestamp": 1793133426945
+      }
+    ],
+    "4. [IMPLEMENT] Normalize the smart planner with sub-ICPs, geography, route cells, decisions, and tranches": [
+      {
+        "executionId": "7498e865-f92d-43f0-bbff-90f7a750bac7",
+        "chatSessionId": "sess_04c0a8cd-f6f5-434b-b17e-8d89acafffcf",
+        "timestamp": 1793131142038
+      },
+      {
+        "executionId": "7498e865-f92d-43f0-bbff-90f7a750bac7",
+        "chatSessionId": "sess_04c0a8cd-f6f5-434b-b17e-8d89acafffcf",
+        "timestamp": 1793133436085
+      },
+      {
+        "executionId": "7498e865-f92d-43f0-bbff-90f7a750bac7",
+        "chatSessionId": "sess_04c0a8cd-f6f5-434b-b17e-8d89acafffcf",
+        "timestamp": 1793133931324
+      }
+    ],
+    "5. [IMPLEMENT] Preserve ordered 31-agent handoffs while allowing bounded concurrency barriers": [
+      {
+        "executionId": "7498e865-f92d-43f0-bbff-90f7a750bac7",
+        "chatSessionId": "sess_04c0a8cd-f6f5-434b-b17e-8d89acafffcf",
+        "timestamp": 1793131142141
+      },
+      {
+        "executionId": "7498e865-f92d-43f0-bbff-90f7a750bac7",
+        "chatSessionId": "sess_04c0a8cd-f6f5-434b-b17e-8d89acafffcf",
+        "timestamp": 1793133940228
+      },
+      {
+        "executionId": "7498e865-f92d-43f0-bbff-90f7a750bac7",
+        "chatSessionId": "sess_04c0a8cd-f6f5-434b-b17e-8d89acafffcf",
+        "timestamp": 1793134302739
+      }
+    ],
+    "6. [IMPLEMENT] Unify discovery route pagination, budgets, fallback, provenance, and dedupe": [
+      {
+        "executionId": "7498e865-f92d-43f0-bbff-90f7a750bac7",
+        "chatSessionId": "sess_04c0a8cd-f6f5-434b-b17e-8d89acafffcf",
+        "timestamp": 1793131142249
+      },
+      {
+        "executionId": "7498e865-f92d-43f0-bbff-90f7a750bac7",
+        "chatSessionId": "sess_04c0a8cd-f6f5-434b-b17e-8d89acafffcf",
+        "timestamp": 1793134311914
+      },
+      {
+        "executionId": "7498e865-f92d-43f0-bbff-90f7a750bac7",
+        "chatSessionId": "sess_04c0a8cd-f6f5-434b-b17e-8d89acafffcf",
+        "timestamp": 1793135079766
+      },
+      {
+        "executionId": "f09f58a2-b0f3-46f8-b59a-6587a8b01231",
+        "chatSessionId": "sess_04c0a8cd-f6f5-434b-b17e-8d89acafffcf",
+        "timestamp": 1793135148760
+      }
+    ],
+    "7. [IMPLEMENT] Stream discovery into free-first enrichment and contact validation": [
+      {
+        "executionId": "7498e865-f92d-43f0-bbff-90f7a750bac7",
+        "chatSessionId": "sess_04c0a8cd-f6f5-434b-b17e-8d89acafffcf",
+        "timestamp": 1793131142328
+      },
+      {
+        "executionId": "f09f58a2-b0f3-46f8-b59a-6587a8b01231",
+        "chatSessionId": "sess_04c0a8cd-f6f5-434b-b17e-8d89acafffcf",
+        "timestamp": 1793135157774
+      },
+      {
+        "executionId": "8038339f-c0c6-4268-9679-f1fc1aafef6c",
+        "chatSessionId": "sess_04c0a8cd-f6f5-434b-b17e-8d89acafffcf",
+        "timestamp": 1793183598728
+      },
+      {
+        "executionId": "8038339f-c0c6-4268-9679-f1fc1aafef6c",
+        "chatSessionId": "sess_04c0a8cd-f6f5-434b-b17e-8d89acafffcf",
+        "timestamp": 1793184529675
+      }
+    ],
+    "8. [IMPLEMENT] Make verification, scoring, gating, assignment, CRM, and delivery ordering durable": [
+      {
+        "executionId": "7498e865-f92d-43f0-bbff-90f7a750bac7",
+        "chatSessionId": "sess_04c0a8cd-f6f5-434b-b17e-8d89acafffcf",
+        "timestamp": 1793131142403
+      },
+      {
+        "executionId": "8038339f-c0c6-4268-9679-f1fc1aafef6c",
+        "chatSessionId": "sess_04c0a8cd-f6f5-434b-b17e-8d89acafffcf",
+        "timestamp": 1793184540769
+      },
+      {
+        "executionId": "8038339f-c0c6-4268-9679-f1fc1aafef6c",
+        "chatSessionId": "sess_04c0a8cd-f6f5-434b-b17e-8d89acafffcf",
+        "timestamp": 1793185334190
+      }
+    ],
+    "9. [IMPLEMENT] Add adaptive assignment-confirmed target stopping for 5 through 500": [
+      {
+        "executionId": "7498e865-f92d-43f0-bbff-90f7a750bac7",
+        "chatSessionId": "sess_04c0a8cd-f6f5-434b-b17e-8d89acafffcf",
+        "timestamp": 1793131142476
+      },
+      {
+        "executionId": "8038339f-c0c6-4268-9679-f1fc1aafef6c",
+        "chatSessionId": "sess_04c0a8cd-f6f5-434b-b17e-8d89acafffcf",
+        "timestamp": 1793185413486
+      },
+      {
+        "executionId": "8038339f-c0c6-4268-9679-f1fc1aafef6c",
+        "chatSessionId": "sess_04c0a8cd-f6f5-434b-b17e-8d89acafffcf",
+        "timestamp": 1793188669156
+      }
+    ],
+    "10. [IMPLEMENT] Enforce shared-pool reuse, freshness, dormant cooldown, and policy-driven exclusivity": [
+      {
+        "executionId": "7498e865-f92d-43f0-bbff-90f7a750bac7",
+        "chatSessionId": "sess_04c0a8cd-f6f5-434b-b17e-8d89acafffcf",
+        "timestamp": 1793131142566
+      },
+      {
+        "executionId": "8038339f-c0c6-4268-9679-f1fc1aafef6c",
+        "chatSessionId": "sess_04c0a8cd-f6f5-434b-b17e-8d89acafffcf",
+        "timestamp": 1793185948806
+      },
+      {
+        "executionId": "8038339f-c0c6-4268-9679-f1fc1aafef6c",
+        "chatSessionId": "sess_04c0a8cd-f6f5-434b-b17e-8d89acafffcf",
+        "timestamp": 1793186476145
+      }
+    ],
+    "11. [IMPLEMENT] Reconcile admin/client progress through private realtime invalidation and authoritative refetch": [
+      {
+        "executionId": "7498e865-f92d-43f0-bbff-90f7a750bac7",
+        "chatSessionId": "sess_04c0a8cd-f6f5-434b-b17e-8d89acafffcf",
+        "timestamp": 1793131142648
+      },
+      {
+        "executionId": "8038339f-c0c6-4268-9679-f1fc1aafef6c",
+        "chatSessionId": "sess_04c0a8cd-f6f5-434b-b17e-8d89acafffcf",
+        "timestamp": 1793186488721
+      },
+      {
+        "executionId": "8038339f-c0c6-4268-9679-f1fc1aafef6c",
+        "chatSessionId": "sess_04c0a8cd-f6f5-434b-b17e-8d89acafffcf",
+        "timestamp": 1793186959238
+      }
+    ],
+    "12. [IMPLEMENT] Make offline evidence and live boundaries explicit": [
+      {
+        "executionId": "7498e865-f92d-43f0-bbff-90f7a750bac7",
+        "chatSessionId": "sess_04c0a8cd-f6f5-434b-b17e-8d89acafffcf",
+        "timestamp": 1793131142732
+      },
+      {
+        "executionId": "8038339f-c0c6-4268-9679-f1fc1aafef6c",
+        "chatSessionId": "sess_04c0a8cd-f6f5-434b-b17e-8d89acafffcf",
+        "timestamp": 1793186969774
+      },
+      {
+        "executionId": "8038339f-c0c6-4268-9679-f1fc1aafef6c",
+        "chatSessionId": "sess_04c0a8cd-f6f5-434b-b17e-8d89acafffcf",
+        "timestamp": 1793187713799
+      }
+    ],
+    "13. [CHECK-ONLY] Run focused integration checks and the final offline checkpoint": [
+      {
+        "executionId": "7498e865-f92d-43f0-bbff-90f7a750bac7",
+        "chatSessionId": "sess_04c0a8cd-f6f5-434b-b17e-8d89acafffcf",
+        "timestamp": 1793131142832
+      },
+      {
+        "executionId": "8038339f-c0c6-4268-9679-f1fc1aafef6c",
+        "chatSessionId": "sess_04c0a8cd-f6f5-434b-b17e-8d89acafffcf",
+        "timestamp": 1793187725637
+      },
+      {
+        "executionId": "8038339f-c0c6-4268-9679-f1fc1aafef6c",
+        "chatSessionId": "sess_04c0a8cd-f6f5-434b-b17e-8d89acafffcf",
+        "timestamp": 1793188488237
+      }
+    ],
+    "14. [LIVE/UAT-BLOCKED] Run the separately authorized live-provider and deployed/UAT checks": [
+      {
+        "executionId": "7498e865-f92d-43f0-bbff-90f7a750bac7",
+        "chatSessionId": "sess_04c0a8cd-f6f5-434b-b17e-8d89acafffcf",
+        "timestamp": 1793131142928
+      },
+      {
+        "executionId": "8038339f-c0c6-4268-9679-f1fc1aafef6c",
+        "chatSessionId": "sess_04c0a8cd-f6f5-434b-b17e-8d89acafffcf",
+        "timestamp": 1793188499476
+      },
+      {
+        "executionId": "8038339f-c0c6-4268-9679-f1fc1aafef6c",
+        "chatSessionId": "sess_04c0a8cd-f6f5-434b-b17e-8d89acafffcf",
+        "timestamp": 1793188651063
+      }
+    ],
+    "3. [IMPLEMENT] Add the exact stuck-run inspect/cancel/reset/recovery contract and durable fencing": [
+      {
+        "executionId": "7498e865-f92d-43f0-bbff-90f7a750bac7",
+        "chatSessionId": "sess_04c0a8cd-f6f5-434b-b17e-8d89acafffcf",
+        "timestamp": 1793133427037
       }
     ]
   }

@@ -1,0 +1,474 @@
+{
+  "pbtResults": {
+    "1. Write bug-condition exploration tests for orphaned reset and false readiness": {
+      "status": "passed",
+      "failingExample": "Expected exploration failure confirmed by the mandated command: 13 failed, 0 passed. Counterexamples: single-row cancel left pipeline_runs/run-orphaned and agent_mission_tasks/task-orphaned running with quota reserved; status-only bulk cancellation lacked scope_kind and selected tenant-b; late worker changed cancelled job-orphaned to done; repeated reset created 2 quota settlements instead of 1; 31-agent evidence had invoked=0/completed=0 but PASS—automated; discovery had no invoked routes, no dedupe, and no target stop but PASS—static; an Instagram URL was marked a valid usable email; assigned=5/reserved=4/delivered=3 but PASS—integration; realtime hint v3 was accepted against authoritative v4 without refetch; missing SES and unselected staging were marked PASS—live-staging instead of BLOCKED/NOT TESTED; secret-bearing diagnosis persisted unredacted; valid lead data was deleted.",
+      "lastRunTimestamp": 1793034360262
+    }
+  },
+  "executionHistory": {
+    "1. Write bug-condition exploration tests for orphaned reset and false readiness": [
+      {
+        "executionId": "4af161b9-91a8-4b30-8f71-2ad01207766f",
+        "chatSessionId": "sess_04c0a8cd-f6f5-434b-b17e-8d89acafffcf",
+        "timestamp": 1793034227887
+      },
+      {
+        "executionId": "4af161b9-91a8-4b30-8f71-2ad01207766f",
+        "chatSessionId": "sess_04c0a8cd-f6f5-434b-b17e-8d89acafffcf",
+        "timestamp": 1793034245043
+      },
+      {
+        "executionId": "4af161b9-91a8-4b30-8f71-2ad01207766f",
+        "chatSessionId": "sess_04c0a8cd-f6f5-434b-b17e-8d89acafffcf",
+        "timestamp": 1793034391936
+      }
+    ],
+    "2. Write preservation property tests before implementation": [
+      {
+        "executionId": "4af161b9-91a8-4b30-8f71-2ad01207766f",
+        "chatSessionId": "sess_04c0a8cd-f6f5-434b-b17e-8d89acafffcf",
+        "timestamp": 1793034229793
+      },
+      {
+        "executionId": "4af161b9-91a8-4b30-8f71-2ad01207766f",
+        "chatSessionId": "sess_04c0a8cd-f6f5-434b-b17e-8d89acafffcf",
+        "timestamp": 1793034404098
+      },
+      {
+        "executionId": "4af161b9-91a8-4b30-8f71-2ad01207766f",
+        "chatSessionId": "sess_04c0a8cd-f6f5-434b-b17e-8d89acafffcf",
+        "timestamp": 1793034527638
+      }
+    ],
+    "3.1 Define the durable contract with `operation_key`, actor, explicit `run`/`tenant_active`/`tenant_stale` scope, run ID or tenant plus cutoff/status allowlist, dry-run/apply mode, and apply confirmation; reject implicit global/all operations.": [
+      {
+        "executionId": "4af161b9-91a8-4b30-8f71-2ad01207766f",
+        "chatSessionId": "sess_04c0a8cd-f6f5-434b-b17e-8d89acafffcf",
+        "timestamp": 1793034230187
+      },
+      {
+        "executionId": "4af161b9-91a8-4b30-8f71-2ad01207766f",
+        "chatSessionId": "sess_04c0a8cd-f6f5-434b-b17e-8d89acafffcf",
+        "timestamp": 1793034549661
+      },
+      {
+        "executionId": "4af161b9-91a8-4b30-8f71-2ad01207766f",
+        "chatSessionId": "sess_04c0a8cd-f6f5-434b-b17e-8d89acafffcf",
+        "timestamp": 1793034794434
+      }
+    ],
+    "3.2 Implement conditional locking and transitions for only selected `pipeline_runs`, jobs, mission tasks/runs, leases/retries, and associated quota/accounting rows; clear reclaimable ownership; prevent late completion through existing owner/status predicates; finalize parent/children using existing terminal semantics.": [
+      {
+        "executionId": "4af161b9-91a8-4b30-8f71-2ad01207766f",
+        "chatSessionId": "sess_04c0a8cd-f6f5-434b-b17e-8d89acafffcf",
+        "timestamp": 1793034230350
+      },
+      {
+        "executionId": "4af161b9-91a8-4b30-8f71-2ad01207766f",
+        "chatSessionId": "sess_04c0a8cd-f6f5-434b-b17e-8d89acafffcf",
+        "timestamp": 1793034801228
+      },
+      {
+        "executionId": "4af161b9-91a8-4b30-8f71-2ad01207766f",
+        "chatSessionId": "sess_04c0a8cd-f6f5-434b-b17e-8d89acafffcf",
+        "timestamp": 1793035351370
+      }
+    ],
+    "3.3 Record a sanitized `admin.scoped_work_reset` event and stable operation ledger/result. Same operation key and identical request replays the stored result; conflicting scope/request is a safe non-disclosing conflict with no mutation.": [
+      {
+        "executionId": "4af161b9-91a8-4b30-8f71-2ad01207766f",
+        "chatSessionId": "sess_04c0a8cd-f6f5-434b-b17e-8d89acafffcf",
+        "timestamp": 1793034230518
+      },
+      {
+        "executionId": "4af161b9-91a8-4b30-8f71-2ad01207766f",
+        "chatSessionId": "sess_04c0a8cd-f6f5-434b-b17e-8d89acafffcf",
+        "timestamp": 1793035358262
+      },
+      {
+        "executionId": "4af161b9-91a8-4b30-8f71-2ad01207766f",
+        "chatSessionId": "sess_04c0a8cd-f6f5-434b-b17e-8d89acafffcf",
+        "timestamp": 1793035717164
+      }
+    ],
+    "3.4 Reuse exactly-once quota settlement; report pending reconciliation when accounting storage is unavailable. Return bounded counts by table/status, skipped/failed reason codes, remaining active/stale count, and `ready_for_fresh_run`.": [
+      {
+        "executionId": "4af161b9-91a8-4b30-8f71-2ad01207766f",
+        "chatSessionId": "sess_04c0a8cd-f6f5-434b-b17e-8d89acafffcf",
+        "timestamp": 1793034230638
+      },
+      {
+        "executionId": "4af161b9-91a8-4b30-8f71-2ad01207766f",
+        "chatSessionId": "sess_04c0a8cd-f6f5-434b-b17e-8d89acafffcf",
+        "timestamp": 1793035723847
+      },
+      {
+        "executionId": "4af161b9-91a8-4b30-8f71-2ad01207766f",
+        "chatSessionId": "sess_04c0a8cd-f6f5-434b-b17e-8d89acafffcf",
+        "timestamp": 1793036178349
+      }
+    ],
+    "3.5 Add a default-dry-run CLI and admin-only API/UI confirmation where an existing operator surface supports it. The CLI accepts `--run-id` or explicit tenant/status/cutoff scope, never reads/prints `.env`, and has no reset-all action.": [
+      {
+        "executionId": "4af161b9-91a8-4b30-8f71-2ad01207766f",
+        "chatSessionId": "sess_04c0a8cd-f6f5-434b-b17e-8d89acafffcf",
+        "timestamp": 1793034230731
+      },
+      {
+        "executionId": "4af161b9-91a8-4b30-8f71-2ad01207766f",
+        "chatSessionId": "sess_04c0a8cd-f6f5-434b-b17e-8d89acafffcf",
+        "timestamp": 1793036185373
+      },
+      {
+        "executionId": "4af161b9-91a8-4b30-8f71-2ad01207766f",
+        "chatSessionId": "sess_04c0a8cd-f6f5-434b-b17e-8d89acafffcf",
+        "timestamp": 1793036544458
+      }
+    ],
+    "3.6 Add post-reset verification and fresh-run admission guards: no unintended active/stale scoped work remains; terminal/run ownership and tenant checks hold; a new run cannot claim reset work or leases; target-mode stop, child cancellation, counters, and no-paid-work-after-target behavior remain intact.": [
+      {
+        "executionId": "4af161b9-91a8-4b30-8f71-2ad01207766f",
+        "chatSessionId": "sess_04c0a8cd-f6f5-434b-b17e-8d89acafffcf",
+        "timestamp": 1793034230815
+      },
+      {
+        "executionId": "4af161b9-91a8-4b30-8f71-2ad01207766f",
+        "chatSessionId": "sess_04c0a8cd-f6f5-434b-b17e-8d89acafffcf",
+        "timestamp": 1793036551740
+      },
+      {
+        "executionId": "4af161b9-91a8-4b30-8f71-2ad01207766f",
+        "chatSessionId": "sess_04c0a8cd-f6f5-434b-b17e-8d89acafffcf",
+        "timestamp": 1793036917183
+      }
+    ],
+    "4. Implement and prove real synthetic 31-agent DAG execution": [
+      {
+        "executionId": "4af161b9-91a8-4b30-8f71-2ad01207766f",
+        "chatSessionId": "sess_04c0a8cd-f6f5-434b-b17e-8d89acafffcf",
+        "timestamp": 1793034230903
+      },
+      {
+        "executionId": "4af161b9-91a8-4b30-8f71-2ad01207766f",
+        "chatSessionId": "sess_04c0a8cd-f6f5-434b-b17e-8d89acafffcf",
+        "timestamp": 1793036924087
+      },
+      {
+        "executionId": "4af161b9-91a8-4b30-8f71-2ad01207766f",
+        "chatSessionId": "sess_04c0a8cd-f6f5-434b-b17e-8d89acafffcf",
+        "timestamp": 1793037416666
+      }
+    ],
+    "5.1 Exercise the real discovery orchestrator with Maps/Google-compatible, OSM, web, Yelp, Facebook, LinkedIn, Instagram, and fallback route fixtures. Assert route selection/invocation, free/low-cost ordering, Decodo/Serper/paid eligibility gates, credentials/quota policy, per-source budgets, social caps, partial failures, provenance, fingerprints, cross-source dedupe, and target stop/shortfall reason.": [
+      {
+        "executionId": "4af161b9-91a8-4b30-8f71-2ad01207766f",
+        "chatSessionId": "sess_04c0a8cd-f6f5-434b-b17e-8d89acafffcf",
+        "timestamp": 1793034230996
+      },
+      {
+        "executionId": "4af161b9-91a8-4b30-8f71-2ad01207766f",
+        "chatSessionId": "sess_04c0a8cd-f6f5-434b-b17e-8d89acafffcf",
+        "timestamp": 1793037424071
+      },
+      {
+        "executionId": "4af161b9-91a8-4b30-8f71-2ad01207766f",
+        "chatSessionId": "sess_04c0a8cd-f6f5-434b-b17e-8d89acafffcf",
+        "timestamp": 1793037770050
+      }
+    ],
+    "5.2 Assert local mode makes zero Maps, OSM, Serper, Firecrawl, Scrapling, Crawl4AI, social, or paid-provider calls; preserve free-first ordering and no unnecessary later calls after the requested qualifying target is reached.": [
+      {
+        "executionId": "4af161b9-91a8-4b30-8f71-2ad01207766f",
+        "chatSessionId": "sess_04c0a8cd-f6f5-434b-b17e-8d89acafffcf",
+        "timestamp": 1793034231079
+      },
+      {
+        "executionId": "4af161b9-91a8-4b30-8f71-2ad01207766f",
+        "chatSessionId": "sess_04c0a8cd-f6f5-434b-b17e-8d89acafffcf",
+        "timestamp": 1793037777362
+      },
+      {
+        "executionId": "4af161b9-91a8-4b30-8f71-2ad01207766f",
+        "chatSessionId": "sess_04c0a8cd-f6f5-434b-b17e-8d89acafffcf",
+        "timestamp": 1793038167223
+      }
+    ],
+    "5.3 Run the existing enrichment waterfall/mesh and bounded crawl path with dummy records/pages. Preserve field-level provenance/freshness and valid partial fields when later stages fail; ensure paid stages require policy, credentials, unmet gap, and remaining quota.": [
+      {
+        "executionId": "4af161b9-91a8-4b30-8f71-2ad01207766f",
+        "chatSessionId": "sess_04c0a8cd-f6f5-434b-b17e-8d89acafffcf",
+        "timestamp": 1793034231163
+      },
+      {
+        "executionId": "4af161b9-91a8-4b30-8f71-2ad01207766f",
+        "chatSessionId": "sess_04c0a8cd-f6f5-434b-b17e-8d89acafffcf",
+        "timestamp": 1793038174507
+      },
+      {
+        "executionId": "4af161b9-91a8-4b30-8f71-2ad01207766f",
+        "chatSessionId": "sess_04c0a8cd-f6f5-434b-b17e-8d89acafffcf",
+        "timestamp": 1793038552892
+      }
+    ],
+    "5.4 Validate email syntax/domain/status and phone state; reject social URLs, handles, and arbitrary URLs from email fields; enforce usable-contact requirements for accepted tiers; retain explicit rejection reasons and valid/probable/invalid/disposable/unavailable distinctions.": [
+      {
+        "executionId": "4af161b9-91a8-4b30-8f71-2ad01207766f",
+        "chatSessionId": "sess_04c0a8cd-f6f5-434b-b17e-8d89acafffcf",
+        "timestamp": 1793034231285
+      },
+      {
+        "executionId": "4af161b9-91a8-4b30-8f71-2ad01207766f",
+        "chatSessionId": "sess_04c0a8cd-f6f5-434b-b17e-8d89acafffcf",
+        "timestamp": 1793038560042
+      },
+      {
+        "executionId": "4af161b9-91a8-4b30-8f71-2ad01207766f",
+        "chatSessionId": "sess_04c0a8cd-f6f5-434b-b17e-8d89acafffcf",
+        "timestamp": 1793038891585
+      }
+    ],
+    "5.5 Add generated fixtures/property checks for duplicate route results, budgets, route failures, provenance, malformed contact values, invalid verification status, and shortfall/target stop.": [
+      {
+        "executionId": "4af161b9-91a8-4b30-8f71-2ad01207766f",
+        "chatSessionId": "sess_04c0a8cd-f6f5-434b-b17e-8d89acafffcf",
+        "timestamp": 1793034231364
+      },
+      {
+        "executionId": "4af161b9-91a8-4b30-8f71-2ad01207766f",
+        "chatSessionId": "sess_04c0a8cd-f6f5-434b-b17e-8d89acafffcf",
+        "timestamp": 1793038898916
+      },
+      {
+        "executionId": "4af161b9-91a8-4b30-8f71-2ad01207766f",
+        "chatSessionId": "sess_04c0a8cd-f6f5-434b-b17e-8d89acafffcf",
+        "timestamp": 1793039302743
+      }
+    ],
+    "6. Check qualification, CRM assignment, delivery, and count reconciliation": [
+      {
+        "executionId": "4af161b9-91a8-4b30-8f71-2ad01207766f",
+        "chatSessionId": "sess_04c0a8cd-f6f5-434b-b17e-8d89acafffcf",
+        "timestamp": 1793034231448
+      },
+      {
+        "executionId": "4af161b9-91a8-4b30-8f71-2ad01207766f",
+        "chatSessionId": "sess_04c0a8cd-f6f5-434b-b17e-8d89acafffcf",
+        "timestamp": 1793039310399
+      },
+      {
+        "executionId": "4af161b9-91a8-4b30-8f71-2ad01207766f",
+        "chatSessionId": "sess_04c0a8cd-f6f5-434b-b17e-8d89acafffcf",
+        "timestamp": 1793039852703
+      }
+    ],
+    "7. Check realtime propagation, convergence, and recovery": [
+      {
+        "executionId": "4af161b9-91a8-4b30-8f71-2ad01207766f",
+        "chatSessionId": "sess_04c0a8cd-f6f5-434b-b17e-8d89acafffcf",
+        "timestamp": 1793034231529
+      },
+      {
+        "executionId": "4af161b9-91a8-4b30-8f71-2ad01207766f",
+        "chatSessionId": "sess_04c0a8cd-f6f5-434b-b17e-8d89acafffcf",
+        "timestamp": 1793039860452
+      },
+      {
+        "executionId": "4af161b9-91a8-4b30-8f71-2ad01207766f",
+        "chatSessionId": "sess_04c0a8cd-f6f5-434b-b17e-8d89acafffcf",
+        "timestamp": 1793040296419
+      }
+    ],
+    "8. Check SES sandbox-safe outbound and inbound behavior": [
+      {
+        "executionId": "4af161b9-91a8-4b30-8f71-2ad01207766f",
+        "chatSessionId": "sess_04c0a8cd-f6f5-434b-b17e-8d89acafffcf",
+        "timestamp": 1793034231612
+      },
+      {
+        "executionId": "4af161b9-91a8-4b30-8f71-2ad01207766f",
+        "chatSessionId": "sess_04c0a8cd-f6f5-434b-b17e-8d89acafffcf",
+        "timestamp": 1793040304433
+      },
+      {
+        "executionId": "4af161b9-91a8-4b30-8f71-2ad01207766f",
+        "chatSessionId": "sess_04c0a8cd-f6f5-434b-b17e-8d89acafffcf",
+        "timestamp": 1793040701248
+      }
+    ],
+    "9. Check client/team creation, login, sessions, tenant isolation, and RLS security": [
+      {
+        "executionId": "4af161b9-91a8-4b30-8f71-2ad01207766f",
+        "chatSessionId": "sess_04c0a8cd-f6f5-434b-b17e-8d89acafffcf",
+        "timestamp": 1793034231702
+      },
+      {
+        "executionId": "4af161b9-91a8-4b30-8f71-2ad01207766f",
+        "chatSessionId": "sess_04c0a8cd-f6f5-434b-b17e-8d89acafffcf",
+        "timestamp": 1793040709244
+      },
+      {
+        "executionId": "4af161b9-91a8-4b30-8f71-2ad01207766f",
+        "chatSessionId": "sess_04c0a8cd-f6f5-434b-b17e-8d89acafffcf",
+        "timestamp": 1793041107149
+      }
+    ],
+    "10.1 Normalize every check to exactly one status: `PASS—synthetic/offline`, `PASS—automated`, `PASS—integration`, `PASS—live-provider`, `FAIL`, `BLOCKED`, or `NOT TESTED`; require check ID, claim, evidence level, immutable release scope, safe relative artifact refs, prerequisites, redaction result, and bounded details.": [
+      {
+        "executionId": "4af161b9-91a8-4b30-8f71-2ad01207766f",
+        "chatSessionId": "sess_04c0a8cd-f6f5-434b-b17e-8d89acafffcf",
+        "timestamp": 1793034231782
+      },
+      {
+        "executionId": "4af161b9-91a8-4b30-8f71-2ad01207766f",
+        "chatSessionId": "sess_04c0a8cd-f6f5-434b-b17e-8d89acafffcf",
+        "timestamp": 1793041115312
+      },
+      {
+        "executionId": "4af161b9-91a8-4b30-8f71-2ad01207766f",
+        "chatSessionId": "sess_04c0a8cd-f6f5-434b-b17e-8d89acafffcf",
+        "timestamp": 1793042244930
+      }
+    ],
+    "10.2 Extend the checked-in allowlist manifest for reset/fresh-run, 31-agent execution, discovery/enrichment/contact, qualification/CRM/delivery reconciliation, realtime, auth/tenant/RLS, SES, worker/Compose/restart/recovery, economics, deployment, and release consistency. Do not glob or execute arbitrary files.": [
+      {
+        "executionId": "4af161b9-91a8-4b30-8f71-2ad01207766f",
+        "chatSessionId": "sess_04c0a8cd-f6f5-434b-b17e-8d89acafffcf",
+        "timestamp": 1793034231868
+      },
+      {
+        "executionId": "4af161b9-91a8-4b30-8f71-2ad01207766f",
+        "chatSessionId": "sess_04c0a8cd-f6f5-434b-b17e-8d89acafffcf",
+        "timestamp": 1793042252549
+      },
+      {
+        "executionId": "4af161b9-91a8-4b30-8f71-2ad01207766f",
+        "chatSessionId": "sess_04c0a8cd-f6f5-434b-b17e-8d89acafffcf",
+        "timestamp": 1793042675916
+      }
+    ],
+    "10.3 Default local mode runs only static, automated, and synthetic/offline checks, isolates/blanks remote credentials, avoids Supabase/SES/Stripe/Serper/paid/deployed calls, writes JSON plus Markdown reports, and exits nonzero when required local gates are closed.": [
+      {
+        "executionId": "4af161b9-91a8-4b30-8f71-2ad01207766f",
+        "chatSessionId": "sess_04c0a8cd-f6f5-434b-b17e-8d89acafffcf",
+        "timestamp": 1793034231958
+      },
+      {
+        "executionId": "4af161b9-91a8-4b30-8f71-2ad01207766f",
+        "chatSessionId": "sess_04c0a8cd-f6f5-434b-b17e-8d89acafffcf",
+        "timestamp": 1793042683409
+      },
+      {
+        "executionId": "4af161b9-91a8-4b30-8f71-2ad01207766f",
+        "chatSessionId": "sess_04c0a8cd-f6f5-434b-b17e-8d89acafffcf",
+        "timestamp": 1793043327879
+      }
+    ],
+    "10.4 Add deterministic gate evaluation: reset/fresh-run, agents, discovery/enrichment, assignment/delivery, realtime, auth/security, email, operational recovery, integration, and live-provider/deployment gates open only when every required check has its configured matching PASS level. Any failure, blocked prerequisite, not-tested required path, unreconciled state, or redaction failure closes the gate.": [
+      {
+        "executionId": "4af161b9-91a8-4b30-8f71-2ad01207766f",
+        "chatSessionId": "sess_04c0a8cd-f6f5-434b-b17e-8d89acafffcf",
+        "timestamp": 1793034232118
+      },
+      {
+        "executionId": "4af161b9-91a8-4b30-8f71-2ad01207766f",
+        "chatSessionId": "sess_04c0a8cd-f6f5-434b-b17e-8d89acafffcf",
+        "timestamp": 1793043335582
+      },
+      {
+        "executionId": "4af161b9-91a8-4b30-8f71-2ad01207766f",
+        "chatSessionId": "sess_04c0a8cd-f6f5-434b-b17e-8d89acafffcf",
+        "timestamp": 1793043565879
+      }
+    ],
+    "10.5 Add operational recovery evidence for worker health, stale lease reclaim, restart/Compose health, schema/migration consistency, queue durability, bounded timeouts, and capacity/economics. Preserve local safety and report unavailable executables as `BLOCKED`.": [
+      {
+        "executionId": "4af161b9-91a8-4b30-8f71-2ad01207766f",
+        "chatSessionId": "sess_04c0a8cd-f6f5-434b-b17e-8d89acafffcf",
+        "timestamp": 1793034232200
+      },
+      {
+        "executionId": "4af161b9-91a8-4b30-8f71-2ad01207766f",
+        "chatSessionId": "sess_04c0a8cd-f6f5-434b-b17e-8d89acafffcf",
+        "timestamp": 1793043573580
+      },
+      {
+        "executionId": "4af161b9-91a8-4b30-8f71-2ad01207766f",
+        "chatSessionId": "sess_04c0a8cd-f6f5-434b-b17e-8d89acafffcf",
+        "timestamp": 1793043810083
+      }
+    ],
+    "10.6 Ensure reports/logs/artifacts contain no `.env` values, tokens, authorization headers, passwords, customer payloads, or full sensitive contact values; test redaction and JSON/Markdown parity. Compatibility artifacts may remain but cannot be the final release decision source.": [
+      {
+        "executionId": "4af161b9-91a8-4b30-8f71-2ad01207766f",
+        "chatSessionId": "sess_04c0a8cd-f6f5-434b-b17e-8d89acafffcf",
+        "timestamp": 1793034232301
+      },
+      {
+        "executionId": "4af161b9-91a8-4b30-8f71-2ad01207766f",
+        "chatSessionId": "sess_04c0a8cd-f6f5-434b-b17e-8d89acafffcf",
+        "timestamp": 1793043818269
+      },
+      {
+        "executionId": "4af161b9-91a8-4b30-8f71-2ad01207766f",
+        "chatSessionId": "sess_04c0a8cd-f6f5-434b-b17e-8d89acafffcf",
+        "timestamp": 1793044170574
+      }
+    ],
+    "11. Run the complete offline remediation and go-live preflight checkpoint": [
+      {
+        "executionId": "4af161b9-91a8-4b30-8f71-2ad01207766f",
+        "chatSessionId": "sess_04c0a8cd-f6f5-434b-b17e-8d89acafffcf",
+        "timestamp": 1793034232397
+      },
+      {
+        "executionId": "4af161b9-91a8-4b30-8f71-2ad01207766f",
+        "chatSessionId": "sess_04c0a8cd-f6f5-434b-b17e-8d89acafffcf",
+        "timestamp": 1793044178167
+      },
+      {
+        "executionId": "4af161b9-91a8-4b30-8f71-2ad01207766f",
+        "chatSessionId": "sess_04c0a8cd-f6f5-434b-b17e-8d89acafffcf",
+        "timestamp": 1793045533327
+      }
+    ],
+    "12. Perform the separately authorized integration/live-provider go-live evidence phase": [
+      {
+        "executionId": "4af161b9-91a8-4b30-8f71-2ad01207766f",
+        "chatSessionId": "sess_04c0a8cd-f6f5-434b-b17e-8d89acafffcf",
+        "timestamp": 1793034232484
+      },
+      {
+        "executionId": "4af161b9-91a8-4b30-8f71-2ad01207766f",
+        "chatSessionId": "sess_04c0a8cd-f6f5-434b-b17e-8d89acafffcf",
+        "timestamp": 1793045542531
+      },
+      {
+        "executionId": "4af161b9-91a8-4b30-8f71-2ad01207766f",
+        "chatSessionId": "sess_04c0a8cd-f6f5-434b-b17e-8d89acafffcf",
+        "timestamp": 1793045713822
+      }
+    ],
+    "3. Implement the explicit, auditable scoped reset and fresh-run admission": [
+      {
+        "executionId": "4af161b9-91a8-4b30-8f71-2ad01207766f",
+        "chatSessionId": "sess_04c0a8cd-f6f5-434b-b17e-8d89acafffcf",
+        "timestamp": 1793036917335
+      }
+    ],
+    "5. Check discovery routes, economics, enrichment, and contact safety": [
+      {
+        "executionId": "4af161b9-91a8-4b30-8f71-2ad01207766f",
+        "chatSessionId": "sess_04c0a8cd-f6f5-434b-b17e-8d89acafffcf",
+        "timestamp": 1793039302837
+      }
+    ],
+    "10. Implement the final evidence manifest, operational recovery checks, and go-live gates": [
+      {
+        "executionId": "4af161b9-91a8-4b30-8f71-2ad01207766f",
+        "chatSessionId": "sess_04c0a8cd-f6f5-434b-b17e-8d89acafffcf",
+        "timestamp": 1793044170698
+      }
+    ]
+  }
+}

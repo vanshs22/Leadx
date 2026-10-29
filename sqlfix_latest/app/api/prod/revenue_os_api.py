@@ -188,22 +188,45 @@ class WorkflowIn(BaseModel):
     description: str = Field(default="", max_length=1000)
 
 
+ALLOWED_AUTOMATION_EVENTS = {"lead.assigned", "email.reply_received", "deal.stage_changed", "lead.score_changed", "lead.quality_gate_passed"}
+ALLOWED_AUTOMATION_ACTIONS = {"send_email", "enroll_sequence", "stop_sequence", "create_task", "notify_owner", "create_deal", "update_lead", "escalate_owner", "score_reply"}
+
+
+def _validate_workflow(req: WorkflowIn) -> None:
+    if req.trigger_type not in ALLOWED_AUTOMATION_EVENTS:
+        raise HTTPException(400, "unsupported automation trigger")
+    actions = (req.graph or {}).get("actions") or []
+    if not isinstance(actions, list) or len(actions) > 25:
+        raise HTTPException(400, "unsupported automation action")
+    if any(not isinstance(action, dict) or action.get("type") not in ALLOWED_AUTOMATION_ACTIONS for action in actions):
+        raise HTTPException(400, "unsupported automation action")
+
+
+def _next_execution(sb, tenant_id: str, workflow_id: str) -> str | None:
+    try:
+        rows = (sb.table("automation_executions").select("due_at,status")
+                .eq("tenant_id", tenant_id).eq("workflow_id", workflow_id)
+                .in_("status", ["queued", "retryable", "pending", "running"])
+                .order("due_at").limit(1).execute().data or [])
+        return rows[0].get("due_at") if rows else None
+    except Exception:
+        return None
+
+
 @router.get("/{tenant_id}/automations")
 def automations(tenant_id: UUID, ctx: TenantContext = Depends(require_tenant)):
     assert_tenant_match(ctx, tenant_id)
-    rows = _sb().table("workflow_definitions").select("*").eq("tenant_id", str(tenant_id)).order("updated_at", desc=True).limit(100).execute().data or []
+    sb = _sb(); tid = str(tenant_id)
+    rows = sb.table("workflow_definitions").select("*").eq("tenant_id", tid).order("updated_at", desc=True).limit(100).execute().data or []
+    for row in rows:
+        row["next_execution"] = row.get("next_execution") or row.get("next_execution_at") or _next_execution(sb, tid, str(row.get("id")))
     return {"ok": True, "automations": rows}
 
 
 @router.post("/{tenant_id}/automations")
 def create_automation(tenant_id: UUID, req: WorkflowIn, ctx: TenantContext = Depends(require_tenant)):
     assert_tenant_match(ctx, tenant_id)
-    allowed_events = {"lead.assigned", "email.reply_received", "deal.stage_changed", "lead.score_changed", "lead.quality_gate_passed"}
-    if req.trigger_type not in allowed_events:
-        raise HTTPException(400, "unsupported automation trigger")
-    actions = (req.graph or {}).get("actions") or []
-    if len(actions) > 25 or any((a.get("type") not in {"send_email","enroll_sequence","stop_sequence","create_task","notify_owner","create_deal","update_lead","escalate_owner","score_reply"}) for a in actions if isinstance(a, dict)):
-        raise HTTPException(400, "unsupported automation action")
+    _validate_workflow(req)
     row = {"tenant_id": str(tenant_id), "name": req.name, "description": req.description, "trigger_type": req.trigger_type, "graph": req.graph, "enabled": req.enabled, "version": 1}
     out = _sb().table("workflow_definitions").insert(row).execute().data or []
     return {"ok": True, "automation": out[0] if out else row}
@@ -212,16 +235,39 @@ def create_automation(tenant_id: UUID, req: WorkflowIn, ctx: TenantContext = Dep
 @router.patch("/{tenant_id}/automations/{workflow_id}")
 def update_automation(tenant_id: UUID, workflow_id: UUID, req: WorkflowIn, ctx: TenantContext = Depends(require_tenant)):
     assert_tenant_match(ctx, tenant_id)
+    _validate_workflow(req)
     existing = _sb().table("workflow_definitions").select("version").eq("id", str(workflow_id)).eq("tenant_id", str(tenant_id)).limit(1).execute().data or []
     if not existing:
         raise HTTPException(404, "automation not found")
     row = {"name": req.name, "description": req.description, "trigger_type": req.trigger_type, "graph": req.graph, "enabled": req.enabled, "version": int(existing[0].get("version") or 1) + 1, "updated_at": datetime.now(timezone.utc).isoformat()}
     out = _sb().table("workflow_definitions").update(row).eq("id", str(workflow_id)).eq("tenant_id", str(tenant_id)).execute().data or []
-    return {"ok": True, "automation": out[0] if out else row}
+    return {"ok": True, "automation": out[0] if out else row, "authoritative": True}
+
+
+@router.delete("/{tenant_id}/automations/{workflow_id}")
+def delete_automation(tenant_id: UUID, workflow_id: UUID, ctx: TenantContext = Depends(require_tenant)):
+    assert_tenant_match(ctx, tenant_id)
+    sb = _sb(); tid = str(tenant_id); wid = str(workflow_id)
+    existing = sb.table("workflow_definitions").select("id").eq("id", wid).eq("tenant_id", tid).limit(1).execute().data or []
+    if not existing:
+        raise HTTPException(404, "automation not found")
+    sb.table("workflow_definitions").delete().eq("id", wid).eq("tenant_id", tid).execute()
+    return {"ok": True, "deleted": wid, "authoritative": True}
 
 
 @router.get("/{tenant_id}/automations/{workflow_id}/runs")
 def automation_runs(tenant_id: UUID, workflow_id: UUID, limit: int = Query(50, ge=1, le=200), ctx: TenantContext = Depends(require_tenant)):
     assert_tenant_match(ctx, tenant_id)
-    rows = _sb().table("workflow_runs").select("id,status,current_node,error,started_at,completed_at,created_at").eq("tenant_id", str(tenant_id)).eq("workflow_id", str(workflow_id)).order("created_at", desc=True).limit(limit).execute().data or []
-    return {"ok": True, "runs": rows}
+    sb = _sb(); tid = str(tenant_id); wid = str(workflow_id)
+    rows = sb.table("workflow_runs").select("id,status,current_node,error,started_at,completed_at,created_at").eq("tenant_id", tid).eq("workflow_id", wid).order("created_at", desc=True).limit(limit).execute().data or []
+    try:
+        executions = (sb.table("automation_executions").select("execution_id,source_event_id,due_at,rule_version,action_version,status,attempts,retry_at,terminal_reason,job_id,created_at,updated_at")
+                      .eq("tenant_id", tid).eq("workflow_id", wid).order("created_at", desc=True).limit(limit).execute().data or [])
+    except Exception:
+        executions = []
+    next_execution = None
+    for execution in executions:
+        if execution.get("status") in {"queued", "retryable", "pending", "running"} and execution.get("due_at"):
+            next_execution = execution.get("due_at")
+            break
+    return {"ok": True, "runs": rows, "executions": executions, "next_execution": next_execution}

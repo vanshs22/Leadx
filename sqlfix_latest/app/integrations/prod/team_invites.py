@@ -205,8 +205,13 @@ async def _send_invite_email(tenant_id: str, email: str, role: str, invite_url: 
 
 
 @to_async
-def accept_invite(token: str, auth_user_id: str, full_name: Optional[str] = None) -> dict:
-    """Accept invite after user signs up / logs in with matching email."""
+def accept_invite(
+    token: str,
+    auth_user_id: str,
+    full_name: Optional[str] = None,
+    auth_email: Optional[str] = None,
+) -> dict:
+    """Accept an invite only for the authenticated user's invited email."""
     sb = _sb()
     rows = (
         sb.table("tenant_invites")
@@ -220,6 +225,11 @@ def accept_invite(token: str, auth_user_id: str, full_name: Optional[str] = None
     if not rows:
         return {"ok": False, "error": "invalid_or_used_token"}
     inv = rows[0]
+    invited_email = str(inv.get("email") or "").strip().lower()
+    signed_in_email = str(auth_email or "").strip().lower()
+    if not invited_email or not signed_in_email or invited_email != signed_in_email:
+        # Do not let a valid token bind a different authenticated account.
+        return {"ok": False, "error": "invalid_or_used_token"}
     exp = inv.get("expires_at")
     if exp:
         exp_dt = datetime.fromisoformat(exp.replace("Z", "+00:00"))

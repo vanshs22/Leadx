@@ -12,46 +12,136 @@ import { SavedViews } from "@/components/leads/SavedViews";
 import { BulkActionBar } from "@/components/BulkActionBar";
 import { useChangedIds } from "@/lib/live";
 import { VariableVirtualList } from "@/lib/VariableVirtualList";
-import { ErrorState, EmptyState } from "@/components/ui/States";
-import { EvidenceNote, FreshnessNote, UnavailableNote } from "@/components/ui/SurfaceMeta";
-import { PageHeader, FilterBar } from "@/components/ui/Primitives";
+import { ErrorState, EmptyState, LoadingRows } from "@/components/ui/States";
+import { EvidenceNote, FreshnessNote } from "@/components/ui/SurfaceMeta";
+import { PageHeader, FilterBar, Panel, Tabs, Drawer, Notice, KeyValue } from "@/components/ui/Primitives";
+import { Icon } from "@/components/ui/Icon";
 
 /** Rows come from two shapes (view vs search-run); both carry one of these. */
 const leadId = (l: any): string => l.assignment_id || l.id;
 
-function LeadRow({lead, selected, changed, toggle}: {lead:any; selected:Set<string>; changed:boolean; toggle:(id:string)=>void}) {
+/* Fixed column widths so the virtualised path (one table per row) aligns with the header. */
+function LeadCols() {
+  return (
+    <colgroup>
+      <col className="w-11" />
+      <col />
+      <col className="w-[96px]" />
+      <col className="w-[120px]" />
+      <col className="w-[230px]" />
+      <col className="w-[72px]" />
+      <col className="w-[96px]" />
+      <col className="w-[104px]" />
+      <col className="w-[150px]" />
+    </colgroup>
+  );
+}
+
+function LeadHead({ allSelected, onToggleAll }: { allSelected: boolean; onToggleAll: (checked: boolean) => void }) {
+  return (
+    <thead>
+      <tr className="[&>th]:bg-surface-3">
+        <th scope="col" className="!pr-0"><input type="checkbox" className="h-4 w-4 rounded border-line-strong accent-brand-700" aria-label="Select all leads shown" checked={allSelected} onChange={(e) => onToggleAll(e.target.checked)} /></th>
+        <th scope="col">Business</th>
+        <th scope="col">Tier</th>
+        <th scope="col">Stage</th>
+        <th scope="col">Contact</th>
+        <th scope="col" className="!text-right">Score</th>
+        <th scope="col" className="!text-right">Opportunity</th>
+        <th scope="col" className="!text-right">Updated</th>
+        <th scope="col" className="!text-right"><span className="sr-only">Actions</span></th>
+      </tr>
+    </thead>
+  );
+}
+
+function leadUpdated(lead: any): string | null {
+  const raw = lead.updated_at || lead.delivered_at || lead.created_at;
+  return raw ? new Date(raw).toLocaleDateString() : null;
+}
+
+function LeadRow({lead, selected, changed, toggle, onPreview}: {lead:any; selected:Set<string>; changed:boolean; toggle:(id:string)=>void; onPreview:(lead:any)=>void}) {
   const id = lead.assignment_id || lead.id;
   const phone = lead.phone_e164 || lead.phone;
   const email = lead.email;
-  return <div className={`card-pad transition hover:shadow-lift [content-visibility:auto] [contain-intrinsic-size:220px] ${changed ? "row-flash" : ""}`}>
-    <div className="flex flex-wrap items-start gap-4">
-      <input type="checkbox" className="mt-1.5 h-4 w-4 rounded border-line" aria-label={`Select ${lead.name || lead.company_name || "lead"}`} checked={selected.has(id)} onChange={() => toggle(id)} />
-      <div className="min-w-0 flex-1 space-y-2.5">
-        <div className="flex flex-wrap items-center gap-2">
-          <Link href={`/leads/${id}`} className="text-lg font-semibold text-ink hover:text-brand-600 dark:hover:text-brand-300">{lead.name || lead.company_name || "Unnamed business"}</Link>
-          <TierBadge tier={lead.tier} />
-          {lead.stage_name && <StagePill stage={lead.stage_name} />}
+  const name = lead.name || lead.company_name || "Unnamed business";
+  const score = lead.score ?? lead.total_score;
+  const opportunity = lead.opportunity_score_overall ?? lead.opportunity_score;
+  const evidence: string[] = Array.isArray(lead.opportunity_evidence) ? lead.opportunity_evidence : [];
+  const why = evidence[0] || lead.pitch_line || lead.talking_points;
+  const provider = Array.isArray(lead.sources_hit) ? lead.sources_hit.slice(0, 2).join(", ") : lead.source;
+  const updated = leadUpdated(lead);
+  const isSelected = selected.has(id);
+  return (
+    <tr className={`${isSelected ? "bg-brand-50/70 dark:bg-brand-500/10" : ""} ${changed ? "row-flash" : ""}`} data-selected={isSelected || undefined}>
+      <td className="!pr-0 !py-2.5"><input type="checkbox" className="h-4 w-4 rounded border-line-strong accent-brand-700" aria-label={`Select ${name}`} checked={isSelected} onChange={() => toggle(id)} /></td>
+      <td className="!py-2.5">
+        <div className="min-w-0">
+          <Link href={`/leads/${id}`} title={name} className="block truncate font-semibold text-ink hover:text-brand-700 dark:hover:text-brand-300">{name}</Link>
+          <div className="mt-0.5 flex min-w-0 items-center gap-1.5 text-xs text-ink-faint">
+            {lead.city ? <span className="truncate" title={lead.city}>{lead.city}</span> : null}
+            {lead.city && provider ? <span aria-hidden="true">·</span> : null}
+            {provider ? <span className="truncate" title={`Provider: ${provider}`}>{provider}</span> : null}
+            {!lead.city && !provider ? <span>Location and provider unavailable</span> : null}
+          </div>
+          {why ? <p className="mt-1 truncate text-xs text-ink-muted" title={why}><span className="font-medium text-signal-700 dark:text-signal-300">Why: </span>{why}</p> : null}
         </div>
-        <div className="flex flex-wrap gap-x-4 gap-y-1 text-sm text-ink-muted">
-          {lead.city && <span>{lead.city}</span>}
-          {phone && <span className="inline-flex items-center gap-1"><a className="font-medium text-signal-700 hover:underline dark:text-signal-300" href={`tel:${phone}`}>{phone}</a><CopyButton value={phone} /></span>}
-          {email && <span className="inline-flex items-center gap-1"><a className="font-medium text-signal-700 hover:underline dark:text-signal-300" href={`mailto:${email}`}>{email}</a><CopyButton value={email} /></span>}
-          {lead.website && <a href={lead.website} target="_blank" rel="noreferrer" className="hover:text-ink">Website ↗</a>}
+      </td>
+      <td className="!py-2.5"><TierBadge tier={lead.tier} /></td>
+      <td className="!py-2.5">{lead.stage_name ? <StagePill stage={lead.stage_name} /> : <span className="text-xs text-ink-faint">—</span>}</td>
+      <td className="!py-2.5">
+        <div className="min-w-0 space-y-0.5 text-xs">
+          {phone ? <div className="flex min-w-0 items-center gap-1"><a className="truncate font-medium tabular-nums text-brand-700 hover:underline dark:text-brand-300" title={phone} href={`tel:${phone}`}>{phone}</a><CopyButton value={phone} /></div> : null}
+          {email ? <div className="flex min-w-0 items-center gap-1"><a className="truncate text-ink-muted hover:text-ink hover:underline" title={email} href={`mailto:${email}`}>{email}</a><CopyButton value={email} /></div> : null}
+          {!phone && !email ? <span className="text-ink-faint">No contact on file</span> : null}
         </div>
+      </td>
+      <td className={`!py-2.5 text-right font-semibold tabular-nums ${Number(score) >= 85 ? "text-signal-700 dark:text-signal-300" : "text-ink"}`}>{typeof score === "number" ? score : "—"}</td>
+      <td className="!py-2.5 text-right tabular-nums text-ink-muted">{typeof opportunity === "number" ? opportunity : "—"}</td>
+      <td className="!py-2.5 text-right text-xs tabular-nums text-ink-faint" title={updated ? `Updated ${updated}` : "Freshness unavailable"}>{updated || "—"}</td>
+      <td className="!py-2.5">
+        <div className="flex items-center justify-end gap-1">
+          {phone ? <a href={`tel:${phone}`} className="btn-ghost btn-sm !px-2" aria-label={`Call ${name}`} title="Call"><Icon name="phone" size={14} /></a> : null}
+          <button type="button" className="btn-ghost btn-sm !px-2" aria-label={`Preview ${name}`} title="Preview" onClick={() => onPreview(lead)}><Icon name="info" size={14} /></button>
+          <Link href={`/leads/${id}`} className="btn-secondary btn-sm">Open</Link>
+        </div>
+      </td>
+    </tr>
+  );
+}
+
+function LeadPreview({ lead }: { lead: any }) {
+  const id = lead.assignment_id || lead.id;
+  const phone = lead.phone_e164 || lead.phone;
+  const evidence: string[] = Array.isArray(lead.opportunity_evidence) ? lead.opportunity_evidence : [];
+  return (
+    <div className="space-y-5">
+      <div className="flex flex-wrap items-center gap-2">
+        <TierBadge tier={lead.tier} />
+        {lead.stage_name ? <StagePill stage={lead.stage_name} /> : null}
+      </div>
+      <KeyValue items={[
+        { label: "City", value: lead.city || "—" },
+        { label: "Phone", value: phone ? <a className="link tabular-nums" href={`tel:${phone}`}>{phone}</a> : "—" },
+        { label: "Email", value: lead.email ? <a className="link" href={`mailto:${lead.email}`} title={lead.email}>{lead.email}</a> : "—" },
+        { label: "Website", value: lead.website ? <a className="link" href={lead.website} target="_blank" rel="noreferrer" title={lead.website}>{lead.website.replace(/^https?:\/\//, "")}</a> : "—" },
+        { label: "Updated", value: <span className="tabular-nums">{leadUpdated(lead) || "—"}</span> },
+      ]} />
+      <div>
+        <div className="label mb-2">Quality</div>
         <QualityChips tier={lead.tier} score={lead.score ?? lead.total_score} intent={lead.intent_score} opportunity={lead.opportunity_score_overall ?? lead.opportunity_score} fit={lead.fit_score} contactability={lead.contactability_score} sources={lead.sources_hit || lead.source} pitch={lead.pitch_line} talkingPoints={lead.talking_points} />
-        <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
-          <EvidenceNote count={Array.isArray(lead.opportunity_evidence) ? lead.opportunity_evidence.length : undefined} label="opportunity evidence" />
-          {lead.source || lead.sources_hit ? <span className="text-[11px] text-ink-faint">Provider: {Array.isArray(lead.sources_hit) ? lead.sources_hit.slice(0, 2).join(", ") : lead.source}</span> : <UnavailableNote label="Provider" />}
-          {lead.updated_at || lead.delivered_at || lead.created_at ? <FreshnessNote detail={new Date(lead.updated_at || lead.delivered_at || lead.created_at).toLocaleDateString()} /> : <FreshnessNote label="Freshness unavailable" />}
-        </div>
-        {Array.isArray(lead.opportunity_evidence) && lead.opportunity_evidence.length > 0 && <div className="flex flex-wrap gap-1.5 text-[11px] text-ink-faint">{lead.opportunity_evidence.slice(0, 3).map((e: string) => <span key={e} className="rounded-md bg-surface-3/70 px-2 py-1">{e}</span>)}</div>}
       </div>
-      <div className="flex shrink-0 flex-col gap-2">
-        {phone && <a href={`tel:${phone}`} className="btn-success text-center">Call</a>}
-        <Link href={`/leads/${id}`} className="btn-secondary text-center">Open</Link>
+      <div>
+        <div className="flex items-center justify-between gap-2"><div className="label">Why this lead</div><EvidenceNote count={Array.isArray(lead.opportunity_evidence) ? evidence.length : undefined} label="opportunity evidence" /></div>
+        {evidence.length ? (
+          <ul className="mt-2 space-y-1.5">
+            {evidence.slice(0, 6).map((e) => <li key={e} className="rounded-md border border-line bg-surface-3/60 px-3 py-2 text-[0.8125rem] text-ink-muted">{e}</li>)}
+          </ul>
+        ) : <p className="mt-2 text-[0.8125rem] text-ink-faint">No opportunity evidence returned for this lead.</p>}
       </div>
+      <Link href={`/leads/${id}`} className="btn-primary w-full">Open full record</Link>
     </div>
-  </div>;
+  );
 }
 
 export default function LeadsPage() {
@@ -78,6 +168,10 @@ export default function LeadsPage() {
   );
   const [bulkBusy, setBulkBusy] = useState(false);
   const [tagBusy, setTagBusy] = useState(false);
+  const [preview, setPreview] = useState<any | null>(null);
+  const closePreview = useCallback(() => setPreview(null), []);
+  const closeBulk = useCallback(() => setBulkOpen(false), []);
+  const closeSeq = useCallback(() => setSeqOpen(false), []);
   const changedLeadIds = useChangedIds(leads, (l: any) => String(leadId(l)));
 
   const load = useCallback(() => {
@@ -233,96 +327,142 @@ export default function LeadsPage() {
     }
   });
 
+
+  const tierCounts = leads.reduce((acc: Record<string, number>, l: any) => {
+    const t = String(l.tier || "").toUpperCase();
+    acc[t] = (acc[t] || 0) + 1;
+    return acc;
+  }, {});
+
+  const toggleAll = (checked: boolean) => setSelected(checked ? new Set(leads.map(leadId)) : new Set());
+
   return (
     <div className="page">
-      <PageHeader title="Leads" description={`${total} quality-gated prospects · prioritize the next best conversation, not a static list.`} meta={<><FreshnessNote label="Live CRM view" detail={`${leads.length} loaded`} /><span>Evidence and provider fields are shown only when returned by the API.</span></>} actions={<><button aria-label="Email selected leads" onClick={() => setBulkOpen(true)} className="btn-primary">Email…</button><button aria-label="Enroll selected leads" onClick={() => setSeqOpen(true)} className="btn-secondary">Enroll in sequence…</button><button aria-label="Export leads as CSV" onClick={handleExport} className="btn-secondary">Export CSV</button><button aria-label="Refresh leads" onClick={load} className="btn-secondary">Refresh</button></>} />
-
-      {msg && (
-        <div className="rounded-xl border border-line bg-surface-2 px-4 py-2.5 text-sm text-ink-muted">
-          {msg}
-        </div>
-      )}
-
-      <SavedViews
-        current={{ search, tier, stage, sort }}
-        onApply={(f) => { setSearch(f.search ?? ""); setTier(f.tier ?? ""); setStage(f.stage ?? ""); setSort(f.sort ?? "score_desc"); }}
+      <PageHeader
+        eyebrow="CRM"
+        title="Leads"
+        description={<><span className="tabular-nums">{total.toLocaleString()}</span> quality-gated prospects. Prioritize the next best conversation, not a static list.</>}
+        meta={<><FreshnessNote label="Live CRM view" detail={`${leads.length} loaded`} /><span>Evidence and provider fields are shown only when returned by the API.</span></>}
+        actions={<>
+          <button aria-label="Refresh leads" onClick={load} className="btn-ghost"><Icon name="refresh" size={14} />Refresh</button>
+          <button aria-label="Export leads as CSV" onClick={handleExport} className="btn-secondary"><Icon name="download" size={14} />Export CSV</button>
+          <button aria-label="Enroll selected leads" onClick={() => setSeqOpen(true)} className="btn-secondary"><Icon name="sequence" size={14} />Enroll in sequence…</button>
+          <button aria-label="Email selected leads" onClick={() => setBulkOpen(true)} className="btn-primary"><Icon name="mail" size={14} />Email…</button>
+        </>}
       />
-      <FilterBar onClear={() => { setSearch(""); setTier(""); setStage(""); setSort("score_desc"); }}>
-        <input className="input min-w-[200px] flex-1" type="search" placeholder="Search company, city, phone…" value={search} onChange={(e) => setSearch(e.target.value)} aria-label="Search leads" />
-        <select className="input max-w-[140px]" value={tier} onChange={(e) => setTier(e.target.value)} aria-label="Filter leads by tier"><option value="">All tiers</option><option value="A">Tier A only</option><option value="B">Tier B</option></select>
-        <select className="input max-w-[160px]" value={stage} onChange={(e) => setStage(e.target.value)} aria-label="Filter leads by stage"><option value="">All stages</option><option value="new">New</option><option value="contacted">Contacted</option><option value="qualified">Qualified</option><option value="won">Won</option><option value="lost">Lost</option></select>
-        <select className="input max-w-[180px]" value={sort} onChange={(e) => setSort(e.target.value)} aria-label="Sort leads"><option value="score_desc">Score: high → low</option><option value="score_asc">Score: low → high</option><option value="tier_asc">Tier: A → C</option><option value="tier_desc">Tier: C → A</option><option value="name_asc">Name: A → Z</option><option value="name_desc">Name: Z → A</option><option value="city_asc">City: A → Z</option><option value="newest">Newest first</option></select>
-        <label className="flex items-center gap-2 px-1 text-sm text-ink-muted"><input type="checkbox" className="h-4 w-4 rounded border-line" aria-label="Select all leads shown" checked={allSelected} onChange={(e) => setSelected(e.target.checked ? new Set(leads.map(leadId)) : new Set())} />Select all</label>
-      </FilterBar>
 
-      <div className="rounded-xl border border-brand-200 bg-brand-50 px-4 py-3 text-sm text-brand-900 dark:border-brand-500/20 dark:bg-brand-500/10 dark:text-brand-200">
-        <strong>Tip:</strong> Start with Tier A → use the pitch line → call → update stage. Report bad numbers for credit.
+      {msg && <Notice tone="neutral" onDismiss={() => setMsg("")}>{msg}</Notice>}
+
+      <div className="space-y-3">
+        <FilterBar onClear={() => { setSearch(""); setTier(""); setStage(""); setSort("score_desc"); }}>
+          <div className="relative min-w-[220px] flex-1">
+            <Icon name="search" size={14} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-ink-faint" />
+            <input className="input h-9 pl-8" type="search" placeholder="Search company, city, phone…" value={search} onChange={(e) => setSearch(e.target.value)} aria-label="Search leads" />
+          </div>
+          <Tabs
+            label="Filter leads by tier"
+            value={(tier || "all") as "all" | "A" | "B"}
+            onChange={(v) => setTier(v === "all" ? "" : v)}
+            items={[
+              { value: "all", label: "All tiers" },
+              { value: "A", label: "Tier A", count: tierCounts.A },
+              { value: "B", label: "Tier B", count: tierCounts.B },
+            ]}
+          />
+          <select className="select h-9 w-auto min-w-[140px]" value={stage} onChange={(e) => setStage(e.target.value)} aria-label="Filter leads by stage"><option value="">All stages</option><option value="new">New</option><option value="contacted">Contacted</option><option value="qualified">Qualified</option><option value="won">Won</option><option value="lost">Lost</option></select>
+          <select className="select h-9 w-auto min-w-[170px]" value={sort} onChange={(e) => setSort(e.target.value)} aria-label="Sort leads"><option value="score_desc">Score: high → low</option><option value="score_asc">Score: low → high</option><option value="tier_asc">Tier: A → C</option><option value="tier_desc">Tier: C → A</option><option value="name_asc">Name: A → Z</option><option value="name_desc">Name: Z → A</option><option value="city_asc">City: A → Z</option><option value="newest">Newest first</option></select>
+        </FilterBar>
+        <SavedViews
+          current={{ search, tier, stage, sort }}
+          onApply={(f) => { setSearch(f.search ?? ""); setTier(f.tier ?? ""); setStage(f.stage ?? ""); setSort(f.sort ?? "score_desc"); }}
+        />
       </div>
 
-      {loading ? (
-        <div className="py-20 text-center text-ink-faint" aria-busy="true">Loading leads…</div>
-      ) : loadError ? (
-        <ErrorState error={loadError} onRetry={load} />
-      ) : leads.length === 0 ? (
-        <div className="card"><EmptyState title="No leads match these filters" hint="Clear a filter or wait for the next delivery batch. LeadX will keep this view current through the CRM stream." /></div>
-      ) : (
-        <>
-        {sortedLeads.length > 100 ? (
-          <VariableVirtualList items={sortedLeads} estimate={220} height={760} getKey={(lead:any)=>leadId(lead)} render={(lead:any) => <LeadRow lead={lead} selected={selected} changed={changedLeadIds.has(String(leadId(lead)))} toggle={toggle} />} />
+      <Panel
+        title="Lead list"
+        description="Start with Tier A, use the pitch line, call, then update the stage. Report bad numbers for credit."
+        actions={<span className="text-xs tabular-nums text-ink-faint" aria-live="polite">{selected.size ? `${selected.size} selected · ` : ""}{sortedLeads.length} of {total.toLocaleString()} shown</span>}
+        bodyClassName="p-0"
+      >
+        {loading ? (
+          <LoadingRows rows={8} cols={6} />
+        ) : loadError ? (
+          <div className="p-5"><ErrorState error={loadError} onRetry={load} /></div>
+        ) : leads.length === 0 ? (
+          <EmptyState title="No leads match these filters" hint="Clear a filter or wait for the next delivery batch. LeadX will keep this view current through the CRM stream." />
+        ) : sortedLeads.length > 100 ? (
+          <div className="overflow-x-auto">
+            <table className="data-table min-w-[1080px] table-fixed">
+              <caption className="sr-only">Leads</caption>
+              <LeadCols />
+              <LeadHead allSelected={allSelected} onToggleAll={toggleAll} />
+            </table>
+            <div className="min-w-[1080px]">
+              <VariableVirtualList items={sortedLeads} estimate={72} height={760} getKey={(lead:any)=>leadId(lead)} render={(lead:any) => (
+                <table className="data-table min-w-[1080px] table-fixed border-t border-line/70">
+                  <LeadCols />
+                  <tbody><LeadRow lead={lead} selected={selected} changed={changedLeadIds.has(String(leadId(lead)))} toggle={toggle} onPreview={setPreview} /></tbody>
+                </table>
+              )} />
+            </div>
+          </div>
         ) : (
-          <div className="space-y-3">
-            {sortedLeads.map((lead:any) => <LeadRow key={leadId(lead)} lead={lead} selected={selected} changed={changedLeadIds.has(String(leadId(lead)))} toggle={toggle} />)}
+          <div className="max-h-[calc(100vh-16rem)] min-h-[320px] overflow-auto">
+            <table className="data-table min-w-[1080px] table-fixed">
+              <caption className="sr-only">Leads</caption>
+              <LeadCols />
+              <LeadHead allSelected={allSelected} onToggleAll={toggleAll} />
+              <tbody>
+                {sortedLeads.map((lead:any) => <LeadRow key={leadId(lead)} lead={lead} selected={selected} changed={changedLeadIds.has(String(leadId(lead)))} toggle={toggle} onPreview={setPreview} />)}
+              </tbody>
+            </table>
           </div>
         )}
-        </>
-      )}
+      </Panel>
 
-      {bulkOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
-          <div className="card-pad max-h-[90vh] w-full max-w-lg space-y-3 overflow-y-auto shadow-lift">
-            <div className="flex items-center justify-between">
-              <h2 className="text-lg font-semibold text-ink">Send email</h2>
-              <button className="btn-ghost" onClick={() => setBulkOpen(false)}>Close</button>
-            </div>
-            <p className="text-xs text-ink-faint">
-              Merge tags: {"{{name}}"} {"{{company}}"} {"{{owner}}"} {"{{city}}"} {"{{pitch}}"} {"{{tier}}"}
-            </p>
-            <input className="input" value={bulkSubj} onChange={(e) => setBulkSubj(e.target.value)} placeholder="Subject" />
-            <textarea className="input min-h-[160px] font-mono text-xs" value={bulkBody} onChange={(e) => setBulkBody(e.target.value)} />
-            <div className="flex flex-wrap gap-2">
-              <button disabled={bulkBusy || selected.size === 0} onClick={sendSelectedEmail} className="btn-primary">
-                Email selected ({selected.size})
-              </button>
-              <button disabled={bulkBusy} onClick={sendAllEmail} className="btn-secondary">
-                Send all (filtered)
-              </button>
-            </div>
-            <p className="text-xs text-ink-faint">Uses Resend or SMTP. Max 100 per batch. Leads without email are skipped.</p>
+      <Drawer open={!!preview} title={preview ? (preview.name || preview.company_name || "Unnamed business") : "Lead"} onClose={closePreview}>
+        {preview ? <LeadPreview lead={preview} /> : null}
+      </Drawer>
+
+      <Drawer
+        open={bulkOpen}
+        title="Send email"
+        onClose={closeBulk}
+        footer={
+          <div className="flex flex-wrap items-center justify-end gap-2">
+            <button type="button" className="btn-ghost" onClick={() => setBulkOpen(false)}>Cancel</button>
+            <button disabled={bulkBusy} onClick={sendAllEmail} className="btn-secondary">
+              Send all (filtered)
+            </button>
+            <button disabled={bulkBusy || selected.size === 0} onClick={sendSelectedEmail} className="btn-primary">
+              Email selected (<span className="tabular-nums">{selected.size}</span>)
+            </button>
           </div>
+        }
+      >
+        <div className="space-y-4">
+          <div>
+            <label className="field-label" htmlFor="leads-bulk-subject">Subject</label>
+            <input id="leads-bulk-subject" className="input" value={bulkSubj} onChange={(e) => setBulkSubj(e.target.value)} placeholder="Subject" />
+          </div>
+          <div>
+            <label className="field-label" htmlFor="leads-bulk-body">Body (HTML)</label>
+            <textarea id="leads-bulk-body" className="textarea min-h-[200px] font-mono text-xs" value={bulkBody} onChange={(e) => setBulkBody(e.target.value)} aria-describedby="leads-bulk-tags" />
+            <p id="leads-bulk-tags" className="field-hint">
+              Merge tags: <code className="font-mono">{"{{name}}"} {"{{company}}"} {"{{owner}}"} {"{{city}}"} {"{{pitch}}"} {"{{tier}}"}</code>
+            </p>
+          </div>
+          <Notice tone="neutral">Uses Resend or SMTP. Max 100 per batch. Leads without email are skipped.</Notice>
         </div>
-      )}
+      </Drawer>
 
-      {seqOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
-          <div className="card-pad w-full max-w-md space-y-3 shadow-lift">
-            <div className="flex items-center justify-between">
-              <h2 className="text-lg font-semibold text-ink">Enroll in sequence</h2>
-              <button className="btn-ghost" onClick={() => setSeqOpen(false)}>Close</button>
-            </div>
-            {selected.size === 0 && (
-              <p className="text-sm text-rust-500 dark:text-rust-300">Select leads first (checkboxes in the table).</p>
-            )}
-            <select
-              className="input"
-              value={seqPick}
-              onChange={(e) => setSeqPick(e.target.value)}
-              onFocus={() => { if (!sequences.length) crm.sequences(getTenantId()).then((d: any) => setSequences(d.sequences || [])).catch(() => {}); }}
-            >
-              <option value="">Choose a sequence…</option>
-              {sequences.map((s: any) => (
-                <option key={s.id} value={s.id}>{s.name} ({s.steps?.length || 0} steps)</option>
-              ))}
-            </select>
+      <Drawer
+        open={seqOpen}
+        title="Enroll in sequence"
+        onClose={closeSeq}
+        footer={
+          <div className="flex flex-wrap items-center justify-end gap-2">
+            <button type="button" className="btn-ghost" onClick={() => setSeqOpen(false)}>Cancel</button>
             <button
               disabled={seqBusy || !seqPick || selected.size === 0}
               onClick={async () => {
@@ -337,17 +477,38 @@ export default function LeadsPage() {
                   setSeqBusy(false);
                 }
               }}
-              className="btn-primary w-full"
+              className="btn-primary"
             >
               Enroll {selected.size} lead{selected.size === 1 ? "" : "s"}
             </button>
-            {seqMsg && <p className="text-xs text-ink-muted">{seqMsg}</p>}
-            <p className="text-xs text-ink-faint">
+          </div>
+        }
+      >
+        <div className="space-y-4">
+          {selected.size === 0 && (
+            <Notice tone="warning">Select leads first (checkboxes in the table).</Notice>
+          )}
+          <div>
+            <label className="field-label" htmlFor="leads-seq-pick">Sequence</label>
+            <select
+              id="leads-seq-pick"
+              className="select"
+              value={seqPick}
+              onChange={(e) => setSeqPick(e.target.value)}
+              onFocus={() => { if (!sequences.length) crm.sequences(getTenantId()).then((d: any) => setSequences(d.sequences || [])).catch(() => {}); }}
+            >
+              <option value="">Choose a sequence…</option>
+              {sequences.map((s: any) => (
+                <option key={s.id} value={s.id}>{s.name} ({s.steps?.length || 0} steps)</option>
+              ))}
+            </select>
+            <p className="field-hint">
               First step sends after its configured delay. Stops automatically if the lead unsubscribes or replies.
             </p>
           </div>
+          {seqMsg && <p className="text-[0.8125rem] text-ink-muted" role="status" aria-live="polite">{seqMsg}</p>}
         </div>
-      )}
+      </Drawer>
 
       <BulkActionBar
         count={selected.size}

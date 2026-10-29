@@ -352,3 +352,85 @@ test("normalizes terminal request, run, and job evidence without regressing prog
     terminalReason: "synthetic_complete",
   });
 });
+
+test.describe("task 7 authoritative realtime contracts", () => {
+  const running: MockProjection = {
+    revision: 1,
+    status: "running",
+    runId: "run-synthetic-001",
+    requestId: "request-synthetic-001",
+    jobId: "job-synthetic-001",
+    discovered: 1,
+    delivered: 0,
+  };
+
+  test("keeps mutation retry and scoped reset terminal against stale success", () => {
+    const runtime = new MockRealtimeRuntime({ "tenant-a": ["user-a"] });
+    runtime.seed("tenant-a", running);
+    const seen: MockProjection[] = [];
+    runtime.subscribe("user-a", "tenant-a", (projection) => seen.push(projection));
+
+    runtime.commit("tenant-a", { table: "lead_assignments", event: "UPDATE", revision: 2 }, { ...running, revision: 2, delivered: 1 });
+    runtime.broadcast({ tenantId: "tenant-a", table: "lead_assignments", event: "UPDATE", revision: 1 });
+    runtime.broadcast({ tenantId: "tenant-a", table: "lead_assignments", event: "UPDATE", revision: 2 });
+    runtime.flushDebounce();
+
+    runtime.commit("tenant-a", { table: "pipeline_runs", event: "UPDATE", revision: 3 }, { ...running, revision: 3, status: "failed", terminalReason: "synthetic_retry" });
+    runtime.flushDebounce();
+    runtime.commit("tenant-a", { table: "pipeline_runs", event: "UPDATE", revision: 4 }, { ...running, revision: 4, status: "running", terminalReason: undefined });
+    runtime.flushDebounce();
+    runtime.commit("tenant-a", { table: "pipeline_runs", event: "UPDATE", revision: 5 }, { ...running, revision: 5, status: "cancelled", terminalReason: "scoped_reset" });
+    runtime.flushDebounce();
+
+    // A late worker success is lower revision and cannot overwrite reset state.
+    runtime.commit("tenant-a", { table: "pipeline_runs", event: "UPDATE", revision: 4 }, { ...running, revision: 4, status: "completed", delivered: 9 });
+    runtime.flushDebounce();
+
+    expect(runtime.projection("tenant-a")).toMatchObject({ status: "cancelled", revision: 5, terminalReason: "scoped_reset" });
+    expect(runtime.isTerminal("tenant-a")).toBe(true);
+    expect(runtime.lastRevision("tenant-a")).toBe(5);
+    expect(seen.at(-1)).toMatchObject({ status: "cancelled", delivered: 0 });
+    expect(runtime.providerCalls).toBe(0);
+    expect(runtime.creditOperations).toBe(0);
+  });
+
+  test("removes the old tenant subscription before switching the same user", () => {
+    const runtime = new MockRealtimeRuntime({ "tenant-a": ["user-a"], "tenant-b": ["user-a"] });
+    runtime.seed("tenant-a", running);
+    runtime.seed("tenant-b", { ...running, runId: "run-b", requestId: "request-b", jobId: "job-b" });
+    const seen: MockProjection[] = [];
+    const disposeA = runtime.subscribe("user-a", "tenant-a", (projection) => seen.push(projection));
+    disposeA();
+    runtime.subscribe("user-a", "tenant-b", (projection) => seen.push(projection));
+
+    runtime.commit("tenant-a", { table: "pipeline_runs", event: "UPDATE", revision: 2 }, { ...running, revision: 2, status: "completed" });
+    runtime.commit("tenant-b", { table: "pipeline_runs", event: "UPDATE", revision: 2 }, { ...running, revision: 2, runId: "run-b", requestId: "request-b", jobId: "job-b", status: "completed" });
+    runtime.flushDebounce();
+
+    expect(seen).toHaveLength(1);
+    expect(seen[0]).toMatchObject({ runId: "run-b", status: "completed" });
+  });
+
+  test("keeps backend and all portal surfaces on metadata invalidation plus API authority", () => {
+    const migration = readFileSync(resolve(__dirname, "../../supabase/migrations/20261020001600_leadx_21_realtime_capture.sql"), "utf8");
+    const dashboard = readFileSync(resolve(__dirname, "../app/(portal)/dashboard/page.tsx"), "utf8");
+    const pipeline = readFileSync(resolve(__dirname, "../app/(portal)/pipeline/page.tsx"), "utf8");
+    const adminPipeline = readFileSync(resolve(__dirname, "../app/(admin)/admin/pipeline/page.tsx"), "utf8");
+    const adminRun = readFileSync(resolve(__dirname, "../app/(admin)/admin/runs/[runId]/page.tsx"), "utf8");
+    const crm = readFileSync(resolve(__dirname, "../lib/crm.ts"), "utf8");
+
+    expect(migration).toContain("Keep Broadcast metadata-only");
+    expect(migration).toContain("'crm:' || NEW.tenant_id::text");
+    expect(migration).toContain("public.leadx_is_workspace_member");
+    expect(dashboard).toContain("useCrmChange(refresh");
+    expect(dashboard).toContain("crm.dashboard");
+    expect(pipeline).toContain("useCrmChange(() => { void load(true); }");
+    expect(pipeline).toContain("crm.changeStage");
+    expect(adminPipeline).toContain("admin.getRun");
+    expect(adminPipeline).toContain("runTerminal");
+    expect(adminPipeline).toContain("setLiveRun(null)");
+    expect(adminRun).toContain("admin.runLeads");
+    expect(adminRun).toContain("runTerminal");
+    expect(crm).toContain("requestApi");
+  });
+});

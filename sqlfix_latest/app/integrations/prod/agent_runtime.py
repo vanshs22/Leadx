@@ -206,7 +206,7 @@ async def execute_agent_task(run: dict, expected_agent: str | None = None) -> di
             if agent == "qualification":
                 _ok = [r for r in _ok if r.get("qualified")]
             result = {"processed": len(results), "results": results, "lead_ids": [str(r["lead_id"]) for r in _ok]}
-        elif agent == "outreach":
+        elif agent == "outreach" and str(data.get("delivery_channel") or "portal").strip().lower() not in {"", "portal", "crm", "none", "internal", "dashboard"}:
             from app.integrations.prod.ai_intelligence import build_lead_brief
             ids = [str(x) for x in (data.get("lead_ids") or ([data.get("lead_id")] if data.get("lead_id") else []))]
             briefs = [{"lead_id": lid, "brief": build_lead_brief((await offload(_lead, lid, tenant_id, mission_id=data.get("mission_id"))), str(data.get("offer") or ""))} for lid in ids[:50]]
@@ -225,6 +225,13 @@ async def execute_agent_task(run: dict, expected_agent: str | None = None) -> di
                 draft={**(item.get("brief") or {}),"sequence_id":data.get("sequence_id"),"ai_copy":bool(data.get("ai_copy",True))}
                 approval_items.append(create_outreach_draft(tenant_id,rid,item.get("lead_id"),draft,assignment_id=aid))
             result = {"actions": briefs, "mode": "auto_approved" if tenant_auto_approve else "needs_approval", "approval_items": approval_items, "sequence_enrolled": enrolled if enrolled and tenant_auto_approve else 0}
+        elif agent == "outreach":
+            result = {
+                "agent": agent,
+                "status": "skipped",
+                "skipped_reason": "not_needed_for_portal_delivery",
+                "lead_ids": [str(x) for x in data.get("lead_ids") or []][:5000],
+            }
         elif agent == "crm":
             if data.get("mission_id") and data.get("lead_ids"):
                 from app.integrations.prod.quality import assign_lead
@@ -238,7 +245,9 @@ async def execute_agent_task(run: dict, expected_agent: str | None = None) -> di
                     sc=score_map.get(str(lead["id"])) or {}
                     score=int(lead.get("score") or sc.get("total_score") or sc.get("deterministic_score") or 0)
                     tier=str(lead.get("tier") or sc.get("tier") or ("A" if score >= 70 else "B" if score >= 50 else "C"))
-                    if tier == "C" and not bool(data.get("allow_tier_c",False)): continue
+                    if tier == "C" and not bool(data.get("allow_tier_c", True)): continue
+                    from app.integrations.prod.contact_state import has_contact
+                    if tier == "C" and not has_contact(lead): continue
                     ar=await assign_lead(str(lead["id"]),tenant_id,data.get("icp_id"),str(data.get("industry") or lead.get("category") or "local business"),list(data.get("locations") or []),delivery_channel=str(data.get("delivery_channel") or "portal"),tier=tier,offer_category=data.get("offer_category"),discovery_request_id=data.get("discovery_request_id"))
                     if ar.get("assigned"):
                         assignment_ids.append(str(ar.get("assignment_id"))); assigned.append(lead)

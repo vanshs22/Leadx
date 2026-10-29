@@ -45,14 +45,14 @@ export function ThemeToggle({ className = "" }: { className?: string }) {
     <button
       type="button"
       onClick={toggle}
-      className={`btn-secondary !px-2.5 !py-1.5 ${className}`}
+      className={`btn-ghost btn-sm justify-start ${className}`}
       title={theme === "dark" ? "Switch to light" : "Switch to dark"}
       aria-label="Toggle theme"
     >
       {theme === "dark" ? (
-        <span className="flex items-center gap-2 text-sm"><Icon name="spark" size={14} /> Light</span>
+        <span className="flex items-center gap-2"><Icon name="sun" size={14} /> Light mode</span>
       ) : (
-        <span className="flex items-center gap-2 text-sm"><Icon name="home" size={14} /> Dark</span>
+        <span className="flex items-center gap-2"><Icon name="moon" size={14} /> Dark mode</span>
       )}
     </button>
   );

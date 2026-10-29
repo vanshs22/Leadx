@@ -11,9 +11,24 @@ from uuid import UUID
 from fastapi import APIRouter, Depends, HTTPException, Request, BackgroundTasks
 from pydantic import BaseModel, Field
 import logging
+import time
 
 logger = logging.getLogger("lead_engine.leads_api")
 
+
+def _read_query_with_retry(factory, *, attempts: int = 3):
+    """Retry transient read-only admin snapshots before returning an outage."""
+    last = None
+    for attempt in range(max(1, attempts)):
+        try:
+            return factory().execute()
+        except Exception as exc:
+            last = exc
+            if attempt + 1 < attempts:
+                time.sleep(0.2 * (attempt + 1))
+    raise last
+
+from app.core.runtime_config import MAX_LEADS_PER_RUN
 from app.middleware.platform_auth import require_control_plane
 from app.middleware.rate_limit import rate_limit_pipeline, rate_limit_keys, client_ip
 
@@ -32,7 +47,8 @@ class PipelineRequest(BaseModel):
     queries: list[str] = Field(default_factory=list)
     limit_per_location: int = Field(default=50, ge=1, le=200)
     skip_enrichment: bool = False
-    allow_tier_b: bool = False
+    allow_tier_b: bool = True
+    allow_tier_c: bool = True
     max_enrich_concurrent: int = Field(default=6, ge=1, le=20)
     deliver: bool = True
     use_crawl4ai: bool = True
@@ -44,7 +60,7 @@ class PipelineRequest(BaseModel):
     include_yelp: bool = False
     include_facebook: bool = False
     social_limit_per_source: int = Field(default=15, ge=0, le=50)
-    target_new_leads: int = Field(default=0, ge=0, le=50000, description='Net-new leads target; Fast Target Mode is used for bounded requests')
+    target_new_leads: int = Field(default=0, ge=0, le=MAX_LEADS_PER_RUN, description='Net-new leads target; one run is capped at 500 leads')
     max_cells_per_run: int = Field(default=15, ge=1, le=150)
     campaign_mode: str = Field(default="auto", description="auto, fast_target, or strict quality_campaign")
     exhaustive_discovery: bool = Field(default=False, description="Explicitly scan all enabled source/query/geo partitions; normal requests use bounded adaptive discovery")
@@ -65,7 +81,7 @@ class AddKeyRequest(BaseModel):
 
 
 class DiscoveryApprovalRequest(BaseModel):
-    approved_leads: int = Field(ge=1, le=50000)
+    approved_leads: int = Field(ge=1, le=MAX_LEADS_PER_RUN)
     reason: str = Field(min_length=1, max_length=1000)
     approved_by: Optional[str] = None
 
@@ -171,6 +187,7 @@ async def run_pipeline(req: PipelineRequest, request: Request, background_tasks:
         limit_per_location=req.limit_per_location,
         skip_enrichment=req.skip_enrichment,
         allow_tier_b=req.allow_tier_b,
+        allow_tier_c=req.allow_tier_c,
         max_enrich_concurrent=min(max(req.max_enrich_concurrent or 3, 1), 8),
         deliver=req.deliver,
         use_crawl4ai=req.use_crawl4ai,
@@ -299,20 +316,31 @@ async def run_pipeline(req: PipelineRequest, request: Request, background_tasks:
         try:
             await aexec(sb.table("pipeline_runs").insert(run_row))
         except Exception as queued_error:
-            # Older installs may still reject the queued enum value. Retry the
-            # same durable row identity as running; never create another job/run.
+            # The worker may claim the job between submit() and this insert.
+            # Accept only the same-tenant row created by that worker.
             detail = str(queued_error).lower()
-            code = str(getattr(queued_error, "code", "")).lower()
-            is_queued_schema_rejection = (
-                code == "23514"
-                or "pipeline_runs_status_check" in detail
-                or ("queued" in detail and "status" in detail and "check" in detail)
-            )
-            if not is_queued_schema_rejection:
-                raise
-            log.warning("pipeline_runs schema does not accept queued; using running compatibility status run_id=%s", run_id)
-            legacy_row = {**run_row, "status": "running"}
-            await aexec(sb.table("pipeline_runs").insert(legacy_row))
+            code = str(getattr(queued_error, "code", "") or "").lower()
+            is_duplicate = code in {"23505", "409"} or "duplicate" in detail or "already exists" in detail
+            if is_duplicate:
+                raced = (await aexec(
+                    sb.table("pipeline_runs").select("id,tenant_id").eq("id", run_id).limit(1)
+                )).data or []
+                if not raced or str(raced[0].get("tenant_id")) != str(kwargs["tenant_id"]):
+                    raise
+                log.info("pipeline_runs row was created by worker run_id=%s", run_id)
+            else:
+                # Older installs may still reject the queued enum value. Retry the
+                # same durable row identity as running; never create another job/run.
+                is_queued_schema_rejection = (
+                    code == "23514"
+                    or "pipeline_runs_status_check" in detail
+                    or ("queued" in detail and "status" in detail and "check" in detail)
+                )
+                if not is_queued_schema_rejection:
+                    raise
+                log.warning("pipeline_runs schema does not accept queued; using running compatibility status run_id=%s", run_id)
+                legacy_row = {**run_row, "status": "running"}
+                await aexec(sb.table("pipeline_runs").insert(legacy_row))
         verify = (await aexec(
             sb.table("pipeline_runs")
             .select("id,tenant_id,status,started_at")
@@ -651,55 +679,103 @@ def admin_discovery_requests(status: Optional[str] = None, tenant_id: Optional[s
 @router.post("/admin/discovery-requests/{request_id}/approve")
 def admin_approve_discovery(request_id: str, body: DiscoveryApprovalRequest, background_tasks: BackgroundTasks):
     from app.memory.supabase_client import get_supabase
+    from app.integrations.prod.discovery_requests import transition_request
     sb = get_supabase()
-    rows = sb.table("discovery_requests").select("*").eq("id", request_id).limit(1).execute().data or []
-    if not rows: raise HTTPException(404, "discovery request not found")
-    req = rows[0]
-    if req.get("status") != "pending_approval": raise HTTPException(409, f"request is {req.get('status')}")
-    approved = min(int(body.approved_leads), int(req.get("requested_leads") or body.approved_leads))
-    reservation = sb.rpc("reserve_tenant_discovery_quota", {"p_tenant_id": req["tenant_id"], "p_requested": approved}).execute().data or {}
-    granted = int(reservation.get("granted") or 0)
-    if not reservation.get("ok") or granted != approved:
-        raise HTTPException(409, f"Only {granted} leads remain available in this client's monthly plan")
-    now = __import__("datetime").datetime.now(__import__("datetime").timezone.utc).isoformat()
-    patch = {"approved_leads": approved, "status": "queued", "admin_reason": body.reason.strip(), "approved_by": body.approved_by or "admin", "approved_at": now, "updated_at": now}
-    sb.table("discovery_requests").update(patch).eq("id", request_id).execute()
-
+    actor = (body.approved_by or "control-plane").strip()
+    decision = transition_request(
+        sb=sb, request_id=request_id, decision="approve", actor=actor,
+        reason=body.reason.strip(), approved_leads=int(body.approved_leads),
+    )
+    if not decision.get("ok"):
+        if decision.get("reason") == "not_found":
+            raise HTTPException(404, "discovery request not found")
+        raise HTTPException(409, f"request is {decision.get('status') or decision.get('reason')}")
+    req = decision.get("request") or {}
+    approved = int(req.get("approved_leads") or body.approved_leads)
+    now = req.get("decision_at") or __import__("datetime").datetime.now(__import__("datetime").timezone.utc).isoformat()
     from app.integrations.prod import jobs
     import app.integrations.prod.job_handlers  # noqa: F401
     payload = {
         "tenant_id": req["tenant_id"], "icp_id": req.get("icp_id"),
         "industry": req["vertical"], "locations": req.get("locations") or [],
         "queries": req.get("keywords") or [], "allow_tier_b": True, "deliver": True,
-        "exhaustive_discovery": True, "max_assignments": approved,
+        "include_linkedin": True, "include_instagram": True,
+        "include_yelp": True, "include_facebook": True,
+        "social_limit_per_source": 15,
+        "target_new_leads": approved, "max_assignments": approved,
+        "exhaustive_discovery": False,
         "discovery_request_id": request_id,
     }
     try:
         handoff = jobs.submit(
             "pipeline.run", payload, tenant_id=req["tenant_id"],
             idempotency_key=f"discovery-request:{request_id}",
-            operation_kind="pipeline.run", actor_scope=body.approved_by or "admin",
+            operation_kind="pipeline.run", actor_scope=actor,
             created_by="admin-discovery-approval", provider_required=True,
             max_attempts=1,
         )
         job_id = jobs.accepted_job_id(handoff)
-        sb.table("discovery_requests").update({"status": "queued", "updated_at": now}).eq("id", request_id).execute()
+        updated = (sb.table("discovery_requests").update({"status": "queued", "job_id": job_id, "updated_at": now})
+                   .eq("id", request_id).eq("status", "approved").execute().data or [])
+        if not updated:
+            raise RuntimeError("approved discovery request could not be queued")
     except Exception as exc:
-        sb.table("discovery_requests").update({"status": "failed", "rejection_reason": str(exc)[:1000], "updated_at": now}).eq("id", request_id).execute()
-        raise HTTPException(503, "Durable discovery queue unavailable") from exc
-    return {"ok": True, "request": {**req, **patch}, "message": f"Approved {approved} leads. Discovery queued.", "job_id": job_id}
+        # Queue handoff is after approval persistence. A keyed settlement releases
+        # the reservation once; no provider work is started by this failure path.
+        try:
+            from app.integrations.prod.discovery_runtime import settle_reservation
+            reservation_id = req.get("reservation_id")
+            if reservation_id:
+                settled = settle_reservation(
+                    sb, reservation_id=str(reservation_id), tenant_id=str(req["tenant_id"]),
+                    settlement_key=f"discovery:{request_id}:queue-failure", billable=0,
+                    reserved=approved,
+                )
+                if not settled.ok:
+                    raise RuntimeError(settled.reason or "reservation_release_failed")
+            sb.table("discovery_requests").update({
+                "status": "failed", "rejection_reason": str(exc)[:1000],
+                "transition_error": "durable_queue_unavailable", "updated_at": now,
+            }).eq("id", request_id).eq("status", "approved").execute()
+        except Exception:
+            logger.exception("discovery queue handoff/release failed request_id=%s", request_id)
+        raise HTTPException(503, "Durable discovery queue unavailable; reservation release recorded") from exc
+    return {"ok": True, "request": {**req, "status": "queued", "job_id": job_id},
+            "message": f"Approved {approved} leads. Discovery queued.", "job_id": job_id}
 
 
 @router.post("/admin/discovery-requests/{request_id}/reject")
 def admin_reject_discovery(request_id: str, body: DiscoveryRejectRequest):
     from app.memory.supabase_client import get_supabase
+    from app.integrations.prod.discovery_requests import transition_request
     sb = get_supabase()
-    rows = sb.table("discovery_requests").select("id,status").eq("id",request_id).limit(1).execute().data or []
-    if not rows: raise HTTPException(404, "discovery request not found")
-    if rows[0].get("status") != "pending_approval": raise HTTPException(409, f"request is {rows[0].get('status')}")
-    now = __import__("datetime").datetime.now(__import__("datetime").timezone.utc).isoformat()
-    sb.table("discovery_requests").update({"status":"rejected","rejection_reason":body.reason.strip(),"updated_at":now}).eq("id",request_id).execute()
-    return {"ok": True, "message": "Discovery request rejected."}
+    decision = transition_request(
+        sb=sb, request_id=request_id, decision="reject", actor="control-plane",
+        reason=body.reason.strip(),
+    )
+    if not decision.get("ok"):
+        if decision.get("reason") == "not_found":
+            raise HTTPException(404, "discovery request not found")
+        if decision.get("reason") == "settlement_failed":
+            raise HTTPException(503, "Discovery rejection persisted; reservation release is retryable")
+        raise HTTPException(409, f"request is {decision.get('status') or decision.get('reason')}")
+    return {"ok": True, "request": decision.get("request"), "released": decision.get("released", 0),
+            "message": "Discovery request rejected."}
+
+
+@router.post("/admin/discovery-requests/{request_id}/expire")
+def admin_expire_discovery(request_id: str):
+    from app.memory.supabase_client import get_supabase
+    from app.integrations.prod.discovery_requests import transition_request
+    sb = get_supabase()
+    decision = transition_request(sb=sb, request_id=request_id, decision="expire", actor="control-plane", reason="approval_expired")
+    if not decision.get("ok"):
+        if decision.get("reason") == "not_found":
+            raise HTTPException(404, "discovery request not found")
+        if decision.get("reason") == "settlement_failed":
+            raise HTTPException(503, "Discovery expiry persisted; reservation release is retryable")
+        raise HTTPException(409, f"request is {decision.get('status') or decision.get('reason')}")
+    return {"ok": True, "request": decision.get("request"), "released": decision.get("released", 0)}
 
 
 @router.get("/admin/discovery-coverage")
@@ -977,7 +1053,15 @@ def get_pipeline_run(run_id: str):
             raise HTTPException(500, f"Failed to load run: {e}") from e
     if not rows:
         raise HTTPException(404, "run not found")
-    return {"run": rows[0]}
+    run = dict(rows[0])
+    meta = run.get("meta") if isinstance(run.get("meta"), dict) else {}
+    # These counters live in meta because the legacy pipeline_runs schema does
+    # not have columns for them; project them into the stable admin contract.
+    run.setdefault("verified", meta.get("verified_count"))
+    run.setdefault("scored", meta.get("scored_count"))
+    run.setdefault("stage", meta.get("stage"))
+    run.setdefault("message", meta.get("message"))
+    return {"run": run}
 
 
 @router.get("/admin/runs/{run_id}/leads")
@@ -2048,12 +2132,7 @@ def admin_tenant_health():
     thirty_days_ago = (now - timedelta(days=30)).isoformat()
 
     tenants = (
-        sb.table("tenants")
-        .select("id, name, plan, created_at, status")
-        .order("created_at", desc=True)
-        .limit(200)
-        .execute()
-        .data
+        _read_query_with_retry(lambda: sb.table("tenants").select("id, name, plan, created_at, status").order("created_at", desc=True).limit(200)).data
         or []
     )
 
@@ -2062,47 +2141,23 @@ def admin_tenant_health():
         tid = t["id"]
         # Last assignment activity
         last_assign = (
-            sb.table("lead_assignments")
-            .select("assigned_at")
-            .eq("tenant_id", tid)
-            .order("assigned_at", desc=True)
-            .limit(1)
-            .execute()
-            .data
+            _read_query_with_retry(lambda: sb.table("lead_assignments").select("assigned_at").eq("tenant_id", tid).order("assigned_at", desc=True).limit(1)).data
             or []
         )
         last_activity = last_assign[0]["assigned_at"] if last_assign else None
 
         # Deliveries last 30d
-        recent = (
-            sb.table("lead_assignments")
-            .select("id", count="exact")
-            .eq("tenant_id", tid)
-            .gte("assigned_at", thirty_days_ago)
-            .execute()
-        )
+        recent = _read_query_with_retry(lambda: sb.table("lead_assignments").select("id", count="exact").eq("tenant_id", tid).gte("assigned_at", thirty_days_ago))
         deliveries_30d = recent.count if recent.count is not None else len(recent.data or [])
 
         # Bad lead reports open
-        bad = (
-            sb.table("bad_lead_reports")
-            .select("id", count="exact")
-            .eq("tenant_id", tid)
-            .eq("status", "open")
-            .execute()
-        )
+        bad = _read_query_with_retry(lambda: sb.table("bad_lead_reports").select("id", count="exact").eq("tenant_id", tid).eq("status", "open"))
         open_bad = bad.count if bad.count is not None else len(bad.data or [])
 
         # Pipeline runs last 30d
         runs_30d = 0
         try:
-            runs = (
-                sb.table("pipeline_runs")
-                .select("id", count="exact")
-                .eq("tenant_id", tid)
-                .gte("started_at", thirty_days_ago)
-                .execute()
-            )
+            runs = _read_query_with_retry(lambda: sb.table("pipeline_runs").select("id", count="exact").eq("tenant_id", tid).gte("started_at", thirty_days_ago))
             runs_30d = runs.count if runs.count is not None else len(runs.data or [])
         except Exception:
             runs_30d = 0

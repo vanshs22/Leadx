@@ -2,12 +2,15 @@
 from __future__ import annotations
 
 import hashlib
+import logging
 from collections import Counter
 from datetime import datetime, timezone
 
 from app.services.aio import aexec
 from app.memory.supabase_client import get_supabase
 from app.integrations.prod.feedback import tenant_score_weights, lookalike_queries, _extract_features
+
+logger = logging.getLogger("lead_engine.learning_loop")
 
 
 async def _recommendation_rows(tenant_id: str) -> list[dict]:
@@ -136,8 +139,8 @@ async def learning_snapshot(tenant_id: str) -> dict:
     }
     try:
         await aexec(sb.table("learning_snapshots").insert({k: v for k, v in snapshot.items() if k not in {"shadow_learning", "recommendations"}}))
-    except Exception:
-        pass
+    except Exception as exc:
+        logger.warning("learning.snapshot_persist_failed", extra={"error_type": type(exc).__name__})
     return snapshot
 
 
@@ -215,6 +218,6 @@ async def refresh_vertical_shadow(tenant_id: str) -> dict:
         lifts[feature] = round((weight - 1.0) * 100, 2)
         try:
             await aexec(sb.table("vertical_score_shadow_weights").upsert({"vertical": vertical, "feature": feature, "baseline_weight": 1.0, "proposed_weight": weight, "sample_size": len(rows), "mode": "shadow", "lift": lifts[feature], "calculated_at": datetime.now(timezone.utc).isoformat()}, on_conflict="vertical,feature"))
-        except Exception:
-            pass
+        except Exception as exc:
+            logger.warning("learning.shadow_weight_persist_failed", extra={"error_type": type(exc).__name__, "feature": feature[:64]})
     return {"vertical": vertical, "mode": "shadow", "sample_size": len(rows), "won": len(wins), "lost": len(losses), "booked": len(booked), "proposed_weights": proposed, "lift_pct": lifts}

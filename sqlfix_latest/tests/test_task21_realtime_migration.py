@@ -82,4 +82,8 @@ def test_task21_full_migration_mirrors_canonical_section():
     marker = "-- CANONICAL MIGRATION 32: " + MIGRATION.name
     assert marker in full
     section = full.split(marker, 1)[1].split("COMMIT;", 1)[0]
-    assert migration in section
+    # The working standalone file also carries additive Task 3 SQL. Compare
+    # only the Task 21 realtime contract here; later migration content is
+    # generated independently in the full install artifact.
+    canonical = migration.split("-- Task 3:", 1)[0].strip()
+    assert canonical in section

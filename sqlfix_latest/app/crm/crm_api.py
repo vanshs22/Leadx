@@ -26,6 +26,7 @@ import json
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from pydantic import BaseModel, Field
 
+from app.core.runtime_config import MAX_LEADS_PER_RUN
 from app.middleware.auth import require_tenant, require_admin, require_auth_only, TenantContext, AuthedUser, assert_tenant_match
 from app.services.shared_cache import get_json as cache_get, set_json as cache_set, delete_prefix as cache_delete_prefix
 
@@ -381,6 +382,15 @@ async def dashboard(tenant_id: UUID):
         ],
         "usage": usage[0] if usage else None,
         "quota_limit": (tenant[0].get("leads_per_month_limit") if tenant else None),
+        "quota_reserved": int((usage[0].get("quota_reserved") or 0) if usage else 0),
+        "quota_used": int((usage[0].get("leads_delivered") or 0) if usage else 0),
+        "quota_remaining": max(
+            int((tenant[0].get("leads_per_month_limit") or 0) if tenant else 0)
+            + int((usage[0].get("rollover_credits") or 0) if usage else 0)
+            - int((usage[0].get("leads_delivered") or 0) if usage else 0)
+            - int((usage[0].get("quota_reserved") or 0) if usage else 0),
+            0,
+        ),
         "tasks_due": tasks or [],
         "recent_activity": activities or [],
         "trend": trend,
@@ -1047,7 +1057,7 @@ async def pipeline_board(tenant_id: UUID):
             except Exception:
                 stages = []
         try:
-            card_columns = "assignment_id,tenant_id,lead_id,company_name,name,stage_id,stage_slug,stage_name,stage_color,stage_position,assignment_status,priority,assigned_to,delivered_at,next_action_at,last_contacted_at,value_estimate,tags,custom_fields,total_score,score,tier,score_reasoning,phone,phone_normalized,phone_e164,email,website,city,state,category,google_rating,review_count"
+            card_columns = "assignment_id,tenant_id,lead_id,company_name,stage_id,stage_slug,stage_name,stage_color,stage_position,assignment_status,priority,assigned_to,delivered_at,next_action_at,last_contacted_at,value_estimate,tags,custom_fields,total_score,score,tier,score_reasoning,phone,phone_normalized,phone_e164,email,website,city,state,category,google_rating,review_count"
             cards = sb.table("crm_lead_cards").select(card_columns).eq("tenant_id", tid).order("total_score", desc=True).execute().data or []
         except Exception as e:
             logger.warning("pipeline_board cards: %s", e)
@@ -1455,7 +1465,7 @@ async def crm_team_invite(tenant_id: UUID, body: CrmInviteBody, ctx: TenantConte
     from app.integrations.prod.team_invites import create_invite
     try:
         return await create_invite(
-            str(tenant_id), body.email, body.role, body.invited_by, body.send_email
+            str(tenant_id), body.email, body.role, ctx.user_id, body.send_email
         )
     except ValueError as e:
         from fastapi import HTTPException
@@ -1476,7 +1486,7 @@ async def crm_team_accept(body: CrmAcceptInviteBody, user: AuthedUser = Depends(
     account.
     """
     from app.integrations.prod.team_invites import accept_invite
-    return await accept_invite(body.token, user.user_id, body.full_name)
+    return await accept_invite(body.token, user.user_id, body.full_name, user.email)
 
 
 @crm_public_router.get("/unsubscribe")
@@ -1800,6 +1810,7 @@ class SequenceAIWriteRequest(BaseModel):
     industry: str = ""
     goal: str = ""
     subject_hint: str = ""
+    prompt: str = ""
 
 
 class SequenceAIRephraseRequest(BaseModel):
@@ -1809,8 +1820,9 @@ class SequenceAIRephraseRequest(BaseModel):
 
 
 @router.post("/{tenant_id}/sequences/ai-write")
-async def sequences_ai_write(tenant_id: UUID, body: SequenceAIWriteRequest):
-    """Generate subject+body for one sequence step via OpenRouter/OpenAI/Groq/Anthropic."""
+async def sequences_ai_write(tenant_id: UUID, body: SequenceAIWriteRequest, ctx: TenantContext = Depends(require_tenant)):
+    """Generate subject+body for one sequence step via the configured AI adapter."""
+    assert_tenant_match(ctx, tenant_id)
     from app.integrations.prod.llm_copy import write_sequence_step
     return await write_sequence_step(
         step_index=body.step_index,
@@ -1818,12 +1830,14 @@ async def sequences_ai_write(tenant_id: UUID, body: SequenceAIWriteRequest):
         industry=body.industry,
         goal=body.goal,
         subject_hint=body.subject_hint,
+        custom_prompt=body.prompt,
     )
 
 
 @router.post("/{tenant_id}/sequences/ai-rephrase")
-async def sequences_ai_rephrase(tenant_id: UUID, body: SequenceAIRephraseRequest):
-    """Rephrase existing step subject/body with the same LLM cascade."""
+async def sequences_ai_rephrase(tenant_id: UUID, body: SequenceAIRephraseRequest, ctx: TenantContext = Depends(require_tenant)):
+    """Rephrase existing step subject/body with the configured AI adapter."""
+    assert_tenant_match(ctx, tenant_id)
     from app.integrations.prod.llm_copy import rephrase_sequence_step
     return await rephrase_sequence_step(
         subject=body.subject,
@@ -1833,13 +1847,40 @@ async def sequences_ai_rephrase(tenant_id: UUID, body: SequenceAIRephraseRequest
 
 
 @router.post("/{tenant_id}/sequences")
-async def crm_create_sequence(tenant_id: UUID, body: CreateSequenceBody):
+async def crm_create_sequence(tenant_id: UUID, body: CreateSequenceBody, ctx: TenantContext = Depends(require_tenant)):
+    assert_tenant_match(ctx, tenant_id)
     from app.integrations.prod.sequences import create_sequence
-    return await create_sequence(str(tenant_id), body.name, [s.model_dump() for s in body.steps])
+    result = await create_sequence(str(tenant_id), body.name, [s.model_dump() for s in body.steps])
+    if not result.get("ok"):
+        raise HTTPException(400, result.get("error") or "sequence_create_failed")
+    return result
+
+
+@router.patch("/{tenant_id}/sequences/{sequence_id}")
+async def crm_update_sequence(tenant_id: UUID, sequence_id: UUID, body: CreateSequenceBody, ctx: TenantContext = Depends(require_tenant)):
+    assert_tenant_match(ctx, tenant_id)
+    from app.integrations.prod.sequences import update_sequence
+    result = await update_sequence(str(tenant_id), str(sequence_id), body.name, [s.model_dump() for s in body.steps])
+    if not result.get("ok"):
+        error = str(result.get("error") or "sequence_update_failed")
+        raise HTTPException(404 if error == "sequence_not_found" else 400, error)
+    return result
+
+
+@router.delete("/{tenant_id}/sequences/{sequence_id}")
+async def crm_delete_sequence(tenant_id: UUID, sequence_id: UUID, ctx: TenantContext = Depends(require_tenant)):
+    assert_tenant_match(ctx, tenant_id)
+    from app.integrations.prod.sequences import delete_sequence
+    result = await delete_sequence(str(tenant_id), str(sequence_id))
+    if not result.get("ok"):
+        raise HTTPException(404, result.get("error") or "sequence_not_found")
+    return result
+
 
 
 @router.get("/{tenant_id}/sequences")
-def crm_list_sequences(tenant_id: UUID):
+def crm_list_sequences(tenant_id: UUID, ctx: TenantContext = Depends(require_tenant)):
+    assert_tenant_match(ctx, tenant_id)
     sb = _sb()
     seqs = sb.table("email_sequences").select("*").eq("tenant_id", str(tenant_id)).order("created_at", desc=True).execute().data or []
     for s in seqs:
@@ -1854,9 +1895,24 @@ class EnrollBody(BaseModel):
 
 
 @router.post("/{tenant_id}/sequences/{sequence_id}/enroll")
-async def crm_enroll_sequence(tenant_id: UUID, sequence_id: UUID, body: EnrollBody):
+async def crm_enroll_sequence(tenant_id: UUID, sequence_id: UUID, body: EnrollBody, ctx: TenantContext = Depends(require_tenant)):
+    assert_tenant_match(ctx, tenant_id)
     from app.integrations.prod.sequences import enroll_leads
     return await enroll_leads(str(tenant_id), str(sequence_id), body.assignment_ids)
+
+
+@router.post("/{tenant_id}/sequences/{sequence_id}/{transition}")
+async def crm_transition_sequence(tenant_id: UUID, sequence_id: UUID, transition: str, ctx: TenantContext = Depends(require_tenant)):
+    assert_tenant_match(ctx, tenant_id)
+    if transition not in {"activate", "pause", "resume", "complete"}:
+        raise HTTPException(404, "sequence transition not found")
+    from app.integrations.prod.sequences import transition_sequence
+    target = "active" if transition in {"activate", "resume"} else ("paused" if transition == "pause" else "completed")
+    result = await transition_sequence(str(tenant_id), str(sequence_id), target, getattr(ctx, "user_id", None))
+    if not result.get("ok"):
+        error = str(result.get("error") or "sequence_transition_failed")
+        raise HTTPException(404 if error == "sequence_not_found" else 409, error)
+    return result
 
 
 @router.get("/{tenant_id}/replies")
@@ -1875,19 +1931,20 @@ class DiscoveryRequestBody(BaseModel):
     keywords: list[str] = Field(default_factory=list)
     offer_category: Optional[str] = None
     exclusivity: Literal["shared", "exclusive"] = "shared"
-    requested_leads: int = Field(default=100, ge=1, le=50000)
+    requested_leads: int = Field(default=100, ge=1, le=MAX_LEADS_PER_RUN)
     name: Optional[str] = None
     save_icp: bool = True
 
 
 @router.get("/{tenant_id}/discovery-requests")
-def list_discovery_requests(tenant_id: UUID, limit: int = 50):
+def list_discovery_requests(tenant_id: UUID, limit: int = 50, ctx: TenantContext = Depends(require_tenant)):
+    assert_tenant_match(ctx, tenant_id)
     try:
         from app.integrations.prod.discovery_requests import list_requests
         return {"requests": list_requests(str(tenant_id), min(max(limit, 1), 100))}
     except Exception as e:
-        logger.warning("list discovery-requests: %s", e)
-        return {"requests": [], "error": str(e)[:200]}
+        logger.warning("list discovery-requests: %s", type(e).__name__)
+        return {"requests": [], "error": "discovery_requests_unavailable"}
 
 
 def _first_progress_value(*values):
@@ -1903,8 +1960,9 @@ def _discovery_progress(request_row: dict, run_row: dict | None, job_row: dict |
     run_row = run_row or {}
     meta = run_row.get("meta") if isinstance(run_row.get("meta"), dict) else {}
     request_meta = request_row.get("meta") if isinstance(request_row.get("meta"), dict) else {}
+    persisted = request_row.get("_persisted_progress") if isinstance(request_row.get("_persisted_progress"), dict) else {}
     merged_meta = {**request_meta, **meta}
-    number = lambda *keys: _first_progress_value(*(run_row.get(k) for k in keys), *(request_row.get(k) for k in keys), *(merged_meta.get(k) for k in keys))
+    number = lambda *keys: _first_progress_value(*(persisted.get(k) for k in keys), *(run_row.get(k) for k in keys), *(request_row.get(k) for k in keys), *(merged_meta.get(k) for k in keys))
     blockers = _first_progress_value(
         merged_meta.get("assignment_blockers"), merged_meta.get("blockers"),
         request_row.get("assignment_blockers"), request_row.get("blockers"),
@@ -1920,6 +1978,12 @@ def _discovery_progress(request_row: dict, run_row: dict | None, job_row: dict |
         "gated": number("gated_ok", "gated", "gated_count", "passed_quality_gate"),
         "assigned": number("assigned", "assigned_count", "assigned_to_tenant"),
         "delivered": number("delivered", "delivered_count"),
+        "completed": number("completed"),
+        "failed": number("failed"),
+        "skipped": number("skipped"),
+        "remaining": number("remaining"),
+        "qualifying": number("qualifying"),
+        "billable": number("billable"),
         "target": number("requested_target", "requested_leads"),
         "effective_target": number("effective_target", "target_assignments", "approved_leads"),
         "shortfall": number("shortfall"),
@@ -1949,6 +2013,16 @@ def discovery_request_status(tenant_id: UUID, request_id: str, ctx: TenantContex
     if not request_rows:
         raise HTTPException(404, "discovery request not found")
     request_row = request_rows[0]
+    # Prefer the durable task/result projection. Legacy run counters remain a
+    # compatibility fallback only when the additive tables are unavailable.
+    try:
+        from app.integrations.prod.discovery_runtime import project_progress
+        task_rows = (sb.table("discovery_tasks").select("*").eq("request_id", str(request_id)).eq("tenant_id", tid).execute().data or [])
+        result_rows = (sb.table("discovery_provider_results").select("*").eq("request_id", str(request_id)).eq("tenant_id", tid).execute().data or [])
+        if task_rows or result_rows:
+            request_row["_persisted_progress"] = project_progress(task_rows, result_rows, int(request_row.get("requested_leads") or 0))
+    except Exception as exc:
+        logger.debug("durable discovery progress unavailable: %s", exc)
     request_meta = request_row.get("meta") if isinstance(request_row.get("meta"), dict) else {}
     run_id = request_row.get("pipeline_run_id") or request_row.get("run_id") or request_meta.get("pipeline_run_id") or request_meta.get("run_id")
     job_row = None
@@ -1995,6 +2069,24 @@ def discovery_request_status(tenant_id: UUID, request_id: str, ctx: TenantContex
     return {"ok": True, "request": safe_request, "run": safe_run, "job": safe_job,
             "progress": progress, "run_id": safe_run.get("id") if safe_run else None,
             "job_id": safe_job.get("id") if safe_job else None}
+
+
+@router.post("/{tenant_id}/discovery-requests/{request_id}/withdraw")
+def withdraw_discovery_request(tenant_id: UUID, request_id: str, ctx: TenantContext = Depends(require_tenant)):
+    """Withdraw a tenant request before or during its queued/running work."""
+    assert_tenant_match(ctx, tenant_id)
+    from app.integrations.prod.discovery_requests import withdraw_request
+    result = withdraw_request(
+        sb=_sb(), request_id=request_id, tenant_id=str(tenant_id),
+        actor=str(ctx.user_id), reason="client_withdrawal",
+    )
+    if result.get("reason") == "not_found":
+        raise HTTPException(404, "discovery request not found")
+    if result.get("reason") == "settlement_failed":
+        raise HTTPException(503, "Request withdrawn; quota settlement is retryable")
+    if not result.get("ok"):
+        raise HTTPException(409, f"request is {result.get('status') or result.get('reason')}")
+    return {**result, "request_id": request_id, "message": "Discovery request withdrawn."}
 
 
 @router.post("/{tenant_id}/discovery-requests")
@@ -2060,7 +2152,7 @@ class SearchRunBody(BaseModel):
     offer_category: Optional[str] = None
     name: Optional[str] = None
     limit_per_location: int = Field(default=12, ge=1, le=50)
-    target_new_leads: Optional[int] = Field(default=None, ge=1, le=5000)
+    target_new_leads: Optional[int] = Field(default=None, ge=1, le=MAX_LEADS_PER_RUN)
     allow_tier_b: bool = True
     deliver: bool = True
     save_icp: bool = True
@@ -2151,7 +2243,7 @@ async def crm_territory(
 # ─── Search-run quota indicator ─────────────────────────────────────────────
 
 @router.get("/{tenant_id}/search-quota")
-def crm_search_quota(tenant_id: UUID, requested: int = Query(0, ge=0, le=50000)):
+def crm_search_quota(tenant_id: UUID, requested: int = Query(0, ge=0, le=MAX_LEADS_PER_RUN)):
     """Return one quota truth: limit, used, reserved, remaining, and request capacity."""
     sb = _sb(); tid = str(tenant_id)
     period = datetime.now(timezone.utc).replace(day=1).date().isoformat()
@@ -2189,6 +2281,11 @@ def crm_search_quota(tenant_id: UUID, requested: int = Query(0, ge=0, le=50000))
         "available": max(remaining - requested, 0),
     }
 
+def _public_ses_status(status: dict) -> dict:
+    """Expose only non-secret SES readiness fields to tenant clients."""
+    return {key: status[key] for key in ("ok", "ready", "reason", "message", "region") if key in status}
+
+
 @router.get("/{tenant_id}/email-settings")
 def get_email_settings(tenant_id: str, ctx: TenantContext = Depends(require_tenant)):
     from app.middleware.auth import assert_tenant_match
@@ -2196,6 +2293,7 @@ def get_email_settings(tenant_id: str, ctx: TenantContext = Depends(require_tena
     assert_tenant_match(ctx, tenant_id)
     tid = str(ctx.tenant_id)
     st = ses_status()
+    public_st = _public_ses_status(st)
     try:
         sb = _sb()
         r = sb.table("tenant_email_settings").select("*").eq("tenant_id", tid).limit(1).execute()
@@ -2205,13 +2303,13 @@ def get_email_settings(tenant_id: str, ctx: TenantContext = Depends(require_tena
                 "ok": True,
                 "configured": False,
                 "ses_account_ready": bool(st.get("ready")),
-                "ses_status": st,
+                "ses_status": public_st,
             }
         return {
             "ok": True,
             "configured": True,
             "ses_account_ready": bool(st.get("ready")),
-            "ses_status": st,
+            "ses_status": public_st,
             "settings": {
                 "domain": row.get("domain"),
                 "from_email": row.get("from_email"),
@@ -2223,8 +2321,8 @@ def get_email_settings(tenant_id: str, ctx: TenantContext = Depends(require_tena
                 "provider": row.get("provider") or "ses",
             },
         }
-    except Exception as e:
-        return {"ok": False, "error": str(e)[:300], "ses_status": st}
+    except Exception:
+        return {"ok": False, "error": "email_settings_unavailable", "ses_status": public_st}
 
 
 @router.post("/{tenant_id}/email-settings/domain")
@@ -2240,6 +2338,8 @@ def connect_email_domain(tenant_id: str, body: dict, ctx: TenantContext = Depend
     reply_to = (body.get("reply_to") or "").strip() or None
     if not domain:
         raise HTTPException(400, "domain required")
+    if from_email and ("@" not in from_email or from_email.rsplit("@", 1)[-1].lower() != domain):
+        raise HTTPException(400, "from_email must use the connected domain")
     st = ses_status()
     if not st.get("ready"):
         raise HTTPException(503, st.get("message") or "SES not ready on server")

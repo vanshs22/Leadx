@@ -316,7 +316,7 @@ def source_integrity() -> bool:
     # AST-parse all Python files without generating bytecode.
     bad=[]
     for p in (ROOT / "app").rglob("*.py"):
-        try: ast.parse(p.read_text(errors="ignore"), filename=str(p))
+        try: ast.parse(p.read_text(encoding="utf-8-sig", errors="ignore"), filename=str(p))
         except SyntaxError as e: bad.append(f"{p.relative_to(ROOT)}:{e.lineno}")
     return result("Python AST integrity", not bad, ", ".join(bad[:10]))
 

@@ -81,6 +81,8 @@ async def fetch_scrapling(url: str, timeout: int = 20) -> dict:
     fetcher exports over time, and importing from the package root can leave
     the production enricher silently falling back to httpx.
     """
+    from app.integrations.prod.discovery_runtime import assert_provider_allowed
+    assert_provider_allowed("first_party_web")
     out = {"html": "", "text": "", "method": "scrapling", "ok": False, "error": None, "status": None}
     blocked = await assert_public_url(url)
     if blocked:
@@ -91,10 +93,11 @@ async def fetch_scrapling(url: str, timeout: int = 20) -> dict:
             from scrapling.fetchers import AsyncFetcher
         except ImportError:
             from scrapling import AsyncFetcher  # compatibility with older 0.2.x
+        fetcher = AsyncFetcher(auto_match=False)
         current = url
         page = None
         for _hop in range(6):
-            page = await AsyncFetcher.get(
+            page = await fetcher.get(
                 current, timeout=timeout, follow_redirects=False, stealthy_headers=True
             )
             code = getattr(page, "status", None)
@@ -147,25 +150,55 @@ async def fetch_scrapling(url: str, timeout: int = 20) -> dict:
 
 
 async def fetch_crawl4ai(url: str) -> dict:
-    out = {"markdown": "", "method": "crawl4ai", "ok": False, "error": None}
+    """Render a public page and return every useful result representation.
+
+    Crawl4AI versions may expose ``markdown`` as a string or as a markdown
+    result object. Keep cleaned HTML as well so JSON-LD, mailto/tel links, and
+    navigation contacts are not lost when markdown generation is sparse.
+    """
+    from app.integrations.prod.discovery_runtime import assert_provider_allowed
+    assert_provider_allowed("first_party_web")
+    out = {"html": "", "text": "", "markdown": "", "method": "crawl4ai", "ok": False, "error": None}
     blocked = await assert_public_url(url)
     if blocked:
         out["error"] = f"blocked:{blocked}"
         return out
     try:
-        from crawl4ai import AsyncWebCrawler
-        async with AsyncWebCrawler(verbose=False) as crawler:
+        from crawl4ai import AsyncWebCrawler, BrowserConfig
+        browser_config = BrowserConfig(browser_type="chromium", headless=True, verbose=False)
+        # Crawl4AI defaults to the installed Google Chrome channel; use the
+        # Playwright-managed Chromium binary instead.
+        browser_config.chrome_channel = None
+        async with AsyncWebCrawler(config=browser_config, verbose=False) as crawler:
             res = await crawler.arun(url=url)
-            md = getattr(res, "markdown", None) or getattr(res, "cleaned_html", "") or ""
-            out.update(markdown=str(md)[:20000], ok=bool(md))
+            markdown_value = getattr(res, "markdown", "") or ""
+            if not isinstance(markdown_value, str):
+                markdown_value = (
+                    getattr(markdown_value, "raw_markdown", "")
+                    or getattr(markdown_value, "fit_markdown", "")
+                    or str(markdown_value)
+                )
+            html = getattr(res, "cleaned_html", "") or getattr(res, "html", "") or ""
+            html = html if isinstance(html, str) else str(html)
+            markdown = str(markdown_value)
+            success = getattr(res, "success", True)
+            out.update(
+                html=html[:2_500_000],
+                text=markdown[:2_500_000],
+                markdown=markdown[:2_500_000],
+                ok=bool(success is not False and (html or markdown)),
+            )
+            if success is False:
+                out["error"] = str(getattr(res, "error_message", "crawl4ai_result_failed") or "crawl4ai_result_failed")[:500]
     except Exception as e:
-        out["error"] = str(e)
+        out["error"] = str(e)[:500]
         logger.debug("crawl4ai fail %s: %s", url, e)
     return out
 
 
 async def fetch_firecrawl(url: str) -> dict:
-    out = {"html": "", "markdown": "", "method": "firecrawl", "ok": False, "error": None}
+    from app.integrations.prod.discovery_runtime import assert_provider_allowed
+    assert_provider_allowed("paid_enrichment")
     blocked = await assert_public_url(url)
     if blocked:
         out["error"] = f"blocked:{blocked}"
@@ -335,6 +368,8 @@ async def _fetch_secondary_pages(base_url: str, html: str, use_firecrawl_for_sec
 
 
 async def _serper_contact_fallback(name: str, city: Optional[str], domain: Optional[str]) -> dict:
+    from app.integrations.prod.discovery_runtime import assert_provider_allowed
+    assert_provider_allowed("serper_search")
     if not name:
         return {}
     try:
@@ -399,8 +434,11 @@ def _merge_parsed(base: dict, extra: dict) -> dict:
 async def enrich_one(website: str, use_crawl4ai: bool = True, use_firecrawl: bool = True, company_name: Optional[str] = None, city: Optional[str] = None) -> dict:
     """
     Full enrichment cascade for one URL.
+
     Returns dict ready for enrichment table upsert.
     """
+    from app.integrations.prod.discovery_runtime import assert_provider_allowed
+    assert_provider_allowed("external_lead_generation")
     empty = {
         "website": website,
         "email": None, "email_valid": None, "emails": [],
@@ -421,13 +459,22 @@ async def enrich_one(website: str, use_crawl4ai: bool = True, use_firecrawl: boo
     # that were present in Scrapling's raw HTML.
     scrap_task = asyncio.create_task(fetch_scrapling(website))
     crawl_task = asyncio.create_task(fetch_crawl4ai(website)) if use_crawl4ai else None
-    scrap = await scrap_task
-    c4 = {}
-    if crawl_task:
+
+    async def bounded(task, timeout_s: float) -> dict:
         try:
-            c4 = await asyncio.wait_for(crawl_task, timeout=35)
-        except Exception as e:
-            logger.debug("crawl4ai timeout/fail: %s", e)
+            return await asyncio.wait_for(task, timeout=timeout_s)
+        except asyncio.CancelledError:
+            raise
+        except Exception as exc:
+            if not task.done():
+                task.cancel()
+            await asyncio.gather(task, return_exceptions=True)
+            return {"ok": False, "error": type(exc).__name__}
+
+    scrap, c4 = await asyncio.gather(
+        bounded(scrap_task, 25),
+        bounded(crawl_task, 35) if crawl_task else asyncio.sleep(0, result={}),
+    )
 
     html = scrap.get("html") or ""
     text = scrap.get("text") or ""
@@ -436,7 +483,13 @@ async def enrich_one(website: str, use_crawl4ai: bool = True, use_firecrawl: boo
     if scrap.get("ok"): method_parts.append(scrap.get("method") or "scrapling")
     if c4.get("ok"): method_parts.append("crawl4ai")
 
-    content = "\n".join(x for x in (html, text, md) if x)
+    content = "\n".join(x for x in (
+        html,
+        text,
+        c4.get("html") or "",
+        c4.get("text") or "",
+        md,
+    ) if x)
 
     # Firecrawl is no longer a dead-end 'last resort'. If the page loaded but
     # did not yield contact signals, ask Firecrawl for the full page including

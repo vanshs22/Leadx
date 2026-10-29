@@ -287,12 +287,18 @@ async def _get_json(url: str, **kwargs) -> dict[str, Any]:
 
 
 async def verify_email(email: str, providers: list[str] | None = None) -> dict[str, Any]:
-    """Production free-first cascade: local -> free-plan -> paid fallback.
-
-    Paid/free-plan providers are called only when every earlier tier was
-    inconclusive (``decisive`` below), so a lead the local probe already
-    settled never spends a credit.
-    """
+    """Production free-first cascade: local -> free-plan -> paid fallback."""
+    from app.integrations.prod.discovery_runtime import local_validation_mode
+    if local_validation_mode():
+        base = email_local_check(email)
+        base["provider"] = "local_fixture"
+        base["status"] = "valid" if base.get("status") not in {"invalid", "malformed"} else "invalid"
+        base["confidence"] = 100 if base["status"] == "invalid" else 90
+        return {"ok": True, "canonical": {**base, "email": base.get("email")},
+                "observations": [{**base, "billable": False}]}
+    # Paid/free-plan providers are called only when every earlier tier was
+    # inconclusive (``decisive`` below), so a lead the local probe already
+    # settled never spends a credit.
     base=email_local_check(email); e=base["email"]
     if base["status"] == "invalid":
         return {"ok":True,"canonical":{**base,"confidence":100},"observations":[base]}
@@ -424,7 +430,13 @@ def phone_local_check(phone: str, country_code: str | None = None) -> dict[str, 
 
 async def verify_phone(phone: str, country_code: str | None = None, providers: list[str] | None = None) -> dict[str, Any]:
     """Production free-first phone cascade; paid risk lookup is last resort."""
+    from app.integrations.prod.discovery_runtime import local_validation_mode
     p=(phone or '').strip(); digits=re.sub(r'\D','',p); base=phone_local_check(p, country_code)
+    if local_validation_mode():
+        base["provider"] = "local_fixture"
+        base["confidence"] = 100 if base.get("status") == "invalid" else 70
+        return {"ok": True, "canonical": {**base, "phone": p},
+                "observations": [{**base, "billable": False}]}
     if base['status']=='invalid':
         return {"ok":True,"canonical":{**base,"confidence":100},"observations":[base]}
     observations=[base]; explicit=bool(providers); requested=set(providers or [x["name"] for x in PHONE_PROVIDERS]) & {x["name"] for x in PHONE_PROVIDERS}

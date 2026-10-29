@@ -7,7 +7,7 @@ export type MockChange = {
 
 export type MockProjection = {
   revision: number;
-  status: "queued" | "running" | "completed" | "failed";
+  status: "queued" | "running" | "completed" | "failed" | "cancelled";
   runId: string;
   requestId: string;
   jobId: string;
@@ -18,7 +18,7 @@ export type MockProjection = {
 
 type Subscriber = (projection: MockProjection, change: MockChange) => void;
 
-const TERMINAL = new Set<MockProjection["status"]>(["completed", "failed"]);
+const TERMINAL = new Set<MockProjection["status"]>(["completed", "failed", "cancelled"]);
 
 /**
  * In-memory Broadcast + authoritative-read fixture. It intentionally models

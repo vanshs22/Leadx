@@ -9,58 +9,8 @@
  * Field names follow sql/016_crm_full.sql (tables: companies, contacts,
  * deal_stages, deals, activities).
  */
-import { getApiBase } from "./config";
+import { requestApi } from "./api";
 
-
-function readCsrf(): string { return typeof document === "undefined" ? "" : document.cookie.split(";").map(x => x.trim()).find(x => x.startsWith("leadx_csrf="))?.slice(11) || ""; }
-
-async function api<T>(path: string, init?: RequestInit): Promise<T> {
-  const base = getApiBase();
-  const url = `${base}${path.startsWith("/") ? path : `/${path}`}`;
-  let res: Response;
-  try {
-    res = await fetch(url, {
-      ...init,
-      headers: {
-        "Content-Type": "application/json",
-        ...(String(init?.method || "GET").toUpperCase() !== "GET" ? { "X-CSRF-Token": readCsrf() } : {}),
-        ...(init?.headers || {}),
-      },
-      cache: "no-store", credentials: "include",
-    });
-  } catch (e: unknown) {
-    const detail = e instanceof Error ? e.message : "network error";
-    throw new Error(
-      `Cannot reach API at ${base} (${detail}). Is the backend running on port 8000?`
-    );
-  }
-  if (res.status === 401) {
-    if (typeof window !== "undefined") window.location.href = "/login";
-    throw new Error("Please log in again");
-  }
-  if (!res.ok) {
-    const err = await res.text();
-    let detail: unknown = err || res.statusText;
-    try {
-      const j = JSON.parse(err) as { detail?: unknown; message?: unknown };
-      detail = j.detail ?? j.message ?? detail;
-      if (Array.isArray(detail)) {
-        detail = detail
-          .map((d) =>
-            typeof d === "object" && d !== null && "msg" in d
-              ? String((d as { msg: unknown }).msg)
-              : String(d)
-          )
-          .join(", ");
-      }
-    } catch {
-      /* keep text */
-    }
-    throw new Error(typeof detail === "string" ? detail : JSON.stringify(detail));
-  }
-  if (res.status === 204) return undefined as T;
-  return res.json() as Promise<T>;
-}
 
 /* ────────────────────────────────────────────────────────────────────────────
  * Entity shapes — sql/016_crm_full.sql
@@ -271,31 +221,31 @@ export const crmEntities = {
 
   listCompanies: async (tenantId: string, params: ListParams = {}): Promise<Paged<Company>> =>
     normalizeList<Company>(
-      await api<ListEnvelope<Company>>(`/crm/${tenantId}/companies${qs(params)}`),
+      await requestApi<ListEnvelope<Company>>(`/crm/${tenantId}/companies${qs(params)}`),
       "companies"
     ),
 
   getCompany: (tenantId: string, id: string) =>
-    api<Company>(`/crm/${tenantId}/companies/${id}`),
+    requestApi<Company>(`/crm/${tenantId}/companies/${id}`),
 
   createCompany: (tenantId: string, body: Partial<Company>) =>
-    api<Company>(`/crm/${tenantId}/companies`, {
+    requestApi<Company>(`/crm/${tenantId}/companies`, {
       method: "POST",
       body: JSON.stringify(body),
     }),
 
   updateCompany: (tenantId: string, id: string, body: Partial<Company>) =>
-    api<Company>(`/crm/${tenantId}/companies/${id}`, {
+    requestApi<Company>(`/crm/${tenantId}/companies/${id}`, {
       method: "PATCH",
       body: JSON.stringify(body),
     }),
 
   deleteCompany: (tenantId: string, id: string) =>
-    api<void>(`/crm/${tenantId}/companies/${id}`, { method: "DELETE" }),
+    requestApi<void>(`/crm/${tenantId}/companies/${id}`, { method: "DELETE" }),
 
   companyTimeline: async (tenantId: string, id: string): Promise<Activity[]> =>
     normalizeList<Activity>(
-      await api<ListEnvelope<Activity>>(`/crm/${tenantId}/companies/${id}/timeline`),
+      await requestApi<ListEnvelope<Activity>>(`/crm/${tenantId}/companies/${id}/timeline`),
       "activities"
     ).rows,
 
@@ -303,62 +253,63 @@ export const crmEntities = {
 
   listContacts: async (tenantId: string, params: ListParams = {}): Promise<Paged<Contact>> =>
     normalizeList<Contact>(
-      await api<ListEnvelope<Contact>>(`/crm/${tenantId}/contacts${qs(params)}`),
+      await requestApi<ListEnvelope<Contact>>(`/crm/${tenantId}/contacts${qs(params)}`),
       "contacts"
     ),
 
   getContact: (tenantId: string, id: string) =>
-    api<Contact>(`/crm/${tenantId}/contacts/${id}`),
+    requestApi<Contact>(`/crm/${tenantId}/contacts/${id}`),
 
   createContact: (tenantId: string, body: Partial<Contact>) =>
-    api<Contact>(`/crm/${tenantId}/contacts`, {
+    requestApi<Contact>(`/crm/${tenantId}/contacts`, {
       method: "POST",
       body: JSON.stringify(body),
     }),
 
   updateContact: (tenantId: string, id: string, body: Partial<Contact>) =>
-    api<Contact>(`/crm/${tenantId}/contacts/${id}`, {
+    requestApi<Contact>(`/crm/${tenantId}/contacts/${id}`, {
       method: "PATCH",
       body: JSON.stringify(body),
     }),
 
   deleteContact: (tenantId: string, id: string) =>
-    api<void>(`/crm/${tenantId}/contacts/${id}`, { method: "DELETE" }),
+    requestApi<void>(`/crm/${tenantId}/contacts/${id}`, { method: "DELETE" }),
 
   /* ── deals ── */
 
   listDeals: async (tenantId: string, params: ListParams = {}): Promise<Paged<Deal>> =>
     normalizeList<Deal>(
-      await api<ListEnvelope<Deal>>(`/crm/${tenantId}/deals${qs(params)}`),
+      await requestApi<ListEnvelope<Deal>>(`/crm/${tenantId}/deals${qs(params)}`),
       "deals"
     ),
 
-  getDeal: (tenantId: string, id: string) => api<Deal>(`/crm/${tenantId}/deals/${id}`),
+  getDeal: async (tenantId: string, id: string): Promise<Deal> =>
+    (await requestApi<{ deal: Deal }>(`/crm/${tenantId}/deals/${id}`)).deal,
 
-  createDeal: (tenantId: string, body: Partial<Deal>) =>
-    api<Deal>(`/crm/${tenantId}/deals`, { method: "POST", body: JSON.stringify(body) }),
+  createDeal: async (tenantId: string, body: Partial<Deal>): Promise<Deal> =>
+    (await requestApi<{ deal: Deal }>(`/crm/${tenantId}/deals`, { method: "POST", body: JSON.stringify(body) })).deal,
 
-  updateDeal: (tenantId: string, id: string, body: Partial<Deal>) =>
-    api<Deal>(`/crm/${tenantId}/deals/${id}`, {
+  updateDeal: async (tenantId: string, id: string, body: Partial<Deal>): Promise<Deal> =>
+    (await requestApi<{ deal: Deal }>(`/crm/${tenantId}/deals/${id}`, {
       method: "PATCH",
       body: JSON.stringify(body),
-    }),
+    })).deal,
 
   deleteDeal: (tenantId: string, id: string) =>
-    api<void>(`/crm/${tenantId}/deals/${id}`, { method: "DELETE" }),
+    requestApi<void>(`/crm/${tenantId}/deals/${id}`, { method: "DELETE" }),
 
   /** Move a deal to another stage. */
-  changeDealStage: (tenantId: string, id: string, stageId: string) =>
-    api<Deal>(`/crm/${tenantId}/deals/${id}/stage`, {
+  changeDealStage: async (tenantId: string, id: string, stageId: string): Promise<Deal> =>
+    (await requestApi<{ deal: Deal }>(`/crm/${tenantId}/deals/${id}/stage`, {
       method: "POST",
       body: JSON.stringify({ stage_id: stageId }),
-    }),
+    })).deal,
 
   /* ── deal stages ── */
 
   listDealStages: async (tenantId: string): Promise<DealStage[]> => {
     const { rows } = normalizeList<DealStage>(
-      await api<ListEnvelope<DealStage>>(`/crm/${tenantId}/deal-stages`),
+      await requestApi<ListEnvelope<DealStage>>(`/crm/${tenantId}/deal-stages`),
       "stages"
     );
     return [...rows].sort((a, b) => (a.position ?? 0) - (b.position ?? 0));

@@ -7,7 +7,7 @@
  * never trusted on its own.
  */
 import { createPortalRequestId, getApiBase, getApiBases } from "./config";
-import { getSessionFast } from "./auth";
+import { getSessionFast, renewServerSession } from "./auth";
 
 type CacheEntry = { value: unknown; expiresAt: number; staleUntil: number };
 const GET_CACHE = new Map<string, CacheEntry>();
@@ -15,11 +15,49 @@ const GET_INFLIGHT = new Map<string, Promise<unknown>>();
 const GET_CACHE_TTL_MS = 10000;
 const GET_STALE_MS = 60_000;
 let GET_CACHE_EPOCH = 0;
+let TENANT_SCOPE_EPOCH = 0;
+const ACTIVE_REQUESTS = new Map<string, Set<AbortController>>();
 
-export function invalidateApiCache(prefix = "") {
+function tenantFromPath(path: string): string | null {
+  const match = path.match(/^\/crm\/([^/?#]+)/);
+  return match ? decodeURIComponent(match[1]) : null;
+}
+
+function tenantCachePrefix(tenantId: string): string {
+  return `/crm/${encodeURIComponent(tenantId)}/`;
+}
+
+function abortRequests(tenantId?: string) {
+  for (const [tenant, controllers] of ACTIVE_REQUESTS) {
+    if (tenantId && tenant !== tenantId) continue;
+    for (const controller of controllers) controller.abort();
+  }
+}
+
+export function abortTenantRequests(tenantId?: string) {
+  abortRequests(tenantId);
+}
+
+/** Invalidate reads and stop requests that could project stale CRM state. */
+export function invalidateApiCache(prefix = "", tenantId?: string) {
   GET_CACHE_EPOCH += 1;
-  if (!prefix) { GET_CACHE.clear(); return; }
-  for (const key of GET_CACHE.keys()) if (key.startsWith(prefix)) GET_CACHE.delete(key);
+  abortRequests(tenantId);
+  const matches = (key: string) => !prefix || key.includes(prefix);
+  for (const key of GET_INFLIGHT.keys()) if (matches(key)) GET_INFLIGHT.delete(key);
+  for (const key of GET_CACHE.keys()) if (matches(key)) GET_CACHE.delete(key);
+}
+
+/** Advance the client tenant boundary before replacing the active workspace. */
+export function beginTenantSwitch(previousTenantId?: string) {
+  TENANT_SCOPE_EPOCH += 1;
+  abortRequests(previousTenantId);
+  GET_CACHE_EPOCH += 1;
+  GET_CACHE.clear();
+  GET_INFLIGHT.clear();
+}
+
+function staleScopeError(): DOMException {
+  return new DOMException("Tenant scope changed", "AbortError");
 }
 
 function cacheKey(base: string, path: string, subject: string | null) {
@@ -165,6 +203,9 @@ export function createApiClientError(status: number | null, detail: unknown, opt
 }
 
 async function api<T>(path: string, init?: RequestInit): Promise<T> {
+  const scopeEpochAtStart = TENANT_SCOPE_EPOCH;
+  const tenantId = tenantFromPath(path);
+  if (init?.signal?.aborted) throw staleScopeError();
   const bases = getApiBases();
   const session = await getSessionFast();
   const subject = session?.user?.id || null;
@@ -195,9 +236,15 @@ async function api<T>(path: string, init?: RequestInit): Promise<T> {
   const cacheEpochAtStart = GET_CACHE_EPOCH;
   const run = (async () => {
     let lastError = "";
-    async function request(base: string, retryable404 = false): Promise<Response> {
+    async function request(base: string, retryable404 = false, allowAuthRefresh = true, transientAttempt = 0): Promise<Response> {
       const url = `${base}${path.startsWith("/") ? path : `/${path}`}`;
       const ctrl = new AbortController();
+      const active = tenantId || "__global__";
+      const controllers = ACTIVE_REQUESTS.get(active) || new Set<AbortController>();
+      controllers.add(ctrl);
+      ACTIVE_REQUESTS.set(active, controllers);
+      const onCallerAbort = () => ctrl.abort();
+      init?.signal?.addEventListener("abort", onCallerAbort, { once: true });
       const timeoutMs = safeRead ? 8000 : (/export|download|search-run|pipeline|bulk|enrich/i.test(path) ? 120000 : 30000);
       const timer = typeof window !== "undefined" ? window.setTimeout(() => ctrl.abort(), timeoutMs) : undefined;
       const headers = new Headers(initialHeaders);
@@ -207,10 +254,24 @@ async function api<T>(path: string, init?: RequestInit): Promise<T> {
       if (!safeRead && !headers.has("Idempotency-Key")) headers.set("Idempotency-Key", createPortalRequestId());
       try {
         const res = await fetch(url, { ...init, signal: ctrl.signal, headers, cache: "no-store", credentials: "include" });
-        if (safeRead && (res.status === 502 || res.status === 503)) throw new Error(`RECOVERABLE_API_${res.status}`);
+        if (res.status === 401 && allowAuthRefresh && await renewServerSession()) {
+          return request(base, retryable404, false);
+        }
+        if (safeRead && (res.status === 502 || res.status === 503)) {
+          if (transientAttempt < 1) {
+            await new Promise((resolve) => setTimeout(resolve, 250));
+            return request(base, retryable404, allowAuthRefresh, transientAttempt + 1);
+          }
+          throw new Error(`RECOVERABLE_API_${res.status}`);
+        }
         if (retryable404 && res.status === 404) throw new Error(`RECOVERABLE_API_${res.status}`);
         return res;
-      } finally { if (timer && typeof window !== "undefined") window.clearTimeout(timer); }
+      } finally {
+        if (timer && typeof window !== "undefined") window.clearTimeout(timer);
+        init?.signal?.removeEventListener("abort", onCallerAbort);
+        controllers.delete(ctrl);
+        if (!controllers.size) ACTIVE_REQUESTS.delete(active);
+      }
     }
 
     let res: Response | null = null;
@@ -227,15 +288,20 @@ async function api<T>(path: string, init?: RequestInit): Promise<T> {
           res = candidate;
           break;
         } catch (e: any) {
+          if (e?.name === "AbortError" && (init?.signal?.aborted || scopeEpochAtStart !== TENANT_SCOPE_EPOCH)) throw e;
           lastError = e?.name === "AbortError" ? "API request timed out" : (e?.message || "network error");
           continue;
         }
       }
     } else {
       try { res = await request(bases[0]); }
-      catch (e: any) { lastError = e?.name === "AbortError" ? "API request timed out" : (e?.message || "network error"); }
+      catch (e: any) {
+        if (e?.name === "AbortError" && (init?.signal?.aborted || scopeEpochAtStart !== TENANT_SCOPE_EPOCH)) throw e;
+        lastError = e?.name === "AbortError" ? "API request timed out" : (e?.message || "network error");
+      }
     }
 
+    if (scopeEpochAtStart !== TENANT_SCOPE_EPOCH) throw staleScopeError();
     if (!res) {
       const compact = lastError || "Cannot reach API";
       const routeMissing = /(?:RECOVERABLE_API_404|HTTP 404|HTTP 405)/.test(compact);
@@ -264,10 +330,14 @@ async function api<T>(path: string, init?: RequestInit): Promise<T> {
     if (safeRead && cacheEpochAtStart === GET_CACHE_EPOCH) GET_CACHE.set(primaryKey, { value, expiresAt: Date.now() + GET_CACHE_TTL_MS, staleUntil: Date.now() + GET_STALE_MS });
     return value;
   } finally {
-    if (safeRead) GET_INFLIGHT.delete(primaryKey);
-    if (!safeRead) invalidateApiCache();
+    if (safeRead && GET_INFLIGHT.get(primaryKey) === run) GET_INFLIGHT.delete(primaryKey);
+    if (!safeRead) {
+      invalidateApiCache(tenantId ? tenantCachePrefix(tenantId) : "", tenantId || undefined);
+    }
   }
 }
+
+export { api as requestApi };
 
 function readCsrf(): string {
   if (typeof document === "undefined") return "";
@@ -602,6 +672,8 @@ export const crm = {
     api<SearchRunResponse>(`/crm/${tenantId}/search-run`, { method: "POST", body: JSON.stringify(body) }),
   discoveryRequests: (tenantId: string) =>
     api<{ requests: DiscoveryRequest[] }>(`/crm/${tenantId}/discovery-requests`),
+  withdrawDiscoveryRequest: (tenantId: string, requestId: string) =>
+    api<{ ok: boolean; status: string; request_id: string; released?: number; message?: string }>(`/crm/${tenantId}/discovery-requests/${encodeURIComponent(requestId)}/withdraw`, { method: "POST" }),
   createDiscoveryRequest: (tenantId: string, body: Record<string, unknown>) =>
     api<{ request: DiscoveryRequest; status: string; message: string; request_id?: string; run_id?: string | null; job_id?: string | null }>(`/crm/${tenantId}/discovery-requests`, { method: "POST", body: JSON.stringify(body) }),
   discoveryRequestStatus: (tenantId: string, requestId: string) =>
@@ -617,6 +689,12 @@ export const crm = {
 
   createSequence: (tenantId: string, body: Record<string, unknown>) =>
     api(`/crm/${tenantId}/sequences`, { method: "POST", body: JSON.stringify(body) }),
+  updateSequence: (tenantId: string, sequenceId: string, body: Record<string, unknown>) =>
+    api(`/crm/${tenantId}/sequences/${sequenceId}`, { method: "PATCH", body: JSON.stringify(body) }),
+  deleteSequence: (tenantId: string, sequenceId: string) =>
+    api(`/crm/${tenantId}/sequences/${sequenceId}`, { method: "DELETE" }),
+  transitionSequence: (tenantId: string, sequenceId: string, transition: "activate" | "pause" | "resume" | "complete") =>
+    api(`/crm/${tenantId}/sequences/${sequenceId}/${transition}`, { method: "POST" }),
   aiWriteSequence: (tenantId: string, body: Record<string, unknown>) =>
     api(`/crm/${tenantId}/sequences/ai-write`, { method: "POST", body: JSON.stringify(body) }),
   aiRephraseSequence: (tenantId: string, body: Record<string, unknown>) =>
@@ -626,7 +704,8 @@ export const crm = {
   automations: (tenantId: string) => api<{ automations: any[] }>(`/crm/${tenantId}/automations`),
   createAutomation: (tenantId: string, body: Record<string, unknown>) => api(`/crm/${tenantId}/automations`, { method: "POST", body: JSON.stringify(body) }),
   updateAutomation: (tenantId: string, workflowId: string, body: Record<string, unknown>) => api(`/crm/${tenantId}/automations/${workflowId}`, { method: "PATCH", body: JSON.stringify(body) }),
-  automationRuns: (tenantId: string, workflowId: string) => api<{ runs: any[] }>(`/crm/${tenantId}/automations/${workflowId}/runs`),
+  deleteAutomation: (tenantId: string, workflowId: string) => api(`/crm/${tenantId}/automations/${workflowId}`, { method: "DELETE" }),
+  automationRuns: (tenantId: string, workflowId: string) => api<{ runs: any[]; executions?: any[]; next_execution?: string | null }>(`/crm/${tenantId}/automations/${workflowId}/runs`),
 
   enrollSequence: (tenantId: string, sequenceId: string, assignmentIds: string[]) =>
     api(`/crm/${tenantId}/sequences/${sequenceId}/enroll`, {

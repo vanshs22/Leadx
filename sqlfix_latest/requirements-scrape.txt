@@ -2,10 +2,10 @@
 # anti-bot / browser-rendered scraping cascade:
 #
 #   pip install -r requirements.txt -r requirements-scrape.txt
-#   playwright install chromium      # browser binaries for scrapling/crawl4ai
+#   playwright install chromium      # optional browser binary; Docker skips it
 #
-# Without these the enricher falls back to plain httpx fetching, which works
-# for most sites — see backend/integrations/prod/enricher.py fetch_scrapling().
+# Without the optional browser binary, Crawl4AI reports a safe fallback and
+# Scrapling/HTTPX still provide static extraction.
 #
 # NOTE: scrapegraphai is deliberately NOT listed. It pulls in litellm, which
 # requires a Rust toolchain to compile and broke `pip install` outright.
@@ -16,5 +16,7 @@
 
 scrapling==0.2.9
 crawl4ai==0.4.24
-playwright==1.45.0
+playwright==1.49.1
+litellm==1.53.1
+browserforge==1.2.4
 instaloader==4.12.1

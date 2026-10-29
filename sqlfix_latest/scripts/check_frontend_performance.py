@@ -7,9 +7,8 @@ raw=[]
 for p in pages:
  s=p.read_text(errors='ignore')
  if 'window.setInterval(' in s or re.search(r'(?<![A-Za-z])setInterval\(',s): raw.append(str(p))
-# Countdown timers are allowed; operational polling must use setVisibleInterval.
-raw=[p for p in raw if 'verify-email/page.tsx' not in p]
-assert not raw, f'raw polling timers remain: {raw}'
+# Every timer, including auth-code countdowns, uses the visibility-aware helper.
+assert not raw, f'raw polling/timer intervals remain: {raw}'
 for p in ['(portal)/dashboard/loading.tsx','(portal)/today/loading.tsx','(portal)/leads/loading.tsx']:
  assert (root/p).is_file(), f'missing primary loading boundary: {p}'
 print(json.dumps({'pages':len(pages),'client_pages':client,'primary_loading_boundaries':3,'raw_polling_pages':len(raw),'result':'PASS'},indent=2))

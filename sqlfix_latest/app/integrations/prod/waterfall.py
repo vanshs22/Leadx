@@ -23,6 +23,7 @@ import os
 import re
 import time
 import unicodedata
+from datetime import datetime, timezone
 from dataclasses import dataclass, field
 from typing import Any, Awaitable, Callable, Optional
 
@@ -100,10 +101,30 @@ def validate_name(v: Any) -> tuple[bool, float]:
 VALIDATORS: dict[str, Callable[[Any], tuple[bool, float]]] = {
     "email": validate_email,
     "phone": validate_phone,
+    "phone_e164": validate_phone,
+    "phone_normalized": validate_phone,
     "website": validate_url,
     "linkedin_url": validate_url,
+    "instagram_url": validate_url,
+    "facebook_url": validate_url,
+    "twitter_url": validate_url,
+    "youtube_url": validate_url,
     "owner_name": validate_name,
 }
+
+
+def validate_enrichment_value(field_name: str, value: Any) -> tuple[bool, Any]:
+    """Validate and normalize values before they enter a lead patch.
+
+    Contact discovery can return mixed fields from the same page/provider. Keep
+    field-specific validation at the merge boundary so a social URL cannot be
+    persisted as an email, even when a connector returns an untyped payload.
+    """
+    validator = VALIDATORS.get(field_name)
+    if validator is None:
+        return True, value
+    valid, _quality = validator(value)
+    return (valid, normalize_value(field_name, value) if valid else None)
 
 
 def normalize_value(field_name: str, value: Any) -> Any:
@@ -325,6 +346,7 @@ class WaterfallEngine:
                 patch[fld] = r.value
                 patch.setdefault("field_confidence", {})[fld] = r.confidence
                 patch.setdefault("field_source", {})[fld] = r.winner
+                patch.setdefault("field_observed_at", {})[fld] = datetime.now(timezone.utc).isoformat()
         return {
             "patch": patch, "audit": audit, "already_valid": skipped,
             "credits_spent": round(self.budget_per_lead - remaining, 3),

@@ -39,7 +39,7 @@ def _dotted(n):
 
 def _trees():
     for p in pathlib.Path("app").rglob("*.py"):
-        yield p, ast.parse(p.read_text())
+        yield p, ast.parse(p.read_text(encoding="utf-8"))
 
 
 def test_no_direct_execute_in_async_functions():

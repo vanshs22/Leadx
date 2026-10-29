@@ -32,6 +32,8 @@ def _sb():
 
 
 def _stripe():
+    from app.integrations.prod.discovery_runtime import assert_provider_allowed
+    assert_provider_allowed("stripe")
     if not STRIPE_KEY:
         return None
     import stripe

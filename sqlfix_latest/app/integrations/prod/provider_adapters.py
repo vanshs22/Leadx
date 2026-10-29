@@ -15,6 +15,8 @@ NATIVE = {"apollo": _native_apollo, "hunter": _native_hunter}
 
 async def execute(provider: str, lead: dict[str,Any], fields: list[str]) -> dict[str,Any]:
     name=provider.lower()
+    from app.integrations.prod.discovery_runtime import assert_provider_allowed
+    assert_provider_allowed(name)
     if name in NATIVE:
         return await NATIVE[name](lead, fields)
     endpoint=_provider_endpoint(name)

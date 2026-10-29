@@ -4,6 +4,7 @@ import { useEffect, useState, Suspense } from "react";
 import { useSearchParams } from "next/navigation";
 import { admin } from "@/lib/admin";
 import { useLiveLoader } from "@/lib/live";
+import { useCrmRealtime } from "@/lib/crmRealtime";
 import { ErrorState } from "@/components/ui/States";
 import { FreshnessNote } from "@/components/ui/SurfaceMeta";
 import { OperationStateCard, toOperationState } from "@/components/ui/OperationState";
@@ -44,6 +45,7 @@ function PipelineForm() {
     target_new_leads: 5,
     deliver: true,
     allow_tier_b: false,
+    allow_tier_c: true,
     skip_enrichment: false,
     include_maps: true,
     include_web: true,
@@ -116,8 +118,12 @@ function PipelineForm() {
   };
 
   useLiveLoader(loadLiveRun, liveRunId && !runTerminal ? 2_000 : 0, [liveRunId, pollingReset, runTerminal], {
+    deadlineMs: 0,
     onDeadline: () => setPollingExpired(true),
   });
+  // Admin progress still comes from the platform-authorized GET. The private
+  // tenant channel only tells this surface when to refetch that projection.
+  useCrmRealtime(() => { void loadLiveRun(); }, form.tenant_id);
 
   async function run() {
     if (!form.tenant_id) {
@@ -135,7 +141,7 @@ function PipelineForm() {
         .split(",")
         .map((s) => s.trim())
         .filter(Boolean);
-      const total = Math.max(1, Number(form.target_new_leads) || 5);
+      const total = Math.min(500, Math.max(1, Number(form.target_new_leads) || 5));
       const perLoc = Math.max(1, Number(form.limit_per_location) || 5);
       const r = await admin.runPipeline({
         tenant_id: form.tenant_id,
@@ -146,6 +152,7 @@ function PipelineForm() {
         target_new_leads: total,
         deliver: form.deliver,
         allow_tier_b: form.allow_tier_b,
+        allow_tier_c: form.allow_tier_c,
         skip_enrichment: form.skip_enrichment,
         include_maps: form.include_maps,
         include_web: form.include_web,
@@ -248,7 +255,7 @@ function PipelineForm() {
             </label>
             <label className="block text-xs text-ink-faint">
               Total leads this run
-              <input aria-label="Total leads this run" type="number" min={1} max={50000} className="mt-1 w-full rounded-lg border border-line bg-surface px-3 py-2 text-sm text-ink" value={form.target_new_leads} onChange={(e) => setForm({ ...form, target_new_leads: Math.max(1, Number(e.target.value) || 1) })} />
+              <input aria-label="Total leads this run" type="number" min={1} max={500} className="mt-1 w-full rounded-lg border border-line bg-surface px-3 py-2 text-sm text-ink" value={form.target_new_leads} onChange={(e) => setForm({ ...form, target_new_leads: Math.min(500, Math.max(1, Number(e.target.value) || 1)) })} />
             </label>
           </div>
           <p className="text-[11px] text-ink-faint">Target at least 1 lead. Limit per location applies to each city.</p>
@@ -268,6 +275,7 @@ function PipelineForm() {
           <div className="flex flex-wrap gap-4 text-sm text-ink-faint">
             <label className="flex items-center gap-2"><input aria-label="Deliver" type="checkbox" checked={form.deliver} onChange={(e) => setForm({ ...form, deliver: e.target.checked })} />Deliver</label>
             <label className="flex items-center gap-2"><input aria-label="Allow Tier B" type="checkbox" checked={form.allow_tier_b} onChange={(e) => setForm({ ...form, allow_tier_b: e.target.checked })} />Allow Tier B</label>
+            <label className="flex items-center gap-2"><input aria-label="Allow Tier C" type="checkbox" checked={form.allow_tier_c} onChange={(e) => setForm({ ...form, allow_tier_c: e.target.checked })} />Allow Tier C</label>
             <label className="flex items-center gap-2"><input aria-label="Skip enrichment" type="checkbox" checked={form.skip_enrichment} onChange={(e) => setForm({ ...form, skip_enrichment: e.target.checked })} />Skip enrichment</label>
           </div>
           <div className="flex flex-wrap gap-2 pt-2">
@@ -293,8 +301,8 @@ function PipelineForm() {
                   <table className="w-full min-w-[480px] text-left text-sm">
                     <thead><tr className="border-b border-line text-xs uppercase tracking-wide text-ink-faint"><th className="py-2 pr-3 font-medium">Stage</th><th className="py-2 pr-3 font-medium">Count</th><th className="py-2 font-medium">Notes</th></tr></thead>
                     <tbody className="text-ink">
-                      {[["Discovered", "discovered", "Businesses found"], ["Enriched", "enriched", "Website / contact data"], ["Gated (quality)", "gated_ok", "Passed quality gate"], ["Assigned", "assigned", "Assigned to this client"], ["Delivered", "delivered", "Sent to channel / CRM"]].map(([label, key, note], index, rows) => (
-                        <tr key={key} className={index === rows.length - 1 ? "" : "border-b border-line/60"}><td className="py-2.5 pr-3">{label}</td><td className="py-2.5 pr-3 font-semibold tabular-nums">{liveRun[key] ?? "—"}</td><td className="py-2.5 text-xs text-ink-faint">{note}</td></tr>
+                      {[["Discovered", "discovered", "Businesses found", operation?.discovered], ["Enriched", "enriched", "Website / contact data", operation?.enriched], ["Verified", "verified", "Contact and business checks", operation?.verified], ["Scored", "scored", "Lead quality score", operation?.scored], ["Gated (quality)", "gated_ok", "Passed quality gate", operation?.gated], ["Assigned", "assigned", "Assigned to this client", operation?.assigned], ["Delivered", "delivered", "Sent to channel / CRM", operation?.delivered]].map(([label, key, note, value], index, rows) => (
+                        <tr key={key} className={index === rows.length - 1 ? "" : "border-b border-line/60"}><td className="py-2.5 pr-3">{label}</td><td className="py-2.5 pr-3 font-semibold tabular-nums">{value ?? "—"}</td><td className="py-2.5 text-xs text-ink-faint">{note}</td></tr>
                       ))}
                     </tbody>
                   </table>

@@ -1,9 +1,13 @@
 "use client";
 
-const TIER_STYLE: Record<string, { fill: number; text: string; bg: string }> = {
-  A: { fill: 3, text: "text-brand-700 dark:text-brand-300", bg: "bg-brand-50 dark:bg-brand-500/15" },
-  B: { fill: 2, text: "text-signal-700 dark:text-signal-300", bg: "bg-signal-50 dark:bg-signal-500/15" },
-  C: { fill: 1, text: "text-ink-faint", bg: "bg-surface-3" },
+/*
+ * Tier A is the one opportunity signal that earns brass. B reads as navy ink,
+ * C as neutral, so a list of leads scans by strength without a rainbow.
+ */
+const TIER_STYLE: Record<string, { fill: number; cls: string }> = {
+  A: { fill: 3, cls: "badge-accent" },
+  B: { fill: 2, cls: "badge-brand" },
+  C: { fill: 1, cls: "badge-neutral" },
 };
 
 /**
@@ -15,7 +19,7 @@ export function TierBadge({ tier }: { tier?: string | null }) {
   const t = (tier || "C").toUpperCase();
   const s = TIER_STYLE[t] || TIER_STYLE.C;
   return (
-    <span className={`pill ${s.bg} ${s.text}`}>
+    <span className={`${s.cls} whitespace-nowrap`} title={`Tier ${t}`}>
       <span className="signal-meter" data-fill={s.fill} aria-hidden="true">
         <span />
         <span />
@@ -28,23 +32,19 @@ export function TierBadge({ tier }: { tier?: string | null }) {
 
 export function StagePill({ stage }: { stage?: string | null }) {
   if (!stage) return null;
-  return (
-    <span className="pill border border-line bg-surface-3 text-ink-muted">
-      {stage}
-    </span>
-  );
+  return <span className="badge-neutral whitespace-nowrap capitalize">{stage.replace(/_/g, " ")}</span>;
 }
 
 export function ScoreBar({ score }: { score?: number | null }) {
   const s = Math.max(0, Math.min(100, Number(score) || 0));
-  const tone = s >= 75 ? "bg-brand-500" : s >= 45 ? "bg-signal-500" : "bg-rust-400";
+  const tone = s >= 75 ? "bg-brand-600 dark:bg-brand-300" : s >= 45 ? "bg-ink-faint" : "bg-amber-500";
   return (
     <div className="space-y-1">
       <div className="flex justify-between text-xs text-ink-muted">
         <span>Score</span>
-        <span className="font-mono font-medium tabular-nums text-ink">{s}</span>
+        <span className="font-semibold tabular-nums text-ink">{s}</span>
       </div>
-      <div className="h-1.5 overflow-hidden rounded-full bg-surface-3">
+      <div className="h-1.5 overflow-hidden rounded-full bg-surface-3" role="presentation">
         <div className={`h-full rounded-full ${tone} transition-all`} style={{ width: `${s}%` }} />
       </div>
     </div>

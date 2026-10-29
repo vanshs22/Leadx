@@ -6,7 +6,8 @@ import Link from "next/link";
 import { getTenantId } from "@/lib/tenant";
 import { getApiBase } from "@/lib/config";
 import { getSupabase } from "@/lib/supabaseClient";
-import { PageHeader, Notice, DataTable } from "@/components/ui/Primitives";
+import { Badge, PageHeader, Notice, Panel, StatusBadge } from "@/components/ui/Primitives";
+import { Icon } from "@/components/ui/Icon";
 
 type DnsRec = { type?: string; name?: string; value?: string };
 type Settings = {
@@ -163,145 +164,145 @@ export default function EmailSettingsPage() {
 
   const statusBanner = {
     loading: {
-      cls: "border-line bg-surface-2 text-ink",
+      cls: "notice-neutral",
       title: "Checking email setup…",
       body: "Loading your domain status.",
     },
     no_aws: {
-      cls: "border-amber-500/40 bg-amber-500/10 text-amber-900 dark:text-amber-100",
+      cls: "notice-warning",
       title: "Platform email not ready",
       body: "SES is not ready on the server. If keys are in .env, restart the API. Wrong/deactivated keys show as invalid credentials — create a new IAM access key.",
     },
     not_connected: {
-      cls: "border-line bg-surface-2 text-ink",
+      cls: "notice-neutral",
       title: "Domain not connected",
       body: "Enter your domain and From address, then click Connect domain. You will get DNS records to add at your registrar.",
     },
     pending_dns: {
-      cls: "border-amber-500/40 bg-amber-500/10 text-amber-900 dark:text-amber-100",
+      cls: "notice-warning",
       title: "Waiting for DNS",
       body:
         "Domain is registered. Add the CNAME records below at your DNS host, then Check status. This page auto-checks every 20 seconds" +
         (lastChecked ? ` (last check ${lastChecked}).` : "."),
     },
     ready: {
-      cls: "border-emerald-500/40 bg-emerald-500/10 text-emerald-900 dark:text-emerald-100",
+      cls: "notice-success",
       title: "Ready to bulk send",
       body: `Verified as ${settings?.from_email || settings?.domain || "your domain"}. Open Leads, select contacts, and send — mail goes From your address via platform SES.`,
     },
   }[phase];
 
+  const setupSteps: Array<{ label: string; state: "done" | "failed" | "pending" }> = [
+    { label: "Platform SES available", state: sesReady ? "done" : sesReady === false ? "failed" : "pending" },
+    { label: `Domain connected${settings?.domain ? ` (${settings.domain})` : ""}`, state: settings?.domain ? "done" : "pending" },
+    { label: "DNS records issued", state: dns.length || settings?.dns_records?.length ? "done" : "pending" },
+    { label: "Domain verified — bulk send unlocked", state: settings?.domain_verified ? "done" : "pending" },
+  ];
+  const phaseStatus = phase === "ready" ? "verified" : phase === "pending_dns" ? "pending" : phase === "no_aws" ? "blocked" : phase === "loading" ? "processing" : "draft";
+  const phaseLabel = phase === "ready" ? "Verified" : phase === "pending_dns" ? "Awaiting DNS" : phase === "no_aws" ? "SES unavailable" : phase === "loading" ? "Checking" : "Not connected";
+
   return (
-    <div className="page max-w-2xl space-y-6">
-      <PageHeader eyebrow="Workspace settings" title="Email & domain" description="Link your domain for bulk email. You only manage DNS; sending runs on the platform Amazon SES account." />
+    <div className="page max-w-5xl">
+      <PageHeader eyebrow="Workspace settings" title="Email & domain" description="Link your domain for bulk email. You only manage DNS; sending runs on the platform Amazon SES account." meta={<><StatusBadge status={phaseStatus} label={phaseLabel} />{lastChecked ? <span className="tabular-nums">Last check {lastChecked}</span> : null}</>} />
 
       {/* Live status */}
       {pollingExpired ? <Notice tone="warning" title="Live verification paused">Refresh or check status manually to start a new bounded verification window.</Notice> : null}
-      <div className={`rounded-xl border px-4 py-3 text-sm ${statusBanner.cls}`}>
+      <div className={`notice ${statusBanner.cls} flex-col !items-start !justify-start gap-0`} role="status" aria-live="polite">
         <div className="font-semibold">{statusBanner.title}</div>
-        <p className="mt-1 opacity-90">{statusBanner.body}</p>
+        <p className="mt-0.5 opacity-90">{statusBanner.body}</p>
         {phase === "ready" && (
-          <Link href="/leads" className="mt-2 inline-block text-sm font-medium underline">
-            Go to Leads to bulk send →
+          <Link href="/leads" className="mt-2 inline-flex items-center gap-1 text-[0.8125rem] font-semibold underline-offset-2 hover:underline">
+            Go to Leads to bulk send<Icon name="arrow" size={13} aria-hidden="true" />
           </Link>
         )}
         {phase === "pending_dns" && (
-          <div className="mt-2 flex flex-wrap gap-2">
-            <button type="button" className="btn btn-primary text-xs" disabled={loading} onClick={() => { setPollingExpired(false); void check(); }}>
+          <div className="mt-3 flex flex-wrap gap-2">
+            <button type="button" className="btn-primary btn-sm" disabled={loading} onClick={() => { setPollingExpired(false); void check(); }}>
               Check status now
             </button>
           </div>
         )}
       </div>
 
-      {/* Step checklist */}
-      <div className="card">
-        <h2 className="text-sm font-medium text-ink mb-3">Setup progress</h2>
-        <ol className="space-y-2 text-sm">
-          <li className="flex gap-2">
-            <span>{sesReady ? "✅" : sesReady === false ? "❌" : "…"}</span>
-            <span>Platform SES available</span>
-          </li>
-          <li className="flex gap-2">
-            <span>{settings?.domain ? "✅" : "○"}</span>
-            <span>Domain connected {settings?.domain ? `(${settings.domain})` : ""}</span>
-          </li>
-          <li className="flex gap-2">
-            <span>{dns.length || settings?.dns_records?.length ? "✅" : "○"}</span>
-            <span>DNS records issued</span>
-          </li>
-          <li className="flex gap-2">
-            <span>{settings?.domain_verified ? "✅" : "○"}</span>
-            <span>Domain verified — bulk send unlocked</span>
-          </li>
-        </ol>
-      </div>
+      <div className="grid items-start gap-4 lg:grid-cols-3">
+        <Panel
+          title="Sending domain"
+          description="The domain and From identity your bulk email uses."
+          className="lg:col-span-2"
+          footer={<>
+            <span className="min-w-0">{msg ? null : "You'll get DNS records to add at your registrar."}</span>
+            <div className="flex shrink-0 flex-wrap gap-2">
+              <button type="button" className="btn-ghost" disabled={loading || !domain} onClick={() => { setPollingExpired(false); void check(); }}>
+                Check status
+              </button>
+              <button type="button" className="btn-primary" disabled={loading || !domain} onClick={connect}>
+                {loading ? "Working…" : "Connect domain"}
+              </button>
+            </div>
+          </>}
+        >
+          <div className="grid gap-4 sm:grid-cols-2">
+            <div className="sm:col-span-2">
+              <label htmlFor="email-domain" className="field-label">Domain</label>
+              <input id="email-domain" className="input" placeholder="youragency.com" value={domain} onChange={(e) => setDomain(e.target.value)} />
+              <p className="field-hint">The root domain you send from, without https://.</p>
+            </div>
+            <div>
+              <label htmlFor="email-from-email" className="field-label">From email</label>
+              <input id="email-from-email" className="input" placeholder="leads@youragency.com" value={fromEmail} onChange={(e) => setFromEmail(e.target.value)} />
+            </div>
+            <div>
+              <label htmlFor="email-from-name" className="field-label">From name</label>
+              <input id="email-from-name" className="input" placeholder="Your Agency" value={fromName} onChange={(e) => setFromName(e.target.value)} />
+            </div>
+          </div>
+          {msg || err ? (
+            <div className="mt-4 space-y-2">
+              {msg && <Notice tone="success">{msg}</Notice>}
+              {err && <Notice tone="danger" title="Email setup unavailable">{String(err)}</Notice>}
+            </div>
+          ) : null}
+        </Panel>
 
-      <div className="card space-y-3">
-        <label className="block text-sm">
-          Domain
-          <input
-            className="input mt-1 w-full"
-            placeholder="youragency.com"
-            value={domain}
-            onChange={(e) => setDomain(e.target.value)}
-          />
-        </label>
-        <label className="block text-sm">
-          From email
-          <input
-            className="input mt-1 w-full"
-            placeholder="leads@youragency.com"
-            value={fromEmail}
-            onChange={(e) => setFromEmail(e.target.value)}
-          />
-        </label>
-        <label className="block text-sm">
-          From name
-          <input
-            className="input mt-1 w-full"
-            placeholder="Your Agency"
-            value={fromName}
-            onChange={(e) => setFromName(e.target.value)}
-          />
-        </label>
-        <div className="flex flex-wrap gap-2">
-          <button type="button" className="btn btn-primary" disabled={loading || !domain} onClick={connect}>
-            {loading ? "Working…" : "Connect domain"}
-          </button>
-          <button type="button" className="btn btn-ghost" disabled={loading || !domain} onClick={() => { setPollingExpired(false); void check(); }}>
-            Check status
-          </button>
-        </div>
-        {msg && <Notice tone="success">{msg}</Notice>}
-        {err && <Notice tone="danger" title="Email setup unavailable">{String(err)}</Notice>}
+        {/* Step checklist */}
+        <Panel title="Setup progress" description="Bulk send unlocks after verification.">
+          <ol className="space-y-3 text-[0.8125rem]">
+            {setupSteps.map((s, i) => (
+              <li key={i} className="flex items-start gap-2.5">
+                <span className={`mt-px flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-[10px] font-semibold tabular-nums ${s.state === "done" ? "bg-emerald-600 text-white dark:bg-emerald-400 dark:text-emerald-950" : s.state === "failed" ? "bg-rust-600 text-white dark:bg-rust-400 dark:text-rust-950" : "border border-line-strong text-ink-faint"}`} aria-hidden="true">
+                  {s.state === "done" ? <Icon name="check" size={12} /> : s.state === "failed" ? <Icon name="close" size={12} /> : i + 1}
+                </span>
+                <span className={s.state === "done" ? "text-ink" : "text-ink-muted"}>{s.label}<span className="sr-only">{s.state === "done" ? " — complete" : s.state === "failed" ? " — failed" : " — pending"}</span></span>
+              </li>
+            ))}
+          </ol>
+        </Panel>
       </div>
 
       {dns.length > 0 && (
-        <div className="card overflow-x-auto">
-          <h2 className="font-medium text-ink mb-2">DNS records to add</h2>
-          <p className="text-xs text-mute mb-3">
-            Add these CNAMEs at Cloudflare, GoDaddy, Namecheap, etc. Status above updates when verification succeeds.
-          </p>
-          <DataTable caption="DNS records to add">
-            <thead>
-              <tr className="text-left text-mute border-b border-line">
-                <th className="py-2 pr-2">Type</th>
-                <th className="py-2 pr-2">Name / Host</th>
-                <th className="py-2">Value / Target</th>
-              </tr>
-            </thead>
-            <tbody>
-              {dns.map((rec, i) => (
-                <tr key={i} className="border-b border-line/50">
-                  <td className="py-2 pr-2 font-mono text-xs">{rec.type || "CNAME"}</td>
-                  <td className="py-2 pr-2 font-mono text-xs break-all">{rec.name}</td>
-                  <td className="py-2 font-mono text-xs break-all">{rec.value}</td>
+        <Panel title="DNS records to add" description="Add these CNAMEs at Cloudflare, GoDaddy, Namecheap, etc. Status above updates when verification succeeds." bodyClassName="p-0">
+          <div className="overflow-x-auto">
+            <table className="data-table">
+              <caption className="sr-only">DNS records to add</caption>
+              <thead>
+                <tr>
+                  <th scope="col" className="w-[90px]">Type</th>
+                  <th scope="col">Name / Host</th>
+                  <th scope="col">Value / Target</th>
                 </tr>
-              ))}
-            </tbody>
-          </DataTable>
-        </div>
+              </thead>
+              <tbody>
+                {dns.map((rec, i) => (
+                  <tr key={i}>
+                    <td><Badge tone="neutral" className="font-mono">{rec.type || "CNAME"}</Badge></td>
+                    <td className="break-all font-mono text-xs">{rec.name}</td>
+                    <td className="break-all font-mono text-xs">{rec.value}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </Panel>
       )}
     </div>
   );

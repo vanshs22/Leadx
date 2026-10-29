@@ -8,7 +8,9 @@ from tests.rig import stubs; stubs.install()
 from tests.rig.fakedb import FakeDB
 import app.memory.supabase_client as sc
 DB = FakeDB()
-sc.get_supabase = lambda: DB
+# Seed the singleton without replacing the function object. Import-time module
+# replacement leaked this fake into later production-client contract tests.
+sc._client = DB
 def uid(): return str(uuid.uuid4())
 def seed_tenant():
     t = uid(); DB.seed("tenants", {"id": t, "name": "Acme", "plan": "free"}); return t

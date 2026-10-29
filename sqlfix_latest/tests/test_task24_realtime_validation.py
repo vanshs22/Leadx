@@ -23,6 +23,9 @@ BOUNDED_FALLBACK_TABLES = {
     "leadx_event_log",
     "quota_usage",
     "team_invites",
+    "tenant_integrations",
+    "deal_activities",
+    "integrations",
 }
 
 
@@ -150,7 +153,7 @@ def test_task24_portal_refresh_is_visibility_aware_and_bounded():
     assert 'setAuth()' in realtime
     assert 'event: "reconcile"' in realtime
     assert 'document.visibilityState !== "visible"' in realtime
-    assert "invalidateApiCache()" in realtime
+    assert "invalidateApiCache(" in realtime
     assert "setVisibleInterval" in live and "visibilitychange" in live
     assert "deadlineMs" in live and "onDeadline" in live
     assert "runTerminal" in admin_pipeline
@@ -163,3 +166,16 @@ def test_task24_terminal_contract_preserves_request_run_job_evidence():
         assert field in operation_source
     assert "jobsHref" in operation_source
     assert "PollingDeadlineState" in operation_source
+
+
+def test_task24_admin_progress_uses_private_hints_for_authoritative_refetch():
+    pipeline = (PORTAL / "app/(admin)/admin/pipeline/page.tsx").read_text(encoding="utf-8")
+    run_board = (PORTAL / "app/(admin)/admin/runs/[runId]/page.tsx").read_text(encoding="utf-8")
+    api = (PORTAL / "lib/api.ts").read_text(encoding="utf-8")
+    realtime = (PORTAL / "lib/crmRealtime.ts").read_text(encoding="utf-8")
+
+    assert 'useCrmRealtime(() => { void loadLiveRun(); }, form.tenant_id)' in pipeline
+    assert 'useCrmRealtime(() => { void load(); }, String(run?.tenant_id || ""))' in run_board
+    assert 'invalidateApiCache(`/crm/${encodeURIComponent(manager.tenantId)}/`, manager.tenantId)' in realtime
+    assert 'detail.tenantId !== currentTenant' in realtime
+    assert 'tenantCachePrefix(tenantId)' in api

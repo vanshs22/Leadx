@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 import { billing } from "@/lib/api";
 import { getSessionFast } from "@/lib/auth";
+import { Icon } from "@/components/ui/Icon";
 
 const PLANS: Record<string, { name: string; monthly: number; annual: number; leads: string }> = {
   starter: { name: "Starter", monthly: 49, annual: 39, leads: "500 qualified leads / month" },
@@ -43,22 +44,61 @@ export default function CheckoutPage() {
   }
 
   if (new URLSearchParams(typeof window !== "undefined" ? window.location.search : "").get("success") === "1") {
-    return <main className="min-h-screen bg-[#f7f8f6] px-5 py-16"><div className="mx-auto max-w-xl rounded-2xl border border-slate-200 bg-white p-8 text-center shadow-sm"><span className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-brand-50 text-xl text-brand-700">✓</span><h1 className="mt-5 text-2xl font-semibold tracking-tight">Payment received</h1><p className="mt-2 text-sm leading-6 text-slate-500">Your workspace is being upgraded. Stripe will confirm the subscription and LeadX will apply the new plan automatically.</p><Link href="/dashboard" className="mt-7 inline-flex rounded-xl bg-brand-700 px-5 py-3 text-sm font-semibold text-white hover:bg-brand-800">Open workspace</Link></div></main>;
+    return (
+      <main className="auth-shell">
+        <section className="auth-card max-w-lg text-center" role="status" aria-live="polite">
+          <span className="mx-auto flex h-11 w-11 items-center justify-center rounded-full border border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-400/25 dark:bg-emerald-400/10 dark:text-emerald-300"><Icon name="check" size={20} /></span>
+          <h1 className="auth-title">Payment received</h1>
+          <p className="auth-copy">Your workspace is being upgraded. Stripe will confirm the subscription and LeadX will apply the new plan automatically.</p>
+          <Link href="/dashboard" className="btn-primary mt-6">Open workspace</Link>
+        </section>
+      </main>
+    );
   }
 
   return (
-    <main className="min-h-screen bg-[#f7f8f6] text-slate-950">
-      <header className="border-b border-slate-200 bg-white"><div className="mx-auto flex max-w-6xl items-center justify-between px-5 py-4 sm:px-8"><Link href="/pricing" className="flex items-center gap-2.5"><span className="brand-mark h-9 w-9 rounded-[10px] text-[10px]">LX</span><span className="brand-wordmark">LeadX</span></Link><Link href="/pricing" className="text-sm font-semibold text-slate-600 hover:text-slate-950">Back to pricing</Link></div></header>
-      <div className="mx-auto grid max-w-5xl gap-8 px-5 py-12 lg:grid-cols-[1fr_420px] sm:px-8">
-        <section className="pt-4"><p className="eyebrow text-brand-700">Secure checkout</p><h1 className="mt-3 text-4xl font-semibold tracking-[-.045em]">Upgrade your LeadX workspace.</h1><p className="mt-4 max-w-xl text-base leading-7 text-slate-600">One subscription covers discovery, enrichment, research and the CRM workspace. Your final card details are handled by Stripe.</p><div className="mt-10 grid gap-3 sm:grid-cols-2"><div className="rounded-xl border border-slate-200 bg-white p-4"><p className="text-xs font-bold uppercase tracking-[.12em] text-slate-400">Included</p><p className="mt-2 text-sm font-semibold">{plan.leads}</p></div><div className="rounded-xl border border-slate-200 bg-white p-4"><p className="text-xs font-bold uppercase tracking-[.12em] text-slate-400">Billing</p><p className="mt-2 text-sm font-semibold">{interval === "annual" ? "Annual · 20% savings" : "Monthly · cancel anytime"}</p></div></div></section>
-        <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-[0_12px_40px_rgba(15,23,42,.08)]">
-          <div className="flex items-start justify-between"><div><p className="text-sm font-semibold">{plan.name}</p><p className="mt-1 text-xs text-slate-500">LeadX subscription</p></div><Link href={`/checkout?plan=${planKey}&interval=${interval === "annual" ? "monthly" : "annual"}`} className="text-xs font-semibold text-brand-700">Switch {interval === "annual" ? "monthly" : "annual"}</Link></div>
-          <div className="mt-7 flex items-end gap-1"><span className="text-4xl font-semibold tracking-[-.045em]">${price}</span><span className="mb-1 text-sm text-slate-500">/mo</span></div>
-          <p className="mt-1 text-xs text-slate-400">{interval === "annual" ? `$${yearlyTotal} billed annually` : "Billed monthly"}</p>
-          <div className="my-6 border-t border-slate-100" />
-          {signedIn ? <button onClick={pay} disabled={busy} className="w-full rounded-xl bg-brand-700 px-4 py-3 text-sm font-semibold text-white transition hover:bg-brand-800 disabled:opacity-50">{busy ? "Opening secure checkout…" : "Continue to secure payment"}</button> : <Link href={`/login?next=${encodeURIComponent(`/checkout?plan=${planKey}&interval=${interval}`)}`} className="block w-full rounded-xl bg-brand-700 px-4 py-3 text-center text-sm font-semibold text-white hover:bg-brand-800">Sign in to continue</Link>}
-          {error && <p className="mt-3 rounded-lg bg-red-50 px-3 py-2 text-xs leading-5 text-red-700">{error}</p>}
-          <p className="mt-4 text-center text-[11px] leading-5 text-slate-400">You will be redirected to Stripe for card entry and confirmation. LeadX does not store your full card number.</p>
+    <main className="min-h-screen bg-surface text-ink">
+      <header className="border-b border-line bg-surface-2">
+        <div className="mx-auto flex max-w-6xl items-center justify-between gap-4 px-5 py-4 sm:px-8">
+          <Link href="/pricing" className="flex items-center gap-2.5" aria-label="LeadX pricing"><span className="brand-mark">LX</span><span className="brand-wordmark">LeadX</span></Link>
+          <Link href="/pricing" className="btn-ghost btn-sm">Back to pricing</Link>
+        </div>
+      </header>
+      <div className="mx-auto grid max-w-5xl gap-8 px-5 py-12 sm:px-8 lg:grid-cols-[minmax(0,1fr)_400px]">
+        <section className="pt-2">
+          <p className="eyebrow inline-flex items-center gap-1.5 text-brand-700 dark:text-brand-300"><Icon name="security" size={13} /> Secure checkout</p>
+          <h1 className="mt-3 font-display text-[2rem] font-semibold leading-tight tracking-[-0.03em] text-ink sm:text-[2.5rem]">Upgrade your LeadX workspace.</h1>
+          <p className="mt-4 max-w-xl text-base leading-7 text-ink-muted">One subscription covers discovery, enrichment, research and the CRM workspace. Your final card details are handled by Stripe.</p>
+          <div className="mt-8 grid gap-3 sm:grid-cols-2">
+            <div className="card-pad">
+              <p className="stat-label">Included</p>
+              <p className="mt-2 text-sm font-semibold tabular-nums text-ink">{plan.leads}</p>
+            </div>
+            <div className="card-pad">
+              <p className="stat-label">Billing</p>
+              <p className="mt-2 text-sm font-semibold text-ink">{interval === "annual" ? "Annual · 20% savings" : "Monthly · cancel anytime"}</p>
+            </div>
+          </div>
+        </section>
+
+        <section className="card self-start p-6" aria-label="Order summary">
+          <div className="flex items-start justify-between gap-3">
+            <div>
+              <div className="flex items-center gap-2"><h2 className="section-title text-base">{plan.name}</h2>{planKey === "growth" ? <span className="badge-accent">Most popular</span> : null}</div>
+              <p className="mt-1 text-xs text-ink-faint">LeadX subscription</p>
+            </div>
+            <Link href={`/checkout?plan=${planKey}&interval=${interval === "annual" ? "monthly" : "annual"}`} className="link text-xs">Switch {interval === "annual" ? "monthly" : "annual"}</Link>
+          </div>
+          <div className="mt-6 flex items-baseline gap-1"><span className="font-display text-[2.5rem] font-semibold leading-none tabular-nums tracking-[-0.03em]">${price}</span><span className="text-sm text-ink-muted">/mo</span></div>
+          <p className="mt-2 text-xs tabular-nums text-ink-faint">{interval === "annual" ? `$${yearlyTotal} billed annually` : "Billed monthly"}</p>
+          <div className="my-6 border-t border-line" />
+          {signedIn ? (
+            <button type="button" onClick={pay} disabled={busy} className="btn-primary w-full py-2.5">{busy ? "Opening secure checkout…" : "Continue to secure payment"}</button>
+          ) : (
+            <Link href={`/login?next=${encodeURIComponent(`/checkout?plan=${planKey}&interval=${interval}`)}`} className="btn-primary w-full py-2.5">Sign in to continue</Link>
+          )}
+          {error && <div className="mt-3 notice notice-danger" role="alert">{error}</div>}
+          <p className="mt-4 flex items-start justify-center gap-1.5 text-center text-[11px] leading-5 text-ink-faint"><Icon name="security" size={12} className="mt-1 shrink-0" />You will be redirected to Stripe for card entry and confirmation. LeadX does not store your full card number.</p>
         </section>
       </div>
     </main>

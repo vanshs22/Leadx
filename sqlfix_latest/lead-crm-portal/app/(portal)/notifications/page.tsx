@@ -6,6 +6,7 @@ import { NotificationList, type NotificationRow } from "@/components/layout/Noti
 import { crmExtras } from "@/lib/api";
 import { getTenantId } from "@/lib/tenant";
 import { useCrmChange } from "@/lib/crmRealtime";
+import { PageHeader, StatCard, StatGrid } from "@/components/ui/Primitives";
 
 export default function NotificationsPage() {
   const [rows, setRows] = useState<NotificationRow[]>([]);
@@ -29,12 +30,24 @@ export default function NotificationsPage() {
   }, [load]);
   useCrmChange(() => { void load(); }, { tables: ["notifications"] });
 
+  const unread = rows.filter((row) => !row.read_at).length;
+  const critical = rows.filter((row) => !row.read_at && (row.severity === "critical" || row.severity === "warning")).length;
+  const fmt = (value: number) => (loading && !rows.length ? "—" : value.toLocaleString());
+
   return (
     <div className="page">
-      <header>
-        <h1 className="page-title">Notifications</h1>
-        <p className="page-sub">Deliveries, replies, imports and sending problems</p>
-      </header>
+      <PageHeader
+        eyebrow="Workspace"
+        title="Notifications"
+        description="Deliveries, replies, imports and sending problems"
+        meta={<span className="inline-flex items-center gap-1.5"><span className="live-dot" aria-hidden="true" />Live inbox</span>}
+      />
+
+      <StatGrid cols={3}>
+        <StatCard label="Unread" value={fmt(unread)} hint="Waiting for review" tone={unread ? "brand" : "neutral"} />
+        <StatCard label="Needs attention" value={fmt(critical)} hint="Unread warnings and critical alerts" tone={critical ? "warn" : "neutral"} />
+        <StatCard label="Total" value={fmt(rows.length)} hint="Most recent notifications" />
+      </StatGrid>
 
       <NotificationList
         rows={rows}

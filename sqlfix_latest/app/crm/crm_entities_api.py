@@ -85,12 +85,37 @@ def _page(q, limit: int, offset: int, key: str):
     }
 
 
+def _record_event(action: str, table: str, resource_id: str | None, ctx: TenantContext, *, before: dict | None = None, after: dict | None = None) -> None:
+    """Best-effort presentation-safe audit event after an authoritative write.
+
+    The database trigger also records table changes on supported installs; this
+    explicit event keeps the API contract observable on older migrations and in
+    local fakes without ever turning a successful CRM write into a false error.
+    """
+    try:
+        _sb().table("leadx_event_log").insert({
+            "tenant_id": ctx.tenant_id,
+            "actor_id": str(ctx.user_id) if ctx.user_id else None,
+            "actor_type": "user",
+            "action": action,
+            "resource_type": table,
+            "resource_id": resource_id,
+            "summary": f"{table.replace('_', ' ').title()} {action}",
+            "metadata": {"before": before or {}, "after": after or {}},
+        }).execute()
+    except Exception:
+        # Audit is additive; the durable CRM write remains authoritative.
+        return
+
+
 def _insert(table: str, body: BaseModel, tid: str, ctx: TenantContext) -> dict:
     payload = body.model_dump(exclude_unset=True, mode="json")
     payload["tenant_id"] = tid          # server-side only, never from the body
     payload["created_by"] = _actor(ctx)
     rows = _exec(_sb().table(table).insert(payload)).data or []
-    return rows[0] if rows else payload
+    row = rows[0] if rows else payload
+    _record_event("created", table, str(row.get("id")) if row.get("id") else None, ctx, after=row)
+    return row
 
 
 def _get_one(table: str, row_id: str, tid: str, label: str) -> dict:
@@ -106,12 +131,12 @@ def _get_one(table: str, row_id: str, tid: str, label: str) -> dict:
     return rows[0]
 
 
-def _patch(table: str, row_id: str, tid: str, body: BaseModel, label: str) -> dict:
+def _patch(table: str, row_id: str, tid: str, body: BaseModel, label: str, ctx: TenantContext | None = None) -> dict:
     payload = body.model_dump(exclude_unset=True, mode="json")
     payload.pop("tenant_id", None)
     if not payload:
         raise HTTPException(400, "No fields to update")
-    _get_one(table, row_id, tid, label)          # 404 before write
+    before = _get_one(table, row_id, tid, label)  # 404 before write
     payload["updated_at"] = _now()
     rows = (
         _exec(
@@ -120,12 +145,17 @@ def _patch(table: str, row_id: str, tid: str, body: BaseModel, label: str) -> di
         ).data
         or []
     )
-    return rows[0] if rows else _get_one(table, row_id, tid, label)
+    after = rows[0] if rows else _get_one(table, row_id, tid, label)
+    if ctx:
+        _record_event("updated", table, row_id, ctx, before=before, after=after)
+    return after
 
 
-def _delete(table: str, row_id: str, tid: str, label: str) -> dict:
-    _get_one(table, row_id, tid, label)
+def _delete(table: str, row_id: str, tid: str, label: str, ctx: TenantContext | None = None) -> dict:
+    before = _get_one(table, row_id, tid, label)
     _exec(_sb().table(table).delete().eq("id", row_id).eq("tenant_id", tid))
+    if ctx:
+        _record_event("deleted", table, row_id, ctx, before=before)
     return {"ok": True, "deleted": row_id}
 
 
@@ -574,7 +604,7 @@ def list_deals(
     tag: Optional[str] = None,
     sort: str = "created_at",
     order: str = "desc",
-    limit: int = Query(50, ge=1, le=200),
+    limit: int = Query(50, ge=1, le=500),
     offset: int = Query(0, ge=0),
     ctx: TenantContext = Depends(require_tenant),
 ):
@@ -627,12 +657,12 @@ def update_deal(
         _get_one("contacts", str(body.primary_contact_id), tid, "Contact")
     if body.stage_id:
         _get_one("deal_stages", str(body.stage_id), tid, "Deal stage")
-    return {"deal": _patch("deals", str(deal_id), tid, body, "Deal")}
+    return {"deal": _patch("deals", str(deal_id), tid, body, "Deal", ctx)}
 
 
 @router.delete("/{tenant_id}/deals/{deal_id}")
 def delete_deal(tenant_id: UUID, deal_id: UUID, ctx: TenantContext = Depends(require_tenant)):
-    return _delete("deals", str(deal_id), ctx.tenant_id, "Deal")
+    return _delete("deals", str(deal_id), ctx.tenant_id, "Deal", ctx)
 
 
 @router.post("/{tenant_id}/deals/{deal_id}/stage")
@@ -663,7 +693,10 @@ def move_deal_stage(
         update["status"] = "open"
         update["actual_close_date"] = None
 
-    _exec(_sb().table("deals").update(update).eq("id", did).eq("tenant_id", tid))
+    updated_rows = _exec(_sb().table("deals").update(update).eq("id", did).eq("tenant_id", tid)).data or []
+    if not updated_rows:
+        raise HTTPException(409, "Deal changed before stage move completed")
+    _record_event("stage_changed", "deals", did, ctx, before=deal, after=updated_rows[0])
 
     from_stage = None
     if deal.get("stage_id"):
@@ -693,7 +726,7 @@ def move_deal_stage(
         },
     }))
 
-    return {"deal": _get_one("deals", did, tid, "Deal"), "stage": stage}
+    return {"deal": _get_one("deals", did, tid, "Deal"), "stage": stage, "authoritative": True}
 
 
 # ─── activities ─────────────────────────────────────────────────────────────

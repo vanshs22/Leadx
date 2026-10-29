@@ -1,0 +1,82 @@
+name: LeadX Real-Provider UAT Gates
+
+on:
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: "preflight or live UAT"
+        required: true
+        default: preflight
+        type: choice
+        options: [preflight, live]
+      bootstrap:
+        description: "Provision/find the two UAT tenants and fixtures"
+        required: true
+        default: false
+        type: boolean
+
+jobs:
+  uat:
+    name: UAT only
+    runs-on: ubuntu-latest
+    environment: uat
+    env:
+      ENVIRONMENT: staging
+      LEADX_UAT_TARGET: uat
+      LEADX_UAT_ENVIRONMENT: staging
+      LEADX_UAT_APPLY: ${{ inputs.mode == 'live' && inputs.bootstrap && '1' || '0' }}
+      LEADX_UAT_API_URL: ${{ secrets.LEADX_UAT_API_URL }}
+      LEADX_UAT_PORTAL_URL: ${{ secrets.LEADX_UAT_PORTAL_URL }}
+      SUPABASE_URL: ${{ secrets.UAT_SUPABASE_URL }}
+      SUPABASE_ANON_KEY: ${{ secrets.UAT_SUPABASE_ANON_KEY }}
+      SUPABASE_SERVICE_KEY: ${{ secrets.UAT_SUPABASE_SERVICE_KEY }}
+      LEAD_ENGINE_SERVICE_KEY: ${{ secrets.UAT_LEAD_ENGINE_SERVICE_KEY }}
+      DELIVERY_CONFIG_KEY: ${{ secrets.UAT_DELIVERY_CONFIG_KEY }}
+      UNSUBSCRIBE_SECRET: ${{ secrets.UAT_UNSUBSCRIBE_SECRET }}
+      INTEGRATION_OAUTH_STATE_SECRET: ${{ secrets.UAT_INTEGRATION_OAUTH_STATE_SECRET }}
+      LEADX_UAT_CLIENT_EMAIL: ${{ secrets.UAT_CLIENT_EMAIL }}
+      LEADX_UAT_CLIENT_PASSWORD: ${{ secrets.UAT_CLIENT_PASSWORD }}
+      LEADX_UAT_ADMIN_EMAIL: ${{ secrets.UAT_ADMIN_EMAIL }}
+      LEADX_UAT_ADMIN_PASSWORD: ${{ secrets.UAT_ADMIN_PASSWORD }}
+      LEADX_UAT_INVITE_EMAIL: ${{ secrets.UAT_INVITE_EMAIL }}
+      LEADX_UAT_TENANT_A_ID: ${{ secrets.UAT_TENANT_A_ID }}
+      LEADX_UAT_TENANT_B_ID: ${{ secrets.UAT_TENANT_B_ID }}
+      LEADX_UAT_LEAD_A_ID: ${{ secrets.UAT_LEAD_A_ID }}
+      LEADX_UAT_NEVER_SEND_TO_DISCOVERED: "1"
+      LEADX_UAT_DELIVERY_MODE: portal_only
+      LEADX_UAT_MAX_TARGET: "1"
+      LEADX_UAT_MAX_PROVIDER_REQUESTS: "5"
+      LEADX_UAT_MAX_ENRICHMENTS: "3"
+      LEADX_UAT_MAX_RUNTIME_SECONDS: "300"
+      LEADX_UAT_MAX_RETRIES: "1"
+      LEAD_ENGINE_DEV_AUTH_BYPASS: "0"
+      LOCAL_AUTHENTICATION_FLAG: "0"
+      LOCAL_VALIDATION_MODE: "0"
+      JOB_QUEUE_FAIL_CLOSED: "1"
+      REQUIRE_REDIS_FOR_API_READY: "1"
+      REQUIRE_WORKER_READY: "1"
+      REQUIRE_DISTRIBUTED_RATE_LIMIT: "1"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install locked backend dependencies
+        run: pip install -r requirements.lock
+      - name: UAT preflight
+        run: python scripts/uat_runner.py --preflight --output artifacts/uat-preflight
+      - name: Provision UAT fixtures
+        if: ${{ inputs.mode == 'live' && inputs.bootstrap }}
+        run: python scripts/uat_bootstrap.py --apply --output artifacts/uat-bootstrap.json
+      - name: Run bounded real-provider UAT
+        if: ${{ inputs.mode == 'live' }}
+        env:
+          LEADX_UAT_APPLY: "1"
+        run: python scripts/uat_runner.py --run-live --output artifacts/uat
+      - name: Upload sanitized UAT evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: leadx-uat-evidence
+          path: artifacts/uat*
+          if-no-files-found: ignore

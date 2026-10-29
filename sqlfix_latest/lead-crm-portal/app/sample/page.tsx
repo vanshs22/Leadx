@@ -3,6 +3,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import { getApiBase } from "@/lib/config";
+import { Icon } from "@/components/ui/Icon";
 
 /**
  * Public "get 10 free sample leads" landing page.
@@ -46,89 +47,112 @@ export default function PublicSamplePage() {
   }
 
   return (
-    <div className="min-h-screen bg-[rgb(var(--bg))] text-ink">
-      <div className="mx-auto max-w-2xl px-4 py-12">
+    <div className="min-h-screen bg-surface text-ink">
+      <header className="border-b border-line bg-surface-2">
+        <div className="mx-auto flex max-w-5xl items-center justify-between gap-4 px-5 py-4 sm:px-8">
+          <Link href="/" className="flex items-center gap-2.5" aria-label="LeadX home"><span className="brand-mark">LX</span><span className="brand-wordmark">LeadX</span></Link>
+          <div className="flex items-center gap-2">
+            <Link href="/pricing" className="btn-ghost btn-sm">Pricing</Link>
+            <Link href="/login" className="btn-secondary btn-sm">Sign in</Link>
+          </div>
+        </div>
+      </header>
+
+      <main className="mx-auto max-w-2xl px-5 py-12 sm:px-8">
         <div className="mb-8 text-center">
-          <h1 className="text-3xl font-bold tracking-tight">Get 10 free sample leads</h1>
-          <p className="mt-2 text-ink-muted">
+          <p className="eyebrow text-brand-700 dark:text-brand-300">Free sample pack</p>
+          <h1 className="mt-3 font-display text-[2rem] font-semibold leading-tight tracking-[-0.03em] text-ink sm:text-[2.5rem]">Get 10 free sample leads</h1>
+          <p className="mx-auto mt-3 max-w-md text-[0.9375rem] leading-7 text-ink-muted">
             Exclusive local quality — no signup required for the preview.
           </p>
         </div>
 
         <div className="card-pad space-y-4">
-          <label className="block text-xs font-medium text-ink-faint">
-            Vertical
-            <input
-              className="input mt-1"
-              value={vertical}
-              onChange={(e) => setVertical(e.target.value)}
-              placeholder="medspa, dental, salon…"
-            />
-          </label>
-          <label className="block text-xs font-medium text-ink-faint">
-            City / region
-            <input
-              className="input mt-1"
-              value={geo}
-              onChange={(e) => setGeo(e.target.value)}
-              placeholder="Hoboken, New Jersey"
-            />
-          </label>
+          <div className="grid gap-4 sm:grid-cols-2">
+            <label className="block">
+              <span className="field-label">Vertical</span>
+              <input
+                className="input"
+                value={vertical}
+                onChange={(e) => setVertical(e.target.value)}
+                placeholder="medspa, dental, salon…"
+              />
+            </label>
+            <label className="block">
+              <span className="field-label">City / region</span>
+              <input
+                className="input"
+                value={geo}
+                onChange={(e) => setGeo(e.target.value)}
+                placeholder="Hoboken, New Jersey"
+              />
+            </label>
+          </div>
           <button
+            type="button"
             disabled={loading || !vertical.trim()}
-            className="btn-primary w-full"
+            className="btn-primary w-full py-2.5"
             onClick={getSample}
           >
             {loading ? "Finding leads…" : "Show me 10 free leads"}
           </button>
+          <p className="field-hint text-center">Preview leads are scored 65 or higher.</p>
         </div>
 
         {msg && (
-          <div className="mt-4 rounded-xl border border-line bg-surface-2 px-4 py-2.5 text-sm text-ink-muted">
+          <div className={`mt-4 notice ${leads.length > 0 ? "notice-neutral" : "notice-warning"}`} role="status" aria-live="polite">
             {msg}
           </div>
         )}
 
+        {loading && (
+          <div className="mt-6 space-y-2" aria-hidden="true">
+            {[0, 1, 2].map((i) => <div key={i} className="skeleton h-[76px] rounded-xl" />)}
+          </div>
+        )}
+
         {leads.length > 0 && (
-          <div className="mt-6 space-y-2">
-            {leads.map((l, i) => (
-              <div key={i} className="card-pad flex justify-between gap-3">
-                <div>
-                  <div className="font-semibold text-ink">{l.name}</div>
-                  <div className="text-sm text-ink-muted">
-                    {[l.city, l.state].filter(Boolean).join(", ")}
-                    {l.category ? ` · ${l.category}` : ""}
+          <div className="mt-6 space-y-4">
+            <ul className="panel divide-y divide-line">
+              {leads.map((l, i) => (
+                <li key={i} className="flex items-start justify-between gap-4 px-5 py-4">
+                  <div className="min-w-0">
+                    <div className="truncate text-sm font-semibold text-ink">{l.name}</div>
+                    <div className="mt-0.5 truncate text-[0.8125rem] text-ink-muted">
+                      {[l.city, l.state].filter(Boolean).join(", ")}
+                      {l.category ? ` · ${l.category}` : ""}
+                    </div>
+                    <div className="mt-2 flex flex-wrap gap-1.5">
+                      {l.google_rating != null && <span className="badge-neutral tabular-nums">{l.google_rating} rating</span>}
+                      {l.review_count != null && <span className="badge-neutral tabular-nums">{l.review_count} reviews</span>}
+                      {l.has_website && <span className="badge-neutral"><Icon name="globe" size={11} /> Has website</span>}
+                      {l.has_phone && <span className="badge-neutral"><Icon name="phone" size={11} /> Has phone</span>}
+                    </div>
                   </div>
-                  <div className="mt-1 flex flex-wrap gap-2 text-xs text-ink-faint">
-                    {l.google_rating != null && <span>{l.google_rating}★</span>}
-                    {l.review_count != null && <span>{l.review_count} reviews</span>}
-                    {l.has_website && <span>Has website</span>}
-                    {l.has_phone && <span>Has phone</span>}
+                  <div className="flex shrink-0 flex-col items-end gap-1.5 text-right">
+                    {l.tier && (
+                      <span className={String(l.tier).toUpperCase() === "A" ? "badge-accent" : "badge-brand"}>
+                        Tier {l.tier}
+                      </span>
+                    )}
+                    {l.score != null && (
+                      <div className="text-sm font-semibold tabular-nums text-ink">{l.score}<span className="ml-0.5 text-xs font-normal text-ink-faint">score</span></div>
+                    )}
                   </div>
-                </div>
-                <div className="text-right shrink-0">
-                  {l.tier && (
-                    <span className="rounded-full bg-brand-50 px-2 py-0.5 text-xs font-medium text-brand-700 dark:bg-brand-500/15 dark:text-brand-300">
-                      Tier {l.tier}
-                    </span>
-                  )}
-                  {l.score != null && (
-                    <div className="mt-1 text-sm font-medium text-ink">{l.score}</div>
-                  )}
-                </div>
-              </div>
-            ))}
-            <div className="card-pad mt-4 text-center">
-              <p className="text-sm text-ink-muted mb-3">
+                </li>
+              ))}
+            </ul>
+            <div className="card-pad flex flex-col items-center justify-between gap-3 text-center sm:flex-row sm:text-left">
+              <p className="text-sm text-ink-muted">
                 Want exclusive leads delivered daily for your agency?
               </p>
-              <Link href="/login" className="btn-primary inline-block">
+              <Link href="/login" className="btn-primary shrink-0">
                 Start free trial
               </Link>
             </div>
           </div>
         )}
-      </div>
+      </main>
     </div>
   );
 }

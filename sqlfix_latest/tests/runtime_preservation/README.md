@@ -41,3 +41,15 @@ The new property suite contains 15 deterministic generated/contract tests. The c
 python -m pytest -q tests/runtime_preservation/test_healthy_runtime_property.py tests/runtime_baseline tests/test_route_contract.py tests/test_admin_control_plane.py tests/test_leadx_12_governance.py
 PASS: 27 passed, 1 skipped
 ```
+
+## Task 2 baseline evidence
+
+The observation-first preservation cases pass against the current implementation before remediation:
+
+```text
+python -m pytest -q tests/runtime_preservation/test_lead_generation_preservation.py tests/runtime_preservation/test_healthy_runtime_property.py tests/test_route_contract.py tests/test_leadx16_free_first.py tests/test_pipeline_run_lifecycle.py tests/test_contact_quality.py tests/test_crm_projection_contract.py
+......................s................................                             [100%]
+PASS: 55 passed, 1 skipped
+```
+
+The skip is an existing environment-dependent case. The command uses synthetic/in-memory fixtures and makes no provider calls or real-run mutations.

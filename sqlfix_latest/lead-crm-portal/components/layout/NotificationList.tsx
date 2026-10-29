@@ -6,6 +6,9 @@
  */
 import Link from "next/link";
 import { useState } from "react";
+import { Badge, Panel, type Tone } from "@/components/ui/Primitives";
+import { EmptyState, ErrorState, LoadingRows } from "@/components/ui/States";
+import { Icon } from "@/components/ui/Icon";
 
 export interface NotificationRow {
   id: string;
@@ -19,12 +22,24 @@ export interface NotificationRow {
   tenant_name?: string;
 }
 
-const SEVERITY: Record<string, string> = {
-  info: "bg-brand-50 text-brand-700 dark:bg-brand-500/15 dark:text-brand-300",
-  success: "bg-signal-50 text-signal-700 dark:bg-signal-500/15 dark:text-signal-300",
-  warning: "bg-amber-50 text-amber-700 dark:bg-amber-500/15 dark:text-amber-300",
-  critical: "bg-rust-50 text-rust-700 dark:bg-rust-900/30 dark:text-rust-300",
+const SEVERITY: Record<string, Tone> = {
+  info: "brand",
+  success: "success",
+  warning: "warn",
+  critical: "danger",
 };
+
+const SEVERITY_RAIL: Record<string, string> = {
+  info: "bg-brand-500 dark:bg-brand-300",
+  success: "bg-emerald-600 dark:bg-emerald-400",
+  warning: "bg-amber-500",
+  critical: "bg-rust-500",
+};
+
+function formatWhen(value: string) {
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? "—" : date.toLocaleString();
+}
 
 export function NotificationList({
   rows,
@@ -52,76 +67,94 @@ export function NotificationList({
   }
 
   return (
-    <div className="space-y-3">
-      <div className="flex items-center justify-between gap-3">
-        <p className="text-sm text-ink-muted">
+    <Panel
+      id="notification-inbox"
+      title="Inbox"
+      description={
+        <span className="tabular-nums">
           {unread.length} unread · {rows.length} total
-        </p>
+        </span>
+      }
+      actions={
         <button
           type="button"
+          aria-label="Mark all notifications read"
           disabled={busy || !unread.length}
           onClick={() => wrap(onMarkAll)}
-          className="rounded-lg border border-line bg-surface px-3 py-1.5 text-xs font-medium text-ink hover:bg-surface-2 disabled:opacity-40"
+          className="btn-secondary btn-sm"
         >
+          <Icon name="check" size={14} />
           Mark all read
         </button>
-      </div>
+      }
+      bodyClassName="p-0"
+    >
+      {error ? (
+        <div className="p-4">
+          <ErrorState error={error} />
+        </div>
+      ) : null}
+      {loading && !rows.length ? <LoadingRows rows={5} cols={3} /> : null}
+      {!loading && !error && !rows.length ? (
+        <EmptyState
+          title="No notifications yet"
+          hint="Deliveries, replies and failures show up here."
+          icon={<Icon name="bell" size={18} />}
+        />
+      ) : null}
 
-      {error && <p className="text-sm text-rust-500 dark:text-rust-300">{error}</p>}
-      {loading && <p className="text-sm text-ink-faint">Loading…</p>}
-      {!loading && !rows.length && (
-        <p className="text-sm text-ink-faint">Nothing yet. Deliveries, replies and failures show up here.</p>
-      )}
-
-      <div className="space-y-2">
-        {rows.map((n) => (
-          <div
-            key={n.id}
-            className={`card-pad ${n.read_at ? "opacity-60" : "border-l-2 border-l-brand-500"}`}
-          >
-            <div className="flex items-start justify-between gap-3">
-              <div className="min-w-0">
-                <div className="flex flex-wrap items-center gap-2">
-                  <span className={`pill ${SEVERITY[n.severity || "info"] || SEVERITY.info}`}>
-                    {n.severity || "info"}
-                  </span>
-                  <span className="font-mono text-[10px] uppercase tracking-wide text-ink-faint">
-                    {n.kind}
-                  </span>
-                  {n.tenant_name ? (
-                    <span className="text-[11px] text-ink-faint">· {n.tenant_name}</span>
-                  ) : null}
-                </div>
-                <p className="mt-1 text-sm font-medium text-ink">{n.title}</p>
-                {n.body ? <p className="mt-0.5 text-sm text-ink-muted">{n.body}</p> : null}
-              </div>
-              <div className="shrink-0 space-y-1 text-right">
-                <div className="text-xs text-ink-faint">
-                  {new Date(n.created_at).toLocaleString()}
-                </div>
-                {n.link ? (
-                  <Link
-                    href={n.link}
-                    className="block text-xs font-medium text-brand-600 hover:underline dark:text-brand-300"
-                  >
-                    Open →
-                  </Link>
+      {rows.length ? (
+        <ul className="divide-y divide-line" aria-label="Notifications" aria-busy={busy || undefined}>
+          {rows.map((n) => {
+            const severity = n.severity || "info";
+            const isUnread = !n.read_at;
+            return (
+              <li
+                key={n.id}
+                className={`relative flex flex-col gap-3 px-5 py-4 sm:flex-row sm:items-start sm:justify-between ${isUnread ? "" : "bg-surface-3/30"}`}
+              >
+                {isUnread ? (
+                  <span className={`absolute inset-y-3 left-0 w-[3px] rounded-r ${SEVERITY_RAIL[severity] || SEVERITY_RAIL.info}`} aria-hidden="true" />
                 ) : null}
-                {!n.read_at && (
-                  <button
-                    type="button"
-                    disabled={busy}
-                    onClick={() => wrap(() => onMarkRead([n.id]))}
-                    className="text-xs text-ink-faint hover:text-ink disabled:opacity-40"
-                  >
-                    Mark read
-                  </button>
-                )}
-              </div>
-            </div>
-          </div>
-        ))}
-      </div>
-    </div>
+                <div className="min-w-0">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <Badge tone={SEVERITY[severity] || "brand"} className="capitalize">{severity}</Badge>
+                    <span className="font-mono text-xs text-ink-faint">{n.kind}</span>
+                    {n.tenant_name ? <span className="text-xs text-ink-faint">· {n.tenant_name}</span> : null}
+                    {isUnread ? <span className="sr-only">Unread</span> : null}
+                  </div>
+                  <p className={`mt-1.5 text-sm ${isUnread ? "font-semibold text-ink" : "font-medium text-ink-muted"}`}>{n.title}</p>
+                  {n.body ? <p className="mt-0.5 text-[0.8125rem] leading-5 text-ink-muted">{n.body}</p> : null}
+                </div>
+                <div className="flex shrink-0 flex-wrap items-center gap-2 sm:flex-col sm:items-end sm:gap-1.5">
+                  <time dateTime={n.created_at} className="text-xs tabular-nums text-ink-faint">
+                    {formatWhen(n.created_at)}
+                  </time>
+                  <div className="flex items-center gap-1">
+                    {n.link ? (
+                      <Link href={n.link} className="btn-ghost btn-sm" aria-label={`Open ${n.title}`}>
+                        Open
+                        <Icon name="arrow" size={14} />
+                      </Link>
+                    ) : null}
+                    {isUnread && (
+                      <button
+                        type="button"
+                        aria-label={`Mark ${n.title} read`}
+                        disabled={busy}
+                        onClick={() => wrap(() => onMarkRead([n.id]))}
+                        className="btn-ghost btn-sm"
+                      >
+                        Mark read
+                      </button>
+                    )}
+                  </div>
+                </div>
+              </li>
+            );
+          })}
+        </ul>
+      ) : null}
+    </Panel>
   );
 }

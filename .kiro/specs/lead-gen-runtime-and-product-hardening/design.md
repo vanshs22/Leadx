@@ -1,90 +1,197 @@
-# Lead-gen Runtime and Product Hardening Bugfix Design
+# LeadX Lead-Generation Runtime Remediation Design
 
 ## Overview
 
-LeadX already has the right broad topology for this bugfix: FastAPI handles authenticated requests, Supabase/Postgres is the durable source of truth for jobs and tenant data, a separate `app.worker` process executes registered handlers, Redis supports distributed runtime concerns, and `lead-crm-portal` is the existing Next.js client/admin surface. The defect is in the contracts between those pieces, not in the product’s CRM route model.
+This design remediates the lead-generation runtime without replacing the existing pipeline, agent mission graph, discovery lanes, enrichment mesh, quality gates, CRM, delivery, realtime, or evidence patterns. It addresses two related failure classes:
 
-The smallest robust implementation is therefore a contract-hardening change, not a new queue or a portal rewrite. It will:
+1. A run can remain active, be reset unsafely, or be retried against the wrong durable identity. The immediate example is run `d2b23a15-55a9-43b0-b9bb-dc6a6179837a`.
+2. A valid request can discover too narrowly, spend in the wrong order, overlap stages incorrectly, lose provenance, or report progress that does not match durable CRM and delivery state.
 
-1. Make Compose dependency readiness explicit, add the portal to the supported stack, and resolve the portal upstream to the `api` service.
-2. Split liveness from readiness and make readiness report database, Redis, worker, and queue capability with truthful non-success status.
-3. Make queue infrastructure errors distinct from an empty queue, make worker health evidence depend on successful queue interaction, and preserve lease ownership through completion, retry, and reap operations.
-4. Bind API job submission, idempotency, durable job creation, and credit/usage reservation to the existing database transaction/RPC boundary so fail-closed work cannot reach a provider before its accounting state is durable.
-5. Enforce an explicit Redis policy: required distributed operations fail with a dependency response; only explicitly optional, tenant-scoped short-lived reads may use a bounded memory fallback.
-6. Add a shared portal request-state and polling contract so existing client/admin screens render loading, success/empty, or actionable error states without changing authentication, route coverage, or data authorization.
-7. Expose request, job, worker, queue, dependency, retry, and reap evidence through existing logs and admin health/jobs surfaces without secrets or unauthorized tenant data.
+The smallest complete fix is a set of shared contracts around the existing seams:
 
-The design uses the existing job table and handler registry in `app.integrations.prod.jobs` and `app.integrations.prod.job_handlers`. It does not add Redis as a second durable queue, replace Supabase/RLS, or invent new CRM workflows.
+- `pipeline.py` remains the execution state machine and streaming target runner.
+- `lead_selection_planner.py` becomes the canonical normalized plan and tranche decision point.
+- `agent_missions.py` and `agent_fabric.py` remain the authoritative 31-agent/30-task handoff graph.
+- `discovery.py`, `source_lanes.py`, `multi_source_discovery.py`, `exhaustive_discovery.py`, and `osm_fallback.py` remain the source adapters and fallback fabric.
+- `enrichment_mesh.py` and `waterfall.py` remain the free-first field enrichment and validation path.
+- `quality.py`, `scoring_layer.py`, `contact_verification_mesh.py`, and `delivery.py` remain the verification, scoring, gate, assignment, CRM, and delivery boundaries.
+- `discovery_runtime.py`, the durable jobs layer, `pipeline_runs`, `pipeline_run_leads`, quota reservations, and private realtime invalidations remain the durable truth.
+
+The design does not add a new broker, provider family, CRM model, or frontend state source. It adds deterministic planning, cancellation/reset semantics, route-level budgets and provenance, explicit ordering barriers, and focused tests around the existing components.
+
+Local Validation Mode is the default validation boundary. It uses synthetic/static fixtures, fake persistence, and deny-all provider adapters. No live provider, remote Supabase, email-send, paid enrichment, Stripe, or actual lead-generation call is part of this design or its validation.
 
 ## Glossary
 
-- **Bug_Condition (C)**: A Compose deployment, dependency outage, API-to-worker handoff, retry/resubmission, or existing portal workflow that produces one of the failures described in `bugfix.md` sections 1.1–1.8.
-- **Property (P)**: The required corrected result for a buggy input: dependency readiness is truthful, durable work is owned and observable, provider/credit work is not duplicated, and an authorized user receives a usable success, empty, or actionable degraded state.
-- **Preservation**: Behavior for `¬C(X)`: healthy supported configurations, existing routes, authentication and tenant boundaries, billing/usage rules, handler semantics, accessibility, performance, and response shapes remain unchanged.
-- **F**: The current implementation in the archived project, including `docker-compose.yml`, `app/app_service.py`, `app/worker.py`, `app/integrations/prod/jobs.py`, `app/middleware/rate_limit.py`, `app/services/shared_cache.py`, and the portal runtime modules.
-- **F'**: The hardened implementation described here.
-- **Durable job**: A row in the existing Postgres/Supabase `jobs` table, claimed with the existing database claim RPC and owned by a worker lease.
-- **Queue capability**: The ability to reach the jobs store, claim/inspect queue state, renew a lease, and persist a completion or failure transition; it is not the same as observing zero queued rows.
-- **Worker readiness**: Evidence that a worker has validated runtime configuration, can reach its durable queue, and has successfully published a fresh heartbeat/queue-capability record. A pre-created heartbeat file is not sufficient.
-- **Required distributed operation**: Rate limiting, invalidation, or another operation configured to require shared Redis semantics. It must not silently become process-local when Redis is unavailable.
-- **Optional cache read**: A short-lived, tenant-scoped read snapshot explicitly allowed to fall back to memory with a configured maximum TTL and no authorization, billing, usage, job-state, or durability effect.
-- **Terminal job state**: The existing `done`, `failed`, or `cancelled` state. A retryable failure remains `queued` with a bounded attempt count and future `run_after`; it is not a second terminal state.
+- **Bug_Condition (C)**: A target lead request or run recovery operation for which durable state, route coverage, stage ordering, tenant safety, evidence, or progress truth is violated.
+- **Property (P)**: The expected result for a buggy input after remediation: safe recovery, bounded and provenance-preserving execution, correct target stopping, ordered handoffs, tenant-safe persistence, and truthful terminal state.
+- **Preservation**: Existing supported behavior outside the bug condition, including route names, tenant authorization, current quality gates, free-first policy, idempotency, durable job semantics, UI response shapes, and healthy provider adapters.
+- **Pipeline Run**: A tenant-owned `pipeline_runs` record identified by `run_id`, with durable counters, status, metadata, and terminal result.
+- **Run Recovery**: Reclaiming or resuming unfinished work under lease and retry rules. It is different from reopening a terminal run.
+- **Safe Reset**: A controlled operation that cancels the old execution identity, settles its reservation once, records the reason, and starts a new run identity. It never overwrites a terminal run or allows a late worker to continue it.
+- **Normalized Plan**: A deterministic, JSON-safe representation of the request after vertical, ICP, geography, query, target, source, contact, tier, budget, and policy normalization.
+- **Sub-ICP**: A bounded request slice derived from the parent ICP, such as a service subtype, company-size band, audience, or offer category.
+- **Route Cell**: One executable combination of sub-ICP, geographic unit, query family, source lane, and pagination cursor.
+- **Decision Test**: A deterministic one-by-one planner check that records why a route cell is admitted, deferred, skipped, or exhausted before discovery work starts.
+- **Evidence Level**: A bounded classification of evidence strength. `L0` is synthetic/local fixture, `L1` is map/directory/OSM discovery, `L2` is first-party web or corroborated public evidence, `L3` is validated contact evidence, and `L4` is multi-source consensus with a recent verification result.
+- **Field-Level Provenance**: The source, observed time, evidence level, validation result, and confidence attached to each populated field rather than only to the lead row.
+- **Shared Pool**: Tenant-neutral global lead inventory that can be reused only after freshness, dormant, contact, exclusivity, and tenant-policy checks.
+- **Freshness Window**: The configured period during which reusable evidence may be accepted without a recheck. Existing `ENRICHMENT_REUSE_DAYS` remains the default source of this value.
+- **Dormant Cooldown**: The period during which a lead with stale, closed, suppressed, or recently contacted state cannot re-enter outreach without a successful recheck.
+- **Target Stop**: The terminal discovery condition reached when the required number of assignment-confirmed, gate-passing leads is met. It cancels or drains remaining route work and prevents further provider spend.
+- **Private Invalidation Event**: A tenant-scoped realtime hint that causes an authoritative API refetch. It is not business state and cannot be used as a lead or progress payload.
+- **Live Boundary**: A provider-enabled execution profile where real adapters may run only under explicit policy, credentials, quota, timeout, and approval checks.
+- **Offline Boundary**: Local Validation Mode, where outbound provider calls are denied and deterministic fixtures are the only discovery/enrichment inputs.
+
+## Architecture
+
+```text
+Client/Admin
+  -> tenant-authorized API and authoritative progress projections
+  -> durable pipeline run, discovery request, job, mission/task, quota, CRM, and delivery state
+  -> worker claims with lease and bounded retry
+  -> normalized planner route cells
+  -> maps/OSM/web/first-party/directory/social discovery
+  -> persisted dedupe result -> streaming enrichment/verification
+  -> score -> gate -> assignment -> CRM -> delivery
+  -> private invalidation -> authoritative client/admin refetch
+```
+
+The existing database and job system remain the source of truth. Redis, if used by the current runtime, remains a bounded coordination/cache dependency and never becomes the source of run, quota, assignment, or tenant authorization state.
+
+## Components and Interfaces
+
+- **Run recovery interface**: accepts authenticated tenant scope, run/job identity, operation `inspect | cancel | recover | reset`, and an idempotency key; returns the durable state, action, settlement status, and safe diagnostic identifiers.
+- **Planner interface**: accepts the request/ICP and policy; returns a deterministic normalized plan, route cells, one-by-one decision records, tranche decision, and stop policy.
+- **Route interface**: accepts one route cell and cursor; returns bounded normalized results, next cursor, provenance, budget usage, retryability, and exhaustion state.
+- **Agent handoff interface**: accepts a compiled task with durable predecessor outputs; returns a bounded result containing status, IDs, summaries, provenance references, and error category.
+- **Field waterfall interface**: accepts one lead and wanted fields; returns per-field accepted value, validation, evidence, provenance, provider attempts, skipped reasons, and billable usage.
+- **Stage event interface**: records verification, scoring, gating, assignment, CRM, and delivery transitions with tenant/run/lead identity and an idempotency key.
+- **Progress interface**: projects persisted state into admin/client-safe counts and metadata; realtime only requests a refetch.
+
+## Data Models
+
+The design reuses existing tables and adds only additive fields or indexes where implementation proves they are missing:
+
+| Model | Required design fields |
+|---|---|
+| `pipeline_runs` | tenant, run ID, status, target, persisted counters, plan ID/hash, stop reason, recovery/reset metadata, terminal summary |
+| `jobs` | tenant, operation identity, owner, lease, attempt, retry time, cancellation state, result/error |
+| `discovery_route_cells` | run/request, sub-ICP, geography, query, source, cursor, budget, decision, fallback, provenance, exhaustion |
+| `discovery_provider_results` | request/tenant/lead, normalized result, source, field provenance, evidence level, persisted/qualifying/billable flags |
+| `agent_mission_tasks` | mission/task identity, dependency IDs, executor, lease, attempts, output, handoff status, terminal result |
+| `lead_field_evidence` | lead/field, value hash, source, observed time, evidence level, confidence, validation, billable flag |
+| `quota_reservations` | tenant/request/job, reserved, committed, released, settlement key, terminal status |
+| `pipeline_run_leads` | run/lead, stage, rejection reason, tier, score, source, updated time |
+| `lead_assignments` and delivery records | tenant/lead, exclusivity decision, assignment idempotency, CRM persistence, delivery outcome |
+| `leadx_event_log` | tenant, safe resource/action, request ID, invalidation class, timestamp |
+
+All new identities are tenant-scoped where tenant ownership applies. Raw secrets, bearer tokens, unbounded provider payloads, and unauthorized tenant metadata are excluded.
+
+## Error Handling
+
+- **Wrong tenant or identity**: reject without revealing whether a foreign run, job, or lead exists.
+- **Live lease**: do not reset or reclaim; return owner/lease-safe status and require cancellation or expiry.
+- **Expired lease**: reclaim atomically, preserve attempt history, and enqueue one bounded recovery tick.
+- **Cancellation race**: fence late writes by owner/status predicates, drain persisted work, and settle quota once.
+- **Provider/page failure**: persist typed retryable or terminal state, then use only the declared bounded fallback.
+- **Cursor loop or budget exhaustion**: mark the route cell exhausted and stop that cell; never retry indefinitely.
+- **Field validation failure**: reject the field, preserve stronger evidence, and continue only for independent fields.
+- **Assignment/CRM/delivery failure**: do not advance the later counter; retain the earlier durable stage and expose retry/terminal reason.
+- **Realtime outage**: expose reconnecting/degraded state and use bounded refetch/polling; never treat stale event payloads as truth.
+- **Local provider boundary violation**: fail the test immediately and record the attempted provider class; do not fall through to the network.
 
 ## Bug Details
 
 ### Bug Condition
 
-The bug manifests when the runtime relies on process-start or file existence as a proxy for dependency and worker readiness, when a queue RPC failure is interpreted as an empty queue, when a retry or resubmission can cross the durable accounting boundary more than once, or when the portal cannot reach the API from its container. It also manifests when a degraded dependency is hidden by an unbounded or unauthorized local fallback, or when existing screens poll indefinitely without an actionable state.
+The bug manifests when a tenant submits a bounded lead request, such as `gym` in `New Delhi` for five leads, or when an operator attempts to recover the affected run. The current runtime can enter one or more of these states:
+
+- the run or its job is still `running` after worker loss, while a new worker or operator attempts an unsafe reset;
+- the planner treats one city/query as sufficient instead of expanding the request into bounded sub-ICPs, geographic units, and search routes;
+- source routes run without a shared pagination, budget, fallback, provenance, or dedupe contract;
+- enrichment and discovery do not share a durable per-lead handoff, or paid fallback is considered before all eligible free paths are exhausted;
+- independent agent work is serialized unnecessarily, or dependent work runs before its handoff is durably complete;
+- verification, scoring, gating, assignment, CRM persistence, and delivery are observed out of order;
+- the target is reached but discovery continues, or the run stops on raw discoveries rather than assignment-confirmed leads;
+- reused leads are stale, dormant, already assigned, or exclusive to another tenant;
+- progress is reported from optimistic counters rather than persisted task/result/assignment/delivery state.
 
 **Formal Specification:**
 
 ```text
 FUNCTION isBugCondition(input)
-  INPUT: input of type RuntimeEvent
+  INPUT: input containing tenant, request, run, job, plan, route results,
+         enrichment results, agent tasks, assignments, and progress state
   OUTPUT: boolean
 
-  RETURN (
-    (input.composeDependencyIsStartedButNotReady
-      OR input.apiReadinessOmitsRequiredDependency
-      OR input.queueOperationFailedButWasReportedAsEmpty
-      OR input.workerHeartbeatExistsWithoutQueueEvidence
-      OR input.providerWorkMayRepeatWithoutDurableJobAndAccounting
-      OR input.redisRequiredOperationUsesProcessLocalFallback
-      OR input.portalUpstreamResolvesToLoopback
-      OR input.portalWorkflowHasNoBoundedActionableDegradedState)
-    AND input.affectsExistingSupportedRuntimeOrWorkflow
-  )
+  recovery_bug :=
+      input.run_id == "d2b23a15-55a9-43b0-b9bb-dc6a6179837a"
+      OR input.requests_recovery == true
+      AND (run_is_left_active_after_lease_loss(input)
+           OR reset_reopens_terminal_work(input)
+           OR late_worker_can_write_after_cancel(input)
+           OR quota_release_is_not_idempotent(input))
+
+  execution_bug :=
+      input.target > 0
+      AND (plan_is_not_normalized(input)
+           OR required_route_cells_are_missing(input)
+           OR route_budget_or_cursor_is_unbounded(input)
+           OR provenance_or_dedupe_is_missing(input)
+           OR paid_stage_precedes_eligible_free_stage(input)
+           OR independent_tasks_block_each_other_without_dependency(input)
+           OR handoff_precedes_durable_predecessor_result(input)
+           OR stage_order_is_violated(input)
+           OR target_stop_is_not_assignment_based(input)
+           OR shared_pool_policy_is_bypassed(input)
+           OR progress_disagrees_with_persisted_state(input))
+
+  RETURN recovery_bug OR execution_bug
 END FUNCTION
 ```
 
-The corrected behavior is specified separately so the implementation can be tested against both the failure-producing input and the preservation domain:
+### Expected Behavior Specification
 
 ```text
-FUNCTION expectedBehavior(result)
-  INPUT: result of RuntimeEvent handling
+FUNCTION expectedBehavior(input)
+  INPUT: the same input after the remediation
   OUTPUT: boolean
 
-  RETURN (
-    result.requiredDependenciesAreReadyBeforeUse
-    AND result.unavailableDependenciesProduceNonSuccessReadinessOrActionableError
-    AND result.queueFailureIsDistinctFromEmptyQueue
-    AND result.jobHasOneDurableIdentityAndOneActiveLeaseAtATime
-    AND result.providerAndAccountingWorkAreFailClosedAndIdempotent
-    AND result.portalUsesTheApiServiceAndStopsPollingAtItsDeadline
-    AND result.responseAndLogsContainNoSecretsOrUnauthorizedTenantData
-  )
+  recovery_ok :=
+      recovery_uses_tenant_and_run_identity(input)
+      AND cancellation_is_atomic_and_observable(input)
+      AND expired_work_is_reclaimable_without_duplicate_claim(input)
+      AND terminal_runs_are_not_reopened(input)
+      AND quota_settlement_is_exactly_once(input)
+      AND a_reset_uses_a_new_run_identity(input)
+
+  execution_ok :=
+      normalized_plan_is_deterministic(input)
+      AND every_admitted_route_cell_has_a_budget_cursor_and_provenance(input)
+      AND discovery_persists_and_deduplicates_before_enrichment(input)
+      AND free_first_enrichment_precedes_bounded_paid_fallback(input)
+      AND each_field_has_validated_value_and_provenance(input)
+      AND dependent_handoffs_wait_for_durable_predecessor_results(input)
+      AND independent_ready_tasks_run_concurrently_with_bounded_capacity(input)
+      AND verification_precedes_scoring_precedes_gating_precedes_assignment(input)
+      AND assignment_precedes_crm_persistence_precedes_delivery(input)
+      AND discovery_stops_at_the_assignment_target(input)
+      AND progress_is_derived_from_authoritative_persisted_state(input)
+      AND tenant_exclusivity_freshness_and_dormant_policy_is_enforced(input)
+
+  RETURN recovery_ok AND execution_ok
 END FUNCTION
 ```
 
-### Examples
+### Concrete Examples
 
-- **Redis startup race:** Redis accepts a TCP connection while still loading. The current `service_started` dependency releases API and worker, which then fail intermittently. The fixed Compose graph waits for `redis-cli ping` health; API/worker startup validation still reports a sanitized configuration/dependency error if readiness is not achieved within the timeout.
-- **Queue outage mistaken for idle:** `leadx_claim_next_job` raises because Supabase is unavailable. The current `claim_next` returns `None`, so the worker logs “queue empty” and its file health can remain fresh. The fixed path raises a typed queue-dependency failure, records worker unready state, and makes the worker healthcheck fail or the configured process stop.
-- **Duplicate provider work:** A client times out after submitting a lead-generation request and retries. The fixed API reuses the same idempotency scope and durable job identity; it returns the original job/result or an explicit in-progress/conflict response, without a second provider call or credit charge.
-- **Stale lease:** A worker dies after claiming a job. Reaping atomically changes the owned row to queued with a bounded retry/backoff, or to failed at the maximum. A new worker cannot run a second active claim while the old lease remains valid, and a late completion from the old worker is rejected by owner/status predicates.
-- **Credit safety:** A provider-bound operation cannot start under the fail-closed policy until the job, idempotency record, tenant scope, and required usage/credit reservation are durable. A repeated callback or retry observes the existing operation record rather than charging again; free-before-paid selection remains in the existing billing/credit policy.
-- **Portal container routing:** Inside the portal container, `127.0.0.1:8000` is the portal container, not FastAPI. Compose supplies `API_UPSTREAM=http://api:8000`; the Next rewrite and portal readiness endpoint verify that the route reaches the API service without changing browser authentication.
-- **Redis outage in a client screen:** A required distributed rate-limit check returns a request ID and a dependency-unavailable response rather than applying a per-process limit. An optional five-second tenant-scoped dashboard snapshot may be served only if its explicit bounded fallback policy permits it; billing, authorization, usage, job state, and mutations never use that fallback.
+- **Affected run recovery**: If `d2b23a15-55a9-43b0-b9bb-dc6a6179837a` is `running` with an expired lease, the recovery worker records a reclaim event, requeues only the owned unfinished job/task, preserves prior attempts, and continues under the same run identity. If the run is terminal, recovery returns a safe terminal response and creates no new work. A user-requested reset creates a new run ID after cancelling and settling the old identity.
+- **Gym/New Delhi, target 5**: The normalized plan expands gym into bounded service queries such as `gym`, `fitness center`, `personal training`, and `crossfit`; New Delhi into the requested city plus configured locality/search units; and the enabled maps, OSM, web, first-party, directory, and optional social routes. The planner tests each route cell one at a time, starts the smallest tranche, and stops after five assignment-confirmed qualified leads. It does not search every route after the target is met.
+- **Target 500**: The planner uses bounded tranches and route budgets, increasing work only after measuring qualifying yield, freshness, contactability, and remaining gap. It can run independent route cells concurrently, but each provider call has a page, result, timeout, and credit cap. A low-yield route is deferred or replaced by a declared fallback instead of multiplying unbounded queries.
+- **Contact validation**: A value such as `https://instagram.com/gym.example` cannot populate `email`. A field result is accepted only after field-specific normalization and validation, with its source, evidence level, observed time, and confidence stored separately.
+- **Shared-pool reuse**: A global lead last verified within the freshness window may be reused after tenant membership and exclusivity checks. A stale or dormant lead is rechecked before outreach; a closed, suppressed, recently contacted, or conflicting exclusive lead is not assigned.
+- **Progress truth**: A discovery provider result is persisted before discovery counters advance. A lead is not counted as assigned until the assignment write succeeds, and delivery is not counted until the delivery record succeeds. A private invalidation causes the client to refetch the authoritative projection.
 
 ## Expected Behavior
 
@@ -92,278 +199,380 @@ END FUNCTION
 
 **Unchanged Behaviors:**
 
-- Existing FastAPI route paths, authenticated client/admin route coverage, response shapes, tenant resolution, RLS, CSRF, CORS, service-key rules, and platform-admin boundaries remain unchanged.
-- Existing Postgres-backed job kinds, handler registration, progress/lifecycle fields, admin retry/cancel controls, lease renewal, bounded retry limits, and configured backoff remain the source of job semantics.
-- Healthy Redis continues to provide shared rate limits, cache TTLs, invalidation, and tenant-scoped keys across API processes.
-- Existing billing checkout/webhook idempotency, quota and usage accounting, free-before-paid credit policy, suppression/opt-out behavior, exports, and provider-credit rules remain unchanged except for the new fail-closed transaction boundary.
-- Existing client and admin loading, realtime refresh, responsive, keyboard/focus, skip-link, ARIA, security, and performance thresholds remain in force; degraded states add clarity rather than remove existing controls.
-- Existing authorized lead, pipeline, import, dashboard, billing, settings, health, jobs, tenants, usage, security, and support workflows continue to work on healthy dependencies.
+- Existing API paths, tenant membership checks, RLS policies, CSRF/CORS controls, idempotency scopes, and non-disclosing cross-tenant errors remain in force.
+- The existing `pipeline.py` target runner remains the primary streaming implementation. Its cancellation event, stop event, bounded queues, worker concurrency, run board, and `_finish_run` terminal projection remain the compatibility baseline.
+- The existing 31-agent registry and 30 downstream task graph remain the mission contract. `gtm` remains the parent/orchestrator and is not duplicated as a downstream task.
+- Existing free/local stages continue to run before paid discovery or enrichment. Paid work remains disabled in Local Validation Mode and requires policy, credential, unmet gap, remaining quota, and bounded provider limits.
+- Existing quality-gate rules remain authoritative: closed businesses, invalid contact data, insufficient presence/evidence, and disallowed tiers remain rejected. Tier C cannot be delivered without a usable validated contact method.
+- Existing global-inventory reuse, quota reservation/settlement, assignment exclusivity checks, CRM persistence, delivery channels, worker leases, retries, and private invalidation patterns remain the persistence and authorization boundaries.
+- Existing client and admin response shapes remain readable. Progress may become more truthful, but an authorized client still receives the same resource through the authoritative API rather than an event payload.
+- Healthy provider-enabled behavior, supported route coverage, and current local synthetic behavior remain unchanged outside the bug condition.
 
 **Scope:**
 
-Inputs outside the bug condition must be unaffected. This includes healthy Compose startup, ordinary authenticated GETs and mutations, mouse/keyboard interaction, non-distributed development configurations where memory fallback is explicitly allowed, and all existing job handlers operating under healthy queue and provider dependencies. The fix must not use tenant IDs in URLs or cache keys as an authorization boundary.
+All inputs that do not satisfy `isBugCondition` must preserve the original result and side effects. This includes:
+
+- healthy runs that complete under the existing admission, lease, target, and delivery rules;
+- valid non-target workflows and operator-approved exhaustive discovery;
+- non-buggy mouse/UI interactions, route guards, authentication, and CRM operations;
+- existing successful free and paid adapters when their configured policy is unchanged;
+- repeated idempotent submissions, duplicate realtime events, and worker restarts that do not expose a stale or conflicting state.
+
+The design does not add automatic outreach, a new paid provider, a new billing model, unrestricted exhaustive discovery, or an unapproved cross-tenant lead-sharing policy.
 
 ## Hypothesized Root Cause
 
-1. **Compose readiness is based on process start, not service health.** `docker-compose.yml` uses `depends_on: condition: service_started` for Redis, has no Redis healthcheck, and has no portal service or end-to-end readiness contract.
-2. **API readiness checks only a lightweight database query.** `app/app_service.py` exposes `/health/ready` with database-only semantics and does not return a non-success HTTP status for an unhealthy result. Redis and applicable worker/queue capability are absent from the readiness decision.
-3. **Queue failure is swallowed in the worker boundary.** `app/integrations/prod/jobs.py::claim_next` catches all RPC exceptions and returns `None`, while `app/worker.py` treats `None` as idle. The worker also touches its heartbeat file during startup and on heartbeat attempts before a successful processing/queue-capability cycle is proven.
-4. **Durability and provider accounting are separate call decisions.** Existing job enqueue, idempotency, handler, and credit paths need one explicit database-owned operation boundary. Without that boundary, a timeout, restart, or duplicate submission can repeat work even if individual helpers are locally idempotent.
-5. **Redis helpers intentionally fall back too broadly.** `app/middleware/rate_limit.py` and `app/services/shared_cache.py` can use process-local state after Redis failure. That is acceptable only for explicitly optional reads, not required distributed controls, and current diagnostics do not make the policy visible to readiness or operators.
-6. **Portal configuration is container-ambiguous.** `lead-crm-portal/next.config.js` defaults `API_UPSTREAM` to loopback, while the Compose file does not build or healthcheck the portal. The existing `lib/config.ts`, `lib/api.ts`, and live refresh components therefore cannot distinguish an upstream outage from an empty or stale result.
-7. **Observability is present but not contract-complete.** Request IDs and admin job APIs exist, but queue errors, worker identity/readiness, stale-reap outcomes, dependency status, and bounded UI recovery are not consistently connected into one operator and user-facing flow.
+1. **Run lifecycle is split across API, worker, and pipeline code**: `pipeline.py` already rejects terminal reuse through `validate_fresh_run_admission`, but there is no single recovery contract that coordinates cancellation signals, durable job/task state, reservation settlement, run-board state, and late-worker fencing. A reset can therefore be interpreted differently by an API caller, a worker, and the pipeline coroutine.
+
+2. **Planner normalization is too shallow for multi-route requests**: `lead_selection_planner.py` selects source lanes and tier mixes, while discovery helpers expand some queries/geographies. The boundaries do not yet produce one durable, auditable route-cell plan with per-cell decision tests, cursor, budget, fallback, and stop state.
+
+3. **Source adapters do not share one route result contract**: maps pagination, web/search, first-party pages, directories, social routes, and OSM can expose different identifiers and metadata. Without a common normalized result, dedupe keys, evidence level, and provenance may be lost between lanes.
+
+4. **Agent graph correctness and concurrency are not the same concern**: `agent_missions.py` compiles dependencies and leases tasks, but downstream executors need an explicit rule that only dependency-ready tasks wait while independent antichain tasks may run concurrently. Handoff data must also be persisted before a dependent task is unblocked.
+
+5. **Free enrichment and paid fallback are present but field acceptance is incomplete**: `enrichment_mesh.py` runs Scrapling and Crawl4AI concurrently and then considers paid connectors. `waterfall.py` validates fields, but the runtime needs a single per-field merge rule that rejects type confusion, preserves stronger existing evidence, and records paid eligibility and contact verification decisions.
+
+6. **The target pipeline has overlapping workers but lacks one explicit ordering contract**: the streaming runner overlaps discovery, enrichment, scoring, gating, and assignment. Without named barriers, assignment/CRM/delivery counters can diverge from durable records or a lead can be delivered before the final verification and CRM write.
+
+7. **Reuse and exclusivity are distributed**: global inventory reuse, freshness counters, assignment checks, tenant policy, and contact rechecks exist in separate modules. A shared-pool candidate needs a single admission decision before assignment and again before outreach.
+
+8. **Progress has multiple projections**: pipeline counters, discovery request progress, run-board cards, job state, CRM assignments, delivery records, and realtime invalidations can update at different times. The client can therefore see a plausible but false intermediate or terminal state unless persisted records are the source of every counter.
 
 ## Correctness Properties
 
-Property 1: Bug Condition - Runtime readiness and dependency truthfulness
+Property 1: Bug Condition - Safe cancellation, reset, and recovery
 
-_For any_ input where `isBugCondition` returns true because a required dependency is unavailable, startup ordering is unsafe, or readiness lacks a required component, the fixed deployment SHALL gate dependent services on health, return a non-success readiness status with sanitized per-component status, and SHALL not report API/worker/portal readiness until the configured database, Redis, worker, and queue-capability conditions are satisfied.
+_For any_ input where `isBugCondition(input)` holds because a run is stranded, reset, cancelled, or recovered, the fixed runtime SHALL verify tenant and run/job identity, fence late workers, make expired unfinished work reclaimable, preserve attempt history, settle quota exactly once, never reopen terminal work, and use a new run identity for a reset while exposing one truthful terminal or recoverable state.
 
-**Validates: Requirements 2.1, 2.2, 2.7**
+**Validates: Requirements 2.1, 2.3, 2.6, 2.7, 3.6, 3.7, 12.2, 12.5**
 
-Property 2: Bug Condition - Durable worker failure semantics
+Property 2: Preservation - Existing healthy runtime behavior
 
-_For any_ input where a worker queue store, claim RPC, lease renewal, completion, or failure persistence operation fails, the fixed worker SHALL distinguish infrastructure failure from an empty queue, emit correlated worker/job evidence when available, and stop or report unready according to policy without silently discarding work or treating a heartbeat file as proof of healthy processing.
+_For any_ input where `isBugCondition(input)` is false, the fixed runtime SHALL produce the same authorized route behavior, provider policy, quality-gate result, idempotent outcome, tenant isolation, CRM response shape, and successful delivery behavior as the existing runtime.
 
-**Validates: Requirements 2.3, 2.4, 2.10**
+**Validates: Requirements 2.8, 3.2, 3.3, 4.6, 5.1, 5.2, 6.8, 9.3, 9.7**
 
-Property 3: Bug Condition - Idempotent job and credit safety
+Property 3: Normalized route coverage and target-aware planning
 
-_For any_ input where submission, retry, timeout, restart, or client resubmission could repeat provider work, the fixed system SHALL preserve one durable job identity and idempotency scope, allow at most one active lease, durably record required accounting before provider work under fail-closed policy, and return the original, in-progress, retryable, cancelled, or terminal-failure outcome without duplicate provider operations or charges.
+_For any_ valid target request, the planner SHALL produce a deterministic normalized plan containing the parent ICP, bounded sub-ICPs, geographic units, query families, enabled source routes, route-cell budgets, pagination cursors, fallback order, provenance requirements, exclusivity policy, and tranche size; every admitted route cell SHALL have exactly one recorded decision test before execution, and no route work SHALL be admitted after the assignment target is met.
 
-**Validates: Requirements 2.4, 2.5**
+**Validates: Requirements 3.1, 3.2, 3.3, 3.4, 3.5**
 
-Property 4: Bug Condition - Redis policy and portal degraded behavior
+Property 4: Durable ordered handoffs with safe concurrency
 
-_For any_ input where Redis is unavailable or the portal/API path is degraded, the fixed system SHALL fail required distributed operations truthfully, permit only configured bounded optional-cache fallback, resolve the portal upstream to the API service, and render exactly one loading, success/empty, or actionable error/retry state before polling stops at its configured deadline.
+_For any_ compiled mission, the runtime SHALL preserve the 31-agent registry and 30-task DAG order, persist each predecessor result before unblocking dependents, run only dependency-ready tasks, and permit independent ready tasks to execute concurrently within configured capacity without duplicate claims or unbounded fan-out.
 
-**Validates: Requirements 2.6, 2.7, 2.8**
+**Validates: Requirements 1.1, 1.2, 1.3, 1.4, 1.5, 2.1, 2.2, 2.8**
 
-Property 5: Preservation - Healthy runtime and existing product behavior
+Property 5: Free-first discovery and enrichment with field-level evidence
 
-_For any_ input where `isBugCondition` returns false, the fixed system SHALL produce the same authorized routes, response shapes, tenant-scoped data, billing/usage outcomes, handler behavior, authentication decisions, cache/rate-limit behavior on healthy Redis, and portal accessibility/performance behavior as the original system.
+_For any_ route result or lead field, the runtime SHALL normalize and deduplicate the result before enrichment, attempt local/free maps, OSM, web, first-party, directory, and social paths before paid fallback, admit paid work only when policy and quota conditions hold, and accept each field only with field-specific validation and provenance that identifies source, time, evidence level, confidence, and billable status.
 
-**Validates: Requirements 3.1, 3.2, 3.3, 3.4, 3.5, 3.6, 3.7, 3.8, 3.9, 3.10**
+**Validates: Requirements 3.2, 3.3, 3.4, 3.5, 3.8, 9.4, 11.1, 11.2**
+
+Property 6: Verification-to-delivery ordering and accounting
+
+_For any_ candidate that reaches the streaming pipeline, verification SHALL complete before scoring, scoring before gating, gating before assignment, assignment before CRM persistence, and CRM persistence before delivery; counters SHALL advance only after the corresponding durable write, and a lead with invalid contact data, stale/dormant state, suppressed state, or an exclusivity conflict SHALL not be delivered.
+
+**Validates: Requirements 3.5, 3.6, 3.7, 5.1, 5.2, 6.2, 6.3, 6.8**
+
+Property 7: Shared-pool freshness and tenant safety
+
+_For any_ candidate reused from shared inventory, the runtime SHALL apply freshness and dormant cooldown checks, recheck status and contactability before outreach, enforce tenant membership and plan/use-case exclusivity, and prevent a lead assignment or cached response from crossing tenant boundaries.
+
+**Validates: Requirements 5.1, 5.2, 5.6, 8.7, 8.8, 9.3, 9.7, 12.1**
+
+Property 8: Truthful progress and offline/live boundary
+
+_For any_ local validation execution, the runtime SHALL use only synthetic/static/local fixtures, record evidence as local and non-billable, make zero prohibited outbound calls, and derive admin/client progress from persisted task, route, result, assignment, CRM, quota, and delivery state; in live mode, provider work SHALL remain bounded by timeout, retry, pagination, policy, and credit limits.
+
+**Validates: Requirements 3.5, 3.6, 3.8, 9.5, 10.4, 10.5, 11.1, 11.2, 11.3, 11.4, 11.6**
 
 ## Fix Implementation
 
-### Architecture
+### Changes Required
 
-The runtime remains a four-part deployment:
+This is a design for implementation. No application code, migration, provider, or environment file is changed in this phase.
+
+### 1. Add one run recovery contract around existing durable identities
+
+**Existing seams:** `pipeline.py`, durable `jobs`, `pipeline_runs`, `pipeline_run_leads`, `discovery_runtime.py`, worker reclaim logic, and the existing execution context cancellation event.
+
+The recovery operation must:
+
+1. Load `pipeline_runs`, the associated durable job, discovery request, reservation, and mission/task projection using the authenticated tenant. A run ID alone is never an authorization boundary.
+2. Classify the run as `queued`, `running with live lease`, `running with expired lease`, or terminal. The classification and current owner are recorded before mutation.
+3. For cancel, atomically transition only active owned work to `cancel_requested`/`cancelled` according to the existing job/task state model, set the execution cancellation event, stop route producers, drain or cancel in-flight provider tasks, and prevent late completion writes with owner/status predicates.
+4. For stale recovery, reclaim only expired leases, preserve attempt rows, apply bounded retry/backoff, and enqueue one recovery tick using the existing idempotency identity.
+5. For reset, never reopen the old `pipeline_runs` or job row. Cancel the old execution, settle/release its reservation by the existing settlement key, record `reset_from_run_id`, and create a new run/job/mission identity after admission succeeds.
+6. For the affected ID `d2b23a15-55a9-43b0-b9bb-dc6a6179837a`, provide an operator-safe dry-run inspection and a separately authorized recovery/reset action. The design does not execute either action during local design validation.
+7. Make every cancellation, reclaim, reset, settlement, and recovery result visible in the run metadata and admin projection. A cancellation that cannot persist remains explicitly degraded/recoverable rather than being reported as success.
+
+The old run may be resumed only when its durable state is active and recoverable. A terminal run is immutable. A reset always produces a new identity.
+
+### 2. Normalize planner input and produce bounded route cells
+
+`lead_selection_planner.py` remains the single planner entry point. Its decision output is extended conceptually, without creating a second planner, with:
+
+- canonical vertical and synonyms from the existing discovery query catalog;
+- parent ICP and bounded sub-ICPs derived from service, offer, size, audience, or quality criteria;
+- normalized geography: requested city/region, supported localities or subregions, and route labels with deduplicated canonical forms;
+- query families per sub-ICP and geography, with approved learned queries appended only when already approved by the learning loop;
+- enabled route families: maps, OSM, web search, first-party website, directories, and optional social sources;
+- a deterministic route-cell order based on source cost, expected coverage, freshness, and rotation key;
+- per-cell result/page/time/credit budget, cursor, fallback list, decision status, and stop reason;
+- target-aware tier policy, contact policy, exclusivity policy, freshness window, dormant cooldown, and evidence threshold;
+- tranche size and next-tranche decision inputs.
+
+Each route cell gets one decision test before execution. The test records `admit`, `defer`, `skip`, or `exhausted` plus a reason such as `duplicate_route`, `no_enabled_adapter`, `budget_exhausted`, `target_met`, `provider_isolation`, `missing_approval`, or `insufficient_expected_yield`. Decision tests are pure and individually testable for gym/New Delhi, target 5, target 500, empty geography, duplicate queries, disabled sources, and no-provider local mode.
+
+The planner must not expand an unbounded city grid. Geography expansion uses the existing expansion helpers and a configured maximum number of route cells. A route cell is not a provider call; it is a bounded work unit that can be paginated and stopped.
+
+Adaptive tranche policy is target-aware and measured after every tranche:
+
+| Remaining target | Initial/default tranche | Growth rule |
+|---|---:|---|
+| 1-10 | up to 5 | stop immediately on assignment target; at most one small refill |
+| 11-50 | up to 10 | increase only when qualifying/contactable yield supports it |
+| 51-200 | up to 25 | add the next tranche only after persisted yield and budget checks |
+| 201-500 | up to 50 | cap concurrent route cells and expand only by measured gap |
+
+The policy is a starting bound, not a promise to discover the tranche size. The planner recomputes the remaining gap from assignment-confirmed records, not raw discoveries. It does not hardcode a fixed A/B/C delivery proportion; the existing target-aware tier mix remains a preference subject to actual eligible supply and contact requirements.
+
+### 3. Unify route execution, pagination, fallback, and provenance
+
+All maps, OSM, web, first-party, directory, and social adapters consume and return the same logical route contract:
+
+- route-cell ID, source family, sub-ICP, geography, query, page/cursor, requested limit, actual result count;
+- normalized lead identity fields and stable dedupe keys;
+- source URL/provider reference, observed timestamp, raw-result hash, and evidence level;
+- billable flag, estimated/actual provider cost, quota event, and sanitized error category;
+- next cursor, exhausted flag, retryability, and fallback reason.
+
+The executor applies this sequence per route cell:
+
+1. Check cancellation, target gap, route budget, tenant policy, provider isolation, and freshness reuse.
+2. Fetch one bounded page or local fixture. Never request an unlimited page.
+3. Normalize identity, website, phone, address, category, source, and provenance.
+4. Dedupe against the current run, the shared pool, and tenant assignments using existing fingerprint/domain/phone/name primitives. A dedupe merge preserves all source hits and strongest field-level evidence.
+5. Persist provider/local results before incrementing progress or accounting counters.
+6. Enqueue the normalized lead for enrichment immediately when its identity is durable.
+7. Continue to the next page only when the target gap remains, the cell budget remains, and the cursor changed. Otherwise mark the cell exhausted or stopped.
+8. Use only the declared fallback route after a typed, persisted failure or empty result. Fallback cannot bypass policy, budget, or provider isolation.
+
+The route order is free/local first, then first-party and public directories/web, then optional social, followed by paid routes only when a paid policy explicitly admits them. A source failure is not reported as zero results; it is a typed failure with a retry/fallback state.
+
+### 4. Preserve ordered 31-agent handoffs while running independent work concurrently
+
+`agent_missions.py` remains responsible for compiling exactly 30 downstream tasks from the 31-entry registry. The compiled graph is the ordering contract. The runtime executes by dependency levels:
+
+- A task is eligible only after every dependency has a durable successful output or an explicit policy-approved terminal outcome.
+- The predecessor result is compacted by the existing bounded handoff logic before the dependent task is unblocked.
+- Ready tasks in the same antichain may run concurrently under worker capacity and provider/tenant budgets.
+- A task claim persists owner, attempt, lease, and executor before the executor starts.
+- Duplicate ticks, retries, and worker restarts cannot create two active claims for one task.
+- Results include bounded lead/assignment IDs, summaries, provenance references, counts, and error categories, not raw unbounded provider payloads.
+
+The intended logical handoff remains: prospecting → source routing/planning → discovery → identity resolution → enrichment/contact research → verification/deliverability → data quality/ICP/intent/qualification → assignment/CRM → deal/revenue/cost/campaign/experiment reporting. Branches such as research, web research, social intelligence, and signal analysis may run together when their declared dependencies are complete. Verification and qualification remain barriers before assignment.
+
+### 5. Overlap discovery and enrichment without crossing durable barriers
+
+The target runner keeps its bounded discovery, enrichment, assignment queues and cancellation-aware waits. The required per-lead flow is:
 
 ```text
-Browser
-  -> portal (Next.js, same-origin /backend rewrite)
-       -> api:8000 (FastAPI)
-            -> Supabase/Postgres (tenant data, jobs, idempotency, accounting)
-            -> redis:6379 (required shared controls and optional short-lived cache)
-worker(s)
-  -> Supabase/Postgres jobs RPC/table and existing registered handlers
+discover page
+  -> normalize + dedupe + persist source result
+  -> enqueue enrichment
+  -> free enrichment and verification
+  -> score
+  -> quality gate
+  -> reserve assignment slot
+  -> tenant/exclusivity/freshness recheck
+  -> assign and persist CRM projection
+  -> deliver
 ```
 
-Postgres remains the queue authority. Redis is not used to claim jobs and is not a source of truth for billing, authorization, usage, or durability. The API and worker share a typed runtime dependency policy from `app.core.runtime_config`; the portal has a separate HTTP readiness endpoint and uses the Compose service DNS name for its server-side rewrite.
+Discovery and enrichment overlap across different leads. Verification/scoring/gating may overlap for different leads. Assignment workers may run concurrently, but each lead has one idempotent assignment key and one active slot reservation. CRM writes are required before delivery. Delivery is required before its counter increments. Once the target is reached, the stop event propagates to route producers and in-flight cancellable calls; already persisted records are reconciled, not deleted.
 
-### Concrete Affected Files and Modules
+A lead that fails a gate remains visible on `pipeline_run_leads` with its rejection reason. It is not counted as assigned or delivered.
 
-The following files/modules are the implementation seams grounded in `Leadx.zip`; exact edits are intentionally left to implementation:
+### 6. Define the free-first enrichment waterfall and field acceptance
 
-- `docker-compose.yml`: add Redis healthcheck, `service_healthy` dependencies, explicit startup/readiness timeouts and environment policy, the `portal` service, bounded restart/replica behavior, and portal/API/worker healthchecks. Do not add a second worker implicitly or change published API ports.
-- `Dockerfile` and `lead-crm-portal` container build inputs: ensure API/worker healthcheck commands and the Next production server have their required runtime tools without embedding secrets.
-- `app/core/runtime_config.py`: validate process-specific required dependencies and policy values; support explicit aliases/defaults for queue fail-closed, worker readiness, distributed rate limiting, cache fallback, lease/retry, and polling timeouts; reject unsafe production combinations with sanitized startup errors.
-- `app/app_service.py`: retain existing middleware and routers; implement `/health/live`, strengthen `/health/ready` to return HTTP 503 when required checks fail, and extend detailed `/health`/existing health surfaces with database, Redis, worker, queue capability, route, and request-correlation status. Keep health payloads aggregate and tenant-safe.
-- `app/worker.py`: remove startup-only health evidence, perform an initial queue capability check, publish heartbeat status only after validated queue interaction, classify `QueueDependencyError` separately from idle, stop or mark unready under configured policy, and preserve graceful draining.
-- `app/integrations/prod/jobs.py`: introduce typed dependency errors; make claim/renew/complete/fail/reap operations owner- and status-conditional; make queue stats return dependency failure rather than an empty-looking result; preserve handler registration and existing status names; record structured job/worker/attempt/retry/reap outcomes.
-- `app/integrations/prod/job_handlers.py`: keep the registry and handler contracts; require provider-bound handlers to receive the durable job/operation identity and use existing idempotent provider adapters rather than inventing per-handler retries.
-- `app/integrations/prod/credits.py`, existing billing/usage modules, and the durable migration/RPC layer under `supabase/migrations/`: add or tighten additive unique/idempotency constraints and transaction/RPC operations for job submission plus required usage/credit reservation. Preserve free-before-paid selection and existing refund/credit idempotency.
-- `app/middleware/rate_limit.py`: make `REQUIRE_DISTRIBUTED_RATE_LIMIT` a hard policy; return a sanitized 503 with request ID when Redis is required and unavailable; retain local fallback only for explicitly non-production/optional configurations.
-- `app/services/shared_cache.py`: add explicit fallback policy and maximum fallback TTL; namespace keys by tenant/context as already required, authorize before reads, and prevent fallback from being used for mutations, authorization, billing, usage, jobs, or durable state. Emit bounded warning/metric-level diagnostics rather than hiding required failures at debug level.
-- `app/integrations/prod/scale_control.py` and `scripts/check_worker_health.py`: make worker heartbeat records carry worker ID, configured capacity/kinds, last successful queue capability, status, and timestamp; make the check fail for stale/unready/error states rather than only checking a file.
-- `app/layers/telemetry.py` and existing request middleware in `app/app_service.py`: standardize request ID, job ID, worker ID, tenant-safe status, dependency, attempt, and duration fields; redact credentials, tokens, raw lead data, and cross-tenant details.
-- `app/api/prod/ops_api.py`: expose the existing admin-authorized health/jobs data with queue capability, oldest queue age, retry/reap outcomes, and dependency reason fields; preserve platform-admin authentication and audit behavior.
-- `lead-crm-portal/next.config.js`, `lead-crm-portal/lib/config.ts`, `lead-crm-portal/lib/api.ts`: require/resolve `API_UPSTREAM` from Compose as `http://api:8000` for server-side rewrites, retain same-origin browser behavior and Codespaces handling, normalize dependency errors/request IDs, and centralize bounded polling.
-- `lead-crm-portal/app/api/health/route.ts`: add a lightweight portal process/readiness endpoint that does not expose secrets and can be checked inside Compose; it verifies the Next process and configured upstream contract without bypassing browser auth.
-- `lead-crm-portal/components/ui/States.tsx`, `components/layout/LiveWorkspaceRefresh.tsx`, `components/layout/AdminLiveRefresh.tsx`, and existing primary route pages: use one shared state model for loading, empty, success, dependency-degraded, unauthorized, and retryable failure. Do not alter route guards, tenant selection, admin checks, ARIA labels, skip links, or polling cadence except to enforce a deadline.
+`enrichment_mesh.py` continues to start Scrapling and optional Crawl4AI free fetches concurrently for a public first-party website, with public-URL safety checks and bounded timeouts. Their outputs are merged into `waterfall.py` field results.
 
-### Configuration and Health Contracts
+For every wanted field, the field waterfall:
 
-Configuration is environment-driven and validated before API/worker work begins. Existing variable names remain accepted. New policy variables have safe development defaults but fail closed in production/staging where the requirement calls for shared guarantees:
+1. accepts an existing valid value when its provenance and freshness remain sufficient;
+2. tries free first-party extraction, Scrapling, Crawl4AI, OSM/maps/directory evidence, and other configured free/public paths in their declared order;
+3. validates type and content using the existing email, phone, URL, name, and contact predicates;
+4. rejects a value whose field type is wrong, including social URLs in email fields;
+5. preserves the strongest existing value unless a newer result has a higher evidence level or an explicit verification upgrade;
+6. records `{field, value_hash, source, observed_at, evidence_level, confidence, validated, billable, reason}`;
+7. considers paid connectors only for the remaining decision fields and only when paid policy, credential, unmet gap, quota, timeout, and provider attempt limits all pass;
+8. records skipped paid work and the exact reason when it is not eligible.
 
-- `REDIS_URL`: required whenever Redis-dependent behavior is enabled; Compose supplies `redis://redis:6379/0` by default only for the Compose network.
-- `REQUIRE_DISTRIBUTED_RATE_LIMIT=1` in production/staging; required rate limits return 503 when Redis cannot be reached.
-- `REQUIRE_REDIS_FOR_API_READY=1` when API mode requires Redis; the readiness payload identifies `redis: unavailable` without connection strings or credentials.
-- `REQUIRE_WORKER_READY=1` for the Compose lead-processing profile; API readiness reports worker/queue capability only after a fresh durable heartbeat.
-- `JOB_QUEUE_FAIL_CLOSED=true` and `WORKER_QUEUE_FAILURE_POLICY=stop` by default for production/staging. A report-unready policy is available where operators explicitly need process retention.
-- `WORKER_HEALTH_FILE` remains a local diagnostic, never the sole health authority. `WORKER_HEARTBEAT_SECONDS`, `JOB_STALE_LOCK_MINUTES`, `JOB_RETRY_BASE_SECONDS`, `JOB_MAX_ATTEMPTS`, and polling/deadline values remain bounded positive seconds.
-- `CACHE_FALLBACK_ALLOWED=1` only for named optional reads, with `CACHE_FALLBACK_TTL_SECONDS` capped by both the operation TTL and a global maximum. It is false for authorization, usage, billing, job state, and mutations.
-- `API_UPSTREAM=http://api:8000` is supplied to the portal service. A missing or loopback upstream in a production/container profile is a configuration error, not silently accepted.
+Paid fallback is bounded per lead, per field, per provider, and per run. It cannot be triggered merely because a free provider returned an empty optional field. Local Validation Mode returns deterministic local evidence and cannot enter the free web mesh or a paid connector.
 
-Health endpoints have distinct contracts:
+Contact validation is separate from contact discovery. A discovered email candidate is not contactable until it passes the existing contact-state verification rules. A social identity can be evidence but cannot silently become an email or satisfy a production verified-email requirement.
 
-- `GET /health/live`: process-only liveness; 200 when the API process can answer. It does not claim dependency readiness.
-- `GET /health/ready`: dependency readiness; 200 only when configured DB, Redis, worker/queue capability, and required route/bootstrap checks pass. 503 on any required failure, with component booleans/status, sanitized reason codes, timestamp, and request ID.
-- `GET /health`: detailed operator-safe aggregate used by existing admin surfaces, including dependency status, queue depth/oldest age when available, worker freshness/capacity/status, and route contract. It must never include secrets, tokens, raw provider responses, or unauthorized tenant data.
-- Worker container health: `scripts/check_worker_health.py` verifies fresh durable worker status and queue capability plus local process evidence. A file may support diagnostics but cannot make an unvalidated worker healthy.
-- Portal health: `GET /api/health` verifies the Next process and configured runtime contract; Compose checks it separately from API readiness. Authenticated smoke tests then prove `/backend` reaches the API and primary client/admin routes retain their existing boundaries.
+### 7. Make verification, scoring, gating, assignment, CRM, and delivery explicit
 
-### Worker Failure Semantics
+The existing modules remain in place, but the runtime records these stage barriers:
 
-1. On startup, the worker validates configuration, connects to the durable store, loads the existing handler registry, and performs a capability probe. It does not create a healthy heartbeat before these checks pass.
-2. `claim_next` returns a job only for a successful claim RPC. A successful query with no row means idle; a connection/RPC/serialization failure raises a typed dependency error.
-3. The main loop catches the typed error, logs `worker_id`, dependency, operation, and request/job correlation where present, publishes `unready` if possible, and applies `WORKER_QUEUE_FAILURE_POLICY`. Under `stop`, it exits non-zero so Compose restarts it; under `report_unready`, it keeps no new work and remains unhealthy until a later capability probe succeeds.
-4. Lease renewal is owner-conditional. A failed renewal is not silently ignored: the worker marks the run at risk, stops provider-side progression according to the handler boundary, and does not complete a job it no longer owns. Completion/failure writes include `id`, `status=running`, and `locked_by=worker_id` predicates.
-5. Handler errors use the existing bounded retry/backoff path. Retryable failures return the row to `queued` with incremented attempts and future `run_after`; exhaustion becomes `failed` exactly once and notifies existing admin surfaces. Cancellation preserves current semantics: queued work can be cancelled; an already-running provider action is not falsely reported as undone.
-6. Reaping selects stale running rows and atomically requeues or fails them according to attempts. A reap outcome includes job ID, worker ID if known, attempt, next run time, and terminal reason. It cannot create a second active claim for the same row.
-7. The heartbeat records status/capability independently from the local file. A fresh heartbeat means the worker can reach the queue and report capacity; it does not imply that every provider is healthy. Provider-specific failure remains visible in the job state and error class.
+- **Verification**: validate email/phone/contact state, freshness, suppression, and evidence.
+- **Scoring**: calculate fit/intent/quality score and tier using the existing scoring layer.
+- **Gating**: apply `passes_quality_gate`, minimum score, tier policy, contactability, evidence, and closed-business rules.
+- **Assignment**: atomically claim an available tenant slot after exclusivity, freshness, dormant, and recheck decisions.
+- **CRM**: persist tenant assignment, lead/company/contact projection, audit, and run-board stage.
+- **Delivery**: deliver only the persisted assignment through the configured channel, then record the delivery outcome.
 
-### Idempotency and Credit Safety
+The stage projection must include accepted, rejected, retryable, skipped, and terminal reasons. A failure at a later stage cannot backfill an earlier counter. A retry must reuse the lead/run operation identity and cannot duplicate assignment or billing.
 
-The API’s existing idempotency middleware remains the front door and keeps its session/request-body scope and replay behavior. The durable layer adds the missing job-specific invariant:
+### 8. Apply shared-pool reuse, freshness, dormant cooldown, and exclusivity policy
 
-1. Normalize the authenticated tenant, operation kind, request hash, and idempotency key.
-2. In one database transaction/RPC, claim or replay the idempotency record, create exactly one job row with a stable job ID, and durably write the required usage/credit reservation or a fail-closed “not authorized/not enough credit” outcome.
-3. Return the existing job/result for the same scope and hash; return a conflict for the same key with a different scope/hash; return an in-progress response for an active operation. Do not enqueue a second job after a client timeout.
-4. The worker passes the stable job/operation identity into provider adapters and handler calls. Provider-facing deduplication and usage writes use that identity. Repeated completion callbacks and credit/refund events use existing unique constraints/idempotent functions.
-5. A reservation is committed before provider work under `JOB_QUEUE_FAIL_CLOSED=true`. If the provider fails before a billable operation, the existing bounded refund/release policy applies; if a provider result is already recorded, retries return it rather than invoke the provider again. No new billing model is introduced.
+The existing global inventory lookup remains the first low-cost candidate source. A candidate is reusable only if:
 
-The migration is additive: constraints/RPCs are deployed before code that requires them, existing rows and statuses remain valid, and no destructive schema or data rewrite is part of this bugfix.
+- its tenant-neutral identity is deduplicated;
+- it is not closed, suppressed, opted out, recently contacted, or in an active conflicting campaign;
+- its evidence is within the configured freshness window, or it is routed through a recheck before outreach;
+- its contact fields pass current validation, not only historical validation;
+- the requesting tenant is authorized for the ICP/use case;
+- plan-driven exclusivity permits this tenant to receive it, with no blanket industry-wide lock when the policy is narrower;
+- the assignment CAS succeeds for the same candidate and tenant.
 
-### Portal Upstream, Readiness, and Degraded UX
+Stale/dormant candidates may remain in the shared pool for research but cannot be delivered until rechecked. Recheck results update field-level provenance and freshness. The recheck is performed immediately before outreach when the freshness window has elapsed or a dormant/suppressed signal exists.
 
-Compose builds the existing `lead-crm-portal` and supplies `API_UPSTREAM=http://api:8000`. `next.config.js` uses that value only for the server-side `/backend/:path*` rewrite; browser requests remain same-origin where currently configured, and existing remote-browser forwarding behavior remains bounded and explicit.
+### 9. Reconcile admin/client realtime and evidence
 
-`lib/api.ts` becomes the single place for request IDs, response classification, dependency-unavailable errors, unauthorized handling, and retry metadata. `States.tsx` and the existing client/admin refresh components consume a small state model:
+`pipeline_runs`, `discovery_requests`, `pipeline_run_leads`, jobs, assignments, CRM records, quota reservations, and deliveries are authoritative. Realtime emits private invalidation hints only. Admin and client surfaces refetch the relevant projection and display:
 
-- loading while an initial or non-immediate request is pending;
-- success with data, or an explicit empty state when the API succeeded with no rows;
-- one actionable error state containing a safe message, request ID, and Retry/Refresh action for transient dependency failures;
-- an auth/authorization state that routes through existing login/admin guards and never leaks tenant existence;
-- a polling deadline after which the view stops and offers Refresh rather than spinning forever.
+- current stage, persisted counts, target, remaining gap, tranche, route-cell state, and stop reason;
+- retry/reclaim/cancel/reset status and safe request/run/job identifiers;
+- evidence level and provenance summary without secrets or raw provider payloads;
+- degraded/offline/provider-isolated state when applicable.
 
-Mutations keep current idempotency headers and authorization. A request is not presented as successful until the API confirms durable acceptance. Client and admin pages retain current route components, realtime invalidation, responsive layout, keyboard/focus behavior, skip links, ARIA, and performance budgets.
+Events are coalesced and safe across duplication, reordering, reconnect, and missed notifications. A tenant switch disposes old subscriptions, aborts old fetches, and invalidates old cache entries before the new tenant projection loads.
 
-### Observability
-
-Every API response continues to carry a validated request ID. Queue and worker logs add structured, sanitized fields: `request_id`, `job_id`, `tenant_scope` (opaque/authorized-safe), `worker_id`, `kind`, `attempt`, `max_attempts`, `status`, `dependency`, `queue_age_seconds`, `lease_age_seconds`, and `outcome`. Raw lead fields, access tokens, service keys, provider credentials, and full exception payloads are excluded.
-
-The existing admin health/jobs surfaces consume aggregate queue counts, oldest age, worker freshness/capacity, dependency reason codes, retry counts, and stale-reap outcomes. Client-visible errors contain a request ID and safe recovery action, not internal stack traces. These additions are compatible with current audit and platform-admin authorization and do not make tenant IDs or cache keys an authorization boundary.
+Evidence is labeled separately as local synthetic, local integration, live provider, remote database, or deployed environment. A local pass never implies live provider correctness.
 
 ## Testing Strategy
 
 ### Validation Approach
 
-Validation follows the bugfix methodology: establish counterexamples against the archived/unfixed behavior where practical, then run fix checking over buggy inputs and preservation checking over healthy inputs. All tests run without provider credentials by using existing fakes/stubs or a controlled local integration profile; no test sends real lead data or billable provider requests.
+Testing follows the bug-condition method:
+
+1. Capture counterexamples using fake storage/adapters before implementation where possible.
+2. Verify the fixed behavior for the affected run, planner, route, handoff, enrichment, target-stop, and progress cases.
+3. Run preservation checks against healthy existing workflows and response shapes.
+4. Keep local/offline and live/provider-enabled evidence in separate test profiles.
+
+No test in this design calls a live provider or reads `.env`. Live-provider tests are an explicitly separate future operator-run profile and are not required for local completion.
 
 ### Exploratory Bug Condition Checking
 
-**Goal:** Demonstrate the current failures before changing implementation, or document the already-observed counterexample when an unfixed Compose run cannot be safely started.
+Run against fakes or static fixtures, not the network:
 
-**Test Plan:** Use the existing `tests/` and `scripts/` conventions, a temporary Compose network, fake Supabase/Redis endpoints, and the current Playwright configuration. Capture request/job IDs and sanitized logs.
+1. **Affected run inspection**: model `d2b23a15-55a9-43b0-b9bb-dc6a6179837a` as live-lease, expired-lease, terminal, missing-job, and wrong-tenant cases. Confirm the current failure or gap without mutating real state.
+2. **Cancellation race**: stop discovery while a page, enrichment call, assignment, and delivery write are in flight. Look for late writes, duplicate assignment, or a false completed status.
+3. **Gym/New Delhi route planning**: assert one-by-one decision tests for service-query, locality, maps, OSM, web, first-party, directory, and social route cells, including duplicate and disabled cells.
+4. **Target 5 stop**: return more than five qualifying candidates and confirm the unfixed orchestration can continue route work or count raw discoveries incorrectly.
+5. **Target 500 bounded growth**: return low-yield pages and provider failures and confirm no unbounded page/query/credit expansion.
+6. **Agent handoff race**: delay a predecessor result and verify a dependent executor cannot start, while independent tasks can run together.
+7. **Field type confusion**: return social URLs, malformed emails, stale phone numbers, and conflicting sources. Confirm invalid values are not accepted or copied into the wrong field.
+8. **Progress mismatch**: fail persistence after a provider response and verify progress cannot advance before the result write.
 
-**Test Cases:**
-
-1. Start Redis in a not-ready state and verify the current `service_started` graph can release API/worker before Redis readiness.
-2. Make the claim RPC fail and verify current `claim_next` returns idle/`None` and the worker file can appear healthy.
-3. Submit the same idempotent lead job after a client timeout and inspect whether two durable jobs/provider calls or charges can occur.
-4. Start the archived portal container with its default upstream and verify loopback does not reach the API service.
-5. Stop Redis during a required rate-limit operation and verify current fallback behavior is process-local rather than a truthful dependency response.
-6. Stop the API/worker during existing client/admin polling and verify whether the screen spins, shows stale data without state, or lacks a retry action.
-
-**Expected Counterexamples:** premature service release, 200 readiness with `ok=false`, queue outage logged as empty, heartbeat-only worker health, duplicate submission/credit risk, portal upstream failure, silent local rate-limit fallback, and unbounded UI polling.
+Expected counterexamples are recorded as test evidence, not hidden by falling back to an empty or successful result.
 
 ### Fix Checking
 
-**Goal:** Verify every corrected behavior for `C(X)`.
-
 ```text
 FOR ALL input WHERE isBugCondition(input) DO
-  result := F_prime(input)
-  ASSERT expectedBehavior(result)
+  result := runtime_fixed(input, offline_fakes)
+  ASSERT expectedBehavior(input, result)
+  ASSERT no_prohibited_live_call(result)
 END FOR
 ```
 
-The fix suite must cover Redis health gating, API readiness HTTP status and component payload, worker claim/lease/completion failure classification, one active claim, retry/reap bounds, idempotent job submission, fail-closed accounting, required Redis 503 behavior, portal upstream/readiness, and bounded client/admin degraded states.
+Focused fix cases:
+
+- expired affected run is reclaimed once;
+- cancel fences late workers and releases unused reservation once;
+- reset creates a new run identity and preserves old audit/terminal state;
+- gym/New Delhi expands deterministic route cells and target 5 stops at five assignment confirmations;
+- target 500 grows by bounded tranches and never exceeds route/provider/credit caps;
+- 31-agent graph preserves 30-task order while independent branches overlap;
+- maps/web/first-party/directory/social/OSM pagination emits provenance, dedupes, and uses typed fallbacks;
+- Scrapling/Crawl4AI free results precede paid fallback and invalid contact fields are rejected;
+- verification → scoring → gating → assignment → CRM → delivery ordering is observable in event order;
+- stale/dormant shared leads are rechecked before outreach and conflicting exclusivity is rejected;
+- admin/client progress converges after duplicate, reordered, missed, and reconnect invalidations;
+- local mode makes zero prohibited outbound calls and labels evidence as local/non-billable.
 
 ### Preservation Checking
 
-**Goal:** Verify `F'` is observationally equivalent to `F` for `¬C(X)` at the existing product contracts.
-
 ```text
 FOR ALL input WHERE NOT isBugCondition(input) DO
-  ASSERT authorizedRoutes(F_prime, input) = authorizedRoutes(F, input)
-  ASSERT responseShapeAndTenantScope(F_prime, input) = responseShapeAndTenantScope(F, input)
-  ASSERT billingUsageAndHandlerOutcome(F_prime, input) = billingUsageAndHandlerOutcome(F, input)
+  original := runtime_original(input)
+  fixed := runtime_fixed(input)
+  ASSERT authorized_projection(original) == authorized_projection(fixed)
+  ASSERT provider_policy(original) == provider_policy(fixed)
+  ASSERT tenant_scope(original) == tenant_scope(fixed)
+  ASSERT idempotent_side_effects(original) == idempotent_side_effects(fixed)
 END FOR
 ```
 
-The preservation suite includes existing Python tests and route/tenant/security contracts, healthy Redis shared rate-limit/cache tests, handler and lifecycle tests, billing/quota/idempotency tests, cross-tenant tests, TypeScript validation, production build, accessibility thresholds, performance/polling budgets, and authenticated Playwright flows.
+Preservation cases include:
+
+- healthy queued/running/completed pipeline runs;
+- non-target and explicitly approved exhaustive requests;
+- existing free-first and policy-approved paid enrichment;
+- valid A/B/C gate behavior and current contact requirements;
+- existing assignment, CRM, delivery, quota, retry, and lease semantics;
+- duplicate submissions and duplicate realtime events;
+- admin/client route authorization, error redaction, loading/empty/error states, and tenant switching;
+- local Compose startup, restart, health, and synthetic complete-flow evidence.
 
 ### Unit Tests
 
-- Test `/health/live`, `/health/ready`, and detailed `/health` for healthy, DB-down, Redis-down, worker-stale, queue-RPC-failed, and missing-configuration cases, including status codes and secret redaction.
-- Test `jobs.claim_next` distinguishes no-row idle from typed dependency failure; test owner-conditional renew, complete, fail, cancellation, retry, and stale reap transitions.
-- Test worker startup/heartbeat does not advertise healthy before queue capability; test stop versus report-unready policy and graceful drain.
-- Test idempotency same-key replay, key/body mismatch, in-progress response, stable job identity, duplicate claim prevention, and fail-closed accounting.
-- Test Redis required rate-limit behavior and optional cache fallback TTL/tenant scoping; verify fallback is unavailable to authorization, billing, usage, job state, and mutations.
-- Test portal API error normalization, request ID propagation, polling deadline, loading/empty/error state exclusivity, and safe retry action.
+- Planner normalization, synonym/query expansion, geography dedupe, route-cell identity, one-by-one decision tests, target 5/500 tranche selection, and target-stop predicates.
+- Run recovery admission, terminal immutability, cancellation fencing, reset-new-identity, lease reclaim, bounded retry, and exactly-once quota settlement.
+- Mission registry/DAG cardinality, executor binding, topological ordering, dependency failure, compact handoff, and antichain concurrency.
+- Route pagination cursor changes, per-source budgets, fallback classification, dedupe keys, provenance merge, and evidence-level ordering.
+- Field-level waterfall validation for email, phone, URL, name, social identity, freshness, and paid eligibility.
+- Stage-order event recorder for verification, scoring, gating, assignment, CRM, and delivery.
+- Shared-pool freshness, dormant cooldown, suppression, recheck, exclusivity, and tenant authorization decisions.
+- Progress projection from persisted rows and private invalidation/refetch behavior.
 
 ### Property-Based Tests
 
-- Generate job claim races, worker IDs, attempts, lease ages, and failure sequences; assert no more than one active owner and exactly one terminal transition.
-- Generate repeated idempotent submissions with matching and mismatching request/session scopes; assert one durable job and no duplicate accounting/provider operation.
-- Generate Redis availability transitions and cache TTLs; assert required operations never use process-local state and optional values never outlive configured bounds or cross tenant scope.
-- Generate non-buggy input events and compare route, auth, response-shape, billing/usage, and handler outcomes to the preservation contract.
-- Generate portal polling responses (loading, empty, success, 401/403, 429, 5xx, dependency unavailable); assert one terminal UI state and a finite polling deadline.
+- Generate valid/invalid ICPs, multi-sub-ICPs, city/locality sets, query families, source flags, and targets from 1 through 500; assert deterministic bounded route plans.
+- Generate route pages with duplicates, conflicting fields, empty pages, cursor loops, provider errors, and mixed evidence; assert dedupe, pagination termination, fallback bounds, and provenance preservation.
+- Generate cancellation/recovery timing around leases and async queues; assert no late terminal overwrite, duplicate active claim, lost result, or double settlement.
+- Generate mission graphs with cycles, missing nodes, unknown IDs, and independent branches; assert invalid graphs fail before side effects and valid graphs preserve order/concurrency rules.
+- Generate field candidates containing malformed values and social URLs in arbitrary fields; assert type-safe contact validation and stronger-evidence preservation.
+- Generate stale, dormant, suppressed, cross-tenant, and exclusive shared-pool candidates; assert assignment/outreach safety.
+- Generate duplicate, reordered, and missed invalidation events; assert one authoritative projection after refetch.
+- Generate provider/quota/policy combinations; assert paid fallback occurs only when all gates pass and local mode makes no provider call.
 
 ### Integration Tests
 
-- Run a clean Compose smoke test that waits for Redis, API, worker, and portal health rather than sleeping; assert service count, ports, upstream resolution, and no duplicate worker identities after restart.
-- Submit an authenticated lead-generation job through the API, verify durable queued/claimed/progress/terminal transitions, worker correlation, no duplicate active claim, and successful portal observation.
-- Kill/restart a worker during a leased job; verify stale reap, bounded retry/backoff, eventual terminal state, and no duplicate provider/credit operation.
-- Exercise DB/Redis outages and recovery; verify readiness changes, required rate-limit responses, queue preservation, worker recovery, and sanitized logs/admin health evidence.
-- Run authenticated Playwright smoke coverage for client dashboard, leads, pipeline, import, billing, settings and admin health, jobs, tenants, usage, security; include degraded API/worker states and portal upstream resolution.
-- Run existing Python tests, route/tenant/security contracts, TypeScript validation, Next production build, accessibility gate (including skip links and current ARIA/button thresholds), frontend performance/polling gate, and security checks as additional gates, not replacements.
+- Offline synthetic request through planner, route cells, discovery persistence, streaming enrichment, verification, scoring, gating, assignment, CRM, delivery, quota settlement, invalidation, authoritative refetch, and terminal status.
+- Offline recovery of an unfinished pipeline/job/mission after worker stop, lease expiry, cancellation, reset, and restart.
+- Gym/New Delhi target 5 and target 500 fixture runs with route pagination, fallbacks, shared-pool reuse, stale recheck, and early target stop.
+- Full 31-agent/30-task mission execution with concurrent independent branches and durable predecessor handoffs.
+- Provider isolation test that denies Serper, maps, paid enrichment, email, Stripe, and remote lead-generation calls and fails on any attempted call.
+- Tenant isolation integration covering shared pool, assignments, CRM, jobs, quota, run projections, audit, and realtime channel scope.
+- Admin/client progress reconciliation after reconnect, duplicate/out-of-order events, worker restart, and dependency degradation.
+- Separate live-boundary smoke suite specification only: when an operator later enables it, use explicit credentials, test tenant, provider budget, timeout, and cleanup. It is not part of this local design validation and must not be inferred from offline results.
 
-## Rollout and Backward Compatibility
+## Rollout and Evidence Boundary
 
-1. **Schema first:** Deploy the additive jobs/idempotency/accounting constraints and RPCs. Verify existing rows/statuses and RLS policies remain readable and writable by current code.
-2. **Compatibility release:** Deploy API/worker code that can read the old and new heartbeat/job metadata, with feature flags for required worker readiness and queue failure policy. Existing development profiles may retain explicitly configured optional Redis/cache fallback; production/staging defaults are fail closed.
-3. **Compose rollout:** Add Redis health gating and portal service. Bring up one configured worker, wait for API/worker/portal health, then scale workers deliberately. Do not run both an old and new scheduler/worker profile unintentionally.
-4. **Observe:** Watch readiness transitions, queue dependency errors, stale reap count, retry exhaustion, duplicate-idempotency conflicts, queue age, provider/credit reconciliation, portal upstream failures, and accessibility/performance gates.
-5. **Rollback:** Application code can be rolled back while additive schema/RPC objects remain; old code ignores new metadata. If the portal service is not desired in an environment, use the existing API-only Compose profile while preserving the API/worker health contracts. Do not roll back by deleting job/idempotency/accounting data or by disabling tenant/auth/RLS checks.
-6. **Compatibility guarantees:** Keep existing endpoint paths, job status names, handler kinds, auth headers, idempotency semantics, billing plan behavior, and portal routes. New health fields are additive; clients must tolerate unknown fields. New 503 dependency responses are limited to conditions that were previously misreported as ready or incorrectly processed.
+Implementation should land behind the existing local validation/runtime policy first. The rollout order is:
 
-## Non-Goals
+1. Add focused pure planner, recovery, handoff, provenance, and stage-order tests.
+2. Implement the durable recovery and planner contracts without changing provider credentials or enabling live calls.
+3. Run synthetic end-to-end and restart/reclaim tests.
+4. Run existing Python, frontend, route, tenant, security, accessibility, and performance gates.
+5. Only after local evidence is green may an operator separately configure a live-provider profile and collect clearly labeled Remote Evidence.
 
-- Replacing Supabase/Postgres with Redis, a new message broker, or a new job framework.
-- Rewriting the existing CRM, lead-generation, pipeline, import, billing, settings, admin, or support product workflows.
-- Adding new lead providers, enrichment algorithms, billing plans, credit pricing, or provider behavior.
-- Changing authentication, tenant membership, RLS, CSRF, CORS, platform-admin/service-key boundaries, or accepting tenant IDs as authorization.
-- Making every cache read available during an outage; required distributed controls remain fail closed.
-- Guaranteeing exactly-once execution against an external provider that lacks an idempotency API; the design instead makes the durable operation identity and accounting boundary idempotent and prevents known duplicate submissions/charges.
-- Treating a local heartbeat file, a TCP connection, an HTTP 200 with `ok=false`, or an empty queue result as proof of readiness.
-- Replacing the existing accessibility, performance, security, CI, migration, or route safeguards; this bugfix adds runtime and end-to-end coverage alongside them.
-- Implementing code in this design phase.
-
-
-## Realtime and dashboard completeness addendum
-
-The existing realtime design is an invalidation-first model: Postgres writes a compact tenant-scoped event into `leadx_event_log`, the database broadcasts `crm_change` on the private `crm:<tenant_id>` topic, and authorized portal consumers refetch their API projection. Realtime payloads are never treated as an authoritative data source. This remains the lowest-credit design because one event wakes many views while each view performs one deduplicated, tenant-authorized read; provider discovery, enrichment, verification, and email work are never triggered by a UI refresh.
-
-The final contract expands that model into a complete coverage matrix:
-
-| Product surface | Authoritative projection | Required change signal | Recovery contract |
-| --- | --- | --- | --- |
-| Client dashboard/Growth | dashboard, quota, discovery requests, learning, quality, pipeline, replies, deals, tasks, email health | assignments, runs, requests, quota/usage, replies, deals, activities, tasks, recommendations, notifications | immediate refetch; bounded visible polling fallback |
-| Client leads/pipeline | lead cards, assignments, stages, evidence, outcomes | assignments, global leads, score/gate/evidence/state, activities, tasks, stages | changed-row flash plus authoritative refetch |
-| Client search/run monitor | discovery request and tenant-safe pipeline run status | discovery requests, pipeline runs, assignments, jobs | request acceptance transitions into run-status monitoring; stop on terminal/deadline |
-| Client sequences/replies | sequences, enrollments, sends, inbound replies, outcomes | sequence tables, replies, outcome events, activities | immediate refetch; no duplicate sends |
-| Client companies/contacts/deals/activities/automations | CRM/API projections | companies, contacts, deals, stages, activities, tasks, notes, workflows, automation events | immediate refetch; bounded fallback |
-| Client notifications | unread/list projection | tenant notifications | immediate badge/list update; 90-second safety poll only |
-| Admin dashboard/health/jobs/runs | aggregate platform and durable job projections | admin-safe aggregate change signal or bounded polling | live callback or bounded visible polling with actionable deadline |
-| Admin tenants/usage/security/audit/notifications | platform-admin projections | platform-scoped signal where safe, otherwise bounded polling | never expose tenant data through a tenant topic |
-
-Database completeness requires the migration chain to reconcile three separate concerns: (1) the Broadcast capture trigger list, (2) the `supabase_realtime` publication/replica identity list for any direct `postgres_changes` fallback, and (3) RLS/topic authorization. The capture list must include `pipeline_runs`, `discovery_requests`, `pipeline_stages`, `lead_activities`, `lead_tasks`, `email_replies`, `workflow_definitions`, `workflow_runs`, `automation_events`, `company_locations`, and `contact_roles` in addition to the already captured tables. Tables without a tenant column must not be broadcast on a tenant topic; admin-scope changes require an aggregate/admin channel or remain explicitly bounded-polling-only.
-
-Every client page that requests a table filter must have a matching database event source or a documented fallback. The client search request must use the returned request/run identity and consume `/crm/{tenant_id}/pipeline-runs/{run_id}` or `/crm/{tenant_id}/growth/runs/{run_id}` so the client renders discovered, stored, enriched, gated, assigned, delivered, blockers, target, shortfall, reuse, and provider-lane metadata. Admin `AdminLiveRefresh` must either receive and invoke a real refresh callback or be removed in favor of page-owned bounded loaders; it must never imply that pages refresh when its callback is unused.
-
-Realtime correctness is verified with synthetic database rows and no provider calls: one tenant mutation per event source, two authenticated tenants for isolation, reconnect/missed-event replay through an authoritative refetch, duplicate-event debuplication, cache invalidation, terminal run stopping, and a final one-lead free/database-first smoke only after all static and mocked checks pass. The live check must prove that quota, assignments, run progress, replies, sequences, deals, learning, notifications, and admin operational state update without manual navigation while hidden-tab polling remains paused and UI refreshes do not consume discovery/enrichment/email credits.
+The final evidence must state which checks were local/offline, which were live, and which remain unverified. No successful local test may be described as proof that the affected production run or any external provider currently works.

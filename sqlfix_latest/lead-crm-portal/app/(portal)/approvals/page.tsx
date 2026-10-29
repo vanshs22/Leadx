@@ -4,8 +4,9 @@ import { useCallback, useEffect, useState } from "react";
 import { crmApprovals } from "@/lib/api";
 import { getTenantId } from "@/lib/tenant";
 import { useCrmChange } from "@/lib/crmRealtime";
-import { PageHeader, Notice } from "@/components/ui/Primitives";
-import { DataState, EmptyState } from "@/components/ui/States";
+import { Notice, PageHeader, Panel, StatusBadge } from "@/components/ui/Primitives";
+import { Icon } from "@/components/ui/Icon";
+import { DataState, EmptyState, LoadingRows } from "@/components/ui/States";
 
 export default function ApprovalsPage() {
   const tid = getTenantId();
@@ -44,10 +45,59 @@ export default function ApprovalsPage() {
     finally { setBusy(false); }
   }
 
-  return <div className="page space-y-5">
-    <PageHeader eyebrow="Agent governance" title="Approval inbox" description="Outbound drafts stay blocked until a workspace member approves them." actions={<button aria-label="Refresh approvals" className="btn-secondary" onClick={() => void refresh()} disabled={loading}>Refresh</button>} />
+  return <div className="page">
+    <PageHeader
+      eyebrow="Agent governance"
+      title="Approval inbox"
+      description="Outbound drafts stay blocked until a workspace member approves them."
+      actions={<button type="button" aria-label="Refresh approvals" className="btn-secondary" onClick={() => void refresh()} disabled={loading}><Icon name="refresh" size={14} />Refresh</button>}
+      meta={<span className="tabular-nums">{loading && !items.length ? "Checking inbox…" : `${items.length} waiting for review`}</span>}
+    />
     {message ? <Notice tone={message.tone}>{message.text}</Notice> : null}
-    <section className="premium-card flex flex-wrap items-center justify-between gap-4 p-5"><div><div className="font-semibold text-ink">Outreach auto-approve</div><p className="mt-1 text-xs text-ink-muted">When enabled, outreach can move directly into the configured execution path.</p></div><button disabled={busy} onClick={() => void toggle()} className={auto ? "btn-primary" : "btn-secondary"}>{auto ? "Enabled" : "Disabled"}</button></section>
-    <section className="premium-card overflow-hidden"><div className="border-b border-line px-5 py-4"><div className="label">Needs approval</div><h2 className="mt-1 text-lg font-semibold text-ink">{items.length} outbound draft{items.length === 1 ? "" : "s"}</h2></div><DataState loading={loading} error={error} isEmpty={!items.length} empty={<EmptyState title="Nothing is waiting for review" hint="New outbound drafts will appear here when an agent requests approval." />} onRetry={() => void refresh()} skeleton={<div className="p-5 text-sm text-ink-muted">Loading approval inbox…</div>}><div className="divide-y divide-line">{items.map((item) => <article key={item.id} className="p-5"><div className="flex flex-wrap items-start justify-between gap-3"><div><div className="font-semibold text-ink">Outreach draft</div><div className="mt-1 text-xs text-ink-faint">Lead {item.lead_id || "—"} · {item.created_at ? new Date(item.created_at).toLocaleString() : "Date unavailable"}</div></div><span className="pill bg-amber-500/10 text-amber-700 dark:text-amber-300">Needs approval</span></div><pre className="mt-4 max-h-64 overflow-auto whitespace-pre-wrap rounded-xl border border-line bg-surface-2 p-4 text-xs text-ink-muted">{JSON.stringify(item.payload || {}, null, 2)}</pre><div className="mt-4 flex gap-2"><button disabled={busy} onClick={() => void decide(item.id, true)} className="btn-primary">Approve</button><button disabled={busy} onClick={() => void decide(item.id, false)} className="btn-secondary">Reject</button></div></article>)}</div></DataState></section>
+
+    <section className="panel flex flex-col gap-4 p-5 sm:flex-row sm:items-center sm:justify-between" aria-labelledby="approvals-auto-title">
+      <div className="min-w-0">
+        <div className="flex flex-wrap items-center gap-2">
+          <h2 id="approvals-auto-title" className="section-title">Outreach auto-approve</h2>
+          <StatusBadge status={auto ? "active" : "paused"} label={auto ? "On" : "Off"} />
+        </div>
+        <p className="section-sub">When enabled, outreach can move directly into the configured execution path.</p>
+      </div>
+      <button type="button" role="switch" aria-checked={auto} aria-labelledby="approvals-auto-title" disabled={busy} onClick={() => void toggle()} className={`${auto ? "btn-primary" : "btn-secondary"} shrink-0`}>{auto ? "Enabled" : "Disabled"}</button>
+    </section>
+
+    <Panel
+      id="approvals-queue"
+      title={<span className="tabular-nums">{items.length} outbound draft{items.length === 1 ? "" : "s"}</span>}
+      description="Needs approval"
+      bodyClassName="p-0"
+    >
+      <DataState
+        loading={loading}
+        error={error}
+        isEmpty={!items.length}
+        empty={<EmptyState title="Nothing is waiting for review" hint="New outbound drafts will appear here when an agent requests approval." icon={<Icon name="check" size={18} />} />}
+        onRetry={() => void refresh()}
+        skeleton={<LoadingRows rows={3} cols={3} />}
+      >
+        <ul className="divide-y divide-line" aria-label="Drafts awaiting approval">{items.map((item) => <li key={item.id} className="px-5 py-4">
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <div className="min-w-0">
+              <h3 className="text-[0.875rem] font-semibold text-ink">Outreach draft</h3>
+              <div className="mt-1 flex flex-wrap gap-x-3 gap-y-1 text-xs text-ink-faint">
+                <span>Lead <code className="font-mono text-xs text-ink-muted">{item.lead_id || "—"}</code></span>
+                <span className="tabular-nums">{item.created_at ? new Date(item.created_at).toLocaleString() : "Date unavailable"}</span>
+              </div>
+            </div>
+            <StatusBadge status="needs_review" label="Needs approval" />
+          </div>
+          <pre className="mt-3 max-h-64 overflow-auto whitespace-pre-wrap break-words rounded-lg border border-line bg-surface-3/60 p-4 font-mono text-xs leading-5 text-ink-muted">{JSON.stringify(item.payload || {}, null, 2)}</pre>
+          <div className="mt-3 flex justify-end gap-2">
+            <button type="button" disabled={busy} onClick={() => void decide(item.id, false)} className="btn-secondary btn-sm">Reject</button>
+            <button type="button" disabled={busy} onClick={() => void decide(item.id, true)} className="btn-primary btn-sm"><Icon name="check" size={14} />Approve</button>
+          </div>
+        </li>)}</ul>
+      </DataState>
+    </Panel>
   </div>;
 }

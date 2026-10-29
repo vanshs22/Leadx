@@ -1,0 +1,92 @@
+{
+  "schema": "leadx.task14-prerequisite-assessment.v1",
+  "decision": "BLOCKED",
+  "mode": "prerequisite-assessment-only",
+  "external_contacts": false,
+  "env_file_read": false,
+  "credentials_requested_or_printed": false,
+  "remote_supabase_contacted": false,
+  "live_provider_contacted": false,
+  "deployed_checks_run": false,
+  "production_or_uat_data_mutated": false,
+  "source_files_changed": false,
+  "evidence_inspected": [
+    ".kiro/specs/lead-gen-runtime-and-product-hardening/tasks.md",
+    "sqlfix_latest/docs/UAT.md",
+    "sqlfix_latest/scripts/uat_config.py",
+    "sqlfix_latest/scripts/uat_runner.py",
+    "sqlfix_latest/scripts/uat_bootstrap.py",
+    "sqlfix_latest/.env.uat.example",
+    "sqlfix_latest/docker-compose.uat.yml",
+    "sqlfix_latest/.github/workflows/uat-gates.yml",
+    "sqlfix_latest/artifacts/uat/preflight/report.json",
+    "sqlfix_latest/artifacts/uat/preflight-verified/report.json",
+    "sqlfix_latest/artifacts/task11-offline-checkpoint/local-validation/report.md"
+  ],
+  "historical_preflight_interpretation": "BLOCKED configuration preflight only; no live evidence or PASS inferred",
+  "blocked_prerequisites": [
+    {
+      "id": "explicit-authorization",
+      "requirement": "Separate operator authorization, selected checks, approved target, and permission to spend bounded provider quota"
+    },
+    {
+      "id": "private-uat-profile",
+      "requirement": "Private UAT profile with explicit UAT/staging markers, apply authorization for mutations, local auth/dev bypass disabled, fail-closed queue, portal-only delivery, and Local Validation Mode disabled"
+    },
+    {
+      "id": "deployed-services",
+      "requirement": "HTTPS UAT API and portal URLs with DNS/TLS, healthy API/worker/portal, and dedicated Redis namespace/worker"
+    },
+    {
+      "id": "supabase-uat",
+      "requirement": "Separate UAT Supabase project with current schema deployed and credentials held in private secret storage"
+    },
+    {
+      "id": "isolated-fixtures",
+      "requirement": "Two UAT auth users, two tenants, platform-admin role, and sanitized tenant/lead fixture IDs"
+    },
+    {
+      "id": "provider-budgets",
+      "requirement": "Test-only provider/source selection, bounded request/enrichment/time/retry limits, timeouts, and an explicit paid-fallback decision"
+    },
+    {
+      "id": "email-if-selected",
+      "requirement": "Verified UAT SES identity/domain, sender, sandbox recipient, and inbound receipt transport if email is in scope"
+    },
+    {
+      "id": "cleanup-rollback",
+      "requirement": "Operator-owned cleanup/rollback plan, retention, and stop condition"
+    },
+    {
+      "id": "evidence-destination",
+      "requirement": "Redacted artifact destination recording environment, provider cost, cleanup result, and per-check status"
+    }
+  ],
+  "unverified_checks": [
+    {"check_id": "health.schema.rls", "status": "NOT TESTED"},
+    {"check_id": "auth.client-admin-session", "status": "NOT TESTED"},
+    {"check_id": "team.invite", "status": "NOT TESTED"},
+    {"check_id": "pipeline.request-approval-run-stop", "status": "NOT TESTED"},
+    {"check_id": "mission.31-agents", "status": "NOT TESTED"},
+    {"check_id": "discovery.enrichment.qualification", "status": "NOT TESTED"},
+    {"check_id": "crm.assignment.delivery", "status": "NOT TESTED"},
+    {"check_id": "realtime.convergence", "status": "NOT TESTED"},
+    {"check_id": "ses.outbound-inbound-hooks", "status": "NOT TESTED"},
+    {"check_id": "retry.recovery", "status": "NOT TESTED"},
+    {"check_id": "cross-tenant.negative", "status": "NOT TESTED"},
+    {"check_id": "cleanup.reporting", "status": "NOT TESTED"}
+  ],
+  "additional_unverified_areas": [
+    "real provider route pagination, fallback, budgets, quota/cost, and target stop",
+    "real enrichment and field-specific contact verification",
+    "remote Supabase persistence, RLS, tenant isolation, sessions, and realtime",
+    "deployed API, worker, portal, Redis, restart, readiness, and health recovery",
+    "SES domain/sender verification and inbound receipt when explicitly selected",
+    "billing/provider-cost boundaries when explicitly selected",
+    "VPS DNS/TLS and deployed custom-domain behavior"
+  ],
+  "gate": {
+    "task14": "BLOCKED",
+    "reason": "No authorized live profile or isolated deployed/UAT target was supplied; local evidence cannot satisfy live/UAT acceptance"
+  }
+}

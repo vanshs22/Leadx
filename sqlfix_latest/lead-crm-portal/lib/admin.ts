@@ -1,6 +1,6 @@
 import { getApiBase, createPortalRequestId } from "./config";
 import { createApiClientError } from "./api";
-import { getSessionFast, signOut } from "./auth";
+import { getSessionFast, renewServerSession, signOut } from "./auth";
 
 function readCsrf(): string { return typeof document === "undefined" ? "" : document.cookie.split(";").map(x => x.trim()).find(x => x.startsWith("leadx_csrf="))?.slice(11) || ""; }
 
@@ -50,9 +50,27 @@ async function adminApi(path: string, init?: RequestInit) {
   }
   const responseId = createPortalRequestId(res.headers.get("x-request-id") || res.headers.get("x-correlation-id") || requestId);
   if (res.status === 401) {
-    clearAdminKey();
-    if (typeof window !== "undefined") window.location.href = "/admin/login";
-    throw createApiClientError(res.status, res.status === 401 ? "Session expired" : "Forbidden", { requestId: responseId });
+    if (await renewServerSession()) {
+      try {
+        res = await fetch(url, {
+          ...init,
+          headers: {
+            "Content-Type": "application/json",
+            "X-Request-ID": requestId,
+            ...(String(init?.method || "GET").toUpperCase() !== "GET" ? { "X-CSRF-Token": readCsrf() } : {}),
+            ...(init?.headers || {}),
+          },
+          cache: "no-store", credentials: "include",
+        });
+      } catch {}
+    }
+    if (res.status !== 401) {
+      // The renewed session succeeded; continue through the normal response handling.
+    } else {
+      clearAdminKey();
+      if (typeof window !== "undefined") window.location.href = "/admin/login";
+      throw createApiClientError(res.status, "Session expired", { requestId: responseId });
+    }
   }
   if (!res.ok) {
     const t = await res.text();
@@ -163,6 +181,7 @@ export const admin = {
   globalStats: () => adminApi("/leads/v2/admin/global-stats"),
   ops: (days = 14) => adminApi(`/leads/v2/ops/dashboard?days=${days}`),
   health: () => adminApi("/health"),
+  platformAgents: () => adminApi("/platform/agents"),
 
   // Sample pack / QA / bad leads
   samplePack: (body: Record<string, unknown>) =>
@@ -363,8 +382,22 @@ export const adminExtras = {
   },
   job: (id: string) => adminApi(`/leads/v2/admin/jobs/${id}`),
   retryJob: (id: string) => adminApi(`/leads/v2/admin/jobs/${id}/retry`, { method: "POST" }),
+  stopRun: (runId: string) => adminApi(`/leads/v2/admin/runs/${encodeURIComponent(runId)}/stop`, { method: "POST" }),
   cancelJob: (id: string) => adminApi(`/leads/v2/admin/jobs/${id}/cancel`, { method: "POST" }),
   reapJobs: () => adminApi(`/leads/v2/admin/jobs/reap`, { method: "POST" }),
+  scopedWorkReset: (body: {
+    operation_key: string;
+    scope_kind: "run" | "tenant_active" | "tenant_stale";
+    run_id?: string;
+    tenant_id?: string;
+    status_allowlist?: string[];
+    cutoff?: string;
+    dry_run?: boolean;
+    confirmation?: boolean;
+  }) => adminApi(`/leads/v2/admin/scoped-work/reset`, {
+    method: "POST",
+    body: JSON.stringify(body),
+  }),
   enqueue: (kind: string, payload: Record<string, unknown> = {}, tenant_id?: string) =>
     adminApi(`/leads/v2/admin/jobs/enqueue`, {
       method: "POST",

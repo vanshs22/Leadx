@@ -22,15 +22,35 @@ services:
       - LINKEDIN_SCRAPER_URL=${LINKEDIN_SCRAPER_URL:-http://linkedin-scraper:8001}
       - REDIS_URL=${REDIS_URL:-redis://redis:6379/0}
       - REQUIRE_DISTRIBUTED_RATE_LIMIT=${REQUIRE_DISTRIBUTED_RATE_LIMIT:-0}
+      # The supported local profile must not claim readiness without its data,
+      # cache, worker, and queue capabilities.
+      - REQUIRE_REDIS_FOR_API_READY=${REQUIRE_REDIS_FOR_API_READY:-1}
+      - REQUIRE_WORKER_READY=${REQUIRE_WORKER_READY:-1}
+      - PAID_PROVIDER_ISOLATION=${PAID_PROVIDER_ISOLATION:-0}
+      - JOB_QUEUE_FAIL_CLOSED=${JOB_QUEUE_FAIL_CLOSED:-1}
       # Set to 1 ONLY when behind a reverse proxy you control (nginx/Caddy/Cloudflare)
       - TRUST_PROXY_HEADERS=${TRUST_PROXY_HEADERS:-0}
       - CORS_ORIGINS=${CORS_ORIGINS:-}
       - WEBHOOK_SECRET=${WEBHOOK_SECRET:-}
+      - LEADX_REQUIRE_EMAIL_VERIFICATION=${LEADX_REQUIRE_EMAIL_VERIFICATION:-false}
+      - LOCAL_VALIDATION_MODE=${LOCAL_VALIDATION_MODE:-0}
+      - LOCAL_AUTHENTICATION_FLAG=${LOCAL_AUTHENTICATION_FLAG:-0}
+      - LOCAL_AUTH_EMAIL=${LOCAL_AUTH_EMAIL:-local@example.test}
+      - LOCAL_AUTH_PASSWORD=${LOCAL_AUTH_PASSWORD:-}
+      - LOCAL_AUTH_PASSWORD_HASH=${LOCAL_AUTH_PASSWORD_HASH:-}
+      - LOCAL_AUTH_SECRET=${LOCAL_AUTH_SECRET:-}
+      - LOCAL_AUTH_USER_ID=${LOCAL_AUTH_USER_ID:-local-user}
+      - LOCAL_AUTH_TENANT_ID=${LOCAL_AUTH_TENANT_ID:-local-tenant}
       - LEADX_PROCESS=api
+      - WEB_CONCURRENCY=${WEB_CONCURRENCY:-1}
+    volumes:
+      - leadx-local-durable-data:/var/lib/leadx
+    init: true
+    stop_grace_period: 20s
     restart: "on-failure:5"
     mem_limit: 1536m
     healthcheck:
-      test: ["CMD", "curl", "-fsS", "http://127.0.0.1:8000/health/ready"]
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health/ready', timeout=4)"]
       interval: 15s
       timeout: 5s
       retries: 5
@@ -47,12 +67,27 @@ services:
       - .env
     environment:
       - ENVIRONMENT=${ENVIRONMENT:-development}
+      - LEADX_REQUIRE_EMAIL_VERIFICATION=${LEADX_REQUIRE_EMAIL_VERIFICATION:-false}
+      - LOCAL_VALIDATION_MODE=${LOCAL_VALIDATION_MODE:-0}
+      - LOCAL_AUTHENTICATION_FLAG=${LOCAL_AUTHENTICATION_FLAG:-0}
+      - LOCAL_AUTH_EMAIL=${LOCAL_AUTH_EMAIL:-local@example.test}
+      - LOCAL_AUTH_PASSWORD=${LOCAL_AUTH_PASSWORD:-}
+      - LOCAL_AUTH_PASSWORD_HASH=${LOCAL_AUTH_PASSWORD_HASH:-}
+      - LOCAL_AUTH_SECRET=${LOCAL_AUTH_SECRET:-}
+      - LOCAL_AUTH_USER_ID=${LOCAL_AUTH_USER_ID:-local-user}
+      - LOCAL_AUTH_TENANT_ID=${LOCAL_AUTH_TENANT_ID:-local-tenant}
       - LEADX_PROCESS=worker
       - REDIS_URL=${REDIS_URL:-redis://redis:6379/0}
       - WORKER_CONCURRENCY=${WORKER_CONCURRENCY:-3}
       # Keep the process alive across transient Supabase transport failures;
       # durable claim/transition code still fails closed and retries on recovery.
-      - WORKER_QUEUE_FAILURE_POLICY=${WORKER_QUEUE_FAILURE_POLICY:-continue}
+      - WORKER_QUEUE_FAILURE_POLICY=${WORKER_QUEUE_FAILURE_POLICY:-report_unready}
+      - WORKER_HEARTBEAT_SECONDS=${WORKER_HEARTBEAT_SECONDS:-30}
+      - WORKER_ID=${WORKER_ID:-leadx-worker}
+    volumes:
+      - leadx-local-durable-data:/var/lib/leadx
+    init: true
+    stop_grace_period: 20s
     restart: "on-failure:5"
     mem_limit: 1536m
     healthcheck:
@@ -73,19 +108,24 @@ services:
         API_UPSTREAM: http://api:8000
         NEXT_PUBLIC_SUPABASE_URL: ${NEXT_PUBLIC_SUPABASE_URL:-}
         NEXT_PUBLIC_SUPABASE_ANON_KEY: ${NEXT_PUBLIC_SUPABASE_ANON_KEY:-}
+        NEXT_PUBLIC_LEADX_LOCAL_AUTH: ${NEXT_PUBLIC_LEADX_LOCAL_AUTH:-0}
     ports:
       - "3000:3000"
     environment:
       # The service DNS name is required: loopback would resolve inside the
       # portal container and cannot reach the API container.
       API_UPSTREAM: http://api:8000
+      LEADX_PORTAL_PROFILE: container
       NODE_ENV: production
       PORT: "3000"
       NEXT_PUBLIC_SUPABASE_URL: ${NEXT_PUBLIC_SUPABASE_URL:-}
       NEXT_PUBLIC_SUPABASE_ANON_KEY: ${NEXT_PUBLIC_SUPABASE_ANON_KEY:-}
+      NEXT_PUBLIC_LEADX_LOCAL_AUTH: ${NEXT_PUBLIC_LEADX_LOCAL_AUTH:-0}
+    init: true
+    stop_grace_period: 20s
     restart: "on-failure:5"
     healthcheck:
-      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3000/').then((response) => { if (!response.ok) process.exit(1); }).catch(() => process.exit(1))"]
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3000/api/health', { cache: 'no-store' }).then(async (response) => { if (!response.ok) process.exit(1); }).catch(() => process.exit(1))"]
       interval: 15s
       timeout: 5s
       retries: 5
@@ -95,6 +135,7 @@ services:
         condition: service_healthy
 
   linkedin-scraper:
+    profiles: ["linkedin"]
     build:
       context: ./services/linkedin-scraper
     ports:
@@ -121,3 +162,6 @@ services:
       timeout: 3s
       retries: 10
       start_period: 5s
+
+volumes:
+  leadx-local-durable-data:

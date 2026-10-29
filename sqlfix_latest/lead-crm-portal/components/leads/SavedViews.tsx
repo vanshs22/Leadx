@@ -11,6 +11,7 @@ import { useCallback, useEffect, useState } from "react";
 
 import { crmExtras, type SavedView } from "@/lib/api";
 import { getTenantId } from "@/lib/tenant";
+import { Icon } from "@/components/ui/Icon";
 
 export function SavedViews<T extends Record<string, any>>({
   entity = "leads",
@@ -86,55 +87,63 @@ export function SavedViews<T extends Record<string, any>>({
   }
 
   return (
-    <div className="flex flex-wrap items-center gap-2">
-      <span className="text-xs uppercase tracking-wide text-ink-faint">Views</span>
+    <div className="flex flex-wrap items-center gap-1.5" role="group" aria-label="Saved views">
+      <span className="label mr-1">Views</span>
 
-      {views.map((v) => (
-        <span
-          key={v.id}
-          className={`group inline-flex items-center gap-1 rounded-full border px-2.5 py-1 text-xs ${
-            activeId === v.id
-              ? "border-brand-500 bg-brand-50 text-brand-700 dark:bg-brand-500/15 dark:text-brand-300"
-              : "border-line bg-surface-2 text-ink-muted"
-          }`}
-        >
-          <button
-            type="button"
-            onClick={() => {
-              setActiveId(v.id);
-              onApply(v.filters as T);
-            }}
-            title={v.user_id ? "Private to you" : "Shared with the workspace"}
+      {views.map((v) => {
+        const active = activeId === v.id;
+        return (
+          <span
+            key={v.id}
+            className={`group inline-flex h-7 items-center gap-0.5 rounded-md border pl-2.5 pr-1 text-xs font-medium transition ${
+              active
+                ? "border-brand-300 bg-brand-50 text-brand-800 dark:border-brand-500/40 dark:bg-brand-500/15 dark:text-brand-100"
+                : "border-line bg-surface-2 text-ink-muted hover:border-line-strong hover:text-ink"
+            }`}
           >
-            {v.name}
-            {v.is_default ? " ★" : ""}
-          </button>
-          {!v.is_default && (
             <button
               type="button"
-              onClick={() => makeDefault(v)}
-              title="Make default"
-              className="hidden text-ink-faint hover:text-ink group-hover:inline"
+              aria-pressed={active}
+              onClick={() => {
+                setActiveId(v.id);
+                onApply(v.filters as T);
+              }}
+              title={v.user_id ? "Private to you" : "Shared with the workspace"}
+              className="inline-flex max-w-[12rem] items-center gap-1.5 truncate pr-1"
             >
-              ☆
+              <span className="truncate">{v.name}</span>
+              {v.is_default ? <span className="rounded bg-surface-3 px-1 text-[10px] font-semibold text-ink-faint">Default</span> : null}
             </button>
-          )}
-          <button
-            type="button"
-            onClick={() => remove(v)}
-            title="Delete view"
-            className="hidden text-ink-faint hover:text-rust-500 group-hover:inline"
-          >
-            ×
-          </button>
-        </span>
-      ))}
+            {!v.is_default && (
+              <button
+                type="button"
+                onClick={() => makeDefault(v)}
+                title="Make default"
+                aria-label={`Make ${v.name} the default view`}
+                className="hidden h-5 w-5 items-center justify-center rounded text-ink-faint hover:bg-surface-3 hover:text-ink group-hover:inline-flex group-focus-within:inline-flex"
+              >
+                <Icon name="check" size={12} />
+              </button>
+            )}
+            <button
+              type="button"
+              onClick={() => remove(v)}
+              title="Delete view"
+              aria-label={`Delete view ${v.name}`}
+              className="hidden h-5 w-5 items-center justify-center rounded text-ink-faint hover:bg-rust-50 hover:text-rust-600 group-hover:inline-flex group-focus-within:inline-flex dark:hover:bg-rust-900/30 dark:hover:text-rust-200"
+            >
+              <Icon name="close" size={12} />
+            </button>
+          </span>
+        );
+      })}
 
       {naming ? (
         <span className="inline-flex items-center gap-1">
           <input
             autoFocus
-            className="w-40 rounded-lg border border-line bg-surface px-2 py-1 text-xs text-ink"
+            aria-label="Saved view name"
+            className="input h-7 w-44 py-1 text-xs"
             placeholder="Tier A · not contacted"
             value={name}
             onChange={(e) => setName(e.target.value)}
@@ -143,10 +152,10 @@ export function SavedViews<T extends Record<string, any>>({
               if (e.key === "Escape") setNaming(false);
             }}
           />
-          <button type="button" onClick={save} className="text-xs font-medium text-brand-600 dark:text-brand-300">
+          <button type="button" onClick={save} className="btn-primary btn-sm">
             Save
           </button>
-          <button type="button" onClick={() => setNaming(false)} className="text-xs text-ink-faint">
+          <button type="button" onClick={() => setNaming(false)} className="btn-ghost btn-sm">
             Cancel
           </button>
         </span>
@@ -154,13 +163,14 @@ export function SavedViews<T extends Record<string, any>>({
         <button
           type="button"
           onClick={() => setNaming(true)}
-          className="rounded-full border border-dashed border-line px-2.5 py-1 text-xs text-ink-muted hover:text-ink"
+          className="inline-flex h-7 items-center gap-1 rounded-md border border-dashed border-line-strong px-2.5 text-xs font-medium text-ink-muted transition hover:border-ink-faint hover:text-ink"
         >
-          + Save current
+          <Icon name="plus" size={12} />
+          Save current
         </button>
       )}
 
-      {error && <span className="text-xs text-rust-500 dark:text-rust-300">{error}</span>}
+      {error && <span role="alert" className="text-xs text-rust-600 dark:text-rust-300">{error}</span>}
     </div>
   );
 }

@@ -15,8 +15,13 @@ class FlagUpdate(BaseModel):
 def me(admin:PlatformAdmin=Depends(require_platform_admin)):
     return {'ok':True,'admin':admin.__dict__}
 
-@router.get('/summary')
-async def summary(admin:PlatformAdmin=Depends(require_platform_admin)):
+@router.get('/agents')
+def agents(admin: PlatformAdmin = Depends(require_platform_admin)):
+    from app.integrations.prod.agent_registry import FULL_AGENT_REGISTRY
+    from app.memory.supabase_client import get_supabase
+    rows = get_supabase().table('agent_runs').select('id,tenant_id,agent_id,status,created_at,started_at,finished_at,error').order('created_at', desc=True).limit(100).execute().data or []
+    return {'ok': True, 'agents': [{'id': agent_id, **contract} for agent_id, contract in FULL_AGENT_REGISTRY.items()], 'runs': rows}
+
     from app.integrations.prod.platform_control import platform_summary
     return {'ok':True,**platform_summary()}
 
@@ -38,11 +43,17 @@ def update_flag(key:str, body:FlagUpdate, request:Request, admin:PlatformAdmin=D
 @router.get('/audit')
 def audit_log(limit:int=100, admin:PlatformAdmin=Depends(require_platform_admin)):
     from app.memory.supabase_client import get_supabase
-    rows=get_supabase().table('audit_log').select('*').order('created_at',desc=True).limit(min(max(limit,1),500)).execute().data or []
-    return {'ok':True,'events':rows}
+    from app.integrations.prod.audit_log import safe_audit_row
+    rows=get_supabase().table('audit_log').select(
+        'id,tenant_id,actor_id,actor_type,action,resource_type,resource_id,reason,created_at'
+    ).order('created_at',desc=True).limit(min(max(limit,1),500)).execute().data or []
+    return {'ok':True,'events':[safe_audit_row(row) for row in rows]}
 
 @router.get('/security-events')
 def security_events(limit:int=100, admin:PlatformAdmin=Depends(require_platform_admin)):
     from app.memory.supabase_client import get_supabase
-    rows=get_supabase().table('security_events').select('*').order('created_at',desc=True).limit(min(max(limit,1),500)).execute().data or []
-    return {'ok':True,'events':rows}
+    from app.integrations.prod.audit_log import safe_security_event
+    rows=get_supabase().table('security_events').select(
+        'id,severity,event_type,actor_id,tenant_id,created_at'
+    ).order('created_at',desc=True).limit(min(max(limit,1),500)).execute().data or []
+    return {'ok':True,'events':[safe_security_event(row) for row in rows]}

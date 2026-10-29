@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { getApiBase } from "../../lib/config";
+import { Icon } from "@/components/ui/Icon";
 
 const FALLBACK_PLANS = [
   {
@@ -57,61 +58,97 @@ export default function PricingPage() {
   }
 
   return (
-    <main className="min-h-screen bg-[#f7f8f6] text-[#111827]">
-      <header className="mx-auto flex max-w-7xl items-center justify-between px-5 py-5 sm:px-8">
-        <Link href="/login" className="flex items-center gap-2.5">
-          <span className="brand-mark h-9 w-9 rounded-[10px] text-[10px]">LX</span>
-          <span className="brand-wordmark">LeadX</span>
-        </Link>
-        <Link href="/login" className="text-sm font-semibold text-slate-600 transition hover:text-slate-950">Sign in</Link>
+    <main className="min-h-screen bg-surface text-ink">
+      <header className="border-b border-line bg-surface-2">
+        <div className="mx-auto flex max-w-7xl items-center justify-between gap-4 px-5 py-4 sm:px-8">
+          <Link href="/login" className="flex items-center gap-2.5" aria-label="LeadX home">
+            <span className="brand-mark">LX</span>
+            <span className="brand-wordmark">LeadX</span>
+          </Link>
+          <div className="flex items-center gap-2">
+            <Link href="/sample" className="btn-ghost btn-sm hidden sm:inline-flex">Free sample</Link>
+            <Link href="/login" className="btn-secondary btn-sm">Sign in</Link>
+          </div>
+        </div>
       </header>
 
-      <section className="mx-auto max-w-7xl px-5 pb-16 pt-12 sm:px-8 sm:pt-16">
+      <section className="mx-auto max-w-7xl px-5 pb-20 pt-12 sm:px-8 sm:pt-16">
         <div className="mx-auto max-w-3xl text-center">
-          <p className="eyebrow text-brand-700">Simple pricing. Serious prospecting.</p>
-          <h1 className="mt-4 text-4xl font-semibold tracking-[-0.045em] text-slate-950 sm:text-6xl">Pay for qualified leads, not a maze of credits.</h1>
-          <p className="mx-auto mt-5 max-w-2xl text-base leading-7 text-slate-600 sm:text-lg">LeadX finds and enriches the businesses your team asks for. Your client-facing workspace gets the lead data; the deeper GTM intelligence stays in your operating layer.</p>
-          <div className="mt-8 inline-flex items-center gap-1 rounded-full border border-slate-200 bg-white p-1 shadow-sm">
-            <button onClick={() => setAnnual(false)} className={`rounded-full px-4 py-2 text-sm font-semibold ${!annual ? "bg-slate-950 text-white" : "text-slate-600 hover:text-slate-950"}`}>Monthly</button>
-            <button onClick={() => setAnnual(true)} className={`rounded-full px-4 py-2 text-sm font-semibold ${annual ? "bg-slate-950 text-white" : "text-slate-600 hover:text-slate-950"}`}>Annual <span className="ml-1 text-brand-300">save 20%</span></button>
+          <p className="eyebrow text-brand-700 dark:text-brand-300">Simple pricing. Serious prospecting.</p>
+          <h1 className="mt-4 font-display text-[2.25rem] font-semibold leading-[1.08] tracking-[-0.032em] text-ink sm:text-[3.25rem]">Pay for qualified leads, not a maze of credits.</h1>
+          <p className="mx-auto mt-5 max-w-2xl text-base leading-7 text-ink-muted">LeadX finds and enriches the businesses your team asks for. Your client-facing workspace gets the lead data; the deeper GTM intelligence stays in your operating layer.</p>
+          <div className="tabs mt-8" role="group" aria-label="Billing interval">
+            <button type="button" aria-pressed={!annual} onClick={() => setAnnual(false)} className={`${!annual ? "tab-active" : "tab"} px-4 py-2 text-[0.8125rem]`}>Monthly</button>
+            <button type="button" aria-pressed={annual} onClick={() => setAnnual(true)} className={`${annual ? "tab-active" : "tab"} px-4 py-2 text-[0.8125rem]`}>Annual <span className="ml-1 font-semibold text-signal-600 dark:text-signal-300">save 20%</span></button>
           </div>
         </div>
 
-        <div className="mt-14 grid gap-4 lg:grid-cols-4">
+        <div className="mt-12 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
           {plans.map((plan) => {
             const price = annual ? plan.annual : plan.price;
             const featured = plan.tone === "featured";
             return (
-              <article key={plan.key} className={`relative flex min-h-[520px] flex-col rounded-2xl border bg-white p-6 shadow-[0_1px_2px_rgba(15,23,42,.04)] ${featured ? "border-brand-600 ring-1 ring-brand-600" : "border-slate-200"}`}>
-                {featured && <div className="absolute -top-3 left-5 rounded-full bg-brand-700 px-3 py-1 text-[10px] font-bold uppercase tracking-[.13em] text-white">Most popular</div>}
-                <div>
-                  <div className="text-sm font-semibold text-slate-950">{plan.name}</div>
-                  <p className="mt-1 min-h-10 text-sm leading-5 text-slate-500">{plan.label}</p>
-                  <div className="mt-6 flex items-end gap-1"><span className="text-4xl font-semibold tracking-[-.045em]">${price}</span><span className="mb-1 text-sm text-slate-500">/mo</span></div>
-                  {annual && plan.price > 0 ? <p className="mt-1 text-xs text-slate-400">billed annually</p> : <p className="mt-1 text-xs text-slate-400">{plan.price === 0 ? "No card required" : "billed monthly"}</p>}
+              <article key={plan.key} aria-label={`${plan.name} plan`} className={`relative flex flex-col rounded-xl border bg-surface-2 p-6 shadow-card ${featured ? "border-signal-400 ring-1 ring-signal-400/60 dark:border-signal-300/60 dark:ring-signal-300/30" : "border-line"}`}>
+                <div className="flex items-center justify-between gap-2">
+                  <h2 className="section-title text-base">{plan.name}</h2>
+                  {featured && <span className="badge-accent">Most popular</span>}
                 </div>
-                <div className="my-6 border-t border-slate-100" />
-                <div className="space-y-2 text-sm"><p className="font-semibold text-slate-900">{plan.leads}</p><p className="text-slate-500">{plan.research}</p></div>
-                <ul className="mt-6 space-y-3 text-sm text-slate-600">{plan.features.map((f) => <li key={f} className="flex gap-2"><span className="mt-0.5 text-brand-700">✓</span><span>{f}</span></li>)}</ul>
-                <button onClick={() => start(plan.key)} disabled={loading === plan.key} className={`mt-auto w-full rounded-xl px-4 py-3 text-sm font-semibold transition ${featured ? "bg-brand-700 text-white hover:bg-brand-800" : "border border-slate-300 bg-white text-slate-900 hover:border-slate-500 hover:bg-slate-50"}`}>
-                  {loading === plan.key ? "Opening…" : plan.cta}
-                </button>
+                <p className="mt-1 min-h-10 text-[0.8125rem] leading-5 text-ink-muted">{plan.label}</p>
+                <div className="mt-6 flex items-baseline gap-1">
+                  <span className="font-display text-[2.5rem] font-semibold leading-none tabular-nums tracking-[-0.03em] text-ink">${price}</span>
+                  <span className="text-sm text-ink-muted">/mo</span>
+                </div>
+                {annual && plan.price > 0 ? <p className="mt-2 text-xs text-ink-faint">billed annually</p> : <p className="mt-2 text-xs text-ink-faint">{plan.price === 0 ? "No card required" : "billed monthly"}</p>}
+                <div className="mt-5 space-y-1 rounded-lg border border-line bg-surface-3 px-3 py-2.5 text-[0.8125rem]">
+                  <p className="font-semibold tabular-nums text-ink">{plan.leads}</p>
+                  <p className="tabular-nums text-ink-muted">{plan.research}</p>
+                </div>
+                <ul className="mt-5 space-y-2.5 text-[0.8125rem] text-ink-muted">
+                  {plan.features.map((f) => (
+                    <li key={f} className="flex gap-2">
+                      <Icon name="check" size={15} className={`mt-0.5 shrink-0 ${featured ? "text-signal-600 dark:text-signal-300" : "text-brand-600 dark:text-brand-300"}`} />
+                      <span>{f}</span>
+                    </li>
+                  ))}
+                </ul>
+                <div className="mt-auto pt-7">
+                  <button type="button" onClick={() => start(plan.key)} disabled={loading === plan.key} className={`${featured ? "btn-primary" : "btn-secondary"} w-full py-2.5`}>
+                    {loading === plan.key ? "Opening…" : plan.cta}
+                  </button>
+                </div>
               </article>
             );
           })}
         </div>
 
-        <div className="mx-auto mt-10 grid max-w-5xl gap-4 md:grid-cols-2"><div className="rounded-2xl border border-slate-200 bg-white px-6 py-5 text-sm text-slate-600"><b className="text-slate-950">14-day quality guarantee</b><p className="mt-2">Hard bounces, dead contact details and approved bad-lead reports can return a lead credit.</p></div><div className="rounded-2xl border border-slate-200 bg-white px-6 py-5 text-sm text-slate-600"><b className="text-slate-950">Data quality is measurable</b><p className="mt-2">Every workspace shows delivered leads, returned credits and its current data-quality percentage.</p></div></div>
-
-        <div className="mx-auto mt-10 max-w-5xl rounded-2xl border border-slate-200 bg-white px-6 py-5 text-center text-sm text-slate-500">
-          Need more than 8,000 qualified leads or custom security, procurement, or data terms? <Link href="/login" className="font-semibold text-slate-900 hover:underline">Talk to sales</Link> for Enterprise.
+        <div className="mx-auto mt-10 grid max-w-5xl gap-4 md:grid-cols-2">
+          <div className="card-pad flex gap-3">
+            <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-brand-50 text-brand-700 dark:bg-brand-500/15 dark:text-brand-300"><Icon name="security" size={16} /></span>
+            <div><h3 className="section-title">14-day quality guarantee</h3><p className="section-sub">Hard bounces, dead contact details and approved bad-lead reports can return a lead credit.</p></div>
+          </div>
+          <div className="card-pad flex gap-3">
+            <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-brand-50 text-brand-700 dark:bg-brand-500/15 dark:text-brand-300"><Icon name="report" size={16} /></span>
+            <div><h3 className="section-title">Data quality is measurable</h3><p className="section-sub">Every workspace shows delivered leads, returned credits and its current data-quality percentage.</p></div>
+          </div>
         </div>
 
-        <div className="mx-auto mt-16 max-w-4xl border-t border-slate-200 pt-10">
-          <h2 className="text-xl font-semibold tracking-tight">What counts as a qualified lead?</h2>
-          <p className="mt-3 text-sm leading-6 text-slate-600">A LeadX qualified lead passes the workspace's configured discovery, data-quality and eligibility gates. Field availability can vary by market and provider; LeadX does not promise that every record contains every field.</p>
+        <div className="mx-auto mt-4 flex max-w-5xl flex-col items-start justify-between gap-3 rounded-xl border border-line bg-surface-2 px-6 py-5 text-[0.8125rem] text-ink-muted shadow-card sm:flex-row sm:items-center">
+          <p>Need more than <span className="tabular-nums">8,000</span> qualified leads or custom security, procurement, or data terms? Enterprise plans are available.</p>
+          <Link href="/login" className="btn-secondary btn-sm shrink-0">Talk to sales</Link>
+        </div>
+
+        <div className="mx-auto mt-16 max-w-3xl border-t border-line pt-10">
+          <h2 className="font-display text-xl font-semibold tracking-[-0.02em] text-ink">What counts as a qualified lead?</h2>
+          <p className="mt-3 text-sm leading-7 text-ink-muted">A LeadX qualified lead passes the workspace&apos;s configured discovery, data-quality and eligibility gates. Field availability can vary by market and provider; LeadX does not promise that every record contains every field.</p>
         </div>
       </section>
+
+      <footer className="border-t border-line px-5 py-6 sm:px-8">
+        <div className="mx-auto flex max-w-7xl flex-wrap items-center justify-between gap-3 text-xs text-ink-faint">
+          <span>LeadX · agency revenue intelligence</span>
+          <nav className="flex gap-4" aria-label="Legal"><Link href="/privacy" className="hover:text-ink">Privacy</Link><Link href="/terms" className="hover:text-ink">Terms</Link><Link href="/security" className="hover:text-ink">Security</Link></nav>
+        </div>
+      </footer>
     </main>
   );
 }

@@ -75,12 +75,25 @@ async def _persist_enrichment(lead: dict[str, Any], enrichment: dict[str, Any]) 
 
 async def execute_specialized(agent: str, data: dict[str, Any]) -> dict[str, Any]:
     leads = await _load_leads(data, int(data.get("agent_batch_limit") or 100))
+    channel = str(data.get("delivery_channel") or "portal").strip().lower()
+    if agent == "personalization" and channel in {"", "portal", "crm", "none", "internal", "dashboard"}:
+        return {"agent": agent, "status": "skipped", "skipped_reason": "not_needed_for_portal_delivery", "lead_ids": [str(x) for x in data.get("lead_ids") or []][:5000]}
+    if not leads and agent not in {"source_router", "discovery_planner", "compliance", "routing", "cost_optimizer", "experiment"}:
+        return {"agent": agent, "status": "skipped", "skipped_reason": "no_leads_in_handoff", "lead_ids": [str(x) for x in data.get("lead_ids") or []][:5000]}
     lead = leads[0] if leads else (data.get("lead") or data)
     if agent == "source_router":
         p = build_plan(str(data.get("industry") or data.get("vertical") or "local business"), list(data.get("locations") or []), list(data.get("queries") or []), list(data.get("surfaces") or []) or None, int(data.get("max_rounds") or 8))
         catalog = adapter_catalog()
         executable = [x for x in catalog if x.get("executable")]
-        return {"agent":agent,"provider_snapshot":catalog,"executable":len(executable),"plan":p.as_dict(),"source_policy":["free_open","first_party_directory","serper_gap_fill","configured_connectors","paid_commercial"]}
+        from app.integrations.prod.lead_selection_planner import build_selection_decision
+        target = int(data.get("target_new_leads") or data.get("max_assignments") or 0)
+        selection = build_selection_decision(
+            target=target, allow_tier_b=bool(data.get("allow_tier_b", True)), allow_tier_c=bool(data.get("allow_tier_c", True)),
+            rotation_key=str(data.get("rotation_key") or f"{data.get('tenant_id','')}:{data.get('mission_id','')}"),
+            enabled_sources={"osm": True, "maps": True, "web": True, "yelp": True, "facebook": True, "linkedin": True, "instagram": True},
+            icp_id=data.get("icp_id"), tenant_id=data.get("tenant_id"), mission_id=data.get("mission_id"),
+        )
+        return {"agent":agent,"provider_snapshot":catalog,"executable":len(executable),"plan":p.as_dict(),"selection_decision":selection,"source_policy":["free_open","first_party_directory","serper_gap_fill","configured_connectors","paid_commercial"]}
     if agent == "discovery_planner":
         # This is the actual Discovery Agent execution step. It calls the
         # existing exhaustive discovery engine; it does not create a second
@@ -94,7 +107,7 @@ async def execute_specialized(agent: str, data: dict[str, Any]) -> dict[str, Any
         leads = await discover_exhaustive(plan.vertical, list(plan.locations), list(plan.queries))
         persisted = await upsert_global_batch(leads)
         ids = [str(x.get("id")) for x in persisted if x.get("id")]
-        return {"agent":"discovery_planner","mode":"discovery_execution","industry":plan.vertical,"locations":list(plan.locations),"queries":list(plan.queries),"plan":plan.as_dict(),"discovered":len(persisted),"lead_ids":ids,"board_lead_ids":ids,"source_counts":{str(x.get("source") or "unknown"): sum(1 for y in persisted if y.get("source")==x.get("source")) for x in persisted}}
+        return {"agent":"discovery_planner","mode":"discovery_execution","industry":plan.vertical,"locations":list(plan.locations),"queries":list(plan.queries),"plan":plan.as_dict(),"selection_decision":data.get("selection_decision"),"discovered":len(persisted),"lead_ids":ids,"board_lead_ids":ids,"source_counts":{str(x.get("source") or "unknown"): sum(1 for y in persisted if y.get("source")==x.get("source")) for x in persisted}}
 
     if agent == "web_research":
         return {"agent":agent,"research":await research_company(lead, max_pages=int(data.get("max_pages") or 12), use_firecrawl=bool(data.get("use_firecrawl",True))),"lead_ids":[str(lead["id"])] if lead.get("id") else list(data.get("lead_ids") or [])}
@@ -113,9 +126,19 @@ async def execute_specialized(agent: str, data: dict[str, Any]) -> dict[str, Any
         candidates={str(x.get("id")):generate_email_candidates(x) for x in leads if x.get("id")}
         return {"agent":agent,"candidates":candidates,"count":sum(len(v) for v in candidates.values()),"lead_ids":list(candidates)}
     if agent == "verification":
+        candidate_map = data.get("email_candidates") or data.get("candidates") or {}
         results=[]
         for item in leads[:100]:
             value=str(item.get("email") or item.get("phone") or "")
+            if not value and isinstance(candidate_map, dict):
+                candidates = candidate_map.get(str(item.get("id"))) or []
+                if isinstance(candidates, dict):
+                    candidates = [candidates]
+                for candidate in candidates if isinstance(candidates, list) else []:
+                    candidate_value = candidate.get("email") if isinstance(candidate, dict) else candidate
+                    if candidate_value:
+                        value = str(candidate_value)
+                        break
             field="email" if "@" in value else "phone"
             results.append({"lead_id":str(item.get("id")),"field":field,"result":await verify_contact(value,field) if value else {"status":"missing"}})
         return {"agent":agent,"results":results,"lead_ids":[str(x.get("id")) for x in leads if x.get("id")]}

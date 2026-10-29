@@ -59,7 +59,11 @@ async def run_core_discovery(*, industry: str, locations: list[str], queries: li
     ``want`` is how many contactable candidates the caller needs. When the free
     lanes already supply it, paid lanes are skipped (LEADX_PAID_FALLBACK=auto).
     """
-    from app.integrations.prod.paid_policy import paid_stage_allowed, paid_fallback_mode
+    from app.integrations.prod.discovery_runtime import local_validation_mode, synthetic_discovery
+    if local_validation_mode():
+        rows = synthetic_discovery(industry, locations, limit_per_location=int(want or 1))
+        return CoreRun(rows, {"free_first": True, "local_validation": True, "paid_stage": {"allowed": False, "reason": "local_validation_mode"}}, [])
+    from app.integrations.prod.paid_policy import paid_stage_allowed, paid_fallback_mode, free_is_sufficient
     if want is None:
         want = int(os.getenv("LEADX_DISCOVERY_WANT", "0") or 0) or None
     all_leads: list[dict] = []
@@ -87,7 +91,12 @@ async def run_core_discovery(*, industry: str, locations: list[str], queries: li
     telemetry["paid_fallback_mode"] = paid_fallback_mode()
     # Without a stated need we cannot call free "sufficient", so paid lanes stay available.
     _need = int(want) if want else 10**9
-    _paid_ok_for_lanes, _ = paid_stage_allowed(free_geo, _need)
+    _paid_ok_for_lanes, _ = paid_stage_allowed(
+        free_geo, _need,
+        credential_available=bool(os.getenv("SERPER_API_KEY") or os.getenv("DECODO_API_KEY") or os.getenv("APOLLO_API_KEY") or os.getenv("HUNTER_API_KEY")),
+        unmet_gap=not free_is_sufficient(free_geo, _need),
+        remaining_quota=int(os.getenv("LEADX_DISCOVERY_REMAINING_QUOTA", str(_need))),
+    )
 
     # 1B. Intensive self-hosted web discovery. The mesh contains 1,200+
     # Google site-restricted lanes built from validated public destinations.
@@ -115,7 +124,13 @@ async def run_core_discovery(*, industry: str, locations: list[str], queries: li
     # pagination and query expansion; no paid map request is made when the
     # Serper key is absent.
     free_pool = [x for x in all_leads if str(x.get("source_mode") or "") != "serper"]
-    paid_ok, paid_reason = paid_stage_allowed(free_pool, _need)
+    # paid_stage_allowed(free_pool, _need) is evaluated with all durable gates.
+    paid_ok, paid_reason = paid_stage_allowed(
+        free_pool, _need,
+        credential_available=bool(os.getenv("SERPER_API_KEY") or os.getenv("DECODO_API_KEY") or os.getenv("APOLLO_API_KEY") or os.getenv("HUNTER_API_KEY")),
+        unmet_gap=not free_is_sufficient(free_pool, _need),
+        remaining_quota=int(os.getenv("LEADX_DISCOVERY_REMAINING_QUOTA", str(_need))),
+    )
     telemetry["paid_stage"] = {"allowed": paid_ok, "reason": paid_reason, "free_candidates": len(free_pool), "wanted": want}
     if not paid_ok:
         telemetry["sources"]["serper_maps_fallback"] = {"hits": 0, "mode": "paid_fallback", "skipped": paid_reason}

@@ -134,13 +134,32 @@ function progressRows(operation: OperationState) {
   ] as const;
 }
 
-function operationStatusClass(status: string) {
+type OperationTone = "success" | "danger" | "warn" | "neutral" | "brand";
+
+function operationTone(status: string): OperationTone {
   const normalized = status.toLowerCase();
-  if (["completed", "complete", "done", "delivered", "approved", "active"].includes(normalized)) return "bg-signal-50 text-signal-700 dark:bg-signal-500/15 dark:text-signal-300";
-  if (["failed", "error", "cancelled", "rejected", "lost"].includes(normalized)) return "bg-rust-50 text-rust-700 dark:bg-rust-900/30 dark:text-rust-300";
-  if (["partial", "degraded"].includes(normalized)) return "bg-amber-50 text-amber-800 dark:bg-amber-500/15 dark:text-amber-200";
-  return "bg-brand-500/15 text-brand-700 dark:text-brand-300";
+  if (["completed", "complete", "done", "delivered", "approved", "active"].includes(normalized)) return "success";
+  if (["failed", "error", "rejected", "lost"].includes(normalized)) return "danger";
+  if (["cancelled", "canceled"].includes(normalized)) return "neutral";
+  if (["partial", "degraded"].includes(normalized)) return "warn";
+  return "brand";
 }
+
+const TONE_BADGE: Record<OperationTone, string> = {
+  success: "badge-success",
+  danger: "badge-danger",
+  warn: "badge-warn",
+  neutral: "badge-neutral",
+  brand: "badge-brand",
+};
+
+const TONE_DOT: Record<OperationTone, string> = {
+  success: "bg-emerald-600 dark:bg-emerald-400",
+  danger: "bg-rust-500",
+  warn: "bg-amber-500",
+  neutral: "bg-line-strong",
+  brand: "bg-brand-600 dark:bg-brand-300",
+};
 
 export function OperationStateCard({
   operation,
@@ -154,41 +173,49 @@ export function OperationStateCard({
   jobsHref?: string;
 }) {
   const status = label(operation.status);
+  const tone = operationTone(operation.status);
+  const hasDetails = Boolean(operation.blockers?.length || operation.terminalReason || operation.reuse || operation.freshness || operation.sourceLanes);
   return (
-    <section className="rounded-2xl border border-line bg-surface-2/50 p-4" role="status" aria-label={title} aria-live="polite">
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div>
-          <h2 className="text-sm font-semibold text-ink">{title}</h2>
-          <div className="mt-1 flex flex-wrap gap-x-3 gap-y-1 font-mono text-[11px] text-ink-faint">
-            {operation.runId ? <span>Run {operation.runId}</span> : null}
-            {operation.jobId ? <span>Job {operation.jobId}</span> : null}
-          </div>
+    <section className="overflow-hidden rounded-xl border border-line bg-surface-2 shadow-card" role="status" aria-label={title} aria-live="polite">
+      <div className="flex flex-wrap items-start justify-between gap-3 border-b border-line px-4 py-3">
+        <div className="min-w-0">
+          <h2 className="section-title">{title}</h2>
+          {operation.runId || operation.jobId ? (
+            <div className="mt-1 flex flex-wrap gap-x-3 gap-y-1 text-[11px] text-ink-faint">
+              {operation.runId ? <span>Run <span className="font-mono text-xs text-ink-muted">{operation.runId}</span></span> : null}
+              {operation.jobId ? <span>Job <span className="font-mono text-xs text-ink-muted">{operation.jobId}</span></span> : null}
+            </div>
+          ) : null}
         </div>
-        <span className={`pill ${operationStatusClass(operation.status)}`}>{status}</span>
+        <span className={`${TONE_BADGE[tone]} capitalize`}><span className={`h-1.5 w-1.5 rounded-full ${TONE_DOT[tone]}`} aria-hidden="true" />{status}</span>
       </div>
-      <dl className="mt-4 grid grid-cols-2 gap-3 text-xs sm:grid-cols-4">
-        <div><dt className="text-ink-faint">Stage</dt><dd className="mt-1 font-medium text-ink">{label(operation.stage)}</dd></div>
-        <div><dt className="text-ink-faint">Queue age</dt><dd className="mt-1 font-medium text-ink">{age(operation.queueAgeSeconds)}</dd></div>
-        <div><dt className="text-ink-faint">Retries</dt><dd className="mt-1 font-medium text-ink">{operation.retries ?? 0}</dd></div>
-        <div><dt className="text-ink-faint">Worker</dt><dd className="mt-1 font-medium text-ink">{label(operation.workerStatus)}</dd></div>
-      </dl>
-      <div className="mt-4 grid grid-cols-2 gap-2 text-xs sm:grid-cols-4 lg:grid-cols-6">
-        {progressRows(operation).map(([name, value]) => <div key={name} className="rounded-lg border border-line bg-surface-3/50 px-2.5 py-2"><div className="text-ink-faint">{name}</div><div className="mt-1 font-semibold text-ink"><DisplayValue value={value} /></div></div>)}
+      <div className="p-4">
+        <dl className="grid grid-cols-2 gap-x-4 gap-y-3 sm:grid-cols-4">
+          <div><dt className="label">Stage</dt><dd className="mt-1 text-[0.8125rem] font-medium capitalize text-ink">{label(operation.stage)}</dd></div>
+          <div><dt className="label">Queue age</dt><dd className="mt-1 text-[0.8125rem] font-medium tabular-nums text-ink">{age(operation.queueAgeSeconds)}</dd></div>
+          <div><dt className="label">Retries</dt><dd className="mt-1 text-[0.8125rem] font-medium tabular-nums text-ink">{operation.retries ?? 0}</dd></div>
+          <div><dt className="label">Worker</dt><dd className="mt-1 text-[0.8125rem] font-medium capitalize text-ink">{label(operation.workerStatus)}</dd></div>
+        </dl>
+        <div className="mt-4 grid grid-cols-2 gap-px overflow-hidden rounded-lg border border-line bg-line sm:grid-cols-4 lg:grid-cols-6">
+          {progressRows(operation).map(([name, value]) => <div key={name} className="bg-surface-2 px-3 py-2.5"><div className="text-[11px] text-ink-faint">{name}</div><div className="mt-1 text-sm font-semibold tabular-nums text-ink"><DisplayValue value={value} /></div></div>)}
+        </div>
+        {hasDetails ? <div className="mt-4 space-y-1.5 rounded-lg border border-line bg-surface-3/60 px-3 py-2.5 text-xs text-ink-muted">
+          {operation.blockers?.length ? <div><b className="font-semibold text-ink">Blockers:</b> {operation.blockers.join(", ")}</div> : null}
+          {operation.terminalReason ? <div><b className="font-semibold text-ink">Terminal reason:</b> {operation.terminalReason}</div> : null}
+          {operation.reuse ? <div className="break-words"><b className="font-semibold text-ink">Reuse:</b> <DisplayValue value={operation.reuse} /></div> : null}
+          {operation.freshness ? <div className="break-words"><b className="font-semibold text-ink">Freshness:</b> <DisplayValue value={operation.freshness} /></div> : null}
+          {operation.sourceLanes ? <div className="break-words"><b className="font-semibold text-ink">Source lanes:</b> <DisplayValue value={operation.sourceLanes} /></div> : null}
+        </div> : null}
+        {operation.deadlineReached && onRefresh ? <div className="mt-4"><PollingDeadlineState onRefresh={onRefresh} /></div> : null}
       </div>
-      {(operation.blockers?.length || operation.terminalReason || operation.reuse || operation.freshness || operation.sourceLanes) ? <div className="mt-3 space-y-2 text-xs text-ink-muted">
-        {operation.blockers?.length ? <div><b className="text-ink">Blockers:</b> {operation.blockers.join(", ")}</div> : null}
-        {operation.terminalReason ? <div><b className="text-ink">Terminal reason:</b> {operation.terminalReason}</div> : null}
-        {operation.reuse ? <div><b className="text-ink">Reuse:</b> <DisplayValue value={operation.reuse} /></div> : null}
-        {operation.freshness ? <div><b className="text-ink">Freshness:</b> <DisplayValue value={operation.freshness} /></div> : null}
-        {operation.sourceLanes ? <div><b className="text-ink">Source lanes:</b> <DisplayValue value={operation.sourceLanes} /></div> : null}
-      </div> : null}
-      <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-ink-muted">
-        <span>Last progress: {operation.lastProgressAt ? new Date(operation.lastProgressAt).toLocaleString() : "not reported"}</span>
-        {operation.reasonCode ? <span>Reason: <code>{operation.reasonCode}</code></span> : null}
-        {operation.requestId ? <span>Request ID: <code>{operation.requestId}</code></span> : null}
+      <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2 border-t border-line bg-surface-3/50 px-4 py-2.5 text-xs text-ink-muted">
+        <div className="flex flex-wrap items-center gap-x-4 gap-y-1">
+          <span>Last progress: <span className="tabular-nums">{operation.lastProgressAt ? new Date(operation.lastProgressAt).toLocaleString() : "not reported"}</span></span>
+          {operation.reasonCode ? <span>Reason: <code className="font-mono text-xs">{operation.reasonCode}</code></span> : null}
+          {operation.requestId ? <span>Request ID: <code className="font-mono text-xs">{operation.requestId}</code></span> : null}
+        </div>
+        {jobsHref ? <Link className="btn-secondary btn-sm" href={jobsHref}>Open jobs monitor</Link> : null}
       </div>
-      {operation.deadlineReached && onRefresh ? <div className="mt-3"><PollingDeadlineState onRefresh={onRefresh} /></div> : null}
-      {jobsHref ? <Link className="mt-3 inline-flex rounded-md border border-line px-2.5 py-1 text-xs font-medium text-ink hover:bg-surface-2" href={jobsHref}>Open jobs monitor</Link> : null}
     </section>
   );
 }

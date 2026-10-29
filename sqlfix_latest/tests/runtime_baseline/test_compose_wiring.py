@@ -70,5 +70,5 @@ def test_portal_image_builds_and_checks_process_without_backend_secrets():
     assert "RUN npm run build && npm prune --omit=dev" in PORTAL_DOCKERFILE
     assert "API_UPSTREAM=${API_UPSTREAM}" in PORTAL_DOCKERFILE
     assert "HEALTHCHECK --interval=15s --timeout=5s --start-period=30s --retries=5" in PORTAL_DOCKERFILE
-    assert "fetch('http://127.0.0.1:3000/')" in PORTAL_DOCKERFILE
+    assert "fetch('http://127.0.0.1:3000/api/health'" in PORTAL_DOCKERFILE
     assert "env_file" not in _service_block("portal", "linkedin-scraper")

@@ -1,5 +1,5 @@
-"""
-Lead Engine — managed service entrypoint.
+﻿"""
+Lead Engine - managed service entrypoint.
   uvicorn app.app_service:app --host 0.0.0.0 --port 8000
 """
 from __future__ import annotations
@@ -7,6 +7,7 @@ from __future__ import annotations
 import logging
 import re
 import os
+from datetime import datetime, timezone
 from pathlib import Path as _Path
 
 # Load lead-engine-v2/.env before anything else reads os.environ
@@ -20,7 +21,7 @@ try:
 except ImportError:
     pass
 
-from fastapi import FastAPI, Request, Depends, HTTPException
+from fastapi import FastAPI, Request, Depends, HTTPException, status
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 from starlette.exceptions import HTTPException as StarletteHTTPException
@@ -50,7 +51,7 @@ from app.api.prod import platform_api
 app = FastAPI(
     title="Automiqo Lead Service",
     version="15.8.1",
-    description="Managed lead generation — operator API + client CRM",
+    description="Managed lead generation - operator API + client CRM",
 )
 
 app.include_router(competitive_api.router)
@@ -66,7 +67,7 @@ if not _IS_PROD_ENV and not _cors:
 elif _IS_PROD_ENV and (not _cors or "*" in _cors):
     # Fail safe: never expose a credentialed API to every origin in production.
     # The Next.js app proxies /backend/* same-origin, so an empty list is fine.
-    logger.warning("CORS_ORIGINS missing/wildcard in production — cross-origin browser access disabled.")
+    logger.warning("CORS_ORIGINS missing/wildcard in production - cross-origin browser access disabled.")
     _cors = [o for o in _cors if o != "*"]
 app.add_middleware(
     CORSMiddleware,
@@ -79,6 +80,39 @@ app.add_middleware(
 )
 
 app.add_middleware(GZipMiddleware, minimum_size=1000)
+
+
+@app.middleware("http")
+async def local_provider_isolation_middleware(request: Request, call_next):
+    """Keep local validation HTTP traffic offline and synthetic-only."""
+    from app.integrations.prod.discovery_runtime import (
+        ProviderIsolationError,
+        assert_provider_allowed,
+        local_validation_mode,
+    )
+
+    if local_validation_mode():
+        path = request.url.path
+        local_paths = {
+            "/",
+            "/auth/session",
+            "/auth/session/refresh",
+            "/crm/me",
+            "/health",
+            "/health/live",
+            "/health/ready",
+            "/health/routes",
+        }
+        local_prefixes = ("/docs", "/redoc", "/openapi.json", "/crm/", "/leads/", "/platform/")
+        if path not in local_paths and not path.startswith(local_prefixes):
+            try:
+                assert_provider_allowed("http_provider")
+            except ProviderIsolationError:
+                return JSONResponse(
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    content={"ok": False, "error": "Local validation provider isolation is enabled"},
+                )
+    return await call_next(request)
 
 
 @app.middleware("http")
@@ -119,10 +153,13 @@ async def idempotency_middleware(request: Request, call_next):
 
     body = await request.body()
     body_hash = hashlib.sha256(body).hexdigest()
-    auth = request.headers.get("authorization", "")
-    # The bearer token is never stored; only a stable digest scopes the key to
-    # the authenticated session. Tenant/path are included to prevent cross-route reuse.
-    scope_hash = hashlib.sha256((auth + "|" + (request.headers.get("x-tenant-id") or "") + "|" + path).encode()).hexdigest()
+    # Include either auth mechanism in the derived scope. Raw bearer/cookie
+    # material is never persisted; the digest prevents cookie-authenticated
+    # users from sharing a key merely because they use the same tenant/path.
+    auth = request.headers.get("authorization", "") or request.cookies.get("leadx_session", "")
+    tenant_hint = request.headers.get("x-tenant-id") or request.path_params.get("tenant_id") or ""
+    scope_input = f"principal:{auth}|tenant_hint:{tenant_hint}|path:{path}"
+    scope_hash = hashlib.sha256(scope_input.encode("utf-8", "replace")).hexdigest()
     operation = f"HTTP:{method}:{path}"
     tenant_id = request.headers.get("x-tenant-id") or request.path_params.get("tenant_id") or None
     acquired, existing = await offload(claim_idempotency, key, operation, tenant_id=tenant_id, scope_hash=scope_hash, request_hash=body_hash)
@@ -163,7 +200,7 @@ async def idempotency_middleware(request: Request, call_next):
 
 @app.middleware("http")
 async def request_id_middleware(request: Request, call_next):
-    # Only accept sane client ids — prevents log/header injection while
+    # Only accept sane client ids - prevents log/header injection while
     # preserving a valid upstream correlation ID end-to-end.
     request_id = validated_request_id(request.headers.get("x-request-id"))
     request.state.request_id = request_id
@@ -175,8 +212,11 @@ async def request_id_middleware(request: Request, call_next):
         # endpoint-specific limits below; this is only the general API guard.
         if request.url.path.startswith(("/crm/", "/leads/v2")) and request.method != "OPTIONS":
             auth = request.headers.get("authorization", "") or request.cookies.get("leadx_session", "")
+            tenant_hint = request.headers.get("x-tenant-id") or request.path_params.get("tenant_id") or "no-tenant"
             import hashlib
-            identity = client_ip(request) + ":" + hashlib.sha256(auth.encode()).hexdigest()[:16]
+            principal_digest = hashlib.sha256(auth.encode("utf-8", "replace")).hexdigest()[:16]
+            tenant_digest = hashlib.sha256(str(tenant_hint).encode("utf-8", "replace")).hexdigest()[:16]
+            identity = f"{client_ip(request)}:{principal_digest}:tenant-{tenant_digest}"
             await check_rate_limit_async(identity, "api", int(os.getenv("RATE_LIMIT_API_PER_MINUTE", "180")), 60)
         response = await call_next(request)
     except HTTPException as exc:
@@ -281,33 +321,37 @@ async def startup():
     env = os.getenv("ENVIRONMENT", "dev").lower()
     from app.core.runtime_config import validate_runtime_configuration
     validate_runtime_configuration(process="api")
-    # Migration 16.0 preflight runs before provider-bound work.  Development
-    # remains bootable against older mirrors, but production/staging fail closed
-    # rather than accepting jobs that cannot be durably replayed/accounted for.
-    try:
-        from app.integrations.prod.data_plane import run_durable_preflight
-        _preflight = run_durable_preflight()
-        if not _preflight.get("ok"):
+    from app.integrations.prod.agent_registry import validate_registry
+    validate_registry()
+    # Local validation is intentionally offline: do not probe migrations or
+    # instantiate a Supabase client while synthetic auth/provider isolation is
+    # enabled. The local gate records this as not run rather than as success.
+    if os.getenv("LOCAL_VALIDATION_MODE", "").lower() in ("1", "true", "yes", "on"):
+        logger.info("Durable data-plane preflight skipped in local validation mode")
+    else:
+        try:
+            from app.integrations.prod.data_plane import run_durable_preflight
+            _preflight = run_durable_preflight()
+            if not _preflight.get("ok"):
+                if env in ("production", "prod", "staging"):
+                    raise RuntimeError("Durable data-plane migration preflight failed")
+                logger.warning("Durable data-plane preflight unavailable in %s", env)
+            else:
+                logger.info("Durable data-plane preflight passed")
+        except RuntimeError:
+            raise
+        except Exception as _preflight_error:
             if env in ("production", "prod", "staging"):
-                raise RuntimeError("Durable data-plane migration preflight failed")
-            logger.warning("Durable data-plane preflight unavailable in %s", env)
-        else:
-            logger.info("Durable data-plane preflight passed")
-    except RuntimeError:
-        raise
-    except Exception as _preflight_error:
-        if env in ("production", "prod", "staging"):
-            raise RuntimeError("Durable data-plane migration preflight failed") from _preflight_error
-        logger.warning("Durable data-plane preflight skipped: %s", type(_preflight_error).__name__)
+                raise RuntimeError("Durable data-plane migration preflight failed") from _preflight_error
+            logger.warning("Durable data-plane preflight skipped: %s", type(_preflight_error).__name__)
     missing = [k for k in ("SUPABASE_URL", "SUPABASE_ANON_KEY", "UNSUBSCRIBE_SECRET", "INTEGRATION_OAUTH_STATE_SECRET", "REDIS_URL") if not os.getenv(k)]
     if not (os.getenv("SUPABASE_SERVICE_KEY") or os.getenv("SUPABASE_SERVICE_ROLE_KEY") or os.getenv("SUPABASE_KEY")):
         missing.append("SUPABASE_SERVICE_ROLE_KEY")
-    if env in ("production", "prod"):
+    if env in ("production", "prod", "staging"):
         required = {
             "LEAD_ENGINE_SERVICE_KEY": lambda v: len(v) >= 32,
             "DELIVERY_CONFIG_KEY": lambda v: len(v) >= 32,
-            "STRIPE_SECRET_KEY": bool,
-            "STRIPE_WEBHOOK_SECRET": bool,
+
             "CORS_ORIGINS": bool,
         }
         for key, predicate in required.items():
@@ -316,7 +360,8 @@ async def startup():
         if os.getenv("LEAD_ENGINE_DEV_AUTH_BYPASS", "").lower() in ("1", "true", "yes"):
             missing.append("LEAD_ENGINE_DEV_AUTH_BYPASS=false")
         if missing:
-            raise RuntimeError("Production startup refused: missing/invalid required configuration: " + ", ".join(sorted(set(missing))))
+            profile = "staging" if env == "staging" else "production"
+            raise RuntimeError(f"{profile.title()} startup refused: missing/invalid required configuration: " + ", ".join(sorted(set(missing))))
     elif missing:
         logger.warning("Non-production missing env: %s", sorted(set(missing)))
     logger.info("Lead service started env=%s version=15.8.1", env)
@@ -345,6 +390,15 @@ def _health_component(*, ok: bool, required: bool, status: str, reason: str, **d
 
 
 def _check_database() -> dict:
+    local_mode = os.getenv("LOCAL_VALIDATION_MODE", "").strip().lower() in {"1", "true", "yes", "on"}
+    if local_mode and os.getenv("LOCAL_DURABLE_BACKEND", "").strip().lower() == "sqlite":
+        try:
+            from app.memory.supabase_client import get_supabase
+            get_supabase().table("tenants").select("id").limit(1).execute()
+            return _health_component(ok=True, required=True, status="ready", reason="local_durable_sqlite")
+        except Exception:
+            logger.warning("health dependency failure component=db reason=local_durable_unavailable")
+            return _health_component(ok=False, required=True, status="unavailable", reason="local_durable_unavailable")
     configured = bool(
         os.getenv("SUPABASE_URL")
         and (os.getenv("SUPABASE_ANON_KEY") or os.getenv("SUPABASE_SERVICE_KEY")
@@ -391,18 +445,114 @@ def _check_redis(policy) -> dict:
         )
 
 
+def _check_auth_configuration(policy) -> dict:
+    """Report only whether the configured authentication contract is usable."""
+
+    if policy is None:
+        return _health_component(
+            ok=False, required=True, status="unavailable", reason="invalid_configuration"
+        )
+    if os.getenv("LEAD_ENGINE_DEV_AUTH_BYPASS", "").lower() in {"1", "true", "yes", "on"}:
+        return _health_component(
+            ok=False, required=True, status="unavailable", reason="auth_bypass_enabled"
+        )
+    if policy.local_authentication_flag:
+        configured = bool(
+            os.getenv("LOCAL_AUTH_EMAIL")
+            and (os.getenv("LOCAL_AUTH_PASSWORD") or os.getenv("LOCAL_AUTH_PASSWORD_HASH"))
+            and len(os.getenv("LOCAL_AUTH_SECRET", "")) >= 32
+        )
+        return _health_component(
+            ok=configured, required=True,
+            status="ready" if configured else "unavailable",
+            reason="local_auth_configured" if configured else "missing_configuration",
+        )
+    configured = bool(os.getenv("SUPABASE_URL") and os.getenv("SUPABASE_ANON_KEY"))
+    return _health_component(
+        ok=configured, required=True,
+        status="ready" if configured else "unavailable",
+        reason="ok" if configured else "missing_configuration",
+    )
+
+
+def _check_provider_isolation(policy) -> dict:
+    """Make offline provider isolation explicit without exposing provider state."""
+
+    if policy is None:
+        return _health_component(
+            ok=False, required=True, status="unavailable", reason="invalid_configuration"
+        )
+    isolated = bool(policy.paid_provider_isolation)
+    local_validation = bool(policy.local_validation_mode)
+    ok = isolated if local_validation else True
+    return _health_component(
+        ok=ok, required=True,
+        status="ready" if ok else "unavailable",
+        reason=("isolated" if isolated else "not_required_outside_local_validation")
+        if ok else "provider_isolation_disabled",
+    )
+
+
+def _safe_int(value: object, default: int = 0) -> int:
+    try:
+        return max(0, int(value or 0))
+    except (TypeError, ValueError, OverflowError):
+        return default
+
+
+def _timestamp_age_seconds(value: object, now: datetime | None = None) -> int | None:
+    if not value:
+        return None
+    try:
+        parsed = datetime.fromisoformat(str(value).replace("Z", "+00:00"))
+        if parsed.tzinfo is None:
+            parsed = parsed.replace(tzinfo=timezone.utc)
+        return max(0, int(((now or datetime.now(timezone.utc)) - parsed).total_seconds()))
+    except (TypeError, ValueError, OverflowError):
+        return None
+
+
 def _safe_worker(row: object) -> dict:
-    """Expose only aggregate worker evidence; never return arbitrary row data."""
+    """Expose aggregate worker evidence, including bounded capability proof."""
 
     if not isinstance(row, dict):
         return {}
     return {
         "worker_id": str(row.get("worker_id"))[:128] if row.get("worker_id") is not None else None,
         "status": str(row.get("status") or "unknown")[:32],
-        "capacity": max(0, int(row.get("capacity") or 0)),
-        "active_jobs": max(0, int(row.get("active_jobs") or 0)),
+        "capacity": _safe_int(row.get("capacity")),
+        "active_jobs": _safe_int(row.get("active_jobs")),
+        "queue_capability": row.get("queue_capability") is True,
+        "queue_checked_at": str(row.get("queue_checked_at"))[:64] if row.get("queue_checked_at") else None,
+        "reclaim_capability": row.get("reclaim_capability") is True,
+        "reclaim_checked_at": str(row.get("reclaim_checked_at"))[:64] if row.get("reclaim_checked_at") else None,
+        "last_terminal_error_category": str(row.get("last_terminal_error_category"))[:80]
+        if row.get("last_terminal_error_category") else None,
         "last_seen_at": str(row.get("last_seen_at"))[:64] if row.get("last_seen_at") else None,
+        "observed_at": str(row.get("observed_at"))[:64] if row.get("observed_at") else None,
     }
+
+
+def _worker_evidence_ready(row: dict, now: datetime | None = None) -> tuple[bool, str, int | None]:
+    """Require fresh heartbeat, queue, and reclaim evidence from one worker."""
+
+    if row.get("status") not in {"healthy", "ready"}:
+        return False, "worker_unavailable", None
+    if row.get("queue_capability") is not True:
+        return False, "queue_unavailable", None
+    if row.get("reclaim_capability") is not True:
+        return False, "reclaim_unavailable", None
+    ages = [
+        _timestamp_age_seconds(row.get("last_seen_at"), now),
+        _timestamp_age_seconds(row.get("queue_checked_at"), now),
+        _timestamp_age_seconds(row.get("reclaim_checked_at"), now),
+    ]
+    if any(age is None for age in ages):
+        return False, "worker_evidence_incomplete", None
+    age = max(age for age in ages if age is not None)
+    if age > 120:
+        return False, "worker_stale", age
+    return True, "ok", age
 
 
 def _check_worker_queue(*, required: bool) -> tuple[dict, dict]:
@@ -417,27 +567,34 @@ def _check_worker_queue(*, required: bool) -> tuple[dict, dict]:
         raw_workers = observed.get("workers") if isinstance(observed, dict) else []
         workers = [_safe_worker(row) for row in (raw_workers or [])]
         workers = [row for row in workers if row]
-        healthy_workers = [row for row in workers if row.get("status") in {"healthy", "ready"}]
+        now = datetime.now(timezone.utc)
+        worker_results = [(_worker_evidence_ready(row, now), row) for row in workers]
+        healthy_workers = [row for (result, row) in worker_results if result[0]]
+        failed_reasons = [result[1] for result, _row in worker_results if not result[0]]
         raw_queue = observed.get("queue") if isinstance(observed, dict) else {}
         raw_queue = raw_queue if isinstance(raw_queue, dict) else {}
-        queued = max(0, int(raw_queue.get("queued") or 0))
-        running = max(0, int(raw_queue.get("running") or 0))
-        failed = max(0, int(raw_queue.get("failed") or 0))
-        oldest_age = max(0, int(raw_queue.get("oldest_queued_seconds") or 0))
+        queued = _safe_int(raw_queue.get("queued"))
+        running = _safe_int(raw_queue.get("running"))
+        failed = _safe_int(raw_queue.get("failed"))
+        oldest_age = _safe_int(raw_queue.get("oldest_queued_seconds"))
+        queue_capable = raw_queue.get("capable") is True and bool(observed.get("ok"))
         worker_ok = bool(healthy_workers)
-        queue_ok = bool(observed.get("ok")) and worker_ok
+        queue_ok = queue_capable and worker_ok
+        worker_reason = "ok" if worker_ok else (failed_reasons[0] if failed_reasons else "worker_unavailable")
+        queue_reason = "ok" if queue_ok else ("queue_unavailable" if not queue_capable else "worker_unavailable")
         worker = _health_component(
             ok=worker_ok, required=True,
             status="ready" if worker_ok else "unavailable",
-            reason="ok" if worker_ok else "worker_unavailable",
+            reason=worker_reason,
             count=len(workers), healthy_count=len(healthy_workers), workers=workers,
+            reclaim_capability=bool(healthy_workers),
         )
         queue = _health_component(
             ok=queue_ok, required=True,
             status="ready" if queue_ok else "unavailable",
-            reason="ok" if queue_ok else "queue_unavailable",
-            depth=queued + running, queued=queued, running=running, failed=failed,
-            oldest_queued_seconds=oldest_age,
+            reason=queue_reason,
+            capability=queue_capable, depth=queued + running, queued=queued,
+            running=running, failed=failed, oldest_queued_seconds=oldest_age,
         )
         return worker, queue
     except Exception:
@@ -480,7 +637,17 @@ def _health_snapshot(request: Request) -> tuple[dict, bool]:
 
     database = _check_database()
     redis = _check_redis(policy)
+    auth = _check_auth_configuration(policy)
+    provider_isolation = _check_provider_isolation(policy)
     worker, queue = _check_worker_queue(required=bool(policy and policy.require_worker_ready))
+    reclaim = _health_component(
+        ok=worker.get("reclaim_capability") is True and worker.get("ok") is True,
+        required=bool(worker.get("required")),
+        status="ready" if worker.get("reclaim_capability") is True and worker.get("ok") is True else worker.get("status", "unavailable"),
+        reason="ok" if worker.get("reclaim_capability") is True and worker.get("ok") is True else (
+            "reclaim_unavailable" if worker.get("ok") is True else worker.get("reason", "worker_unavailable")
+        ),
+    )
     routes = _health_route_contract()
     route_component = _health_component(
         ok=bool(routes["ok"]), required=True,
@@ -491,8 +658,11 @@ def _health_snapshot(request: Request) -> tuple[dict, bool]:
     components = {
         "db": database,
         "redis": redis,
+        "auth": auth,
+        "provider_isolation": provider_isolation,
         "worker": worker,
         "queue": queue,
+        "reclaim": reclaim,
         "bootstrap": bootstrap,
         "routes": route_component,
     }
@@ -587,7 +757,29 @@ try:
 
     @app.get("/crm/me", tags=["crm-portal-bootstrap"])
     async def runtime_crm_me(ctx: TenantContext = Depends(require_tenant)):
-        return {"tenant_id": ctx.tenant_id, "role": ctx.role, "email": ctx.email}
+        # Membership is re-resolved by require_tenant on every bootstrap call.
+        # Resolve the display name from the same durable tenant row so the
+        # portal never treats a cached localStorage name as authoritative.
+        tenant_name = None
+        try:
+            from app.memory.supabase_client import get_supabase
+            from app.services.aio import aexec
+            rows = (await aexec(
+                get_supabase().table("tenants").select("name")
+                .eq("id", ctx.tenant_id).limit(1)
+            )).data or []
+            if rows:
+                tenant_name = rows[0].get("name")
+        except Exception:
+            # Name is presentation-only; membership and tenant_id remain
+            # authoritative even when this optional projection is unavailable.
+            tenant_name = None
+        return {
+            "tenant_id": ctx.tenant_id,
+            "tenant_name": tenant_name or "Workspace",
+            "role": ctx.role,
+            "email": ctx.email,
+        }
 except Exception as e:
     emit_telemetry(logger, logging.ERROR, "startup.module_mount_failed", status="degraded", dependency="runtime_bootstrap", outcome="module_unavailable", error_code=telemetry_error_code(e))
 
@@ -618,7 +810,7 @@ except Exception as e:
     emit_telemetry(logger, logging.ERROR, "startup.module_mount_failed", status="degraded", dependency="crm_api", outcome="module_unavailable", error_code=telemetry_error_code(e))
 
 try:
-    # Was written but never mounted — every companies/contacts/deals/
+    # Was written but never mounted - every companies/contacts/deals/
     # activities/notes route was a 404. Mounted after crm_api so that
     # router keeps precedence on any shared prefix.
     from app.crm.crm_entities_api import router as crm_entities_router
@@ -833,7 +1025,7 @@ except Exception as e:
 
 # Runtime safety net for the client home screen. The normal CRM router owns
 # this path when mounted. If an optional CRM import ever fails, do not expose a
-# 404 to the portal — keep the protected dashboard contract available.
+# 404 to the portal - keep the protected dashboard contract available.
 try:
     from uuid import UUID as _UUID
     import asyncio as _asyncio
@@ -1087,7 +1279,7 @@ except Exception as e:
 try:
     # Import for the side effect of populating jobs.HANDLERS, so an API
     # process can validate a job kind before enqueuing it.
-    # NOTE: must be `from ... import`, NOT `import app.integrations...` —
+    # NOTE: must be `from ... import`, NOT `import app.integrations...` -
     # a dotted import would rebind the name `app` here to the package
     # module, clobbering the FastAPI instance above.
     from app.integrations.prod import job_handlers  # noqa: F401

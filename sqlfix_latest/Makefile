@@ -1,5 +1,5 @@
 PYTHON ?= python
-.PHONY: verify compile ruff pytest migrations rls runtime frontend production-gates benchmark cross-tenant worker worker-health
+.PHONY: verify compile ruff pytest migrations rls runtime frontend production-gates local-validation benchmark cross-tenant worker worker-health
 verify: compile ruff pytest migrations rls runtime frontend
 compile:
 	$(PYTHON) -m compileall -q app services tests
@@ -26,3 +26,5 @@ worker:
 	$(PYTHON) -m app.worker
 worker-health:
 	$(PYTHON) scripts/check_worker_health.py
+local-validation:
+	$(PYTHON) scripts/local_validation_gate.py

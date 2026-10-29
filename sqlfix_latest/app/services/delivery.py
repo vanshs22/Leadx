@@ -208,13 +208,15 @@ def mark_delivery_status(
     status: str,
     error: Optional[str] = None,
     destination: str = "portal",
-) -> None:
+) -> int:
     if not assignment_ids:
-        return
+        return 0
     sb = get_supabase()
     payload: dict = {"delivery_status": status}
-    if error:
-        payload["delivery_error"] = error[:500]
+    if status in {"sent", "delivered"}:
+        payload["delivered_at"] = datetime.now(timezone.utc).isoformat()
+    elif status in {"pending", "failed"}:
+        payload["delivered_at"] = None
     try:
         rows = []
         for aid in assignment_ids:
@@ -238,6 +240,7 @@ def mark_delivery_status(
             logger.debug("delivery outbox projection skipped: %s", type(exc).__name__)
     except Exception as e:
         logger.warning("mark_delivery_status failed: %s", e)
+    return len(rows) if "rows" in locals() else 0
 
 
 async def deliver_batch(
@@ -245,6 +248,9 @@ async def deliver_batch(
     channel: str,
     config: dict,
     assignment_ids: Optional[list[str]] = None,
+    *,
+    run_id: Optional[str] = None,
+    tenant_id: Optional[str] = None,
 ) -> dict:
     """
     Route to the correct delivery channel and update assignment rows.
@@ -280,18 +286,32 @@ async def deliver_batch(
         }
 
     if assignment_ids:
-        # portal success → "portal" (not "sent"); external success → "sent"
+        # A delivery counter is truthful only after the assignment row records
+        # the outcome. The adapter's optimistic count is never used as proof.
         if result.get("ok"):
-            status = "sent" if ch in ("portal", "crm", "none", "", "internal", "dashboard") or result.get("channel") == "portal" else "sent"
-            if ch == "csv":
-                status = "sent"
-        else:
-            # External channel failed — lead is still in CRM; keep sent for UI
             status = "sent"
-        await mark_delivery_status(
+        else:
+            status = "failed"
+        persisted_count = await mark_delivery_status(
             assignment_ids,
             status,
             result.get("error") if not result.get("ok") else None,
             destination=ch,
         )
+        if result.get("ok"):
+            result["count"] = persisted_count
+        if result.get("ok") and run_id and tenant_id:
+            try:
+                from app.layers.persistence_layer import record_stage_transition
+                for lead, assignment_id in zip(leads, assignment_ids):
+                    lead_id = str(lead.get("id") or "")
+                    if not lead_id:
+                        continue
+                    await record_stage_transition(
+                        str(tenant_id), str(run_id), lead_id, "delivery", "accepted",
+                        assignment_id=str(assignment_id), metadata={"channel": ch},
+                        supabase=get_supabase(),
+                    )
+            except Exception as exc:
+                logger.warning("delivery stage transition failed: %s", type(exc).__name__)
     return result

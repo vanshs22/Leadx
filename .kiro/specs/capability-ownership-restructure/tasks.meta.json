@@ -1,0 +1,119 @@
+{
+  "pbtResults": {
+    "3.3 Verify the exploration and preservation properties after implementation": {
+      "status": "passed",
+      "lastRunTimestamp": 1792955366389
+    }
+  },
+  "executionHistory": {
+    "1. Write the ownership ambiguity exploration test": [
+      {
+        "executionId": "ded6f4c5-99bb-45a2-9069-be26c8a35de9",
+        "chatSessionId": "sess_04c0a8cd-f6f5-434b-b17e-8d89acafffcf",
+        "timestamp": 1792954600993
+      },
+      {
+        "executionId": "ded6f4c5-99bb-45a2-9069-be26c8a35de9",
+        "chatSessionId": "sess_04c0a8cd-f6f5-434b-b17e-8d89acafffcf",
+        "timestamp": 1792954621049
+      },
+      {
+        "executionId": "ded6f4c5-99bb-45a2-9069-be26c8a35de9",
+        "chatSessionId": "sess_04c0a8cd-f6f5-434b-b17e-8d89acafffcf",
+        "timestamp": 1792954724728
+      }
+    ],
+    "2. Write preservation property tests before the fix": [
+      {
+        "executionId": "ded6f4c5-99bb-45a2-9069-be26c8a35de9",
+        "chatSessionId": "sess_04c0a8cd-f6f5-434b-b17e-8d89acafffcf",
+        "timestamp": 1792954602696
+      },
+      {
+        "executionId": "ded6f4c5-99bb-45a2-9069-be26c8a35de9",
+        "chatSessionId": "sess_04c0a8cd-f6f5-434b-b17e-8d89acafffcf",
+        "timestamp": 1792954734609
+      },
+      {
+        "executionId": "ded6f4c5-99bb-45a2-9069-be26c8a35de9",
+        "chatSessionId": "sess_04c0a8cd-f6f5-434b-b17e-8d89acafffcf",
+        "timestamp": 1792954872951
+      }
+    ],
+    "3.1 Define the immutable record and validation helpers": [
+      {
+        "executionId": "ded6f4c5-99bb-45a2-9069-be26c8a35de9",
+        "chatSessionId": "sess_04c0a8cd-f6f5-434b-b17e-8d89acafffcf",
+        "timestamp": 1792954602843
+      },
+      {
+        "executionId": "ded6f4c5-99bb-45a2-9069-be26c8a35de9",
+        "chatSessionId": "sess_04c0a8cd-f6f5-434b-b17e-8d89acafffcf",
+        "timestamp": 1792955013674
+      },
+      {
+        "executionId": "ded6f4c5-99bb-45a2-9069-be26c8a35de9",
+        "chatSessionId": "sess_04c0a8cd-f6f5-434b-b17e-8d89acafffcf",
+        "timestamp": 1792955121918
+      }
+    ],
+    "3.2 Populate the seven initial records and explicit discovery metadata": [
+      {
+        "executionId": "ded6f4c5-99bb-45a2-9069-be26c8a35de9",
+        "chatSessionId": "sess_04c0a8cd-f6f5-434b-b17e-8d89acafffcf",
+        "timestamp": 1792954602974
+      },
+      {
+        "executionId": "ded6f4c5-99bb-45a2-9069-be26c8a35de9",
+        "chatSessionId": "sess_04c0a8cd-f6f5-434b-b17e-8d89acafffcf",
+        "timestamp": 1792955131931
+      },
+      {
+        "executionId": "ded6f4c5-99bb-45a2-9069-be26c8a35de9",
+        "chatSessionId": "sess_04c0a8cd-f6f5-434b-b17e-8d89acafffcf",
+        "timestamp": 1792955315549
+      }
+    ],
+    "3.3 Verify the exploration and preservation properties after implementation": [
+      {
+        "executionId": "ded6f4c5-99bb-45a2-9069-be26c8a35de9",
+        "chatSessionId": "sess_04c0a8cd-f6f5-434b-b17e-8d89acafffcf",
+        "timestamp": 1792954603111
+      },
+      {
+        "executionId": "ded6f4c5-99bb-45a2-9069-be26c8a35de9",
+        "chatSessionId": "sess_04c0a8cd-f6f5-434b-b17e-8d89acafffcf",
+        "timestamp": 1792955324343
+      },
+      {
+        "executionId": "ded6f4c5-99bb-45a2-9069-be26c8a35de9",
+        "chatSessionId": "sess_04c0a8cd-f6f5-434b-b17e-8d89acafffcf",
+        "timestamp": 1792955406270
+      }
+    ],
+    "4. Run the focused validation checkpoint": [
+      {
+        "executionId": "ded6f4c5-99bb-45a2-9069-be26c8a35de9",
+        "chatSessionId": "sess_04c0a8cd-f6f5-434b-b17e-8d89acafffcf",
+        "timestamp": 1792954603205
+      },
+      {
+        "executionId": "ded6f4c5-99bb-45a2-9069-be26c8a35de9",
+        "chatSessionId": "sess_04c0a8cd-f6f5-434b-b17e-8d89acafffcf",
+        "timestamp": 1792955415832
+      },
+      {
+        "executionId": "ded6f4c5-99bb-45a2-9069-be26c8a35de9",
+        "chatSessionId": "sess_04c0a8cd-f6f5-434b-b17e-8d89acafffcf",
+        "timestamp": 1792955495717
+      }
+    ],
+    "3. Add the dependency-light ownership registry and discovery boundary metadata": [
+      {
+        "executionId": "ded6f4c5-99bb-45a2-9069-be26c8a35de9",
+        "chatSessionId": "sess_04c0a8cd-f6f5-434b-b17e-8d89acafffcf",
+        "timestamp": 1792955406405
+      }
+    ]
+  }
+}

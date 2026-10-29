@@ -9,10 +9,10 @@ export function FreshnessNote({
   detail?: string;
 }) {
   return (
-    <span className="inline-flex items-center gap-1.5 text-[11px] text-ink-faint" title={detail || label}>
-      <span className="h-1.5 w-1.5 rounded-full bg-signal-500" aria-hidden="true" />
+    <span className="inline-flex items-center gap-1.5 text-[11px] font-medium text-ink-faint" title={detail || label}>
+      <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-brand-500 dark:bg-brand-300" aria-hidden="true" />
       {label}
-      {detail ? <span className="text-ink-faint">· {detail}</span> : null}
+      {detail ? <span className="font-normal tabular-nums text-ink-faint">· {detail}</span> : null}
     </span>
   );
 }
@@ -27,7 +27,7 @@ export function EvidenceNote({
   if (typeof count !== "number") {
     return <span className="text-[11px] text-ink-faint">{label}: unavailable</span>;
   }
-  return <span className="text-[11px] text-ink-faint">{count} {label}</span>;
+  return <span className="text-[11px] text-ink-faint"><span className="font-semibold tabular-nums text-ink-muted">{count}</span> {label}</span>;
 }
 
 export function UnavailableNote({
@@ -38,7 +38,7 @@ export function UnavailableNote({
   children?: ReactNode;
 }) {
   return (
-    <div className="rounded-lg border border-dashed border-line bg-surface-3/40 px-3 py-2 text-xs text-ink-muted">
+    <div className="flex flex-wrap items-baseline gap-x-1 rounded-lg border border-dashed border-line-strong bg-surface-3/50 px-3 py-2 text-xs text-ink-muted">
       <span className="font-semibold text-ink">{label}: unavailable</span>
       {children ? <span className="ml-1">{children}</span> : null}
     </div>

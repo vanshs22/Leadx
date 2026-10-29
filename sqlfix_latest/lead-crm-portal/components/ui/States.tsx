@@ -38,10 +38,12 @@ export function portalErrorDetails(error: unknown): {
 
 export function PollingDeadlineState({ onRefresh }: { onRefresh: () => void }) {
   return (
-    <div role="status" className="rounded-lg border border-amber-300/60 bg-amber-50/60 px-4 py-3 text-sm text-ink dark:bg-transparent">
-      <p className="font-medium">Live updates paused</p>
-      <p className="mt-1 text-xs text-ink-muted">Refresh to check for the latest workspace state.</p>
-      <button aria-label="Refresh" type="button" onClick={onRefresh} className="mt-3 rounded-md border border-line px-2.5 py-1 text-xs font-medium text-ink hover:bg-surface-2">Refresh</button>
+    <div role="status" className="notice notice-warning items-center">
+      <div className="min-w-0">
+        <p className="font-semibold">Automatic safety refresh window ended</p>
+        <p className="mt-0.5 text-xs opacity-80">Live push updates remain enabled. Refresh to reconcile the latest authoritative state.</p>
+      </div>
+      <button aria-label="Refresh" type="button" onClick={onRefresh} className="btn-secondary btn-sm shrink-0">Refresh</button>
     </div>
   );
 }
@@ -58,10 +60,12 @@ export function EmptyState({
   icon?: ReactNode;
 }) {
   return (
-    <div className="flex flex-col items-center justify-center gap-2 px-6 py-14 text-center">
-      {icon ? <div className="mb-1 text-ink-faint">{icon}</div> : null}
-      <p className="text-sm font-medium text-ink">{title}</p>
-      {hint ? <p className="max-w-sm text-xs text-ink-muted">{hint}</p> : null}
+    <div className="flex flex-col items-center justify-center gap-1.5 px-6 py-12 text-center">
+      <div className="mb-2 flex h-10 w-10 items-center justify-center rounded-full border border-line bg-surface-3 text-ink-faint" aria-hidden="true">
+        {icon ?? <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M4 7h16v12H4zM4 7l2-3h12l2 3M9 12h6" /></svg>}
+      </div>
+      <p className="text-[0.875rem] font-semibold text-ink">{title}</p>
+      {hint ? <p className="max-w-sm text-[0.8125rem] leading-5 text-ink-muted">{hint}</p> : null}
       {action ? <div className="mt-3">{action}</div> : null}
     </div>
   );
@@ -70,14 +74,14 @@ export function EmptyState({
 /** Skeleton rows sized to a table, so layout doesn't jump when data lands. */
 export function LoadingRows({ rows = 5, cols = 4 }: { rows?: number; cols?: number }) {
   return (
-    <div className="animate-pulse divide-y divide-line" aria-busy="true" aria-live="polite">
+    <div className="divide-y divide-line" aria-busy="true" aria-live="polite">
       <span className="sr-only">Loading…</span>
       {Array.from({ length: rows }).map((_, r) => (
-        <div key={r} className="flex gap-4 px-4 py-3">
+        <div key={r} className="flex gap-4 px-4 py-3.5">
           {Array.from({ length: cols }).map((_, c) => (
             <div
               key={c}
-              className="h-3 rounded bg-surface-3"
+              className="skeleton h-3"
               style={{ width: c === 0 ? "28%" : `${Math.max(10, 22 - c * 3)}%` }}
             />
           ))}
@@ -96,16 +100,18 @@ export function ErrorState({
 }) {
   const details = portalErrorDetails(error);
   const actionLabel = details.action === "sign_in" ? "Sign in again" : details.action === "refresh" ? "Refresh" : "Retry";
+  const message = details.message;
+  const unavailable = details.retryable && details.action === "retry";
   return (
-    <div role="alert" className="mx-4 my-6 rounded-lg border border-rust-300/60 bg-rust-50/60 px-4 py-3 dark:bg-transparent">
-      <p className="text-sm font-medium text-ink">Couldn&apos;t load this</p>
-      <p className="mt-1 break-words text-xs text-ink-muted">{details.message}</p>
-      {details.requestId ? <p className="mt-2 text-[11px] text-ink-faint">Request ID: <code className="font-mono">{details.requestId}</code></p> : null}
+    <div role="alert" className={`notice ${unavailable ? "notice-warning" : "notice-danger"} my-1 flex-col !items-start !justify-start gap-0`}>
+      <p className="font-semibold">{unavailable ? "LeadX is reconnecting" : "Couldn&apos;t load this"}</p>
+      <p className="mt-0.5 break-words text-xs opacity-85">{message}</p>
+      {details.requestId ? <p className="mt-2 text-[11px] opacity-70">Request ID: <code className="font-mono">{details.requestId}</code></p> : null}
       {onRetry && (details.retryable || details.action === "refresh" || details.action === "sign_in") ? (
         <button aria-label={actionLabel}
           type="button"
           onClick={onRetry}
-          className="mt-3 rounded-md border border-line px-2.5 py-1 text-xs font-medium text-ink hover:bg-surface-2"
+          className="btn-secondary btn-sm mt-3"
         >
           {actionLabel}
         </button>

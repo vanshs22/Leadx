@@ -5,21 +5,28 @@ module.exports = {
   theme: {
     extend: {
       colors: {
-        // LeadX Deep Teal / Tangerine identity — premium B2B, not a generic AI gradient.
+        // LeadX "Ink & Brass": deep navy ink identity, brass for opportunity signals.
         brand: {
-          50: "#F0F7F2", 100: "#DCEDE3", 200: "#B9DAC8", 300: "#8FC2AA",
-          400: "#65A88E", 500: "#3F876F", 600: "#2F6E5B", 700: "#255746",
-          800: "#1B4036", 900: "#122E28",
+          50: "#F1F4FA", 100: "#E2E8F4", 200: "#C4D1E8", 300: "#98AED5",
+          400: "#6787BE", 500: "#4064A3", 600: "#2C4C86", 700: "#203B6A",
+          800: "#182D51", 900: "#11213C",
         },
+        // Brass accent (opportunity / attention). Kept under the legacy `signal` name.
         signal: {
-          50: "#FAF2E8", 100: "#F4E3CC", 200: "#E8C39A", 300: "#D7A06C",
-          400: "#C4824F", 500: "#A9653E", 600: "#8C4E32", 700: "#713E2B",
-          800: "#593024", 900: "#3F221B",
+          50: "#FBF7EE", 100: "#F5EBD3", 200: "#EAD4A2", 300: "#DBB86F",
+          400: "#C99D48", 500: "#AC8030", 600: "#8D6726", 700: "#6F501F",
+          800: "#533C19", 900: "#3A2A12",
         },
+        accent: {
+          50: "#FBF7EE", 100: "#F5EBD3", 200: "#EAD4A2", 300: "#DBB86F",
+          400: "#C99D48", 500: "#AC8030", 600: "#8D6726", 700: "#6F501F",
+          800: "#533C19", 900: "#3A2A12",
+        },
+        // Danger scale (legacy name).
         rust: {
-          50: "#FFF1EC", 100: "#FFDCCF", 200: "#FFB9A3", 300: "#FF8E70",
-          400: "#F86A49", 500: "#DF4B2F", 600: "#BC3823", 700: "#982D1D",
-          800: "#702318", 900: "#4B1811",
+          50: "#FDF2F1", 100: "#FADFDC", 200: "#F3BDB7", 300: "#E8958C",
+          400: "#D96C61", 500: "#C24E42", 600: "#A63C31", 700: "#863129",
+          800: "#662722", 900: "#461C18",
         },
         surface: {
           DEFAULT: "rgb(var(--surface) / <alpha-value>)",
@@ -31,27 +38,23 @@ module.exports = {
           muted: "rgb(var(--ink-muted) / <alpha-value>)",
           faint: "rgb(var(--ink-faint) / <alpha-value>)",
         },
-        line: "rgb(var(--line) / <alpha-value>)",
+        line: {
+          DEFAULT: "rgb(var(--line) / <alpha-value>)",
+          strong: "rgb(var(--line-strong) / <alpha-value>)",
+        },
       },
       fontFamily: {
         display: ["var(--font-display)", "ui-sans-serif", "system-ui", "sans-serif"],
-        sans: [
-          "var(--font-sans)",
-          "ui-sans-serif",
-          "system-ui",
-          "-apple-system",
-          "Segoe UI",
-          "Roboto",
-          "Helvetica Neue",
-          "Arial",
-          "sans-serif",
-        ],
+        sans: ["var(--font-sans)", "ui-sans-serif", "system-ui", "-apple-system", "Segoe UI", "Roboto", "Helvetica Neue", "Arial", "sans-serif"],
         mono: ["var(--font-mono)", "ui-monospace", "SFMono-Regular", "Menlo", "monospace"],
       },
+      fontSize: {
+        "2xs": ["0.6875rem", { lineHeight: "1rem" }],
+      },
       boxShadow: {
-        card: "0 1px 2px rgb(15 23 42 / .05), 0 10px 30px rgb(15 23 42 / .07)",
-        lift: "0 18px 50px rgb(15 23 42 / .14)",
-        glow: "0 0 0 1px rgb(22 140 122 / .18), 0 12px 36px rgb(22 140 122 / .15)",
+        card: "0 1px 2px rgb(var(--shadow-color) / .05), 0 1px 1px rgb(var(--shadow-color) / .03)",
+        lift: "0 12px 32px -8px rgb(var(--shadow-color) / .18), 0 2px 6px rgb(var(--shadow-color) / .06)",
+        glow: "0 0 0 1px rgb(var(--brand) / .18), 0 8px 24px rgb(var(--brand) / .12)",
       },
       borderRadius: {
         xl2: "0.625rem",

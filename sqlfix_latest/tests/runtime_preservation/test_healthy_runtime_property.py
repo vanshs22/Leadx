@@ -107,6 +107,18 @@ def test_healthy_readiness_response_retains_legacy_fields(monkeypatch):
 
     fake = FakeSupabase({"tenants": [{"id": "tenant-synthetic-a"}]})
     monkeypatch.setattr(supabase_client, "get_supabase", lambda: fake)
+    # Keep this healthy projection observation independent of host Redis/worker state.
+    ready = app_service._health_component(ok=True, required=True, status="ready", reason="ok")
+    optional = app_service._health_component(ok=True, required=False, status="not_required", reason="policy_optional")
+    monkeypatch.setattr(app_service, "_check_database", lambda: dict(ready))
+    monkeypatch.setattr(app_service, "_check_redis", lambda _policy: dict(optional))
+    monkeypatch.setattr(app_service, "_check_auth_configuration", lambda _policy: dict(ready))
+    monkeypatch.setattr(app_service, "_check_provider_isolation", lambda _policy: dict(ready))
+    monkeypatch.setattr(app_service, "_check_worker_queue", lambda *, required: (dict(optional), dict(optional)))
+    monkeypatch.setattr(app_service, "_health_route_contract", lambda: {"ok": True, "expected": {}, "missing": {}, "route_count": 1})
+    # Readiness now correctly rejects the legacy unauthenticated development
+    # bypass; this preservation fixture models the safe authenticated profile.
+    monkeypatch.delenv("LEAD_ENGINE_DEV_AUTH_BYPASS", raising=False)
 
     response = TestClient(app_service.app).get("/health/ready")
 
@@ -293,7 +305,7 @@ def test_plan_and_quota_contract_preserves_supported_free_and_paid_plans():
     assert PLAN_RANK["free"] == 0
     assert PLAN_RANK["agency"] == 3
     assert LEGACY_PLAN_ALIASES == {"premium": "agency", "enterprise": "agency"}
-    assert all(set(plan) == {"key", "name", "leads_per_month", "max_children", "allow_tier_b", "research_runs"} for plan in plans)
+    assert all(set(plan) == {"key", "name", "leads_per_month", "max_children", "allow_tier_b", "exclusive_leads", "research_runs"} for plan in plans)
 
 
 class _Pipeline:

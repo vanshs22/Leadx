@@ -16,6 +16,21 @@ BEGIN
   IF to_regclass('public.job_operations') IS NULL THEN
     v_missing := v_missing || 'table:job_operations';
   END IF;
+  IF to_regclass('public.job_attempts') IS NULL THEN
+    v_missing := v_missing || 'table:job_attempts';
+  END IF;
+  IF to_regclass('public.agent_mission_task_attempts') IS NULL THEN
+    v_missing := v_missing || 'table:agent_mission_task_attempts';
+  END IF;
+  IF to_regclass('public.quota_reservations') IS NULL THEN
+    v_missing := v_missing || 'table:quota_reservations';
+  END IF;
+  IF to_regprocedure('public.leadx_reap_stale_mission_tasks(integer)') IS NULL THEN
+    v_missing := v_missing || 'function:leadx_reap_stale_mission_tasks';
+  END IF;
+  IF to_regprocedure('public.leadx_probe_queue_capability(text,timestamptz)') IS NULL THEN
+    v_missing := v_missing || 'function:leadx_probe_queue_capability';
+  END IF;
   IF to_regclass('public.uq_job_operations_operation_key') IS NULL THEN
     v_missing := v_missing || 'index:uq_job_operations_operation_key';
   END IF;
@@ -53,7 +68,7 @@ BEGIN
 
   RETURN jsonb_build_object(
     'ok', cardinality(v_missing) = 0,
-    'migration_chain', '20261001000800..20261001000900',
+    'migration_chain', '20261001000800..20261001000950',
     'checked_at', clock_timestamp(),
     'missing', to_jsonb(v_missing),
     'safe_to_start_provider_work', cardinality(v_missing) = 0

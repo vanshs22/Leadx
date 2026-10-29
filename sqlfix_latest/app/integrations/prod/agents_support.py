@@ -8,7 +8,15 @@ def _now(): return datetime.now(timezone.utc).isoformat()
 
 def update_run(run_id: str, **patch):
     patch["updated_at"]=_now()
-    return get_supabase().table("agent_runs").update(patch).eq("id",run_id).execute().data
+    query = get_supabase().table("agent_runs").update(patch).eq("id",run_id)
+    status = patch.get("status")
+    if status == "running":
+        query = query.eq("status", "queued")
+    elif status in {"done", "failed", "cancelled"}:
+        # A reset/reaper terminal transition owns the row; late executors are
+        # rejected instead of overwriting that terminal state.
+        query = query.in_("status", ["queued", "running"])
+    return query.execute().data
 
 async def record_run_evidence(run: dict, result: dict):
     tenant_id=run.get("tenant_id"); rid=run.get("id")

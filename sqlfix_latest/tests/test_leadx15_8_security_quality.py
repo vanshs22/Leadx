@@ -41,8 +41,9 @@ def test_quality_gate_requires_verified_contact():
     q = (ROOT / "app/integrations/prod/quality.py").read_text()
     p = (ROOT / "app/integrations/prod/pipeline.py").read_text()
     r = (ROOT / "app/integrations/prod/delivery_ranker.py").read_text()
-    assert 'lead.get("phone_verified") is True' in q
-    assert 'in {"valid", "deliverable"}' in q
+    assert 'from app.integrations.prod.contact_state import email_ok as _email_ok, phone_ok as _phone_ok' in q
+    assert 'has_phone = _phone_ok(lead)' in q
+    assert 'has_email = _email_ok(lead)' in q
     assert 'if intel_gate else False' in p
     assert 'ranker failed; fail-closed' in p
     assert 'return []' in r
@@ -65,5 +66,5 @@ def test_canonical_migration_chain_matches_full_install():
     migs = sorted((ROOT / "supabase/migrations").glob("*.sql"))
     full = (ROOT / "SUPABASE_FULL_MIGRATION.sql").read_text()
     names = re.findall(r"-- CANONICAL MIGRATION \d+: ([^\n]+)", full)
-    assert len(migs) == 23
+    assert len(migs) == len(names)
     assert names == [p.name for p in migs]

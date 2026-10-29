@@ -5,11 +5,11 @@ import Link from "next/link";
 import { crm, crmIntelligence, DashboardResponse } from "@/lib/api";
 import { getTenantId, getTenantUserId } from "@/lib/tenant";
 import { FunnelChart } from "@/components/charts/FunnelChart";
-import { chartColors } from "@/lib/chartColors";
 import { useCrmChange } from "@/lib/crmRealtime";
 import { useLiveLoader } from "@/lib/live";
-import { ErrorState, PollingDeadlineState } from "@/components/ui/States";
-import { PageHeader, QuietBreadcrumbs } from "@/components/ui/Primitives";
+import { EmptyState, ErrorState, PollingDeadlineState } from "@/components/ui/States";
+import { PageHeader, Panel, QuietBreadcrumbs, StatCard, StatGrid } from "@/components/ui/Primitives";
+import { Icon, type IconName } from "@/components/ui/Icon";
 import dynamic from "next/dynamic";
 const Sparkline = dynamic(() => import("@/components/charts/Sparkline").then((m) => m.Sparkline), { ssr: false, loading: () => <div className="skeleton h-12 w-full rounded-lg" /> });
 const TierDonut = dynamic(() => import("@/components/charts/TierDonut").then((m) => m.TierDonut), { ssr: false, loading: () => <div className="skeleton h-12 w-full rounded-lg" /> });
@@ -90,41 +90,76 @@ export default function DashboardPage() {
 
   if (error) {
     return (
-      <div className="page space-y-3">
+      <div className="page">
+        <PageHeader
+          eyebrow={<QuietBreadcrumbs items={[{ label: "Workspace" }, { label: "Overview" }]} />}
+          title="Your workspace"
+          description="Opportunity intelligence · verified contacts · next-best actions"
+        />
         <ErrorState error={error} onRetry={refresh} />
-        <a href="/leads" className="text-sm text-brand-500 hover:underline">
-          Go to Leads →
+        <a href="/leads" className="link inline-flex items-center gap-1 text-sm">
+          Go to Leads <Icon name="arrow" size={14} />
         </a>
       </div>
     );
   }
   if (loading || !data) {
     return (
-      <div className="page space-y-3 text-ink-faint">
-        <p>Loading your workspace…</p>
-        <p className="text-xs">
-          If this stays more than a few seconds: confirm you created a portal login under Admin → Clients,
-          and that this user is in tenant_members for the right tenant.
-        </p>
-        <a href="/leads" className="text-sm text-brand-500 hover:underline">
-          Go to Leads →
-        </a>
+      <div className="page" aria-busy="true" aria-live="polite">
+        <div className="page-header">
+          <div className="min-w-0 flex-1">
+            <div className="skeleton h-3 w-32" aria-hidden="true" />
+            <p className="page-title mt-1.5 text-ink-muted">Loading your workspace…</p>
+            <p className="page-sub text-xs">
+              If this stays more than a few seconds: confirm you created a portal login under Admin → Clients,
+              and that this user is in tenant_members for the right tenant.
+            </p>
+          </div>
+          <a href="/leads" className="btn-secondary">
+            Go to Leads <Icon name="arrow" size={14} />
+          </a>
+        </div>
+        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4" aria-hidden="true">
+          {[0, 1, 2, 3].map((i) => (
+            <div key={i} className="kpi">
+              <div className="skeleton h-3 w-20" />
+              <div className="skeleton mt-3 h-7 w-16" />
+              <div className="skeleton mt-3 h-3 w-24" />
+            </div>
+          ))}
+        </div>
+        <div className="grid gap-4 lg:grid-cols-3" aria-hidden="true">
+          <div className="skeleton h-56 rounded-xl lg:col-span-2" />
+          <div className="skeleton h-56 rounded-xl" />
+        </div>
       </div>
     );
   }
 
-  const { kpis, funnel, usage, quota_limit, tasks_due, recent_activity, tenant, trend } = data as any;
-  const used = usage?.leads_delivered ?? 0;
+  const { kpis, funnel, usage, quota_limit, quota_reserved, quota_remaining, quota_used, tasks_due, recent_activity, tenant, trend } = data as any;
+  const used = quota_used ?? usage?.leads_delivered ?? 0;
+  const reserved = quota_reserved ?? usage?.quota_reserved ?? 0;
+  const available = quota_remaining ?? Math.max(Number(quota_limit || 0) - Number(used) - Number(reserved), 0);
   const limit = quota_limit ?? 0;
   const quotaPct = limit ? Math.min(100, Math.round((used / limit) * 100)) : 0;
   const sparkData = (trend || []).map((t: any) => ({ value: t.count }));
 
-  const cards = [
-    { label: "Leads ready", value: kpis?.total_leads ?? 0, hint: "Assigned to you", href: "/leads", spark: sparkData, color: chartColors.brand[500] },
-    { label: "Best quality", value: kpis?.tier_a ?? 0, hint: "Tier A — call first", href: "/leads", color: chartColors.brand[500] },
-    { label: "In pipeline", value: kpis?.in_pipeline ?? 0, hint: "Active work", href: "/pipeline", color: chartColors.signal[500] },
-    { label: "Win rate", value: `${kpis?.win_rate_pct ?? 0}%`, hint: `${kpis?.won ?? 0} won`, href: "/reports", color: chartColors.signal[500] },
+  const tasksDue: any[] = tasks_due || [];
+  const activity: any[] = (recent_activity || []).slice(0, 8);
+  const overdue = Number(intel?.tasks?.overdue ?? 0);
+  const slaBreaches = Number(intel?.tasks?.sla_breaches ?? 0);
+  const atRisk = Number(intel?.pipeline?.at_risk ?? 0);
+  const missingNext = Number(intel?.pipeline?.missing_next_action ?? 0);
+
+  const nextActions: Array<{ title: string; href: string; hint: string; icon: IconName; count?: number; tone: string }> = [
+    { title: "Call Tier A", href: "/leads", hint: "High-priority leads, call first", icon: "phone", count: kpis?.tier_a ?? 0, tone: "badge-accent" },
+    { title: "Request opportunities", href: "/search", hint: "Build the next approved discovery batch", icon: "search", tone: "badge-accent" },
+    { title: "Review replies", href: "/replies", hint: "Turn responses into pipeline", icon: "reply", tone: "badge-brand" },
+    { title: "Move deals", href: "/pipeline", hint: "Active opportunities in motion", icon: "pipeline", count: kpis?.in_pipeline ?? 0, tone: "badge-neutral" },
+    { title: "Clear the SLA queue", href: "/activities", hint: `${slaBreaches.toLocaleString()} SLA breaches`, icon: "clock", count: overdue, tone: overdue ? "badge-warn" : "badge-neutral" },
   ];
+
+  const steps = ["Open Leads → filter Tier A", "Read the pitch line", "Call or email", "Move stage in Pipeline"];
 
   return (
     <div className="page">
@@ -132,145 +167,187 @@ export default function DashboardPage() {
         eyebrow={<QuietBreadcrumbs items={[{ label: "Workspace" }, { label: "Overview" }]} />}
         title={tenant?.name ? tenant.name : "Your workspace"}
         description="Opportunity intelligence · verified contacts · next-best actions"
-        actions={<><div className="flex items-center gap-3">{refreshing && <span className="text-[11px] font-medium text-brand-500">Syncing live…</span>}<Link href="/leads" className="btn-primary">Work leads →</Link><Link href="/reports" className="btn-secondary">Reports</Link></div></>}
+        actions={
+          <>
+            <Link href="/reports" className="btn-secondary">
+              <Icon name="report" size={14} />
+              Reports
+            </Link>
+            <Link href="/leads" className="btn-primary">
+              Work leads
+              <Icon name="arrow" size={14} />
+            </Link>
+          </>
+        }
+        meta={
+          <>
+            <span className="inline-flex items-center gap-1.5" role="status" aria-live="polite">
+              <span className="live-dot" aria-hidden="true" />
+              {refreshing ? "Syncing live…" : "Live workspace"}
+            </span>
+            {limit > 0 ? (
+              <span className="tabular-nums">
+                {Number(used).toLocaleString()} used · {Number(reserved).toLocaleString()} reserved · {Number(available).toLocaleString()} available of {Number(limit).toLocaleString()} monthly leads
+              </span>
+            ) : null}
+          </>
+        }
       />
       {pollingExpired && <PollingDeadlineState onRefresh={() => { setPollingExpired(false); refresh(); }} />}
 
-      <div className="growth-banner overflow-hidden p-5 md:p-6">
-          <div className="label text-brand-600 dark:text-brand-300">Start here — 4 steps</div>
-          <ol className="mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-            {[
-              "Open Leads → filter Tier A",
-              "Read the pitch line",
-              "Call or email",
-              "Move stage in Pipeline",
-            ].map((step, i) => (
-              <li key={step} className="flex gap-2 text-sm text-ink">
-                <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-brand-500/15 text-xs font-bold text-brand-600 dark:text-brand-300">
-                  {i + 1}
-                </span>
-                {step}
-              </li>
-            ))}
-          </ol>
-        </div>
-
-      <section className="mt-6 grid gap-4 lg:grid-cols-[1.35fr_.65fr]">
-        <div className="hero-panel p-5 md:p-6">
-          <div className="flex items-start justify-between gap-4">
-            <div>
-              <div className="section-kicker text-brand-700 dark:text-brand-300">Today’s opportunity brief</div>
-              <h2 className="mt-1 text-lg font-semibold text-ink">Work the highest-signal opportunities first</h2>
-              <p className="mt-1 text-sm text-ink-muted">LeadX combines fit, opportunity, intent and contactability so your reps spend time where evidence is strongest.</p>
-            </div>
-            <Link href="/leads" className="btn-secondary shrink-0">Open queue</Link>
-          </div>
-          <div className="mt-5 grid gap-3 sm:grid-cols-3">
-            {[
-              ["Priority", kpis?.tier_a ?? 0, "high-confidence leads"],
-              ["Pipeline", kpis?.in_pipeline ?? 0, "active opportunities"],
-              ["Win rate", `${kpis?.win_rate_pct ?? 0}%`, "historical close rate"],
-            ].map(([a,b,c]) => <div key={String(a)} className="glass-panel p-3"><div className="stat-label">{a}</div><div className="mt-1 text-xl font-semibold text-ink">{b}</div><div className="text-[11px] text-ink-faint">{c}</div></div>)}
-          </div>
-        </div>
-        <div className="data-card p-5">
-          <div className="section-kicker">Next actions</div>
-          <div className="mt-3 space-y-2">
-            {[
-              ["Call Tier A", `/leads`, `${kpis?.tier_a ?? 0} high-priority leads`],
-              ["Review replies", `/replies`, "Turn responses into pipeline"],
-              ["Move deals", `/pipeline`, `${kpis?.in_pipeline ?? 0} active opportunities`],
-            ].map(([title, href, hint]) => <Link key={String(title)} href={String(href)} className="group flex items-center justify-between rounded-xl border border-line/70 bg-surface-3/40 p-3 hover:border-brand-300/60"><div><div className="text-sm font-semibold text-ink">{title}</div><div className="text-[11px] text-ink-faint">{hint}</div></div><span className="text-ink-faint transition group-hover:translate-x-0.5">→</span></Link>)}
-          </div>
-        </div>
-      </section>
-
-      <div className="mt-6 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        {cards.map((c) => (
-          <Link key={c.label} href={c.href} className="card-pad hover:border-brand-300/50 transition">
-            <div className="text-xs font-medium text-ink-faint">{c.label}</div>
-            <div className="mt-1 text-2xl font-semibold text-ink">{c.value}</div>
-            <div className="mt-0.5 text-xs text-ink-muted">{c.hint}</div>
-            {c.spark && c.spark.length > 0 ? (
-              <div className="mt-3">
-                <Sparkline data={c.spark} color={c.color} />
-              </div>
-            ) : null}
-          </Link>
-        ))}
-      </div>
-
-      {limit > 0 && (
-        <div className="mt-4 card-pad">
-          <div className="flex justify-between text-xs text-ink-muted">
-            <span>Monthly quota</span>
-            <span>
-              {used} / {limit}
+      <StatGrid cols={4}>
+        <StatCard
+          label="Leads ready"
+          value={Number(kpis?.total_leads ?? 0).toLocaleString()}
+          tone="brand"
+          href="/leads"
+          icon={<Icon name="leads" size={16} />}
+          hint={
+            <span className="flex items-end justify-between gap-3">
+              <span>Assigned to you</span>
+              {sparkData.length > 0 ? <Sparkline data={sparkData} tone="brand" label="Lead delivery trend" className="h-7 w-20" /> : null}
             </span>
-          </div>
-          <div className="mt-2 h-2 rounded-full bg-surface-3 overflow-hidden">
-            <div className="h-full rounded-full bg-brand-500 transition-all" style={{ width: `${quotaPct}%` }} />
-          </div>
-        </div>
-      )}
+          }
+        />
+        <StatCard label="Tier A" value={Number(kpis?.tier_a ?? 0).toLocaleString()} hint="Best quality, call first" tone="accent" href="/leads" icon={<Icon name="spark" size={16} />} />
+        <StatCard label="In pipeline" value={Number(kpis?.in_pipeline ?? 0).toLocaleString()} hint="Active work" tone="brand" href="/pipeline" icon={<Icon name="pipeline" size={16} />} />
+        <StatCard label="Win rate" value={`${kpis?.win_rate_pct ?? 0}%`} hint={<span className="tabular-nums">{Number(kpis?.won ?? 0).toLocaleString()} won</span>} tone="success" href="/reports" icon={<Icon name="revenue" size={16} />} />
+      </StatGrid>
 
-      <section className="mt-6 grid gap-4 lg:grid-cols-[1.2fr_.8fr]">
-        <div className="data-card p-5">
-          <div className="section-kicker">Revenue health</div>
-          <div className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-4">
-            {[
-              ["Pipeline", `$${Number(intel?.pipeline?.pipeline_value || 0).toLocaleString()}`],
-              ["Weighted", `$${Number(intel?.pipeline?.weighted_value || 0).toLocaleString()}`],
-              ["At risk", intel?.pipeline?.at_risk ?? 0],
-              ["No next action", intel?.pipeline?.missing_next_action ?? 0],
-            ].map(([a,b]) => <div key={String(a)} className="action-card"><div className="stat-label">{a}</div><div className="mt-1 text-lg font-semibold text-ink">{b}</div></div>)}
-          </div>
-        </div>
-        <div className="data-card p-5">
-          <div className="section-kicker">SLA queue</div>
-          <div className="mt-2 text-2xl font-semibold text-ink">{intel?.tasks?.overdue ?? 0}</div>
-          <div className="text-xs text-ink-faint">overdue tasks · {intel?.tasks?.sla_breaches ?? 0} SLA breaches</div>
-          <Link href="/activities" className="mt-3 inline-block text-xs font-semibold text-brand-600 hover:underline">Open activity queue →</Link>
-        </div>
-      </section>
+      <div className="grid gap-4 lg:grid-cols-3">
+        <Panel
+          id="dashboard-revenue"
+          className="lg:col-span-2"
+          title="Revenue health"
+          description="Pipeline value, weighted forecast and the deals that need attention."
+          actions={<Link href="/pipeline" className="btn-ghost btn-sm">Open pipeline <Icon name="arrow" size={14} /></Link>}
+        >
+          <dl className="grid grid-cols-2 gap-x-6 gap-y-5 sm:grid-cols-4">
+            <div>
+              <dt className="stat-label">Pipeline</dt>
+              <dd className="mt-1.5 font-display text-xl font-semibold tabular-nums text-ink">{money(intel?.pipeline?.pipeline_value)}</dd>
+            </div>
+            <div>
+              <dt className="stat-label">Weighted</dt>
+              <dd className="mt-1.5 font-display text-xl font-semibold tabular-nums text-ink">{money(intel?.pipeline?.weighted_value)}</dd>
+            </div>
+            <div>
+              <dt className="stat-label">At risk</dt>
+              <dd className={`mt-1.5 font-display text-xl font-semibold tabular-nums ${atRisk ? "text-rust-600 dark:text-rust-300" : "text-ink"}`}>{atRisk.toLocaleString()}</dd>
+            </div>
+            <div>
+              <dt className="stat-label">No next action</dt>
+              <dd className={`mt-1.5 font-display text-xl font-semibold tabular-nums ${missingNext ? "text-amber-700 dark:text-amber-300" : "text-ink"}`}>{missingNext.toLocaleString()}</dd>
+            </div>
+          </dl>
+          <p className="mt-3 text-xs text-ink-faint">Pipeline is the sum of open CRM deal values. Weighted is each open deal value multiplied by its CRM probability; leads without a deal are not assigned a dollar value.</p>
+          {limit > 0 && (
+            <div className="mt-6 border-t border-line pt-4">
+              <div className="flex items-center justify-between text-xs text-ink-muted">
+                <span className="font-medium">Monthly quota</span>
+                <span className="tabular-nums">
+                  {Number(used).toLocaleString()} used · {Number(reserved).toLocaleString()} reserved · {Number(available).toLocaleString()} available / {Number(limit).toLocaleString()} · {quotaPct}% used
+                </span>
+              </div>
+              <div
+                className="mt-2 h-2 overflow-hidden rounded-full bg-surface-3"
+                role="progressbar"
+                aria-label="Monthly lead quota used"
+                aria-valuemin={0}
+                aria-valuemax={100}
+                aria-valuenow={quotaPct}
+              >
+                <div className={`h-full rounded-full transition-all ${quotaPct >= 90 ? "bg-amber-500" : "bg-brand-600 dark:bg-brand-300"}`} style={{ width: `${quotaPct}%` }} />
+              </div>
+            </div>
+          )}
+        </Panel>
 
-      <div className="mt-6 grid gap-4 lg:grid-cols-2">
-        <div className="card-pad">
-          <div className="label mb-3">Pipeline funnel</div>
+        <Panel id="dashboard-next-actions" title="Next actions" description="Where evidence is strongest right now." bodyClassName="p-0">
+          <ul className="divide-y divide-line">
+            {nextActions.map((action) => (
+              <li key={action.title}>
+                <Link href={action.href} className="group flex items-center gap-3 px-5 py-3 transition hover:bg-surface-3/60">
+                  <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-line bg-surface-3 text-ink-muted group-hover:text-brand-700 dark:group-hover:text-brand-300">
+                    <Icon name={action.icon} size={15} />
+                  </span>
+                  <span className="min-w-0 flex-1">
+                    <span className="block text-[0.8125rem] font-semibold text-ink">{action.title}</span>
+                    <span className="block truncate text-xs text-ink-faint">{action.hint}</span>
+                  </span>
+                  {action.count != null ? <span className={`${action.tone} tabular-nums`}>{Number(action.count).toLocaleString()}</span> : null}
+                  <Icon name="chevron" size={14} className="text-ink-faint" />
+                </Link>
+              </li>
+            ))}
+          </ul>
+        </Panel>
+      </div>
+
+      <div className="grid gap-4 lg:grid-cols-3">
+        <Panel id="dashboard-funnel" className="lg:col-span-2" title="Pipeline funnel" description="Lead flow by stage, with conversion from the first stage.">
           <FunnelChart stages={(funnel || []).map((f: any) => ({ stage: f.stage || f.name || "Stage", count: Number(f.count) || 0, slug: f.slug }))} />
-        </div>
-        <div className="card-pad">
-          <div className="label mb-3">Tier mix</div>
+        </Panel>
+        <Panel id="dashboard-tiers" title="Tier mix" description="Quality distribution of assigned leads.">
           <TierDonut a={kpis?.tier_a ?? 0} b={kpis?.tier_b ?? 0} c={kpis?.tier_c ?? 0} />
-        </div>
+        </Panel>
       </div>
 
-      <div className="mt-6 grid gap-4 lg:grid-cols-2">
-        <div className="card-pad">
-          <div className="label mb-2">Tasks due</div>
-          <ul className="space-y-2 text-sm">
-            {(tasks_due || []).length === 0 && <li className="text-ink-faint">No open tasks</li>}
-            {(tasks_due || []).map((t: any) => (
-              <li key={t.id} className="flex justify-between gap-2 border-b border-line/60 py-1.5">
-                <span className="text-ink">{t.title}</span>
-                <span className="text-xs text-ink-faint shrink-0">{t.due_at ? String(t.due_at).slice(0, 10) : ""}</span>
-              </li>
-            ))}
-          </ul>
-        </div>
-        <div className="card-pad">
-          <div className="label mb-2">Recent activity</div>
-          <ul className="space-y-2 text-sm">
-            {(recent_activity || []).length === 0 && <li className="text-ink-faint">No activity yet</li>}
-            {(recent_activity || []).slice(0, 8).map((a: any) => (
-              <li key={a.id} className="border-b border-line/60 py-1.5">
-                <div className="font-medium text-ink">{a.title || a.activity_type}</div>
-                {a.body ? <div className="text-xs text-ink-faint line-clamp-2">{a.body}</div> : null}
-              </li>
-            ))}
-          </ul>
-        </div>
+      <div className="grid gap-4 lg:grid-cols-2">
+        <Panel
+          id="dashboard-tasks"
+          title="Tasks due"
+          actions={<Link href="/activities" className="btn-ghost btn-sm">Open activity queue <Icon name="arrow" size={14} /></Link>}
+          bodyClassName="p-0"
+        >
+          {tasksDue.length === 0 ? (
+            <EmptyState title="No open tasks" hint="Follow-ups you schedule on leads and deals appear here." icon={<Icon name="check" size={18} />} />
+          ) : (
+            <ul className="divide-y divide-line" aria-label="Tasks due">
+              {tasksDue.map((t: any) => (
+                <li key={t.id} className="flex items-center justify-between gap-3 px-5 py-3">
+                  <span className="min-w-0 truncate text-[0.8125rem] font-medium text-ink">{t.title}</span>
+                  <span className="shrink-0 text-xs tabular-nums text-ink-faint">{t.due_at ? String(t.due_at).slice(0, 10) : ""}</span>
+                </li>
+              ))}
+            </ul>
+          )}
+        </Panel>
+        <Panel id="dashboard-activity" title="Recent activity" bodyClassName="p-0">
+          {activity.length === 0 ? (
+            <EmptyState title="No activity yet" hint="Calls, emails and stage moves will build a timeline here." icon={<Icon name="activity" size={18} />} />
+          ) : (
+            <ol className="divide-y divide-line" aria-label="Recent activity">
+              {activity.map((a: any) => (
+                <li key={a.id} className="flex gap-3 px-5 py-3">
+                  <span className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-brand-500 dark:bg-brand-300" aria-hidden="true" />
+                  <div className="min-w-0">
+                    <div className="text-[0.8125rem] font-medium text-ink">{a.title || a.activity_type}</div>
+                    {a.body ? <div className="mt-0.5 line-clamp-2 text-xs text-ink-faint">{a.body}</div> : null}
+                  </div>
+                </li>
+              ))}
+            </ol>
+          )}
+        </Panel>
       </div>
+
+      <Panel id="dashboard-start" title="Start here" description="The four-step daily motion for new reps.">
+        <ol className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+          {steps.map((step, i) => (
+            <li key={step} className="flex items-center gap-3 text-[0.8125rem] text-ink">
+              <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full border border-brand-200 bg-brand-50 text-xs font-semibold tabular-nums text-brand-700 dark:border-brand-500/30 dark:bg-brand-500/15 dark:text-brand-200">
+                {i + 1}
+              </span>
+              {step}
+            </li>
+          ))}
+        </ol>
+      </Panel>
     </div>
   );
+}
+
+function money(value: unknown) {
+  return `$${Number(value || 0).toLocaleString()}`;
 }

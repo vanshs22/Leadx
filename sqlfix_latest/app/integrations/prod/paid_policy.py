@@ -14,7 +14,44 @@ from __future__ import annotations
 
 import os
 
+from app.integrations.prod.discovery_runtime import local_validation_mode
+
 _MODES = {"auto", "always", "never"}
+
+
+def paid_credentials_available() -> bool:
+    """Return whether at least one explicitly configured paid lane exists."""
+    keys = (
+        "SERPER_API_KEY", "DECODO_API_KEY", "APOLLO_API_KEY", "HUNTER_API_KEY", "ZEROBOUNCE_API_KEY",
+        "ABSTRACT_API_KEY", "TWILIO_ACCOUNT_SID", "PHONEVALIDATIONAPI_KEY",
+    )
+    return any(os.getenv(key) for key in keys)
+
+
+def local_mode_denies_paid() -> bool:
+    return local_validation_mode()
+
+
+def paid_gate(
+    *,
+    policy_enabled: bool,
+    credential_available: bool,
+    unmet_gap: bool,
+    remaining_quota: int,
+    local_mode: bool | None = None,
+) -> tuple[bool, str]:
+    """Apply every paid-stage gate in one deterministic decision."""
+    if local_validation_mode() if local_mode is None else local_mode:
+        return False, "local_validation_mode"
+    if not policy_enabled:
+        return False, "paid_policy_disabled"
+    if not credential_available:
+        return False, "paid_credential_missing"
+    if not unmet_gap:
+        return False, "qualifying_gap_closed"
+    if int(remaining_quota or 0) <= 0:
+        return False, "quota_exhausted"
+    return True, "paid_gates_passed"
 
 # Fields that decide whether a lead can pass the verified-contact gate.
 CONTACT_FIELDS = ("email", "phone")
@@ -56,13 +93,35 @@ def free_is_sufficient(rows: list[dict], want: int) -> bool:
     return have >= int(want * sufficiency_ratio())
 
 
-def paid_stage_allowed(free_rows: list[dict], want: int) -> tuple[bool, str]:
-    """Decide whether paid discovery lanes may run. Returns (allowed, reason)."""
+def paid_stage_allowed(
+    free_rows: list[dict],
+    want: int,
+    *,
+    credential_available: bool | None = None,
+    unmet_gap: bool | None = None,
+    remaining_quota: int | None = None,
+    local_mode: bool | None = None,
+) -> tuple[bool, str]:
+    """Decide whether paid work may run, including all four hard gates.
+
+    The optional arguments preserve compatibility for callers that only need
+    the historical free-sufficiency decision. Provider-bound callers pass all
+    gates explicitly; omission is never used at a provider boundary.
+    """
     mode = paid_fallback_mode()
+    if local_validation_mode() if local_mode is None else local_mode:
+        return False, "local_validation_mode"
     if mode == "never":
         return False, "paid_fallback_disabled"
+    if mode == "always" and unmet_gap is None:
+        return True, "paid_fallback_always"
+    gap = not free_is_sufficient(free_rows, want) if unmet_gap is None else bool(unmet_gap)
+    if not gap:
+        return False, "free_sources_sufficient"
+    if credential_available is not None and not credential_available:
+        return False, "paid_credential_missing"
+    if remaining_quota is not None and int(remaining_quota) <= 0:
+        return False, "quota_exhausted"
     if mode == "always":
         return True, "paid_fallback_always"
-    if free_is_sufficient(free_rows, want):
-        return False, "free_sources_sufficient"
     return True, "free_sources_insufficient"

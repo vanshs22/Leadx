@@ -13,7 +13,9 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { crmExtras, type CopyVariant, type LintResult } from "@/lib/api";
 import { getTenantId } from "@/lib/tenant";
-import { PageHeader, Notice } from "@/components/ui/Primitives";
+import { PageHeader, Notice, Panel, Badge } from "@/components/ui/Primitives";
+import { EmptyState } from "@/components/ui/States";
+import { Icon } from "@/components/ui/Icon";
 
 const CATEGORY_LABELS: Record<string, string> = {
   cold_outreach: "Cold outreach",
@@ -32,30 +34,31 @@ function textToHtml(text: string) {
     .join("");
 }
 
+/** Plain-text snippet of the editor HTML for the inbox preview. */
+function htmlSnippet(html: string, max = 160) {
+  const text = html.replace(/<br\s*\/?>/gi, " ").replace(/<\/p>/gi, " ").replace(/<[^>]+>/g, "").replace(/&nbsp;/g, " ").replace(/\s+/g, " ").trim();
+  return text.length > max ? `${text.slice(0, max)}…` : text;
+}
+
 function ScoreBadge({ result }: { result: LintResult | null }) {
   if (!result) return null;
-  const cls =
-    result.verdict === "good"
-      ? "bg-emerald-500/10 text-emerald-700 dark:text-emerald-400"
-      : result.verdict === "fair"
-        ? "bg-amber-500/10 text-amber-700 dark:text-amber-400"
-        : "bg-rust-500/10 text-rust-600 dark:text-rust-400";
-  return <span className={`pill ${cls}`}>{result.score}/100</span>;
+  const tone = result.verdict === "good" ? "success" : result.verdict === "fair" ? "warn" : "danger";
+  return <Badge tone={tone} className="tabular-nums">{result.score}/100</Badge>;
 }
 
 function IssueList({ result }: { result: LintResult | null }) {
-  if (!result) return null;
+  if (!result) return <p className="text-xs text-ink-faint">Checks run automatically as you type.</p>;
   const dot: Record<string, string> = {
     error: "bg-rust-500",
     warning: "bg-amber-500",
-    info: "bg-signal-500",
-    success: "bg-emerald-500",
+    info: "bg-brand-500 dark:bg-brand-300",
+    success: "bg-emerald-600 dark:bg-emerald-400",
   };
   return (
-    <ul className="mt-2 space-y-1.5">
+    <ul className="space-y-2">
       {result.issues.map((i, n) => (
-        <li key={n} className="flex gap-2 text-xs text-ink-muted">
-          <span className={`mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full ${dot[i.level] || "bg-ink-faint"}`} />
+        <li key={n} className="flex gap-2.5 text-xs leading-5 text-ink-muted">
+          <span className={`mt-[7px] h-1.5 w-1.5 shrink-0 rounded-full ${dot[i.level] || "bg-ink-faint"}`} aria-hidden="true" />
           <span>{i.message}</span>
         </li>
       ))}
@@ -197,215 +200,276 @@ export default function ComposePage() {
     setTimeout(() => setCopied(false), 2000);
   }
 
-  if (!tenantId) return <div className="page">Choose a workspace first.</div>;
+  if (!tenantId) {
+    return (
+      <div className="page">
+        <PageHeader eyebrow="Copy studio" title="Write an email" />
+        <div className="card"><EmptyState title="Choose a workspace first." hint="The composer loads proven copy for the selected workspace." /></div>
+      </div>
+    );
+  }
+
+  const active = variants.find((v) => v.variant_key === activeVariant);
+  const snippet = htmlSnippet(bodyHtml);
 
   return (
     <div className="page">
-      <PageHeader eyebrow="Copy studio" title="Write an email" description="Start from copy that already gets replies, edit it directly, and check it before it goes out." />
+      <PageHeader
+        eyebrow="Copy studio"
+        title="Write an email"
+        description="Start from copy that already gets replies, edit it directly, and check it before it goes out."
+        actions={
+          <div className="tabs" role="tablist" aria-label="Email category">
+            {categories.map((c) => (
+              <button
+                type="button"
+                role="tab"
+                aria-selected={category === c}
+                key={c}
+                className={category === c ? "tab-active" : "tab"}
+                onClick={() => setCategory(c)}
+              >
+                {CATEGORY_LABELS[c] || c}
+              </button>
+            ))}
+          </div>
+        }
+      />
 
       {error && <Notice tone="danger" title="Composer unavailable">{error}</Notice>}
 
-      <div className="mb-4 flex flex-wrap gap-2">
-        {categories.map((c) => (
-          <button
-            type="button"
-            key={c}
-            className={category === c ? "pill bg-brand-500/15 text-brand-700 dark:text-brand-300" : "pill"}
-            onClick={() => setCategory(c)}
-          >
-            {CATEGORY_LABELS[c] || c}
-          </button>
-        ))}
-      </div>
-
-      <div className="grid gap-4 lg:grid-cols-[1fr_320px]">
-        <div className="space-y-4">
+      <div className="grid gap-4 lg:grid-cols-3">
+        <div className="min-w-0 space-y-4 lg:col-span-2">
           {/* ---- variant picker ---- */}
-          <section className="card-pad">
-            <div className="mb-3 flex items-baseline justify-between gap-2">
-              <h2 className="font-display text-sm font-semibold text-ink">Angle</h2>
-              {recommended && (
-                <span className="text-[11px] text-ink-faint">
-                  {recommendReason === "exploring"
-                    ? "Still gathering data — variants rotate until each has enough sends."
-                    : "Recommended by reply rate."}
-                </span>
-              )}
-            </div>
-            <div className="grid gap-2 sm:grid-cols-2">
-              {variants.map((v) => (
-                <button
-                  key={v.variant_key}
-                  onClick={() => apply(v)}
-                  className={`rounded-xl2 border p-3 text-left transition ${
-                    activeVariant === v.variant_key
-                      ? "border-brand-500 bg-brand-500/5"
-                      : "border-line hover:bg-surface-3"
-                  }`}
-                >
-                  <div className="flex items-center gap-2">
-                    <span className="text-sm font-medium text-ink">{v.variant_key.replace(/_/g, " ")}</span>
-                    {v.variant_key === recommended && <span className="pill text-[10px]">best</span>}
-                  </div>
-                  <p className="mt-1 text-xs text-ink-muted">{v.angle}</p>
-                  <p className="mt-1.5 text-[11px] text-ink-faint">
-                    {v.sent > 0
-                      ? `${v.sent} sent · ${v.reply_rate ?? 0}% replied${v.confident ? "" : " (early)"}`
-                      : "Not sent yet"}
-                  </p>
-                </button>
-              ))}
-            </div>
-            {variants.find((v) => v.variant_key === activeVariant)?.when && (
-              <p className="mt-3 border-t border-line pt-3 text-xs text-ink-muted">
+          <Panel
+            title="Angle"
+            description={
+              recommended
+                ? recommendReason === "exploring"
+                  ? "Still gathering data — variants rotate until each has enough sends."
+                  : "Recommended by reply rate."
+                : "Pick the angle that fits this prospect."
+            }
+          >
+            {variants.length === 0 ? (
+              <p className="text-[0.8125rem] text-ink-muted">No copy variants loaded for this category yet.</p>
+            ) : (
+              <div className="grid gap-2 sm:grid-cols-2">
+                {variants.map((v) => {
+                  const selected = activeVariant === v.variant_key;
+                  return (
+                    <button
+                      key={v.variant_key}
+                      type="button"
+                      aria-pressed={selected}
+                      onClick={() => apply(v)}
+                      className={`rounded-lg border p-3 text-left transition-colors ${
+                        selected
+                          ? "border-brand-500 bg-brand-50 ring-1 ring-brand-500/30 dark:border-brand-300/60 dark:bg-brand-500/10"
+                          : "border-line bg-surface-2 hover:border-line-strong hover:bg-surface-3"
+                      }`}
+                    >
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="text-[0.8125rem] font-semibold capitalize text-ink">{v.variant_key.replace(/_/g, " ")}</span>
+                        {v.variant_key === recommended && <Badge tone="accent">Best</Badge>}
+                      </div>
+                      <p className="mt-1 text-xs leading-5 text-ink-muted">{v.angle}</p>
+                      <p className="mt-2 text-[11px] tabular-nums text-ink-faint">
+                        {v.sent > 0
+                          ? `${v.sent} sent · ${v.reply_rate ?? 0}% replied${v.confident ? "" : " (early)"}`
+                          : "Not sent yet"}
+                      </p>
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+            {active?.when && (
+              <p className="mt-4 border-t border-line pt-3 text-xs text-ink-muted">
                 <span className="font-medium text-ink">When to use: </span>
-                {variants.find((v) => v.variant_key === activeVariant)?.when}
+                {active.when}
               </p>
             )}
-          </section>
+          </Panel>
 
           {/* ---- editor ---- */}
-          <section className="card-pad">
-            <label className="mb-1 block text-xs font-medium uppercase tracking-wide text-ink-faint">
-              Subject
-            </label>
-            <div className="flex items-center gap-2">
-              <input
-                className="input flex-1"
-                value={subject}
-                onChange={(e) => setSubject(e.target.value)}
-                placeholder="Subject line"
-              />
-              <ScoreBadge result={subjectLint} />
-            </div>
-            {subjectOptions.length > 0 && (
-              <div className="mt-2 space-y-1 rounded-xl2 border border-line bg-surface-2 p-2">
-                <p className="text-[11px] text-ink-faint">Click one to use it:</p>
-                {subjectOptions.map((s, i) => (
+          <Panel
+            title="Message"
+            actions={<span className="text-[11px] text-ink-faint">What you see is what sends</span>}
+            footer={
+              <>
+                <span>Copying also records a send for A/B results.</span>
+                <div className="flex flex-wrap gap-2">
                   <button
-                    key={i}
-                    className="block w-full rounded-lg px-2 py-1 text-left text-sm text-ink hover:bg-surface-3"
+                    className="btn-secondary btn-sm"
                     onClick={() => {
-                      setSubject(s);
-                      setSubjectOptions([]);
+                      const v = variants.find((x) => x.variant_key === activeVariant);
+                      if (v) apply(v);
                     }}
                   >
-                    {s}
+                    Reset to template
                   </button>
-                ))}
+                  <button className="btn-primary btn-sm" onClick={copyAll}>
+                    <Icon name={copied ? "check" : "mail"} size={14} />
+                    {copied ? "Copied" : "Copy subject + body"}
+                  </button>
+                </div>
+              </>
+            }
+          >
+            <div className="space-y-5">
+              <div>
+                <div className="flex items-center justify-between gap-2">
+                  <label className="field-label" htmlFor="compose-subject">
+                    Subject
+                  </label>
+                  <ScoreBadge result={subjectLint} />
+                </div>
+                <input
+                  id="compose-subject"
+                  className="input"
+                  value={subject}
+                  onChange={(e) => setSubject(e.target.value)}
+                  placeholder="Subject line"
+                />
+                {subjectOptions.length > 0 && (
+                  <div className="mt-2 rounded-lg border border-line bg-surface-3/50 p-2">
+                    <p className="px-2 pb-1 text-[11px] text-ink-faint">Click one to use it:</p>
+                    {subjectOptions.map((s, i) => (
+                      <button
+                        key={i}
+                        className="block w-full rounded-md px-2 py-1.5 text-left text-[0.8125rem] text-ink hover:bg-surface-2"
+                        onClick={() => {
+                          setSubject(s);
+                          setSubjectOptions([]);
+                        }}
+                      >
+                        {s}
+                      </button>
+                    ))}
+                  </div>
+                )}
               </div>
-            )}
 
-            <div className="mt-4 mb-1 flex items-center justify-between">
-              <label className="text-xs font-medium uppercase tracking-wide text-ink-faint">Body</label>
-              <div className="flex items-center gap-2">
-                <ScoreBadge result={bodyLint} />
-                <span className="text-[11px] text-ink-faint">click to edit</span>
+              <div>
+                <div className="flex items-center justify-between gap-2">
+                  <label className="field-label" id="compose-body-label">Body</label>
+                  <div className="flex items-center gap-2">
+                    <ScoreBadge result={bodyLint} />
+                    <span className="text-[11px] text-ink-faint">Click to edit</span>
+                  </div>
+                </div>
+                <div
+                  ref={editorRef}
+                  contentEditable
+                  suppressContentEditableWarning
+                  onInput={onEditorInput}
+                  className="min-h-[300px] rounded-lg border border-line-strong bg-surface-2 px-4 py-3 text-sm leading-7 text-ink shadow-card outline-none focus:border-brand-500 focus:ring-[3px] focus:ring-brand-500/15 dark:focus:border-brand-300 [&_p+p]:mt-3"
+                  aria-label="Email body editor"
+                  aria-describedby="compose-body-label"
+                />
               </div>
-            </div>
-            <div
-              ref={editorRef}
-              contentEditable
-              suppressContentEditableWarning
-              onInput={onEditorInput}
-              className="min-h-[280px] rounded-xl2 border border-line bg-surface p-4 text-sm leading-relaxed text-ink outline-none focus:border-brand-500"
-              aria-label="Email body editor"
-            />
 
-            <div className="mt-3 flex flex-wrap items-center gap-1.5">
-              <span className="text-[11px] text-ink-faint">Insert:</span>
-              {mergeTags.map((t) => (
-                <button key={t} className="pill text-[11px]" onClick={() => insertTag(t)}>
-                  {`{{${t}}}`}
-                </button>
-              ))}
+              {mergeTags.length > 0 && (
+                <div className="flex flex-wrap items-center gap-1.5">
+                  <span className="mr-1 text-xs text-ink-faint">Insert:</span>
+                  {mergeTags.map((t) => (
+                    <button key={t} type="button" aria-label={`Insert merge tag ${t}`} className="rounded-md border border-line bg-surface-3 px-1.5 py-0.5 font-mono text-[11px] text-ink-muted hover:border-line-strong hover:text-ink" onClick={() => insertTag(t)}>
+                      {`{{${t}}}`}
+                    </button>
+                  ))}
+                </div>
+              )}
             </div>
-
-            <div className="mt-4 flex flex-wrap gap-2 border-t border-line pt-4">
-              <button className="btn-primary" onClick={copyAll}>
-                {copied ? "Copied" : "Copy subject + body"}
-              </button>
-              <button
-                className="btn-secondary"
-                onClick={() => {
-                  const v = variants.find((x) => x.variant_key === activeVariant);
-                  if (v) apply(v);
-                }}
-              >
-                Reset to template
-              </button>
-            </div>
-          </section>
+          </Panel>
         </div>
 
-        {/* ---- right rail: rewrite + lint detail ---- */}
-        <div className="space-y-4">
-          <section className="card-pad">
-            <h2 className="mb-1 font-display text-sm font-semibold text-ink">Rewrite</h2>
-            <p className="mb-3 text-xs text-ink-muted">
-              Keeps your merge tags and facts. Won&apos;t invent numbers or claims.
-            </p>
-            <div className="mb-3 flex flex-wrap gap-1.5">
-              {tones.map((t) => (
-                <button
-                  key={t}
-                  disabled={!!busy}
-                  className="pill disabled:opacity-50"
-                  onClick={() => rewrite({ tone: t })}
-                >
-                  {busy === t ? "…" : t}
-                </button>
-              ))}
+        {/* ---- right rail: preview, rewrite + lint detail ---- */}
+        <div className="min-w-0 space-y-4">
+          <Panel title="Inbox preview" description="How the first line reads in a recipient's list.">
+            <div className="rounded-lg border border-line bg-surface-3/50 p-3">
+              <div className="flex items-center justify-between gap-2 text-[11px] text-ink-faint">
+                <span>You</span>
+                <span className="tabular-nums">now</span>
+              </div>
+              <div className="mt-1 truncate text-[0.8125rem] font-semibold text-ink">{subject || "No subject"}</div>
+              <p className="mt-0.5 line-clamp-2 text-xs leading-5 text-ink-muted">{snippet || "Body is empty."}</p>
             </div>
-            <div className="mb-3 flex flex-wrap gap-1.5">
-              {modes.map((m) => (
-                <button
-                  key={m}
-                  disabled={!!busy}
-                  className="pill bg-signal-500/10 text-signal-700 disabled:opacity-50 dark:text-signal-300"
-                  onClick={() => rewrite({ mode: m })}
-                >
-                  {busy === m ? "…" : m === "subject" ? "subject ideas" : m}
-                </button>
-              ))}
-            </div>
-            <input
-              className="input mb-2 text-sm"
-              placeholder="Or type your own instruction…"
-              value={instruction}
-              onChange={(e) => setInstruction(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === "Enter" && instruction.trim()) rewrite({ instruction });
-              }}
-            />
-            <button
-              className="btn-secondary w-full text-xs"
-              disabled={!instruction.trim() || !!busy}
-              onClick={() => rewrite({ instruction })}
-            >
-              {busy === "custom" ? "Rewriting…" : "Apply instruction"}
-            </button>
-          </section>
+          </Panel>
 
-          <section className="card-pad">
-            <div className="flex items-baseline justify-between">
-              <h2 className="font-display text-sm font-semibold text-ink">Subject check</h2>
-              {subjectLint?.length != null && (
-                <span className="text-[11px] text-ink-faint">{subjectLint.length} chars</span>
+          <Panel title="Rewrite" description="Keeps your merge tags and facts. Won't invent numbers or claims.">
+            <div className="space-y-3">
+              {tones.length > 0 && (
+                <div>
+                  <div className="label mb-1.5">Tone</div>
+                  <div className="flex flex-wrap gap-1.5">
+                    {tones.map((t) => (
+                      <button
+                        key={t}
+                        disabled={!!busy}
+                        className="btn-secondary btn-sm capitalize"
+                        onClick={() => rewrite({ tone: t })}
+                      >
+                        {busy === t ? "…" : t}
+                      </button>
+                    ))}
+                  </div>
+                </div>
               )}
+              {modes.length > 0 && (
+                <div>
+                  <div className="label mb-1.5">Mode</div>
+                  <div className="flex flex-wrap gap-1.5">
+                    {modes.map((m) => (
+                      <button
+                        key={m}
+                        disabled={!!busy}
+                        className="btn-ghost btn-sm border border-line capitalize"
+                        onClick={() => rewrite({ mode: m })}
+                      >
+                        {busy === m ? "…" : m === "subject" ? "subject ideas" : m}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+              <div>
+                <label className="field-label" htmlFor="compose-instruction">Custom instruction</label>
+                <input
+                  id="compose-instruction"
+                  className="input"
+                  placeholder="Or type your own instruction…"
+                  value={instruction}
+                  onChange={(e) => setInstruction(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" && instruction.trim()) rewrite({ instruction });
+                  }}
+                />
+                <p className="field-hint">Press Enter or use the button below.</p>
+              </div>
+              <button
+                className="btn-secondary w-full"
+                disabled={!instruction.trim() || !!busy}
+                onClick={() => rewrite({ instruction })}
+              >
+                {busy === "custom" ? "Rewriting…" : "Apply instruction"}
+              </button>
             </div>
+          </Panel>
+
+          <Panel
+            title="Subject check"
+            actions={subjectLint?.length != null ? <span className="text-[11px] tabular-nums text-ink-faint">{subjectLint.length} chars</span> : undefined}
+          >
             <IssueList result={subjectLint} />
-          </section>
+          </Panel>
 
-          <section className="card-pad">
-            <div className="flex items-baseline justify-between">
-              <h2 className="font-display text-sm font-semibold text-ink">Body check</h2>
-              {bodyLint?.words != null && (
-                <span className="text-[11px] text-ink-faint">{bodyLint.words} words</span>
-              )}
-            </div>
+          <Panel
+            title="Body check"
+            actions={bodyLint?.words != null ? <span className="text-[11px] tabular-nums text-ink-faint">{bodyLint.words} words</span> : undefined}
+          >
             <IssueList result={bodyLint} />
-          </section>
+          </Panel>
         </div>
       </div>
     </div>

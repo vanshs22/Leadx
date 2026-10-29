@@ -2,9 +2,11 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { getApiBases } from "@/lib/config";
+import { getApiBases, isLocalAuthProfile } from "@/lib/config";
 import { getSessionFast, signOut } from "@/lib/auth";
 import { getTenantId, getTenantUserId, setTenant, clearTenant } from "@/lib/tenant";
+import { beginTenantSwitch } from "@/lib/api";
+import { disposeTenant } from "@/lib/crmRealtime";
 
 const BOOTSTRAP_TIMEOUT_MS = 3500;
 
@@ -39,21 +41,27 @@ export function SessionGate({ children }: { children: React.ReactNode }) {
         }
         // LeadX uses its own OTP verification flow. Do not allow an unconfirmed
         // account into a tenant workspace, even when Supabase returned a session.
-        if (!session.user.email_confirmed_at) {
+        if (!isLocalAuthProfile() && !session.user.email_confirmed_at) {
           const email = encodeURIComponent(session.user.email || "");
           router.replace(`/verify-email?email=${email}`);
           return;
         }
 
-        // Tenant resolution is intentionally done once per browser session.
-        // Previously this ran on every pathname change, causing slow navigation.
+        // localStorage is only a render hint. Every fresh portal runtime must
+        // revalidate membership and tenant identity through /crm/me before
+        // rendering workspace data; otherwise a revoked or changed tenant can
+        // make the browser show stale terminal status after a restart.
         const cachedTenant = getTenantId();
         const cachedTenantUser = getTenantUserId();
-        if (cachedTenant && cachedTenantUser === session.user.id) {
-          if (!cancelled) setReady(true);
-          return;
+        if (cachedTenant && cachedTenantUser !== session.user.id) {
+          if (!cancelled) setReady(false);
+          disposeTenant(cachedTenant);
+          beginTenantSwitch(cachedTenant);
+          clearTenant();
+        } else if (cachedTenant) {
+          if (!cancelled) setReady(false);
+          beginTenantSwitch(cachedTenant);
         }
-        if (cachedTenant) clearTenant();
 
         // The backend session is held in HttpOnly cookies; no browser-readable
         // bearer token is attached to CRM requests.
@@ -90,6 +98,11 @@ export function SessionGate({ children }: { children: React.ReactNode }) {
         }
 
         if (resolved?.body?.tenant_id) {
+          const previousTenant = getTenantId();
+          if (previousTenant && previousTenant !== resolved.body.tenant_id) {
+            disposeTenant(previousTenant);
+            beginTenantSwitch(previousTenant);
+          }
           setTenant(resolved.body.tenant_id, resolved.body.tenant_name || "Workspace", session.user.id);
           window.dispatchEvent(new Event("leadx:tenant-ready"));
           if (!cancelled) setReady(true);
@@ -100,7 +113,7 @@ export function SessionGate({ children }: { children: React.ReactNode }) {
           setError(lastError.includes("403") || /not a member/i.test(lastError)
             ? "Your login is valid, but it is not linked to a client workspace."
             : "We couldn't connect your client workspace.");
-          setDetail("The workspace service did not respond. Please retry; your credentials are not lost.");
+          beginTenantSwitch(getTenantId());
           clearTenant();
         }
       } catch (e: any) {
@@ -116,15 +129,15 @@ export function SessionGate({ children }: { children: React.ReactNode }) {
 
   if (error) return (
     <div className="auth-shell">
-      <div className="auth-card max-w-lg text-center">
+      <div className="auth-card" role="alert">
         <span className="auth-logo">LX</span>
-        <div className="mt-5 text-xs font-bold uppercase tracking-[.16em] text-brand-600">Workspace connection</div>
-        <h1 className="mt-2 text-2xl font-bold text-ink">Almost there</h1>
-        <p className="mt-2 text-sm text-ink-muted">{error}</p>
-        <p className="mt-3 text-xs leading-5 text-ink-faint">{detail}</p>
-        <div className="mt-6 flex justify-center gap-2">
+        <div className="eyebrow mt-5 text-brand-700 dark:text-brand-300">Workspace connection</div>
+        <h1 className="auth-title !mt-1.5">Almost there</h1>
+        <p className="auth-copy">{error}</p>
+        <p className="mt-3 rounded-lg border border-line bg-surface-3/60 px-3 py-2 text-xs leading-5 text-ink-muted">{detail}</p>
+        <div className="mt-6 flex flex-wrap justify-end gap-2">
           <button aria-label="Retry workspace session" className="btn btn-secondary" onClick={() => { setError(""); setDetail(""); setReady(false); setRetryKey((v) => v + 1); }}>Retry</button>
-          <button aria-label="Sign out of workspace" className="btn-primary" onClick={async () => { clearTenant(); await signOut().catch(() => {}); router.replace("/login"); }}>Sign out</button>
+          <button aria-label="Sign out of workspace" className="btn-primary" onClick={async () => { const tid = getTenantId(); if (tid) disposeTenant(tid); beginTenantSwitch(tid); clearTenant(); await signOut().catch(() => {}); router.replace("/login"); }}>Sign out</button>
         </div>
       </div>
     </div>
@@ -132,11 +145,15 @@ export function SessionGate({ children }: { children: React.ReactNode }) {
 
   if (!ready) return (
     <div className="auth-shell">
-      <div className="auth-card max-w-sm text-center">
-        <span className="auth-logo">LX</span>
-        <div className="mt-5 h-1.5 overflow-hidden rounded-full bg-surface-3"><div className="h-full w-1/2 animate-pulse rounded-full bg-brand-500" /></div>
-        <p className="mt-4 text-sm font-semibold text-ink">Opening your workspace</p>
-        <p className="mt-1 text-xs text-ink-muted">Securing your session…</p>
+      <div className="auth-card !max-w-[340px]" role="status" aria-live="polite" aria-busy="true">
+        <div className="flex items-center gap-3">
+          <span className="auth-logo">LX</span>
+          <div className="min-w-0">
+            <p className="text-[0.875rem] font-semibold text-ink">Opening your workspace</p>
+            <p className="mt-0.5 text-xs text-ink-muted">Securing your session…</p>
+          </div>
+        </div>
+        <div className="mt-5 h-1 overflow-hidden rounded-full bg-surface-3"><div className="h-full w-1/2 animate-pulse rounded-full bg-brand-600 dark:bg-brand-300" /></div>
       </div>
     </div>
   );

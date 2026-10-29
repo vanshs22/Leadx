@@ -26,6 +26,7 @@ import httpx
 
 from app.integrations.prod.key_pool import with_key_rotation, KeyPoolExhausted
 from app.integrations.prod.utils import normalize_phone, to_e164, extract_domain, fingerprint
+from app.integrations.prod.discovery_runtime import annotate_route_result, route_cell_id, route_page, RouteBatch, typed_route_error, stable_route_dedupe
 
 logger = logging.getLogger("lead_engine.exhaustive_discovery")
 
@@ -87,7 +88,7 @@ def _normalize(raw: dict, industry: str, location: str, source: str) -> Optional
     address = raw.get("address") or raw.get("formattedAddress") or raw.get("display_name") or ""
     place_id = raw.get("placeId") or raw.get("id") or raw.get("fsq_place_id")
     fp = fingerprint(name, phone, website)
-    return {
+    return annotate_route_result({
         "name": name[:200],
         "company_name": name[:200],
         "phone": phone or None,
@@ -109,19 +110,14 @@ def _normalize(raw: dict, industry: str, location: str, source: str) -> Optional
         "sources_hit": [source],
         "source_ids": {source: str(place_id)} if place_id else {},
         "raw_data": raw,
-    }
+    }, route_cell={"source": source, "source_family": source, "sub_icp_id": industry,
+                   "geography": location, "query": industry, "result_budget": 1},
+       raw=raw, requested_limit=1, cursor={"page": 1, "token": None}, page=1,
+       evidence_level="L1", billable=source not in {"osm", "osm_nominatim"})
 
 
 def _dedupe(items: list[dict]) -> list[dict]:
-    out: list[dict] = []
-    seen: set[str] = set()
-    for x in items:
-        fp = x.get("fingerprint")
-        if not fp or fp in seen:
-            continue
-        seen.add(fp)
-        out.append(x)
-    return out
+    return stable_route_dedupe(items)
 
 
 DIRECTORY_DOMAINS = (
@@ -160,6 +156,8 @@ def _discovery_query_matrix(industry: str, location: str, queries: list[str]) ->
 
 
 async def _serper_maps_page(key: str, query: str, location: str, page: int, num: int = 20) -> list[dict]:
+    from app.integrations.prod.discovery_runtime import assert_provider_allowed
+    assert_provider_allowed("serper_maps")
     async with httpx.AsyncClient(timeout=45) as client:
         r = await client.post(
             SERPER_MAPS,
@@ -177,8 +175,11 @@ async def serper_maps_exhaustive(industry: str, location: str, queries: list[str
     still be supplied operationally through SERPER_MAX_PAGES, but its default is
     provider-driven exhaustion rather than a product quota.
     """
+    from app.integrations.prod.discovery_runtime import assert_provider_allowed
+    assert_provider_allowed("serper_maps")
     out: list[dict] = []
     seen: set[str] = set()
+    route_events: list[dict[str, Any]] = []
     matrix = _discovery_query_matrix(industry, location, queries)
     configured = max_pages if max_pages is not None else int(os.getenv("SERPER_MAX_PAGES", "0"))
     for q in matrix:
@@ -193,11 +194,17 @@ async def serper_maps_exhaustive(industry: str, location: str, queries: list[str
                 break
             try:
                 batch = await with_key_rotation("serper", lambda key, p=page: _serper_maps_page(key, q, location, p, 20))
-            except KeyPoolExhausted:
+            except KeyPoolExhausted as exc:
+                route_events.append({"route_cell_id": route_cell_id("maps_serper", sub_icp=industry, geography=location, query=q),
+                                     "typed_error": typed_route_error(exc, category="quota_exhausted", retryable=False),
+                                     "page": page, "cursor": {"page": page}})
                 logger.warning("Serper key pool exhausted at maps page=%s location=%s", page, location)
                 break
             except Exception as e:
-                logger.warning("Serper maps page failed q=%s page=%s: %s", q, page, e)
+                route_events.append({"route_cell_id": route_cell_id("maps_serper", sub_icp=industry, geography=location, query=q),
+                                     "typed_error": typed_route_error(e, fallback_reason="maps_page_failure"),
+                                     "page": page, "cursor": {"page": page}})
+                logger.warning("Serper maps page failed q=%s page=%s: %s", q, page, type(e).__name__)
                 break
             if not batch:
                 terminated_exhausted = True
@@ -225,7 +232,9 @@ async def serper_maps_exhaustive(industry: str, location: str, queries: list[str
             page += 1
             await asyncio.sleep(float(os.getenv("DISCOVERY_PAGE_DELAY", "0.35")))
         await _record_global_coverage(industry, "maps_serper", location, q, page_reached=max(0,page-1), raw_found=raw_found_q, unique_new=unique_new_q, exhausted=terminated_exhausted)
-    return out
+    return RouteBatch(out, contract={"contract_version": "leadx-route-result-v1", "source": "maps_serper",
+                                      "source_family": "local", "actual_result_count": len(out),
+                                      "exhausted": not route_events}, route_events=route_events)
 
 
 async def serper_web_exhaustive(industry: str, location: str, queries: list[str], max_pages: Optional[int] = None) -> list[dict]:
@@ -235,8 +244,11 @@ async def serper_web_exhaustive(industry: str, location: str, queries: list[str]
     social domains. We continue until empty/repeated pages, not after a fixed lead
     count. Results remain public-web evidence; no private-account bypass is used.
     """
+    from app.integrations.prod.discovery_runtime import assert_provider_allowed
+    assert_provider_allowed("serper_search")
     out: list[dict] = []
     seen: set[str] = set()
+    route_events: list[dict[str, Any]] = []
     matrix = _discovery_query_matrix(industry, location, queries)
     configured = max_pages if max_pages is not None else int(os.getenv("SERPER_WEB_MAX_PAGES", "0"))
     for q in matrix:
@@ -260,11 +272,17 @@ async def serper_web_exhaustive(industry: str, location: str, queries: list[str]
                         r.raise_for_status()
                         return (r.json() or {}).get("organic") or []
                 batch = await with_key_rotation("serper", _call)
-            except KeyPoolExhausted:
+            except KeyPoolExhausted as exc:
+                route_events.append({"route_cell_id": route_cell_id("web_serper", sub_icp=industry, geography=location, query=q),
+                                     "typed_error": typed_route_error(exc, category="quota_exhausted", retryable=False),
+                                     "page": page, "cursor": {"page": page}})
                 logger.warning("Serper key pool exhausted for web query=%s", q)
                 break
             except Exception as e:
-                logger.debug("Serper web exhausted/failed q=%s page=%s: %s", q, page, e)
+                route_events.append({"route_cell_id": route_cell_id("web_serper", sub_icp=industry, geography=location, query=q),
+                                     "typed_error": typed_route_error(e, fallback_reason="web_page_failure"),
+                                     "page": page, "cursor": {"page": page}})
+                logger.debug("Serper web exhausted/failed q=%s page=%s: %s", q, page, type(e).__name__)
                 break
             if not batch:
                 terminated_exhausted = True
@@ -306,10 +324,14 @@ async def serper_web_exhaustive(industry: str, location: str, queries: list[str]
             previous = current
             page += 1
         await _record_global_coverage(industry, "web_serper", location, q, page_reached=max(0,page-1), raw_found=raw_found_q, unique_new=unique_new_q, exhausted=terminated_exhausted)
-    return out
+    return RouteBatch(out, contract={"contract_version": "leadx-route-result-v1", "source": "web_serper",
+                                      "source_family": "public_web", "actual_result_count": len(out),
+                                      "exhausted": not route_events}, route_events=route_events)
 
 
 async def _geocode(location: str) -> Optional[tuple[float, float, float, float]]:
+    from app.integrations.prod.discovery_runtime import assert_provider_allowed
+    assert_provider_allowed("maps")
     try:
         headers = {"User-Agent": "LeadX/1.0 business-discovery"}
         async with httpx.AsyncClient(timeout=20, headers=headers) as client:
@@ -361,15 +383,18 @@ OSM_TAGS = {
 
 
 async def osm_exhaustive(industry: str, location: str) -> list[dict]:
-    """Collect named OSM businesses across the complete geocoded area, tiled to avoid truncation."""
+    """Collect named OSM businesses, using Nominatim when Overpass is unavailable."""
     bbox = await _geocode(location)
     if not bbox:
-        return []
+        from app.integrations.prod.osm_fallback import discover_osm_businesses
+        return await discover_osm_businesses(industry, location, limit=int(os.getenv("OSM_NOMINATIM_LIMIT", "50")))
     tags = OSM_TAGS.get(industry.lower().replace(" ", ""), [])
     if not tags:
         tags = [("shop", "*"), ("office", "*"), ("amenity", "*")]
     out: list[dict] = []
     seen: set[str] = set()
+    failure_count = 0
+    max_failures = max(1, min(int(os.getenv("OSM_MAX_CONSECUTIVE_FAILURES", "1")), 20))
     for south, west, north, east in _grid_bbox(bbox, max_cells=int(os.getenv("OSM_MAX_CELLS", "512"))):
         clauses = []
         for key, value in tags:
@@ -379,15 +404,21 @@ async def osm_exhaustive(industry: str, location: str) -> list[dict]:
             else:
                 clauses.append(f'node["{key}"="{value}"]["name"]({south},{west},{north},{east});')
                 clauses.append(f'way["{key}"="{value}"]["name"]({south},{west},{north},{east});')
-        query = "[out:json][timeout:90];(" + "".join(clauses) + ");out center tags;"
+        query = "[out:json][timeout:30];(" + "".join(clauses) + ");out center tags;"
         try:
-            async with httpx.AsyncClient(timeout=100) as client:
+            async with httpx.AsyncClient(timeout=float(os.getenv("OSM_REQUEST_TIMEOUT", "35"))) as client:
                 r = await client.post(OVERPASS_URL, data=query)
                 r.raise_for_status()
                 elements = (r.json() or {}).get("elements") or []
         except Exception as e:
+            failure_count += 1
             logger.warning("Overpass cell failed %s: %s", location, e)
+            if failure_count >= max_failures:
+                logger.warning("Overpass disabled for location=%s after %s consecutive failures; continuing with Nominatim OSM fallback", location, failure_count)
+                from app.integrations.prod.osm_fallback import discover_osm_businesses
+                return await discover_osm_businesses(industry, location, limit=int(os.getenv("OSM_NOMINATIM_LIMIT", "50")))
             continue
+        failure_count = 0
         for el in elements:
             tags_data = el.get("tags") or {}
             name = tags_data.get("name")
@@ -403,6 +434,8 @@ async def osm_exhaustive(industry: str, location: str) -> list[dict]:
 
 async def google_places_exhaustive(industry: str, location: str, queries: list[str], max_pages: int = 50) -> list[dict]:
     """Optional direct Places API adapter. Uses page tokens plus query families."""
+    from app.integrations.prod.discovery_runtime import assert_provider_allowed
+    assert_provider_allowed("google_places")
     api_key = os.getenv("GOOGLE_MAPS_API_KEY") or os.getenv("GOOGLE_PLACES_API_KEY")
     if not api_key:
         return []
@@ -442,6 +475,8 @@ async def google_places_exhaustive(industry: str, location: str, queries: list[s
 
 async def foursquare_exhaustive(industry: str, location: str, queries: list[str], max_cells: int = 512) -> list[dict]:
     """Optional FSQ adapter. Geographic tiling avoids relying on a small page window."""
+    from app.integrations.prod.discovery_runtime import assert_provider_allowed
+    assert_provider_allowed("foursquare")
     api_key = os.getenv("FOURSQUARE_API_KEY") or os.getenv("FSQ_API_KEY")
     if not api_key:
         return []
@@ -476,6 +511,8 @@ async def discover_exhaustive(
     queries: list[str],
     sources: Optional[dict[str, bool]] = None,
 ) -> list[dict]:
+    from app.integrations.prod.discovery_runtime import assert_provider_allowed
+    assert_provider_allowed("lead_generation")
     # Free/public sources are the default. Paid-provider adapters are opt-in
     # only when explicitly enabled in runtime configuration.
     enabled = {
@@ -492,6 +529,7 @@ async def discover_exhaustive(
             expanded.append(f"{city}, {loc}")
     locations = list(dict.fromkeys(expanded))
     batches: list[list[dict]] = []
+    route_events: list[dict[str, Any]] = []
     for location in locations:
         tasks = []
         if enabled.get("maps"):
@@ -540,7 +578,8 @@ async def discover_exhaustive(
                 if isinstance(result, Exception):
                     logger.warning("exhaustive source failed source=%s: %s", source_name, result)
                 else:
-                    await _record_global_coverage(industry, source_name, location, "*", page_reached=0, raw_found=len(result or []), unique_new=len(result or []), exhausted=True)
+                    route_events.extend(list(getattr(result, "route_events", []) or []))
+                    await _record_global_coverage(industry, source_name, location, "*", page_reached=0, raw_found=len(result or []), unique_new=len(result or []), exhausted=not bool(getattr(result, "route_events", [])))
                     if result:
                         batches.append(result)
     # Use existing high-quality merge/entity resolution logic.
@@ -557,4 +596,6 @@ async def discover_exhaustive(
             annotate_lane(lead)
     except Exception as exc: __import__("logging").getLogger(__name__).debug("suppressed optional failure: %s", exc)
     logger.info("EXHAUSTIVE discovery industry=%s locations=%s raw_batches=%s merged=%s", industry, len(locations), sum(map(len, batches)), len(merged))
-    return merged
+    return RouteBatch(merged, contract={"contract_version": "leadx-route-result-v1", "source": "exhaustive",
+                                      "source_family": "mixed", "actual_result_count": len(merged),
+                                      "exhausted": not route_events}, route_events=route_events)

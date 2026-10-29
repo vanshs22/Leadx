@@ -84,6 +84,50 @@ def create_sequence(tenant_id: str, name: str, steps: list[dict]) -> dict:
 
 
 @to_async
+def update_sequence(tenant_id: str, sequence_id: str, name: str, steps: list[dict]) -> dict:
+    """Replace a sequence definition only after validating every step."""
+    name = (name or "").strip()
+    if not name:
+        return {"ok": False, "error": "sequence_name_required"}
+    if not steps:
+        return {"ok": False, "error": "sequence_has_no_steps"}
+    if len(steps) > 30:
+        return {"ok": False, "error": "too_many_steps", "max_steps": 30}
+    normalized = []
+    for i, step in enumerate(steps, 1):
+        subject = str(step.get("subject") or "").strip()
+        body_html = str(step.get("body_html") or "").strip()
+        if not subject or not body_html:
+            return {"ok": False, "error": f"invalid_step_{i}"}
+        delay = int(step.get("delay_days", 0 if i == 1 else 3))
+        if delay < 0 or delay > 365:
+            return {"ok": False, "error": f"invalid_delay_step_{i}"}
+        normalized.append({"step_number": i, "delay_days": delay, "subject": subject, "body_html": body_html, "body_text": str(step.get("body_text") or "")})
+    sb = _sb()
+    existing = sb.table("email_sequences").select("*").eq("id", sequence_id).eq("tenant_id", tenant_id).limit(1).execute().data or []
+    if not existing:
+        return {"ok": False, "error": "sequence_not_found"}
+    updated = sb.table("email_sequences").update({"name": name, "updated_at": _iso(_now())}).eq("id", sequence_id).eq("tenant_id", tenant_id).execute().data or []
+    if not updated:
+        return {"ok": False, "error": "sequence_update_conflict"}
+    sb.table("email_sequence_steps").delete().eq("sequence_id", sequence_id).execute()
+    sb.table("email_sequence_steps").insert([{"sequence_id": sequence_id, **row} for row in normalized]).execute()
+    return {"ok": True, **updated[0], "steps": normalized, "authoritative": True}
+
+
+@to_async
+def delete_sequence(tenant_id: str, sequence_id: str) -> dict:
+    """Delete only a tenant-owned sequence; its steps/enrollments cascade."""
+    sb = _sb()
+    existing = sb.table("email_sequences").select("id,status").eq("id", sequence_id).eq("tenant_id", tenant_id).limit(1).execute().data or []
+    if not existing:
+        return {"ok": False, "error": "sequence_not_found"}
+    sb.table("email_sequences").delete().eq("id", sequence_id).eq("tenant_id", tenant_id).execute()
+    return {"ok": True, "deleted": sequence_id, "authoritative": True}
+
+
+
+@to_async
 def enroll_leads(tenant_id: str, sequence_id: str, assignment_ids: list[str], campaign_id: Optional[str] = None, ai_copy_enabled: bool = False) -> dict:
     sb = _sb()
     # Verify ownership before touching enrollments.
@@ -98,16 +142,11 @@ def enroll_leads(tenant_id: str, sequence_id: str, assignment_ids: list[str], ca
     enrolled = skipped = 0
     for aid in list(dict.fromkeys(assignment_ids or [])):
         try:
-            # Service-level ownership check: callers may be workers or internal
-            # automations, so FastAPI tenant dependencies are not sufficient.
             owned = (sb.table("lead_assignments").select("id")
                      .eq("id", aid).eq("tenant_id", tenant_id).limit(1).execute().data or [])
             if not owned:
                 skipped += 1
                 continue
-            # Never allow two active sequences to target the same assignment.
-            # This is the application-level guard shared by campaigns, workflows,
-            # and manual enrollment; the durable row claim remains authoritative.
             active_other = (sb.table("email_sequence_enrollments")
                 .select("id,sequence_id,status")
                 .eq("tenant_id", tenant_id).eq("assignment_id", aid)
@@ -279,6 +318,25 @@ async def process_due_sends(limit: int = 200) -> dict:
         if not (await offload(_claim, enr["id"])):
             continue
         try:
+            # Parent state is authoritative even if a due row was selected just
+            # before a pause/complete transition. Never cross this gate to a
+            # provider call unless the sequence is still active.
+            parent = ((await aexec(_sb().table("email_sequences").select("status")
+                       .eq("id", enr["sequence_id"]).eq("tenant_id", enr["tenant_id"])
+                       .limit(1))).data or [])
+            parent_status = str(parent[0].get("status") or "") if parent else "missing"
+            if parent_status != "active":
+                blocked_status = "paused" if parent_status == "paused" else "stopped_manual"
+                (await aexec(_sb().table("email_sequence_enrollments").update({
+                    "status": blocked_status, "next_send_at": None,
+                    "deferred_reason": f"sequence_{parent_status}",
+                    "locked_at": None, "locked_by": None,
+                }).eq("id", enr["id"]).eq("status", "sending")))
+                if blocked_status == "paused":
+                    deferred += 1
+                else:
+                    stopped += 1
+                continue
             campaign_policy = await _campaign_policy(enr.get("campaign_id"))
             # Billing safety: refunds/disputes explicitly suspend outbound sends.
             # Past-due subscriptions are allowed only inside the configured grace window.
@@ -453,3 +511,49 @@ def _from_email(tenant_id: str) -> str:
     from app.integrations.prod.email_outreach import tenant_from_email
     _FROM_CACHE[tenant_id] = tenant_from_email(tenant_id)
     return _FROM_CACHE[tenant_id]
+
+
+@to_async
+def transition_sequence(tenant_id: str, sequence_id: str, target: str, actor: str | None = None) -> dict:
+    """Persist a sequence transition before changing eligible due work."""
+    target = str(target or "").strip().lower()
+    if target not in {"active", "paused", "completed"}:
+        return {"ok": False, "error": "invalid_sequence_status"}
+    sb = _sb()
+    rows = (sb.table("email_sequences").select("*").eq("id", str(sequence_id))
+            .eq("tenant_id", str(tenant_id)).limit(1).execute().data or [])
+    if not rows:
+        return {"ok": False, "error": "sequence_not_found"}
+    current = str(rows[0].get("status") or "")
+    if current == target:
+        return {"ok": True, "sequence": rows[0], "idempotent": True}
+    allowed = {"active": {"paused", "completed"}, "paused": {"active", "completed"}}
+    if target not in allowed.get(current, set()):
+        return {"ok": False, "error": f"invalid_transition:{current}:{target}"}
+    now = _iso(_now())
+    updated = (sb.table("email_sequences").update({
+        "status": target, "transitioned_at": now, "updated_at": now,
+        "last_transition_error": None,
+    }).eq("id", str(sequence_id)).eq("tenant_id", str(tenant_id)).eq("status", current)
+               .execute().data or [])
+    if not updated:
+        return {"ok": False, "error": "transition_conflict"}
+    if target == "paused":
+        # Paused enrollments retain their row but have no due timestamp, so a
+        # recurring tick cannot create/send work while the parent is paused.
+        sb.table("email_sequence_enrollments").update({
+            "status": "paused", "next_send_at": None, "paused_at": now,
+            "deferred_reason": "sequence_paused", "locked_at": None, "locked_by": None,
+        }).eq("tenant_id", str(tenant_id)).eq("sequence_id", str(sequence_id)).in_("status", ["active", "sending"]).execute()
+    elif target == "active":
+        sb.table("email_sequence_enrollments").update({
+            "status": "active", "next_send_at": now, "paused_at": None,
+            "deferred_reason": None, "locked_at": None, "locked_by": None,
+        }).eq("tenant_id", str(tenant_id)).eq("sequence_id", str(sequence_id)).eq("status", "paused").execute()
+    else:
+        sb.table("email_sequence_enrollments").update({
+            "status": "stopped_manual", "next_send_at": None, "paused_at": None,
+            "deferred_reason": "sequence_completed", "locked_at": None, "locked_by": None,
+        }).eq("tenant_id", str(tenant_id)).eq("sequence_id", str(sequence_id)).in_("status", ["active", "sending", "paused"]).execute()
+    return {"ok": True, "sequence": updated[0], "next_run_at": now if target == "active" else None,
+            "retry_at": None, "terminal_reason": "sequence_completed" if target == "completed" else None}

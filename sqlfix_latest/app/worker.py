@@ -82,9 +82,13 @@ def _write_health_evidence(
     status: str,
     queue_capable: bool,
     queue_checked_at: str | None = None,
+    reclaim_capable: bool = True,
+    reclaim_checked_at: str | None = None,
+    last_terminal_error_category: str | None = None,
     error: str | None = None,
 ) -> None:
     """Write a bounded, non-secret local health record atomically."""
+    resolved_reclaim_checked_at = reclaim_checked_at or (queue_checked_at if reclaim_capable else None)
     record = {
         "worker_id": str(worker_id)[:128],
         "kinds": [str(kind)[:128] for kind in (kinds or [])[:100]],
@@ -92,6 +96,9 @@ def _write_health_evidence(
         "status": str(status)[:32],
         "queue_capability": bool(queue_capable),
         "queue_checked_at": queue_checked_at,
+        "reclaim_capability": bool(reclaim_capable),
+        "reclaim_checked_at": resolved_reclaim_checked_at,
+        "last_terminal_error_category": str(last_terminal_error_category)[:80] if last_terminal_error_category else None,
         "observed_at": datetime.now(timezone.utc).isoformat(),
     }
     if error:
@@ -110,6 +117,9 @@ def _publish_worker_health(
     status: str,
     queue_capable: bool,
     queue_checked_at: str | None = None,
+    reclaim_capable: bool = False,
+    reclaim_checked_at: str | None = None,
+    last_terminal_error_category: str | None = None,
     error: str | None = None,
 ) -> None:
     from app.integrations.prod.scale_control import worker_heartbeat
@@ -121,6 +131,9 @@ def _publish_worker_health(
         status=status,
         queue_capable=queue_capable,
         queue_checked_at=queue_checked_at,
+        reclaim_capable=reclaim_capable,
+        reclaim_checked_at=reclaim_checked_at,
+        last_terminal_error_category=last_terminal_error_category,
     )
     _write_health_evidence(
         worker_id=worker_id,
@@ -129,6 +142,9 @@ def _publish_worker_health(
         status=status,
         queue_capable=queue_capable,
         queue_checked_at=queue_checked_at,
+        reclaim_capable=reclaim_capable,
+        reclaim_checked_at=reclaim_checked_at,
+        last_terminal_error_category=last_terminal_error_category,
         error=error,
     )
 
@@ -166,7 +182,29 @@ def _handle_queue_failure(worker_id: str, job_id: str | None = None) -> None:
 
 
 def _worker_id() -> str:
-    return f"{socket.gethostname()}:{os.getpid()}"
+    # Compose supplies a stable identity so a bounded container restart does
+    # not leave the control plane with a new logical worker every time.
+    return os.getenv("WORKER_ID", "").strip() or f"{socket.gethostname()}:{os.getpid()}"
+
+
+def _reconcile_pipeline_run_failure(job: dict, error: str) -> None:
+    """Prevent a failed pipeline job from leaving its UI row queued."""
+    if job.get("kind") != "pipeline.run":
+        return
+    try:
+        from app.memory.supabase_client import get_supabase
+
+        query = (get_supabase().table("pipeline_runs").update({
+            "status": "failed",
+            "error_message": (error or "worker failure")[:500],
+            "finished_at": datetime.now(timezone.utc).isoformat(),
+        }).eq("id", str(job.get("id") or "")).in_("status", ["queued", "running"]))
+        tenant_id = str(job.get("tenant_id") or "")
+        if tenant_id:
+            query = query.eq("tenant_id", tenant_id)
+        query.execute()
+    except Exception:
+        logger.exception("pipeline run failure reconciliation failed job_id=%s", job.get("id"))
 
 
 async def _run_one(job: dict) -> None:
@@ -192,6 +230,9 @@ async def _run_one(job: dict) -> None:
                 renewed = jobs.renew_lease(jid, wid)
                 if not renewed:
                     lease_lost.set()
+                    # A cancelled/reset row and a lost lease both fence the
+                    # handler immediately; the durable CAS remains authoritative.
+                    jobs._signal_cancellation(jid)
                     emit_telemetry(
                         logger, logging.ERROR, "job.lease_lost", job_id=jid,
                         worker_id=wid, kind=kind, status="at_risk",
@@ -261,7 +302,14 @@ async def _run_one(job: dict) -> None:
             )
         else:
             try:
-                jobs.fail(jid, f"{type(e).__name__}: {e}", attempts=int(job.get("attempts") or 1), max_attempts=int(job.get("max_attempts") or 3), worker_id=wid)
+                jobs.fail(
+                    jid, f"{type(e).__name__}: {e}",
+                    attempts=int(job.get("attempts") or 1),
+                    max_attempts=int(job.get("max_attempts") or 3),
+                    worker_id=wid,
+                    retryable=getattr(e, "retryable", None),
+                    error_category=getattr(e, "safe_error_code", None),
+                )
             except jobs.QueueDependencyError as exc:
                 emit_telemetry(
                     logger, logging.ERROR, "job.failure_transition_dependency_failed",
@@ -270,6 +318,11 @@ async def _run_one(job: dict) -> None:
                     operation=exc.operation, error_code=telemetry_error_code(exc),
                 )
                 _handle_queue_failure(wid, jid)
+                await asyncio.to_thread(
+                    _reconcile_pipeline_run_failure,
+                    job,
+                    f"{type(e).__name__}: {e}",
+                )
     finally:
         stop.set()
         lease.join(timeout=5)
@@ -285,6 +338,8 @@ async def _housekeeping() -> None:
     # rather than stacking duplicates behind it.
     cron: list[tuple[str, float, dict]] = [
         ("sequences.process_due", SEQUENCE_INTERVAL, {"limit": 200}),
+        ("automations.process_events", 60, {"limit": 200}),
+        ("approvals.expire", 300, {"limit": 100}),
         ("alerts.run", ALERTS_INTERVAL, {}),
         ("schedules.tick", SCHEDULES_INTERVAL, {}),
         ("leads.reverify", REVERIFY_INTERVAL, {}),
@@ -309,6 +364,10 @@ async def _housekeeping() -> None:
             last_reap = now
             try:
                 jobs.reap_stale()
+                jobs.reconcile_pending_accounting()
+                from app.integrations.prod import agent_missions
+                await agent_missions.reap_stale_tasks()
+                await agent_missions.enqueue_recovery_ticks()
             except jobs.QueueDependencyError as exc:
                 emit_telemetry(
                     logger, logging.ERROR, "queue.reap_dependency_failed",
@@ -361,12 +420,14 @@ async def _heartbeat_loop(concurrency: int, kinds: list[str] | None, policy=None
             if _queue_degraded.is_set():
                 _publish_worker_health(
                     wid, kinds, concurrency, status="unready", queue_capable=False,
-                    queue_checked_at=checked_at, error="claim_capability_unconfirmed",
+                    reclaim_capable=False, queue_checked_at=checked_at, error="claim_capability_unconfirmed",
                 )
             else:
                 _publish_worker_health(
                     wid, kinds, concurrency, status="ready", queue_capable=True,
                     queue_checked_at=checked_at,
+                    reclaim_capable=bool(evidence.get("reclaim_capability")),
+                    reclaim_checked_at=evidence.get("reclaim_checked_at"),
                 )
         except jobs.QueueDependencyError as exc:
             _queue_degraded.set()
@@ -477,6 +538,8 @@ async def main_async(concurrency: int, kinds: list[str] | None) -> None:
     from app.integrations.prod import jobs
 
     policy = validate_runtime_configuration(process="worker")
+    from app.integrations.prod.agent_registry import validate_registry
+    validate_registry()
     from app.services.aio import configure_executor
     configure_executor()  # size the default executor used by to_thread/aexec
     import app.integrations.prod.job_handlers  # noqa: F401 registers handlers
@@ -489,6 +552,8 @@ async def main_async(concurrency: int, kinds: list[str] | None) -> None:
         _publish_worker_health(
             wid, kinds, concurrency, status="ready", queue_capable=True,
             queue_checked_at=evidence.get("checked_at"),
+            reclaim_capable=bool(evidence.get("reclaim_capability")),
+            reclaim_checked_at=evidence.get("reclaim_checked_at"),
         )
     except jobs.QueueDependencyError as exc:
         emit_telemetry(

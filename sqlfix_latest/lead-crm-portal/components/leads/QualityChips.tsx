@@ -1,5 +1,16 @@
 "use client";
 
+/**
+ * Compact quality readout for a lead: score, opportunity, fit, intent, reach
+ * and provenance. Neutral by default; emerald for strong values, amber for
+ * weak ones, so the eye lands on what is notable rather than on every chip.
+ */
+function toneFor(value: number): string {
+  if (value >= 75) return "badge-success";
+  if (value < 40) return "badge-warn";
+  return "badge-neutral";
+}
+
 export function QualityChips({
   tier,
   score,
@@ -27,30 +38,33 @@ export function QualityChips({
       ? sources.split(/[+,\s]+/).filter(Boolean)
       : [];
 
+  const metrics: Array<{ label: string; value: number | null | undefined }> = [
+    { label: "Score", value: score },
+    { label: "Opportunity", value: opportunity },
+    { label: "Fit", value: fit },
+    { label: "Intent", value: intent },
+    { label: "Reach", value: contactability },
+  ];
+
   return (
     <div className="space-y-2">
       <div className="flex flex-wrap gap-1.5">
-        {typeof score === "number" && (
-          <span className="pill bg-brand-50 text-brand-700 ring-1 ring-brand-200 dark:bg-brand-500/15 dark:text-brand-300 dark:ring-brand-500/30">
-            Score {score}
-          </span>
+        {metrics.map((m) =>
+          typeof m.value === "number" ? (
+            <span key={m.label} className={toneFor(m.value)} title={`${m.label} ${m.value} of 100`}>
+              <span className="font-medium opacity-80">{m.label}</span>
+              <span className="tabular-nums">{m.value}</span>
+            </span>
+          ) : null,
         )}
-        {typeof opportunity === "number" && (
-          <span className="pill bg-signal-50 text-signal-700 ring-1 ring-signal-200 dark:bg-signal-500/15 dark:text-signal-300 dark:ring-signal-500/30">
-            Opportunity {opportunity}
-          </span>
-        )}
-        {typeof fit === "number" && <span className="pill bg-surface-3 text-ink-muted ring-1 ring-line">Fit {fit}</span>}
-        {typeof intent === "number" && <span className="pill bg-fuchsia-50 text-fuchsia-700 ring-1 ring-fuchsia-200 dark:bg-fuchsia-500/15 dark:text-fuchsia-300 dark:ring-fuchsia-500/30">Intent {intent}</span>}
-        {typeof contactability === "number" && <span className="pill bg-surface-3 text-ink-muted ring-1 ring-line">Reach {contactability}</span>}
         {src.slice(0, 5).map((s) => (
-          <span key={s} className="pill bg-surface-3 text-ink-muted ring-1 ring-line">
+          <span key={s} className="badge-neutral font-medium" title={`Source: ${s}`}>
             {s}
           </span>
         ))}
       </div>
       {(talkingPoints || pitch) && (
-        <p className="text-sm leading-relaxed text-ink-muted">
+        <p className="text-[0.8125rem] leading-5 text-ink-muted">
           <span className="font-semibold text-ink">Say this: </span>
           {talkingPoints || pitch}
         </p>

@@ -10,7 +10,7 @@ def check(name, ok, detail=''): checks.append((name,bool(ok),detail))
 portal='\n'.join(p.read_text(errors='ignore') for p in (ROOT/'lead-crm-portal').rglob('*.ts*'))
 mid=(ROOT/'lead-crm-portal/middleware.ts').read_text()
 storage=(ROOT/'lead-crm-portal/lib/authCookieStorage.ts').read_text()
-check('HttpOnly session cookie path', 'leadx_session' in mid and 'HttpOnly' in mid)
+check('HttpOnly session cookie path', 'leadx_session' in mid and re.search(r'httpOnly\s*:\s*true', mid, re.I) is not None)
 check('no JS auth cookie writer', 'document.cookie' not in storage)
 check('CSRF enforcement', 'csrf_middleware' in (ROOT/'app/app_service.py').read_text() and 'X-CSRF-Token' in (ROOT/'app/app_service.py').read_text())
 check('server route guard', 'hasValidSession' not in mid and 'sessionStatus' in mid)
@@ -26,11 +26,11 @@ check('oauth secret required', 'INTEGRATION_OAUTH_STATE_SECRET' in oauth and 'le
 # Worker / startup / distributed limits
 compose=(ROOT/'docker-compose.yml').read_text(); docker=(ROOT/'Dockerfile').read_text(); worker=(ROOT/'app/worker.py').read_text()
 check('worker service deployed', 'worker:' in compose and 'LEADX_PROCESS=worker' in compose and 'python -m app.worker' in docker)
-check('worker health', '/tmp/leadx-worker-heartbeat' in docker and 'WORKER_HEALTH_FILE' in worker)
+check('worker health', 'WORKER_HEALTH_FILE' in docker and '/tmp/leadx-worker-heartbeat' in docker and 'queue_capability' in worker and 'queue_checked_at' in worker)
 config=(ROOT/'app/core/runtime_config.py').read_text()
 check('production startup fail-closed', 'raise RuntimeError' in config and 'PRODUCTION_REQUIRED' in config)
 rl=(ROOT/'app/middleware/rate_limit.py').read_text()
-check('distributed rate limit fail-closed', '_ENVIRONMENT in ("production", "prod", "staging")' in rl and 'Distributed rate limiting is unavailable' in rl)
+check('distributed rate limit fail-closed', '_requires_distributed' in rl and 'Distributed rate limiting is unavailable' in rl and '_dependency_error' in rl)
 check('compose readiness endpoint', '/health/ready' in compose)
 
 # Billing / RLS
@@ -53,9 +53,9 @@ check('unsubscribe POST', '@crm_public_router.post("/unsubscribe")' in crm)
 check('RFC8058 one-click header', 'List-Unsubscribe-Post' in email)
 
 # Lead quality
-q=(ROOT/'app/integrations/prod/quality.py').read_text(); pipe=(ROOT/'app/integrations/prod/pipeline.py').read_text(); rank=(ROOT/'app/integrations/prod/delivery_ranker.py').read_text()
-check('verified email gate', 'in {"valid", "deliverable"}' in q)
-check('verified phone gate', 'phone_verified") is True' in q)
+q=(ROOT/'app/integrations/prod/quality.py').read_text(); contact=(ROOT/'app/integrations/prod/contact_state.py').read_text(); pipe=(ROOT/'app/integrations/prod/pipeline.py').read_text(); rank=(ROOT/'app/integrations/prod/delivery_ranker.py').read_text()
+check('verified email gate', 'email_ok' in q and 'def email_ok' in contact and 'VALID = {"valid", "deliverable"}' in contact)
+check('verified phone gate', 'phone_ok' in q and 'def phone_ok' in contact and 'phone_verified' in contact)
 check('intel gate fail-closed', 'if intel_gate else False' in pipe)
 check('ranker fail-closed', 'ranker failed; fail-closed' in pipe and 'return []' in rank)
 
@@ -65,8 +65,9 @@ for f in (ROOT/'app').rglob('*.py'):
     silent += len(re.findall(r'except\s+Exception(?:\s+as\s+\w+)?\s*:\s*\n\s*pass\b',f.read_text(errors='ignore')))
 check('no swallowed exception pass', silent==0, str(silent))
 migs=sorted((ROOT/'supabase/migrations').glob('*.sql'))
-check('canonical migrations', len(migs)==23, str(len(migs)))
-check('full migration mirrors chain', re.findall(r'-- CANONICAL MIGRATION \d+: ([^\n]+)',(ROOT/'SUPABASE_FULL_MIGRATION.sql').read_text()) == [p.name for p in migs])
+canonical_names = [p.name for p in migs]
+check('canonical migrations', bool(migs), str(len(migs)))
+check('full migration mirrors chain', re.findall(r'-- CANONICAL MIGRATION \d+: ([^\n]+)',(ROOT/'SUPABASE_FULL_MIGRATION.sql').read_text()) == canonical_names)
 check('runtime 15.8', '15.8' in (ROOT/'app/app_service.py').read_text())
 
 # Hashes are mandatory for a production artifact, but this repository is also

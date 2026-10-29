@@ -21,6 +21,7 @@ from app.integrations.prod.enricher import fetch_scrapling, fetch_crawl4ai, _par
 from app.integrations.prod.net_safety import assert_public_url
 from app.integrations.prod.utils import extract_domain, extract_emails, extract_phones, is_valid_email, normalize_phone
 from app.integrations.prod.provider_execution import ProviderCancelled, ProviderExecutionContext, execute_provider
+from app.integrations.prod.waterfall import validate_enrichment_value
 
 
 FREE_FIELDS = (
@@ -199,14 +200,26 @@ async def _fetch_free_site(website: str, use_crawl4ai: bool = True) -> tuple[str
         return "", {"ok": False, "error": f"blocked:{blocked}"}
     scrap_task = asyncio.create_task(fetch_scrapling(website))
     crawl_task = asyncio.create_task(fetch_crawl4ai(website)) if use_crawl4ai else None
-    scrap = await scrap_task
-    crawl = {}
-    if crawl_task:
+
+    async def bounded(task, timeout_s: float) -> dict[str, Any]:
         try:
-            crawl = await asyncio.wait_for(crawl_task, timeout=40)
+            return await asyncio.wait_for(task, timeout=timeout_s)
+        except asyncio.CancelledError:
+            raise
         except Exception as exc:
-            crawl = {"ok": False, "error": str(exc)}
-    content = "\n".join(x for x in (scrap.get("html"), scrap.get("text"), crawl.get("markdown")) if x)
+            if not task.done():
+                task.cancel()
+            await asyncio.gather(task, return_exceptions=True)
+            return {"ok": False, "error": type(exc).__name__}
+
+    scrap, crawl = await asyncio.gather(
+        bounded(scrap_task, 25),
+        bounded(crawl_task, 40) if crawl_task else asyncio.sleep(0, result={}),
+    )
+    content = "\n".join(x for x in (
+        scrap.get("html"), scrap.get("text"),
+        crawl.get("html"), crawl.get("text"), crawl.get("markdown"),
+    ) if x)
     return content[:5_000_000], {"scrapling": scrap, "crawl4ai": crawl, "ok": bool(content)}
 
 
@@ -433,6 +446,40 @@ async def _generic_connector(spec: EnrichmentProviderSpec, lead: dict[str, Any],
     return await execute_provider(spec.name, _request, context=execution_context, timeout_s=45)
 
 
+def _merge_provider_fields(
+    results: dict[str, Any],
+    work: dict[str, Any],
+    fields: list[str],
+    data: dict[str, Any],
+    source: str,
+    confidence: float,
+) -> None:
+    """Merge typed connector output without accepting cross-field values."""
+    for field in fields:
+        value = data.get(field)
+        if value in (None, "", [], {}):
+            continue
+        valid, normalized = validate_enrichment_value(field, value)
+        if not valid:
+            results.setdefault("audit", {}).setdefault("rejected_fields", []).append({
+                "provider": source, "field": field, "reason": "invalid_field_value",
+            })
+            continue
+        results["patch"][field] = normalized
+        work[field] = normalized
+        results["patch"].setdefault("field_source", {})[field] = source
+        results["patch"].setdefault("field_confidence", {})[field] = float(data.get(f"{field}_confidence") or confidence)
+        results["patch"].setdefault("field_observed_at", {})[field] = datetime.now(timezone.utc).isoformat()
+
+
+def _field_missing(work: dict[str, Any], field: str) -> bool:
+    value = work.get(field)
+    if value in (None, "", [], {}):
+        return True
+    valid, _normalized = validate_enrichment_value(field, value)
+    return not valid
+
+
 async def enrich_with_free_mesh(lead: dict[str, Any], *, use_crawl4ai: bool = True,
                                 execution_context: ProviderExecutionContext | None = None) -> dict[str, Any]:
     lead = dict(lead)
@@ -446,23 +493,34 @@ async def enrich_with_free_mesh(lead: dict[str, Any], *, use_crawl4ai: bool = Tr
         return {"patch": {}, "audit": {"free_mesh": meta}, "free": True}
     facts = _extract_free_facts(content, str(website))
     patch = {}
+    rejected_fields = []
     for field in FREE_FIELDS:
         val = facts.get(field)
-        if val not in (None, "", [], {}):
-            patch[field] = val
-    # Existing values win unless the newly observed source is more specific.
-    for field, value in list(patch.items()):
-        if lead.get(field) not in (None, "", [], {}):
-            patch.pop(field, None)
+        if val in (None, "", [], {}):
+            continue
+        valid, normalized = validate_enrichment_value(field, val)
+        if not valid:
+            rejected_fields.append({"field": field, "reason": "invalid_field_value"})
+            continue
+        # Existing sufficient evidence wins; malformed existing values do not.
+        if not _field_missing(lead, field):
+            continue
+        patch[field] = normalized
     patch["field_observed_at"] = {f: datetime.now(timezone.utc).isoformat() for f in patch if f not in {"field_observed_at"}}
     patch["field_source"] = {f: "first_party_web" for f in patch if f not in {"field_observed_at"}}
     patch["field_confidence"] = {f: 0.78 if f in {"email", "phone", "website_domain"} else 0.68 for f in patch if f not in {"field_observed_at"}}
-    return {"patch": patch, "audit": {"free_mesh": {"status": "ok", "fields": list(patch), "meta": meta}}, "free": True}
+    audit = {"free_mesh": {"status": "ok", "fields": list(patch), "meta": meta}}
+    if rejected_fields:
+        audit["free_mesh"]["rejected_fields"] = rejected_fields
+    return {"patch": patch, "audit": audit, "free": True}
 
 
 async def enrich_with_paid_connectors(lead: dict[str, Any], wanted: list[str], *, max_providers: int = 20,
                                       execution_context: ProviderExecutionContext | None = None) -> dict[str, Any]:
     """Paid stage: Serper web research, native Apollo/Hunter, then opt-in connectors."""
+    from app.integrations.prod.discovery_runtime import assert_provider_allowed
+    if __import__("app.integrations.prod.discovery_runtime", fromlist=["local_validation_mode"]).local_validation_mode():
+        assert_provider_allowed("paid_enrichment")
     results = {"patch": {}, "audit": {}, "credits_spent": 0.0, "providers_attempted": []}
     work = dict(lead)
 
@@ -470,8 +528,8 @@ async def enrich_with_paid_connectors(lead: dict[str, Any], wanted: list[str], *
         raise ProviderCancelled()
     # Paid search is useful for fields that databases may miss, but only after the
     # free site/crawl mesh has had a chance to fill them.
-    if os.getenv("SERPER_API_KEY"):
-        missing = [f for f in wanted if work.get(f) in (None, "", [], {})]
+    if os.getenv("SERPER_API_KEY") and _provider_endpoint("serper"):
+        missing = [f for f in wanted if _field_missing(work, f)]
         if missing:
             try:
                 data = await execute_provider(
@@ -480,12 +538,7 @@ async def enrich_with_paid_connectors(lead: dict[str, Any], wanted: list[str], *
                 )
                 results["providers_attempted"].append("serper_enrichment")
                 results["audit"]["serper_enrichment"] = {"status": "ok", "fields_requested": missing}
-                for field in missing:
-                    if data.get(field) not in (None, "", [], {}):
-                        results["patch"][field] = data[field]
-                        work[field] = data[field]
-                        results["patch"].setdefault("field_source", {})[field] = "serper_enrichment"
-                        results["patch"].setdefault("field_confidence", {})[field] = 0.64
+                _merge_provider_fields(results, work, missing, data, "serper_enrichment", 0.64)
                 if data.get("_evidence_urls"):
                     results["patch"]["enrichment_evidence_urls"] = data["_evidence_urls"][:20]
             except Exception as exc:
@@ -494,9 +547,9 @@ async def enrich_with_paid_connectors(lead: dict[str, Any], wanted: list[str], *
     # Native documented APIs before generic connectors.
     for name, fn in (("apollo", _native_apollo), ("hunter", _native_hunter)):
         key = os.getenv("APOLLO_API_KEY" if name == "apollo" else "HUNTER_API_KEY")
-        if not key:
+        if not key or not _provider_endpoint(name):
             continue
-        missing = [f for f in wanted if work.get(f) in (None, "", [], {})]
+        missing = [f for f in wanted if _field_missing(work, f)]
         if not missing:
             break
         try:
@@ -507,12 +560,7 @@ async def enrich_with_paid_connectors(lead: dict[str, Any], wanted: list[str], *
             )
             results["providers_attempted"].append(name)
             results["audit"][name] = {"status": "ok", "fields_requested": missing}
-            for field in missing:
-                if data.get(field) not in (None, "", [], {}):
-                    results["patch"][field] = data[field]
-                    work[field] = data[field]
-                    results["patch"].setdefault("field_source", {})[field] = name
-                    results["patch"].setdefault("field_confidence", {})[field] = 0.78
+            _merge_provider_fields(results, work, missing, data, name, 0.78)
         except Exception as exc:
             results["audit"][name] = {"status": "error", "error": type(exc).__name__}
 
@@ -520,7 +568,7 @@ async def enrich_with_paid_connectors(lead: dict[str, Any], wanted: list[str], *
     specs = [p for p in configured_enrichment_providers() if _provider_endpoint(p.name) and p.name not in {"apollo", "hunter", "serper"}]
     specs = sorted(specs, key=lambda p: (p.cost, p.name))[:max_providers]
     for spec in specs:
-        missing = [f for f in wanted if work.get(f) in (None, "", [], {})]
+        missing = [f for f in wanted if _field_missing(work, f)]
         if not missing:
             break
         if execution_context and execution_context.cancelled():
@@ -530,12 +578,10 @@ async def enrich_with_paid_connectors(lead: dict[str, Any], wanted: list[str], *
         results["audit"][spec.name] = {"fields_requested": missing, "status": "error" if data.get("_error") else "ok", "error": data.get("_error")}
         if data.get("_error"):
             continue
-        for field in missing:
-            if data.get(field) not in (None, "", [], {}):
-                results["patch"][field] = data[field]
-                work[field] = data[field]
-                results["patch"].setdefault("field_source", {})[field] = spec.name
-                results["patch"].setdefault("field_confidence", {})[field] = float(data.get(f"{field}_confidence") or 0.72)
+        _merge_provider_fields(
+            results, work, missing, data, spec.name,
+            float(data.get("_default_confidence") or 0.72),
+        )
     return results
 
 
@@ -543,7 +589,16 @@ async def enrich_intelligent(lead: dict[str, Any], wanted: Optional[list[str]] =
                              paid_fallback: bool = True,
                              execution_context: ProviderExecutionContext | None = None) -> dict[str, Any]:
     """Free-first, then paid connector enrichment with auditable provenance."""
-    from app.integrations.prod.paid_policy import paid_enrich_fields, paid_fallback_mode
+    from app.integrations.prod.discovery_runtime import local_validation_mode
+    from app.integrations.prod.paid_policy import (
+        paid_enrich_fields, paid_fallback_mode, paid_stage_allowed,
+    )
+    # Local fixtures are already deterministic; never enter the free web mesh.
+    if local_validation_mode():
+        return {"patch": {"source": "local_fixture", "source_mode": "local",
+                           "source_provenance": {"source": "local_fixture", "billable": False}},
+                "audit": {"local": {"status": "ok", "billable": False}},
+                "providers_attempted": [], "credits_spent": 0.0}
     # The paid stage is only spent on the fields that decide deliverability
     # (email/phone by default), never on every nice-to-have column.
     wanted = wanted or paid_enrich_fields()
@@ -553,9 +608,28 @@ async def enrich_intelligent(lead: dict[str, Any], wanted: Optional[list[str]] =
     free = await enrich_with_free_mesh(work, use_crawl4ai=use_crawl4ai, execution_context=execution_context)
     work.update(free.get("patch") or {})
     paid = {"patch": {}, "audit": {}, "providers_attempted": [], "credits_spent": 0.0}
-    if paid_fallback and paid_fallback_mode() != "never":
+    configured = configured_enrichment_providers()
+    credential_available = any(_provider_endpoint(spec.name) for spec in configured)
+    if execution_context is not None and execution_context.budget_remaining is not None:
+        quota_source = execution_context.budget_remaining
+    else:
+        quota_source = lead.get("_remaining_quota", 0)
+    try:
+        quota_left = max(0, int(float(quota_source or 0)))
+    except (TypeError, ValueError):
+        quota_left = 0
+    unmet_gap = any(work.get(field) in (None, "", [], {}) for field in wanted)
+    paid_ok, paid_reason = paid_stage_allowed(
+        [work], 1,
+        credential_available=credential_available,
+        unmet_gap=unmet_gap,
+        remaining_quota=quota_left,
+    )
+    if paid_fallback and paid_ok and paid_fallback_mode() != "never":
         paid = await enrich_with_paid_connectors(work, wanted, max_providers=int(os.getenv("LEADX_MAX_ENRICH_PROVIDERS", "25")), execution_context=execution_context)
         work.update(paid.get("patch") or {})
+    else:
+        paid["audit"]["paid_gate"] = {"status": "skipped", "reason": paid_reason}
     audit = {**(free.get("audit") or {}), **(paid.get("audit") or {})}
     sources = list(dict.fromkeys((work.get("enrichment_sources") or []) + (paid.get("providers_attempted") or [])))
     work["enrichment_sources"] = sources

@@ -354,6 +354,8 @@ def _web_to_lead(raw: dict, source: DiscoverySource, industry: str, location: st
 
 
 async def _search_domain(source: DiscoverySource, industry: str, location: str, query: str | None) -> list[dict]:
+    from app.integrations.prod.discovery_runtime import assert_provider_allowed
+    assert_provider_allowed("serper_search")
     key = os.getenv("SERPER_API_KEY")
     if not key or not source.domain:
         return []
@@ -419,6 +421,8 @@ async def _connector_call(source: DiscoverySource, industry: str, location: str,
     This is intentionally conservative so an unsupported provider is skipped rather
     than being represented as a successful native integration.
     """
+    from app.integrations.prod.discovery_runtime import assert_provider_allowed
+    assert_provider_allowed("external_lead_generation")
     if not source.env_key:
         return []
     key = os.getenv(source.env_key)

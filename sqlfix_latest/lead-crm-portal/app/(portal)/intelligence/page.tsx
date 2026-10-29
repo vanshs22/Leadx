@@ -5,8 +5,9 @@ import { crmFabric } from "@/lib/api";
 import { getTenantId } from "@/lib/tenant";
 import { useCrmChange } from "@/lib/crmRealtime";
 import { useLiveLoader } from "@/lib/live";
-import { DataState, EmptyState, PollingDeadlineState } from "@/components/ui/States";
-import { PageHeader, FilterBar } from "@/components/ui/Primitives";
+import { DataState, EmptyState, LoadingRows, PollingDeadlineState } from "@/components/ui/States";
+import { Badge, PageHeader, Panel, StatCard, StatGrid, StatusBadge } from "@/components/ui/Primitives";
+import { Icon } from "@/components/ui/Icon";
 import { FreshnessNote, UnavailableNote } from "@/components/ui/SurfaceMeta";
 
 type Provider = { name: string; mode?: string; configured?: boolean; executable?: boolean; native_adapter?: boolean; endpoint_adapter?: boolean; capabilities?: string[] };
@@ -72,28 +73,97 @@ export default function IntelligenceFabricPage() {
   const refresh = () => { setDeadline(false); setRefreshKey((value) => value + 1); };
   const overview = data?.overview?.fabric || {};
 
-  return <div className="page space-y-5">
-    <PageHeader eyebrow="LeadX intelligence fabric" title="Discovery & intelligence" description="Plan coverage from the existing catalog, inspect executable lanes, and keep planner output separate from persisted CRM leads." actions={<button type="button" aria-label="Refresh intelligence fabric" className="btn-secondary" onClick={refresh}>Refresh</button>} meta={<FreshnessNote label="Read-side snapshot" detail={`${executable.length} executable adapters · no provider work on refresh`} />} />
+  const fmt = (value: unknown) => (value == null ? "—" : typeof value === "number" ? value.toLocaleString() : String(value));
+
+  return <div className="page">
+    <PageHeader
+      eyebrow="LeadX intelligence fabric"
+      title="Discovery & intelligence"
+      description="Plan coverage from the existing catalog, inspect executable lanes, and keep planner output separate from persisted CRM leads."
+      actions={<button type="button" aria-label="Refresh intelligence fabric" className="btn-secondary" onClick={refresh}><Icon name="refresh" size={14} />Refresh</button>}
+      meta={<FreshnessNote label="Read-side snapshot" detail={`${executable.length} executable adapters · no provider work on refresh`} />}
+    />
     {deadline ? <PollingDeadlineState onRefresh={refresh} /> : null}
-    <DataState loading={!data && !error} error={error} onRetry={refresh} isEmpty={!data && !error} empty={<EmptyState title="Intelligence fabric unavailable" hint="No fabric snapshot was returned for this workspace." />} skeleton={<div className="card-pad" aria-busy="true">Loading catalog and execution posture…</div>}>
-      <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
-        {[['Discovery catalog', overview.discovery_sources, 'inventory'], ['Enrichment catalog', overview.enrichment_catalog, 'definitions'], ['Executable adapters', overview.executable_enrichment_adapters, 'configured runtime'], ['Providers configured', configured.length, 'native or endpoint'], ['Agents', overview.agents, 'registered contracts']].map(([label, value, sub]) => <div key={String(label)} className="card-pad"><div className="text-xs text-ink-faint">{label}</div><div className="mt-1 text-2xl font-semibold text-ink">{value ?? '—'}</div><div className="mt-1 text-[10px] uppercase tracking-wide text-ink-faint">{sub}</div></div>)}
-      </section>
+    <DataState
+      loading={!data && !error}
+      error={error}
+      onRetry={refresh}
+      isEmpty={!data && !error}
+      empty={<EmptyState title="Intelligence fabric unavailable" hint="No fabric snapshot was returned for this workspace." />}
+      skeleton={<div className="space-y-6" aria-busy="true" aria-live="polite"><span className="sr-only">Loading catalog and execution posture…</span><div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5" aria-hidden="true">{[0, 1, 2, 3, 4].map((i) => <div key={i} className="kpi"><div className="skeleton h-3 w-24" /><div className="skeleton mt-3 h-7 w-12" /></div>)}</div><div className="grid gap-4 lg:grid-cols-5" aria-hidden="true"><div className="panel p-5 lg:col-span-2"><div className="skeleton h-4 w-40" /><div className="skeleton mt-4 h-24" /></div><div className="panel lg:col-span-3"><LoadingRows rows={6} cols={4} /></div></div></div>}
+    >
+      <StatGrid cols={5}>
+        <StatCard label="Discovery catalog" value={fmt(overview.discovery_sources)} hint="Source inventory" icon={<Icon name="search" size={16} />} />
+        <StatCard label="Enrichment catalog" value={fmt(overview.enrichment_catalog)} hint="Provider definitions" icon={<Icon name="integration" size={16} />} />
+        <StatCard label="Executable adapters" value={fmt(overview.executable_enrichment_adapters)} hint="Configured runtime" tone="success" icon={<Icon name="run" size={16} />} />
+        <StatCard label="Providers configured" value={fmt(configured.length)} hint="Native or endpoint" tone="brand" icon={<Icon name="key" size={16} />} />
+        <StatCard label="Agents" value={fmt(overview.agents)} hint="Registered contracts" icon={<Icon name="brain" size={16} />} />
+      </StatGrid>
 
-      <section className="grid gap-5 lg:grid-cols-[1fr_1.2fr]">
-        <div className="card-pad">
-          <div className="eyebrow">Planner-only lane</div><h2 className="mt-1 text-lg font-semibold text-ink">Plan coverage before execution</h2>
-          <p className="mt-2 text-xs leading-5 text-ink-muted">The planner normalizes vertical, locations, query families, surfaces, and bounded rounds. It does not search providers, create a discovery request, or write leads.</p>
-          <FilterBar className="mt-4" onClear={() => { setVertical(""); setLocations(""); setQueries(""); }} clearLabel="Clear planner inputs"><label className="block min-w-[150px] flex-1 text-xs font-medium text-ink-faint">Vertical<input aria-label="Planner vertical" className="input mt-1" value={vertical} onChange={(e) => setVertical(e.target.value)} /></label><label className="block min-w-[180px] flex-1 text-xs font-medium text-ink-faint">Locations<input aria-label="Planner locations" className="input mt-1" value={locations} onChange={(e) => setLocations(e.target.value)} /></label><label className="block min-w-[220px] flex-[2] text-xs font-medium text-ink-faint">Query families<input aria-label="Planner query families" className="input mt-1" value={queries} onChange={(e) => setQueries(e.target.value)} /></label></FilterBar>
-          <button type="button" aria-label="Generate planner coverage plan" disabled={busy || !tid || !vertical.trim()} onClick={createPlan} className="btn-primary mt-3 w-full">{busy ? "Planning…" : "Generate coverage plan"}</button>
-          {plan ? <div className="mt-4 rounded-xl border border-brand-200 bg-brand-50/60 p-3 text-sm dark:border-brand-500/30 dark:bg-brand-500/10"><div className="flex flex-wrap items-center justify-between gap-2"><strong>Plan preview</strong><span className="pill bg-surface-2 text-ink-muted">Not persisted</span></div><dl className="mt-3 grid grid-cols-2 gap-2 text-xs"><div><dt className="text-ink-faint">Vertical</dt><dd>{plan.vertical || '—'}</dd></div><div><dt className="text-ink-faint">Max rounds</dt><dd>{plan.max_rounds ?? '—'}</dd></div><div><dt className="text-ink-faint">Locations</dt><dd>{plan.locations?.join(', ') || 'none supplied'}</dd></div><div><dt className="text-ink-faint">Queries</dt><dd>{plan.queries?.length ?? 0}</dd></div></dl><p className="mt-3 text-[11px] text-ink-muted">Persisted leads: 0 · provider calls: 0 · approval gate: not entered</p></div> : null}
-        </div>
+      <div className="grid gap-4 lg:grid-cols-5">
+        <Panel
+          id="fabric-planner"
+          className="lg:col-span-2"
+          title="Plan coverage before execution"
+          description="The planner normalizes vertical, locations, query families, surfaces, and bounded rounds. It does not search providers, create a discovery request, or write leads."
+          actions={<Badge tone="neutral">Planner only</Badge>}
+        >
+          <div className="space-y-4" role="search" aria-label="Coverage planner inputs">
+            <label className="block"><span className="field-label">Vertical</span><input aria-label="Planner vertical" className="input" value={vertical} onChange={(e) => setVertical(e.target.value)} /></label>
+            <label className="block"><span className="field-label">Locations</span><input aria-label="Planner locations" className="input" value={locations} onChange={(e) => setLocations(e.target.value)} /><span className="field-hint block">Comma-separated.</span></label>
+            <label className="block"><span className="field-label">Query families</span><input aria-label="Planner query families" className="input" value={queries} onChange={(e) => setQueries(e.target.value)} /><span className="field-hint block">Comma-separated search phrases.</span></label>
+          </div>
+          <div className="mt-5 flex flex-wrap items-center justify-end gap-2 border-t border-line pt-4">
+            <button type="button" className="btn-ghost" onClick={() => { setVertical(""); setLocations(""); setQueries(""); }}>Clear planner inputs</button>
+            <button type="button" aria-label="Generate planner coverage plan" disabled={busy || !tid || !vertical.trim()} onClick={createPlan} className="btn-primary">{busy ? "Planning…" : "Generate coverage plan"}</button>
+          </div>
+          {plan ? <div className="mt-4 rounded-lg border border-brand-200 bg-brand-50/60 p-4 dark:border-brand-500/30 dark:bg-brand-500/10">
+            <div className="flex flex-wrap items-center justify-between gap-2"><h3 className="section-title">Plan preview</h3><Badge tone="neutral">Not persisted</Badge></div>
+            <dl className="mt-3 grid grid-cols-2 gap-x-4 gap-y-3 text-[0.8125rem]">
+              <div><dt className="label">Vertical</dt><dd className="mt-0.5 text-ink">{plan.vertical || "—"}</dd></div>
+              <div><dt className="label">Max rounds</dt><dd className="mt-0.5 tabular-nums text-ink">{plan.max_rounds ?? "—"}</dd></div>
+              <div><dt className="label">Locations</dt><dd className="mt-0.5 text-ink">{plan.locations?.join(", ") || "none supplied"}</dd></div>
+              <div><dt className="label">Queries</dt><dd className="mt-0.5 tabular-nums text-ink">{plan.queries?.length ?? 0}</dd></div>
+            </dl>
+            <p className="mt-3 text-xs tabular-nums text-ink-muted">Persisted leads: 0 · provider calls: 0 · approval gate: not entered</p>
+          </div> : null}
+        </Panel>
 
-        <div className="card-pad overflow-hidden"><div className="eyebrow">Execution truth</div><h2 className="mt-1 text-lg font-semibold text-ink">Configured vs executable providers</h2><p className="mt-1 text-xs text-ink-muted">Catalog presence is not a credential or adapter. Only executable rows can participate in an explicit enrichment/research operation.</p><div className="mt-4 max-h-[500px] overflow-auto divide-y divide-line">{providers.map((provider) => <div key={provider.name} className="py-3"><div className="flex items-center justify-between gap-3"><span className="font-medium text-ink">{provider.name}</span><span className={`pill ${provider.executable ? 'bg-signal-50 text-signal-700 dark:bg-signal-500/15 dark:text-signal-300' : 'bg-surface-3 text-ink-faint'}`}>{provider.executable ? 'Executable' : provider.configured ? 'Configured, not executable' : 'Catalog only'}</span></div><div className="mt-1 text-[10px] text-ink-faint">{provider.native_adapter ? 'Native adapter' : provider.endpoint_adapter ? 'Configured endpoint adapter' : 'No runtime adapter'} · {provider.configured ? 'credential configured' : 'credential unavailable'} · {(provider.capabilities || []).join(', ') || 'capabilities unavailable'}</div></div>)}{!providers.length ? <UnavailableNote label="Provider catalog">The API returned no provider rows.</UnavailableNote> : null}</div></div>
-      </section>
+        <Panel
+          id="fabric-providers"
+          className="lg:col-span-3"
+          title="Configured vs executable providers"
+          description="Catalog presence is not a credential or adapter. Only executable rows can participate in an explicit enrichment/research operation."
+          actions={<Badge tone="success" className="tabular-nums">{executable.length} executable</Badge>}
+          bodyClassName="p-0"
+        >
+          {providers.length ? <div className="max-h-[520px] overflow-auto">
+            <table className="data-table">
+              <caption className="sr-only">Enrichment providers and execution posture</caption>
+              <thead><tr><th scope="col">Provider</th><th scope="col">Adapter</th><th scope="col">Credential</th><th scope="col">Status</th></tr></thead>
+              <tbody>{providers.map((provider) => <tr key={provider.name}>
+                <td className="max-w-[240px]"><div className="truncate font-medium text-ink">{provider.name}</div><div className="truncate text-xs text-ink-faint">{(provider.capabilities || []).join(", ") || "capabilities unavailable"}</div></td>
+                <td className="text-ink-muted">{provider.native_adapter ? "Native adapter" : provider.endpoint_adapter ? "Configured endpoint adapter" : "No runtime adapter"}</td>
+                <td className="text-ink-muted">{provider.configured ? "credential configured" : "credential unavailable"}</td>
+                <td><StatusBadge status={provider.executable ? "active" : provider.configured ? "partial" : "unknown"} label={provider.executable ? "Executable" : provider.configured ? "Configured, not executable" : "Catalog only"} /></td>
+              </tr>)}</tbody>
+            </table>
+          </div> : <div className="p-5"><UnavailableNote label="Provider catalog">The API returned no provider rows.</UnavailableNote></div>}
+        </Panel>
+      </div>
 
-      <section className="card-pad"><div className="flex flex-wrap items-end justify-between gap-3"><div><div className="eyebrow">Discovery source lanes</div><h2 className="mt-1 text-lg font-semibold text-ink">Free/open coverage vs paid or configured lanes</h2><p className="mt-1 text-xs text-ink-muted">These are catalog lanes only. Execution still requires an explicit approved search or provider operation.</p></div><div className="flex gap-2 text-xs"><span className="pill bg-signal-50 text-signal-700 dark:bg-signal-500/15 dark:text-signal-300">Free/open {freeSources.length}</span><span className="pill bg-brand-50 text-brand-700 dark:bg-brand-500/15 dark:text-brand-300">Paid/configured {paidSources.length}</span></div></div><div className="mt-4 grid gap-2 sm:grid-cols-2 lg:grid-cols-4">{(data?.sources || []).slice(0, 24).map((source) => <div key={`${source.name}-${source.domain || ''}`} className="rounded-lg border border-line p-3"><div className="text-sm font-medium text-ink">{source.name}</div><div className="mt-1 text-[11px] text-ink-faint">{laneLabel(source)} · {source.category || 'source'}</div></div>)}</div>{!data?.sources?.length ? <EmptyState title="No discovery lanes returned" hint="The backend did not publish a source catalog for this workspace." /> : null}</section>
+      <Panel
+        id="fabric-sources"
+        title="Free/open coverage vs paid or configured lanes"
+        description="These are catalog lanes only. Execution still requires an explicit approved search or provider operation."
+        actions={<><Badge tone="success" className="tabular-nums">Free/open {freeSources.length}</Badge><Badge tone="brand" className="tabular-nums">Paid/configured {paidSources.length}</Badge></>}
+      >
+        {data?.sources?.length ? <ul className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4" aria-label="Discovery source lanes">{(data?.sources || []).slice(0, 24).map((source) => <li key={`${source.name}-${source.domain || ""}`} className="flex min-w-0 items-start gap-2.5 rounded-lg border border-line bg-surface-2 px-3 py-2.5">
+          <span className={`mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full ${source.mode === "web_domain" ? "bg-emerald-600 dark:bg-emerald-400" : "bg-brand-600 dark:bg-brand-300"}`} aria-hidden="true" />
+          <div className="min-w-0"><div className="truncate text-[0.8125rem] font-medium text-ink">{source.name}</div><div className="mt-0.5 truncate text-xs text-ink-faint">{laneLabel(source)} · {source.category || "source"}</div></div>
+        </li>)}</ul> : <EmptyState title="No discovery lanes returned" hint="The backend did not publish a source catalog for this workspace." />}
+      </Panel>
     </DataState>
-    {message ? <div role="status" aria-live="polite" className="rounded-xl border border-line bg-surface-2 px-4 py-3 text-sm text-ink-muted">{message}</div> : null}
+    {message ? <div role="status" aria-live="polite" className="notice notice-neutral">{message}</div> : null}
   </div>;
 }

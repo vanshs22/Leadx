@@ -17,12 +17,13 @@ from urllib.parse import urlparse
 PRODUCTION_REQUIRED = (
     "SUPABASE_URL", "SUPABASE_ANON_KEY", "UNSUBSCRIBE_SECRET",
     "INTEGRATION_OAUTH_STATE_SECRET", "REDIS_URL", "DELIVERY_CONFIG_KEY",
-    "LEAD_ENGINE_SERVICE_KEY", "STRIPE_SECRET_KEY", "STRIPE_WEBHOOK_SECRET",
+    "LEAD_ENGINE_SERVICE_KEY",
     "CORS_ORIGINS",
 )
 
 _HARDENED_ENVIRONMENTS = frozenset({"production", "prod", "staging"})
 _SUPPORTED_PROCESSES = frozenset({"api", "worker", "portal"})
+MAX_LEADS_PER_RUN = 500
 _TRUE = frozenset({"1", "true", "yes", "on"})
 _FALSE = frozenset({"0", "false", "no", "off"})
 
@@ -54,6 +55,9 @@ class RuntimePolicy:
     cache_fallback_max_ttl_seconds: float
     polling_deadline_seconds: float
     api_upstream: str | None
+    local_validation_mode: bool
+    local_authentication_flag: bool
+    paid_provider_isolation: bool
 
     # Short names make the policy pleasant for consumers while retaining the
     # explicit environment names above for diagnostics and serialization.
@@ -80,6 +84,12 @@ class RuntimePolicy:
     @property
     def hardened(self) -> bool:
         return self.environment in _HARDENED_ENVIRONMENTS
+
+    @property
+    def local_authentication_enabled(self) -> bool:
+        """Whether the explicitly configured synthetic local account is usable."""
+
+        return self.local_validation_mode and self.local_authentication_flag
 
 
 def _value(env: Mapping[str, str], key: str, default: str | None, *aliases: str) -> str | None:
@@ -246,6 +256,9 @@ def load_runtime_policy(
         aliases=("PORTAL_POLLING_DEADLINE_SECONDS", "FRONTEND_POLLING_DEADLINE_SECONDS"),
     )
     upstream = _api_upstream(env, process=process, hardened=hardened)
+    local_validation = _bool(env, "LOCAL_VALIDATION_MODE", False)
+    local_authentication = _bool(env, "LOCAL_AUTHENTICATION_FLAG", False)
+    provider_isolation = _bool(env, "PAID_PROVIDER_ISOLATION", local_validation)
 
     errors: list[str] = []
     if hardened and not require_distributed:
@@ -256,6 +269,26 @@ def load_runtime_policy(
         errors.append("REDIS_URL is required by the selected runtime policy")
     if hardened and not fail_closed:
         errors.append("JOB_QUEUE_FAIL_CLOSED=true")
+    if local_authentication and not local_validation:
+        errors.append("LOCAL_AUTHENTICATION_FLAG requires LOCAL_VALIDATION_MODE=true")
+    if hardened and local_authentication:
+        errors.append("LOCAL_AUTHENTICATION_FLAG=false in production or staging")
+    if local_validation and not provider_isolation:
+        errors.append("PAID_PROVIDER_ISOLATION=true in Local Validation Mode")
+    if local_authentication and local_validation:
+        # The account and signing key are deliberately separate from Supabase
+        # credentials.  This prevents a local fixture from silently becoming a
+        # real provider account when an environment is copied between profiles.
+        local_email = _value(env, "LOCAL_AUTH_EMAIL", None)
+        local_password = _value(env, "LOCAL_AUTH_PASSWORD", None)
+        local_password_hash = _value(env, "LOCAL_AUTH_PASSWORD_HASH", None)
+        local_secret = _value(env, "LOCAL_AUTH_SECRET", None)
+        if not local_email or "@" not in local_email:
+            errors.append("LOCAL_AUTH_EMAIL is required for local authentication")
+        if not local_password and not local_password_hash:
+            errors.append("LOCAL_AUTH_PASSWORD or LOCAL_AUTH_PASSWORD_HASH is required for local authentication")
+        if not local_secret or len(local_secret) < 32:
+            errors.append("LOCAL_AUTH_SECRET>=32 chars is required for local authentication")
     if fallback_ttl > fallback_max_ttl:
         errors.append("CACHE_FALLBACK_TTL_SECONDS must not exceed CACHE_FALLBACK_MAX_TTL_SECONDS")
     if hardened and fallback_allowed:
@@ -283,6 +316,9 @@ def load_runtime_policy(
         cache_fallback_max_ttl_seconds=float(fallback_max_ttl),
         polling_deadline_seconds=float(polling_deadline),
         api_upstream=upstream,
+        local_validation_mode=local_validation,
+        local_authentication_flag=local_authentication,
+        paid_provider_isolation=provider_isolation,
     )
 
 
@@ -300,7 +336,13 @@ def validate_runtime_configuration(*, process: str = "api") -> RuntimePolicy:
     """Validate policy and legacy startup requirements, returning the policy."""
 
     env = os.getenv("ENVIRONMENT", "development").lower()
-    policy = load_runtime_policy(process=process)
+    try:
+        policy = load_runtime_policy(process=process)
+    except RuntimeConfigurationError as exc:
+        if env in _HARDENED_ENVIRONMENTS:
+            profile = "staging" if env == "staging" else "production"
+            raise RuntimeError(f"{profile.title()} {process} startup refused: invalid/missing configuration") from exc
+        raise
     missing = [k for k in PRODUCTION_REQUIRED if not os.getenv(k)]
     if not (os.getenv("SUPABASE_SERVICE_KEY") or os.getenv("SUPABASE_SERVICE_ROLE_KEY") or os.getenv("SUPABASE_KEY")):
         missing.append("SUPABASE_SERVICE_ROLE_KEY")
@@ -318,6 +360,8 @@ def validate_runtime_configuration(*, process: str = "api") -> RuntimePolicy:
         missing.append("INTEGRATION_OAUTH_STATE_SECRET>=32 chars")
     if os.getenv("LEAD_ENGINE_DEV_AUTH_BYPASS", "").lower() in {"1", "true", "yes"}:
         missing.append("LEAD_ENGINE_DEV_AUTH_BYPASS=false")
+    if os.getenv("LOCAL_AUTHENTICATION_FLAG", "").lower() in {"1", "true", "yes"} and env in {"production", "prod", "staging"}:
+        missing.append("LOCAL_AUTHENTICATION_FLAG=false")
     # Emails must carry a working, public unsubscribe link (served by this API).
     pub = (os.getenv("PUBLIC_API_URL") or os.getenv("PUBLIC_APP_URL") or "").strip()
     if not pub or "localhost" in pub or "127.0.0.1" in pub:
@@ -333,8 +377,9 @@ def validate_runtime_configuration(*, process: str = "api") -> RuntimePolicy:
         except Exception:
             import logging
             logging.getLogger("lead_engine.config").warning("verification readiness check unavailable")
-    if env in {"production", "prod"} and missing:
-        raise RuntimeError(f"Production {process} startup refused: invalid/missing configuration: {', '.join(sorted(set(missing)))}")
+    if env in _HARDENED_ENVIRONMENTS and missing:
+        profile = "staging" if env == "staging" else "production"
+        raise RuntimeError(f"{profile.title()} {process} startup refused: invalid/missing configuration: {', '.join(sorted(set(missing)))}")
     return policy
 
 

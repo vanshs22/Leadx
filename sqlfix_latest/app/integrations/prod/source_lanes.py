@@ -12,11 +12,13 @@ from __future__ import annotations
 import re
 from typing import Any, Optional
 
+from app.integrations.prod.discovery_runtime import annotate_route_result, stable_route_dedupe
 
-SOURCE_KEYS = ("maps", "linkedin", "instagram", "web", "yelp", "facebook")
+
+SOURCE_KEYS = ("osm", "maps", "linkedin", "instagram", "web", "yelp", "facebook")
 
 LANE_OF_SOURCE = {
-    "maps": "local",
+    "osm": "local",
     "google_maps_serper": "local",
     "yelp": "web",
     "web": "web",
@@ -92,7 +94,8 @@ def allocate_source_budgets(
 
     # Base share of target (before enable filter)
     plan = {
-        "maps": 0.48,
+        "osm": 0.20,
+        "maps": 0.28,
         "web": 0.12,
         "yelp": 0.10,
         "facebook": 0.08,
@@ -286,3 +289,21 @@ def is_deliverable_lane(
     if not (has_phone or has_site):
         return False, "local_not_contactable"
     return True, "ok_local"
+
+
+
+def normalize_route_rows(rows: list[dict] | None, *, route_cell: dict[str, Any] | None = None,
+                          page: int = 1, cursor: Any = None, next_cursor: Any = None,
+                          requested_limit: int = 0, exhausted: bool = False,
+                          fallback_reason: str | None = None) -> list[dict]:
+    """Normalize one adapter page while retaining the legacy lead-row shape."""
+    cell = route_cell or {}
+    return [annotate_route_result(row, route_cell=cell, page=page, cursor=cursor,
+                                  next_cursor=next_cursor, requested_limit=requested_limit,
+                                  exhausted=exhausted, fallback_reason=fallback_reason)
+            for row in (rows or []) if isinstance(row, dict)]
+
+
+def dedupe_route_rows(rows: list[dict] | None) -> list[dict]:
+    """Stable route dedupe shared by lane callers and test fixtures."""
+    return stable_route_dedupe(rows or [])

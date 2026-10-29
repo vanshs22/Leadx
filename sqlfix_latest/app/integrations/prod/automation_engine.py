@@ -17,11 +17,16 @@ ALLOWED_ACTIONS = {"send_email","enroll_sequence","stop_sequence","create_task",
 def _sb(): return get_supabase()
 
 def enqueue_event(tenant_id: str, event_type: str, subject_type: str, subject_id: str|None, payload: dict, key: str) -> str|None:
+    """Persist the source event; callers must observe a queue failure."""
     try:
         r = _sb().rpc("enqueue_automation_event", {"p_tenant_id":tenant_id,"p_event_type":event_type,"p_subject_type":subject_type,"p_subject_id":subject_id,"p_payload":payload or {},"p_idempotency_key":key}).execute()
         return str(r.data) if r.data else None
-    except Exception:
-        return None
+    except Exception as exc:
+        # Silent drops violate the durable scheduling contract. Webhook callers
+        # may catch this and persist their own terminal response, but the event
+        # producer must not claim successful enqueue.
+        logger.error("automation event enqueue failed tenant=%s key=%s", tenant_id, key, exc_info=True)
+        raise RuntimeError("automation event queue unavailable") from exc
 
 def _match(trigger: dict, event: dict) -> bool:
     if trigger.get("event") and trigger.get("event") != event.get("event_type"): return False
@@ -129,6 +134,7 @@ async def process_events(limit: int = 100) -> dict:
     rows=(await aexec(_sb().table("automation_events").select("*").eq("status","queued").lte("available_at",datetime.now(timezone.utc).isoformat()).order("created_at").limit(limit))).data or []
     processed=0; matched=0; failed=0
     for event in rows:
+        execution_id = ""
         claimed=(await aexec(_sb().table("automation_events").update({"status":"processing","locked_at":datetime.now(timezone.utc).isoformat(),"locked_by":WORKER,"attempts":int(event.get("attempts") or 0)+1}).eq("id",event["id"]).eq("status","queued"))).data or []
         if not claimed: continue
         try:
@@ -140,6 +146,10 @@ async def process_events(limit: int = 100) -> dict:
                 if not _match(trigger,event): continue
                 matched+=1
                 event_matched = True
+                execution = await ensure_execution(event, wf)
+                if not execution.get("run", True):
+                    continue
+                execution_id = str(execution.get("execution_id") or "")
                 idem=f"{wf['id']}:{event['id']}"
                 # Idempotency is enforced before executing actions. An upsert alone
                 # can return an already-completed row and accidentally replay every
@@ -174,6 +184,8 @@ async def process_events(limit: int = 100) -> dict:
                     res=await _action(event["tenant_id"],action,event)
                     if not res.get("ok") and action.get("required",True): raise RuntimeError(res.get("error") or "automation_action_failed")
                 await aexec(_sb().table("workflow_runs").update({"status":"completed","current_node":"done","completed_at":datetime.now(timezone.utc).isoformat()}).eq("id",run_id))
+                if execution_id:
+                    await update_execution(execution_id, status="completed")
             # Unified growth fallback: a positive reply always becomes an
             # opportunity and owner task even when the tenant has not created a
             # custom workflow. Custom workflows remain the extension point.
@@ -193,4 +205,120 @@ async def process_events(limit: int = 100) -> dict:
             attempts=int(event.get("attempts") or 0)+1
             status="failed" if attempts>=5 else "queued"
             await aexec(_sb().table("automation_events").update({"status":status,"error":str(exc)[:1000],"available_at":(datetime.now(timezone.utc)+timedelta(minutes=min(60,2**attempts))).isoformat(),"locked_at":None,"locked_by":None}).eq("id",event["id"]))
+            if execution_id:
+                retry_at = (datetime.now(timezone.utc) + timedelta(minutes=min(60, 2 ** attempts))).isoformat()
+                await update_execution(
+                    execution_id, status="failed" if attempts >= 5 else "retryable",
+                    error=str(exc)[:1000], retry_at=None if attempts >= 5 else retry_at,
+                    terminal_reason=str(exc)[:1000] if attempts >= 5 else None,
+                )
     return {"ok":True,"processed":processed,"matched":matched,"failed":failed,"scanned":len(rows)}
+
+
+from uuid import uuid5, NAMESPACE_URL
+
+
+def execution_identity(tenant_id: str, source_event_id: str, workflow_id: str) -> str:
+    """Stable execution identity across duplicate ticks and worker retries."""
+    return str(uuid5(NAMESPACE_URL, f"leadx:automation:{tenant_id}:{source_event_id}:{workflow_id}"))
+
+
+async def ensure_execution(event: dict, workflow: dict) -> dict:
+    """Create one durable execution row for a tenant/event/workflow tuple."""
+    tenant_id = str(event.get("tenant_id") or "")
+    source_event_id = str(event.get("id") or "")
+    workflow_id = str(workflow.get("id") or "")
+    execution_id = execution_identity(tenant_id, source_event_id, workflow_id)
+    sb = _sb()
+    try:
+        existing = (await aexec(sb.table("automation_executions").select("*")
+                    .eq("tenant_id", tenant_id).eq("source_event_id", source_event_id)
+                    .eq("workflow_id", workflow_id).limit(1))).data or []
+        if existing:
+            row = existing[0]
+            if row.get("status") == "completed":
+                return {"ok": True, "execution_id": str(row.get("execution_id") or execution_id), "run": False, "row": row}
+            return {"ok": True, "execution_id": str(row.get("execution_id") or execution_id), "run": True, "row": row}
+        inserted = (await aexec(sb.table("automation_executions").insert({
+            "execution_id": execution_id, "tenant_id": tenant_id,
+            "source_event_id": source_event_id, "workflow_id": workflow_id,
+            "due_at": event.get("available_at") or event.get("created_at") or datetime.now(timezone.utc).isoformat(),
+            "rule_version": int(workflow.get("version") or 1),
+            "action_version": int(workflow.get("version") or 1), "status": "queued",
+            "attempts": 0, "retry_at": None, "terminal_reason": None,
+        }))).data or []
+        if inserted:
+            return {"ok": True, "execution_id": execution_id, "run": True, "row": inserted[0]}
+        # A concurrent unique insert is a replay boundary, not a new action.
+        return {"ok": True, "execution_id": execution_id, "run": False}
+    except Exception as exc:
+        # Pre-Task-4 schemas still retain workflow_runs idempotency. Return the
+        # stable identity so callers can preserve that compatibility boundary.
+        logger.warning("automation execution persistence unavailable: %s", exc)
+        return {"ok": False, "execution_id": execution_id, "run": True, "retryable": True,
+                "error": type(exc).__name__}
+
+
+async def update_execution(execution_id: str, *, status: str, error: str | None = None,
+                           retry_at: str | None = None, terminal_reason: str | None = None) -> None:
+    try:
+        payload = {"status": status, "updated_at": datetime.now(timezone.utc).isoformat(),
+                   "retry_at": retry_at, "terminal_reason": terminal_reason or error}
+        await aexec(_sb().table("automation_executions").update(payload).eq("execution_id", execution_id))
+    except Exception:
+        logger.warning("automation execution outcome persistence failed id=%s", execution_id, exc_info=True)
+
+
+async def dispatch_due_events(limit: int = 100) -> dict:
+    """Turn due source events into one durable job handoff per event."""
+    limit = max(1, min(int(limit or 100), 500))
+    now = datetime.now(timezone.utc).isoformat()
+    rows = (await aexec(_sb().table("automation_events").select("*").eq("status", "queued")
+            .lte("available_at", now).order("created_at").limit(limit))).data or []
+    from app.integrations.prod import jobs
+    dispatched = failed = 0
+    for event in rows:
+        workflows = (await aexec(_sb().table("workflow_definitions").select("*")
+                      .eq("tenant_id", event["tenant_id"]).eq("enabled", True)
+                      .eq("trigger_type", event["event_type"]).limit(100))).data or []
+        executions = []
+        for workflow in workflows:
+            graph = workflow.get("graph") or {}
+            trigger = graph.get("trigger") or {"event": event["event_type"], "conditions": graph.get("conditions") or []}
+            if not _match(trigger, event):
+                continue
+            execution = await ensure_execution(event, workflow)
+            if execution.get("run", True):
+                executions.append(execution)
+        if not executions:
+            await aexec(_sb().table("automation_events").update({
+                "status": "done", "processed_at": now,
+            }).eq("id", event["id"]).eq("status", "queued"))
+            continue
+        key = f"automation-event:{event['tenant_id']}:{event['id']}"
+        payload = {"tenant_id": event["tenant_id"], "source_event_id": str(event["id"]),
+                   "source_event_key": key}
+        try:
+            handoff = await offload(
+                jobs.submit, "automations.execute", payload,
+                tenant_id=str(event["tenant_id"]), idempotency_key=key,
+                operation_kind="automations.execute", actor_scope="worker",
+                created_by="automation-scheduler", provider_required=True,
+                max_attempts=5,
+            )
+            job_id = jobs.accepted_job_id(handoff)
+            for execution in executions:
+                await aexec(_sb().table("automation_executions").update({
+                    "job_id": job_id, "updated_at": now,
+                }).eq("execution_id", execution["execution_id"]))
+            dispatched += 1
+        except Exception as exc:
+            failed += 1
+            retry_at = (datetime.now(timezone.utc) + timedelta(minutes=5)).isoformat()
+            for execution in executions:
+                await update_execution(execution["execution_id"], status="retryable",
+                                       error=str(exc)[:1000], retry_at=retry_at)
+            await aexec(_sb().table("automation_events").update({
+                "error": f"dispatch:{str(exc)[:900]}", "available_at": retry_at,
+            }).eq("id", event["id"]))
+    return {"ok": failed == 0, "dispatched": dispatched, "failed": failed, "scanned": len(rows)}

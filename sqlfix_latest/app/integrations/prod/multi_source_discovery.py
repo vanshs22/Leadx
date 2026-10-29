@@ -28,6 +28,10 @@ from app.integrations.prod.key_pool import with_key_rotation, KeyPoolExhausted
 from app.integrations.prod.utils import (
     normalize_phone, to_e164, extract_domain, fingerprint,
 )
+from app.integrations.prod.discovery_runtime import (
+    RouteBatch, annotate_route_result, route_cell_id, route_failure, route_page,
+    stable_route_dedupe, typed_route_error,
+)
 
 logger = logging.getLogger("lead_engine.multi_source")
 
@@ -96,6 +100,39 @@ async def _serper_search(query: str, num: int = 10) -> list[dict]:
     except Exception as e:
         logger.warning("serper search: %s", e)
         return []
+
+
+async def _decodo_search(query: str, num: int = 10) -> list[dict]:
+    """Optional Decodo Web Data API search lane before Serper fallback."""
+    key = (os.getenv("DECODO_API_KEY") or "").strip()
+    if not key or len((query or "").strip()) < 2:
+        return []
+    try:
+        async with httpx.AsyncClient(timeout=35) as client:
+            r = await client.post(
+                os.getenv("DECODO_API_BASE_URL", "https://data.decodo.com/v1").rstrip("/") + "/search",
+                headers={"Authorization": f"Bearer {key}", "Accept": "application/json", "Content-Type": "application/json"},
+                json={"query": query.strip()},
+            )
+            if r.status_code >= 400:
+                logger.warning("decodo search HTTP %s q=%r body=%s", r.status_code, query[:80], (r.text or "")[:200])
+                return []
+            data = r.json() or {}
+            rows = data.get("organic") or []
+            return [
+                {**row, "snippet": row.get("snippet") or row.get("description") or ""}
+                for row in rows[:max(1, min(int(num or 10), 10))]
+                if isinstance(row, dict)
+            ]
+    except Exception as exc:
+        logger.warning("decodo search failed: %s", type(exc).__name__)
+        return []
+
+
+async def _web_search(query: str, num: int = 10) -> list[dict]:
+    """Use optional Decodo search first, then spend Serper only for a gap."""
+    decodo = await _decodo_search(query, num)
+    return decodo or await _serper_search(query, num)
 
 
 async def _serper_maps(query: str, location: str, num: int = 20) -> list[dict]:
@@ -232,6 +269,9 @@ def _from_organic(
 # ─── Per-source collectors ───────────────────────────────────────────────────
 
 async def source_maps(industry: str, location: str, queries: list[str], budget: int) -> list[dict]:
+    budget = max(0, int(budget or 0))
+    if budget == 0:
+        return _route_output([], source="maps", industry=industry, location=location, requested_limit=0)
     out: list[dict] = []
     seen: set[str] = set()
     per_q = max(5, budget // max(1, len(queries)))
@@ -244,13 +284,16 @@ async def source_maps(industry: str, location: str, queries: list[str], budget: 
             seen.add(lead["fingerprint"])
             out.append(lead)
             if len(out) >= budget:
-                return out
+                return _route_output(out, source="maps", industry=industry, location=location, query="|".join(queries), requested_limit=budget)
         await asyncio.sleep(0.15)
-    return out
+    return _route_output(out, source="maps", industry=industry, location=location, query="|".join(queries), requested_limit=budget)
 
 
 async def source_linkedin(industry: str, location: str, budget: int) -> list[dict]:
     """Serper site:linkedin + optional drissbri LinkedIn scraper discovery."""
+    budget = max(0, int(budget or 0))
+    if budget == 0:
+        return _route_output([], source="linkedin", industry=industry, location=location, requested_limit=0)
     from app.integrations.prod.social_discovery import (
         discover_linkedin_companies,
         discover_linkedin_decision_makers,
@@ -275,11 +318,14 @@ async def source_linkedin(industry: str, location: str, budget: int) -> list[dic
         out.append(lead)
         if len(out) >= budget:
             break
-    return out
+    return _route_output(out, source="linkedin", industry=industry, location=location, requested_limit=budget)
 
 
 async def source_instagram(industry: str, location: str, budget: int) -> list[dict]:
     """Serper site:instagram + instaloader hashtag discovery."""
+    budget = max(0, int(budget or 0))
+    if budget == 0:
+        return _route_output([], source="instagram", industry=industry, location=location, requested_limit=0)
     from app.integrations.prod.social_discovery import (
         discover_instagram_businesses,
         discover_instagram_via_instaloader,
@@ -299,10 +345,13 @@ async def source_instagram(industry: str, location: str, budget: int) -> list[di
         out.append(lead)
         if len(out) >= budget:
             break
-    return out
+    return _route_output(out, source="instagram", industry=industry, location=location, requested_limit=budget)
 
 
 async def source_web(industry: str, location: str, queries: list[str], budget: int) -> list[dict]:
+    budget = max(0, int(budget or 0))
+    if budget == 0:
+        return _route_output([], source="web", industry=industry, location=location, requested_limit=0)
     out: list[dict] = []
     seen: set[str] = set()
     qlist = [
@@ -311,7 +360,7 @@ async def source_web(industry: str, location: str, queries: list[str], budget: i
         f'best {industry} {location}',
     ]
     for q in qlist:
-        results = await _serper_search(q, num=10)
+        results = await _web_search(q, num=10)
         for item in results:
             lead = _from_organic(item, industry, location, "web")
             if not lead or lead["fingerprint"] in seen:
@@ -319,12 +368,15 @@ async def source_web(industry: str, location: str, queries: list[str], budget: i
             seen.add(lead["fingerprint"])
             out.append(lead)
             if len(out) >= budget:
-                return out
+                return _route_output(out, source="web", industry=industry, location=location, query="|".join(queries), requested_limit=budget)
         await asyncio.sleep(0.1)
-    return out
+    return _route_output(out, source="web", industry=industry, location=location, query="|".join(queries), requested_limit=budget)
 
 
 async def source_yelp(industry: str, location: str, budget: int) -> list[dict]:
+    budget = max(0, int(budget or 0))
+    if budget == 0:
+        return _route_output([], source="yelp", industry=industry, location=location, requested_limit=0)
     out: list[dict] = []
     seen: set[str] = set()
     q = f'site:yelp.com {industry} {location}'
@@ -337,10 +389,13 @@ async def source_yelp(industry: str, location: str, budget: int) -> list[dict]:
         out.append(lead)
         if len(out) >= budget:
             break
-    return out
+    return _route_output(out, source="yelp", industry=industry, location=location, query=q, requested_limit=budget)
 
 
 async def source_facebook(industry: str, location: str, budget: int) -> list[dict]:
+    budget = max(0, int(budget or 0))
+    if budget == 0:
+        return _route_output([], source="facebook", industry=industry, location=location, requested_limit=0)
     out: list[dict] = []
     seen: set[str] = set()
     q = f'site:facebook.com {industry} {location} pages'
@@ -356,7 +411,7 @@ async def source_facebook(industry: str, location: str, budget: int) -> list[dic
         out.append(lead)
         if len(out) >= budget:
             break
-    return out
+    return _route_output(out, source="facebook", industry=industry, location=location, query=q, requested_limit=budget)
 
 
 # ─── Merge: multi-source hits boost quality ──────────────────────────────────
@@ -373,8 +428,19 @@ def merge_leads(batches: list[list[dict]], min_quality: int = 50) -> list[dict]:
     by_fp: dict[str, dict] = {}
     by_name: dict[str, str] = {}  # name_key -> fp
 
+    def provenance_entries(lead: dict) -> dict[str, dict]:
+        value = lead.get("source_provenance")
+        if not isinstance(value, dict):
+            return {}
+        if value.get("source"):
+            return {str(value["source"]): dict(value)}
+        return {str(source): dict(entry) for source, entry in value.items() if isinstance(entry, dict)}
+
     for batch in batches:
         for lead in batch:
+            if not isinstance(lead, dict):
+                continue
+            lead = annotate_route_result(lead)
             if (lead.get("discovery_quality") or 0) < min_quality:
                 continue
             fp = lead.get("fingerprint")
@@ -392,6 +458,16 @@ def merge_leads(batches: list[list[dict]], min_quality: int = 50) -> list[dict]:
                           "decision_maker_name", "google_rating", "review_count"):
                     if not existing.get(k) and lead.get(k):
                         existing[k] = lead[k]
+                if lead.get("source_ids"):
+                    source_ids = existing.get("source_ids") or {}
+                    if isinstance(source_ids, dict) and isinstance(lead["source_ids"], dict):
+                        source_ids.update(lead["source_ids"])
+                        existing["source_ids"] = source_ids
+                incoming_provenance = provenance_entries(lead)
+                if incoming_provenance:
+                    provenance = existing.get("source_provenance_by_source") or provenance_entries(existing)
+                    provenance.update(incoming_provenance)
+                    existing["source_provenance_by_source"] = provenance
                 hits = set(existing.get("sources_hit") or [existing.get("source")])
                 hits.update(lead.get("sources_hit") or [lead.get("source")])
                 existing["sources_hit"] = sorted(h for h in hits if h)
@@ -409,6 +485,9 @@ def merge_leads(batches: list[list[dict]], min_quality: int = 50) -> list[dict]:
             else:
                 lead = dict(lead)
                 lead["sources_hit"] = list(lead.get("sources_hit") or [lead.get("source")])
+                provenance = provenance_entries(lead)
+                if provenance:
+                    lead["source_provenance_by_source"] = provenance
                 by_fp[fp] = lead
                 if nk:
                     by_name[nk] = fp
@@ -429,21 +508,36 @@ async def discover_multi_source(
     sources: Optional[dict[str, bool]] = None,
     budget: Optional[dict[str, int]] = None,
     min_quality: int = 50,
+    *,
+    target: int | None = None,
+    assignment_confirmed: int = 0,
+    cancellation: Any = None,
+    stop_event: Any = None,
 ) -> list[dict]:
     """
     Run all enabled sources in parallel per location, then merge.
     Maps is not primary — each enabled source gets its own budget.
     """
+    from app.integrations.prod.discovery_runtime import local_validation_mode, synthetic_discovery, _is_cancelled
+    if local_validation_mode():
+        rows = synthetic_discovery(industry, locations, limit_per_location=int((budget or {}).get("maps", 10) or 10))
+        return RouteBatch(rows, contract={"contract_version": "leadx-route-result-v1", "source": "local_fixture", "exhausted": True})
+    if _is_cancelled(cancellation) or _is_cancelled(stop_event) or (target is not None and int(assignment_confirmed or 0) >= int(target)):
+        return RouteBatch([], contract={"contract_version": "leadx-route-result-v1", "stop_reason": "cancelled_or_target_met"})
     enabled = {**DEFAULT_SOURCES, **(sources or {})}
     budgets = {**DEFAULT_BUDGET, **(budget or {})}
     qlist = queries or DEFAULT_QUERIES.get(industry.lower().replace(" ", ""), [industry])
 
     all_batches: list[list[dict]] = []
+    route_events: list[dict[str, Any]] = []
     source_counts: dict[str, int] = defaultdict(int)
 
-    from app.integrations.prod.paid_policy import paid_stage_allowed, contactable
+    from app.integrations.prod.paid_policy import paid_stage_allowed, contactable, free_is_sufficient
 
     for location in locations:
+        if _is_cancelled(cancellation) or _is_cancelled(stop_event) or (target is not None and int(assignment_confirmed or 0) >= int(target)):
+            route_events.append({"category": "cancelled_or_target_met", "location": location})
+            break
         tasks = []
         labels = []
 
@@ -454,7 +548,13 @@ async def discover_multi_source(
                 from app.integrations.prod.exhaustive_discovery import osm_exhaustive
                 free_rows = await osm_exhaustive(industry, location)
             except Exception as exc:
-                logger.warning("free OSM discovery failed for %s: %s", location, exc)
+                route_events.append({"route_cell_id": route_cell_id("osm", sub_icp=industry, geography=location, query="osm"),
+                                     "typed_error": typed_route_error(exc, fallback_reason="osm_failure")})
+                logger.warning("free OSM discovery failed for %s: %s", location, type(exc).__name__)
+            free_rows = [annotate_route_result(row, route_cell={"source": "osm", "source_family": "local", "sub_icp_id": industry,
+                                                               "geography": location, "query": "osm", "result_budget": int(budgets.get("osm", 0) or 0)},
+                                               page=1, cursor={"page": 1, "token": None}, requested_limit=int(budgets.get("osm", 0) or 0),
+                                               evidence_level="L1", billable=False) for row in free_rows if isinstance(row, dict)]
             if free_rows:
                 want_cap = max(int(budgets.get("maps", 40)) * 3, 100)
                 free_rows = sorted(free_rows, key=lambda r: not contactable(r))[:want_cap]
@@ -463,7 +563,12 @@ async def discover_multi_source(
 
         # Stage 2 (paid, Serper): maps/web/yelp/facebook run only when the free
         # stage did not already yield enough contactable candidates.
-        paid_ok, paid_reason = paid_stage_allowed(free_rows, int(budgets.get("maps", 40)))
+        paid_ok, paid_reason = paid_stage_allowed(
+            free_rows, int(budgets.get("maps", 40)),
+            credential_available=bool(os.getenv("DECODO_API_KEY") or os.getenv("SERPER_API_KEY") or os.getenv("APOLLO_API_KEY") or os.getenv("HUNTER_API_KEY")),
+            unmet_gap=not free_is_sufficient(free_rows, int(budgets.get("maps", 40))),
+            remaining_quota=int(os.getenv("LEADX_DISCOVERY_REMAINING_QUOTA", str(int(budgets.get("maps", 40))))),
+        )
         if not paid_ok:
             logger.info("paid Serper lanes skipped for %s: %s (free contactable=%s)", location, paid_reason,
                         sum(1 for r in free_rows if contactable(r)))
@@ -495,10 +600,20 @@ async def discover_multi_source(
         results = await asyncio.gather(*tasks, return_exceptions=True)
         for label, res in zip(labels, results):
             if isinstance(res, Exception):
-                logger.warning("source %s failed: %s", label, res)
+                error_record = {"route_cell_id": route_cell_id(label, sub_icp=industry, geography=location, query="|".join(qlist)),
+                                "typed_error": typed_route_error(res, fallback_reason=f"{label}_failure")}
+                route_events.append(error_record)
+                logger.warning("source %s failed: %s", label, type(res).__name__)
                 continue
-            source_counts[label] += len(res)
-            all_batches.append(res)
+            normalized = [annotate_route_result(row, route_cell={"source": label, "source_family": label,
+                                                                  "sub_icp_id": industry, "geography": location,
+                                                                  "query": "|".join(qlist), "result_budget": int(budgets.get(label, 0) or 0)},
+                                                   page=1, cursor={"page": 1, "token": None},
+                                                   requested_limit=int(budgets.get(label, 0) or 0),
+                                                   evidence_level="L1", billable=label not in {"osm", "local_fixture"})
+                         for row in res if isinstance(row, dict)]
+            source_counts[label] += len(normalized)
+            all_batches.append(normalized)
 
         await asyncio.sleep(0.2)
 
@@ -524,4 +639,18 @@ async def discover_multi_source(
         "multi-source discovery industry=%s locations=%s counts=%s merged=%s multi_hit=%s",
         industry, len(locations), dict(source_counts), len(merged), multi,
     )
-    return merged
+    return RouteBatch(merged, contract={"contract_version": "leadx-route-result-v1", "source": "multi_source",
+                                        "source_family": "mixed", "actual_result_count": len(merged),
+                                        "exhausted": not route_events}, route_events=route_events)
+
+
+
+def _route_output(rows: list[dict], *, source: str, industry: str, location: str,
+                  query: str = "", requested_limit: int = 0, exhausted: bool = True,
+                  next_cursor: Any = None, fallback_reason: str | None = None) -> RouteBatch:
+    cell = {"route_cell_id": route_cell_id(source, sub_icp=industry, geography=location, query=query),
+            "source": source, "source_family": source, "sub_icp_id": industry,
+            "geography": location, "query": query, "result_budget": requested_limit}
+    return route_page(rows, route_cell=cell, page=1, cursor={"page": 1, "token": None},
+                      requested_limit=requested_limit, next_cursor=next_cursor,
+                      exhausted=exhausted, fallback_reason=fallback_reason)

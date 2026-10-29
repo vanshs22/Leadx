@@ -97,9 +97,15 @@ def prepare_enrichment_pool(leads:list[dict],reuse_days:int=14):
 
 @to_async
 def upsert_enrichment(lead_id:str,lead:dict)->None:
-    sb=get_supabase(); payload={"lead_id":lead_id,"email":lead.get("email"),"email_valid":lead.get("email_valid"),"emails":lead.get("emails") or [],"phone_from_web":lead.get("phone_from_web"),"has_booking":bool(lead.get("has_booking") or lead.get("booking_platform")),"booking_platform":lead.get("booking_platform"),"services":lead.get("services") or [],"social_links":lead.get("social_links") or {},"owner_name":lead.get("owner_name") or lead.get("decision_maker_name"),"pitch_line":lead.get("pitch_line"),"intent_score":int(lead.get("intent_score") or 0),"markdown_summary":(lead.get("markdown_summary") or "")[:4000] or None,"raw_extraction":lead.get("raw_extraction") or {},"enrichment_method":lead.get("enrichment_method"),"enrichment_ok":bool(lead.get("enrichment_ok")),"error":lead.get("enrichment_error"),"extracted_at":datetime.now(timezone.utc).isoformat()}
+    sb=get_supabase()
+    from app.integrations.prod.utils import is_valid_email
+    email = lead.get("email") if is_valid_email(lead.get("email")) else None
+    emails = [str(value).strip().lower() for value in (lead.get("emails") or []) if is_valid_email(value)]
+    payload={"lead_id":lead_id,"email":email,"email_valid":bool(email) and lead.get("email_valid") is not False,"emails":emails,"phone_from_web":lead.get("phone_from_web"),"has_booking":bool(lead.get("has_booking") or lead.get("booking_platform")),"booking_platform":lead.get("booking_platform"),"services":lead.get("services") or [],"social_links":lead.get("social_links") or {},"owner_name":lead.get("owner_name") or lead.get("decision_maker_name"),"pitch_line":lead.get("pitch_line"),"intent_score":int(lead.get("intent_score") or 0),"markdown_summary":(lead.get("markdown_summary") or "")[:4000] or None,"raw_extraction":lead.get("raw_extraction") or {},"enrichment_method":lead.get("enrichment_method"),"enrichment_ok":bool(lead.get("enrichment_ok")),"error":lead.get("enrichment_error"),"extracted_at":datetime.now(timezone.utc).isoformat()}
     try:
         sb.table("enrichment").upsert(payload,on_conflict="lead_id").execute()
+        # Keep the CRM-facing global projection from retaining a URL as email.
+        sb.table("leads_global").update({"email": email}).eq("id", str(lead_id)).execute()
         from app.integrations.prod.evidence_graph import record_field_evidence
         record_field_evidence(lead_id, {k:v for k,v in payload.items() if k != "lead_id"}, source=payload.get("enrichment_method") or "enrichment", confidence=0.7)
     except Exception:
@@ -146,3 +152,103 @@ def record_evidence(lead_id: str, evidence: list[dict]) -> None:
         get_supabase().table("lead_evidence").insert(rows).execute()
     except Exception as exc:
         logger.debug("evidence persistence skipped: %s", exc)
+
+
+# Durable Task-8 stage contract.  The run board remains the compatibility
+# projection, while these fields make ordering and outcomes replay-safe.
+STAGE_ORDER = ("verification", "scoring", "gating", "assignment", "crm", "delivery")
+STAGE_STATUSES = {"accepted", "rejected", "retryable", "skipped", "terminal"}
+
+
+def stage_transition_key(run_id: str, lead_id: str, stage: str) -> str:
+    """Return the stable operation identity for one lead/run stage."""
+    return f"{str(run_id)}:{str(lead_id)}:{str(stage).strip().lower()}"
+
+
+def validate_stage_transition(current_stage: str | None, next_stage: str) -> dict:
+    """Validate the only legal forward stage order without touching storage."""
+    current = str(current_stage or "").strip().lower() or None
+    target = str(next_stage or "").strip().lower()
+    if target not in STAGE_ORDER:
+        return {"ok": False, "reason": "unknown_stage", "from": current, "to": target}
+    if current is None:
+        return {"ok": True, "reason": "initial_stage", "from": None, "to": target}
+    if current not in STAGE_ORDER:
+        return {"ok": False, "reason": "unknown_current_stage", "from": current, "to": target}
+    if STAGE_ORDER.index(target) < STAGE_ORDER.index(current):
+        return {"ok": False, "reason": "stage_regression", "from": current, "to": target}
+    return {"ok": True, "reason": "same_stage" if current == target else "forward", "from": current, "to": target}
+
+
+@to_async
+def record_stage_transition(
+    tenant_id: str,
+    run_id: str,
+    lead_id: str,
+    stage: str,
+    status: str = "accepted",
+    *,
+    reason: str | None = None,
+    metadata: Optional[dict] = None,
+    assignment_id: str | None = None,
+    supabase=None,
+) -> dict:
+    """Persist one ordered, tenant-scoped lead stage transition.
+
+    ``pipeline_run_leads`` is deliberately the first write.  A duplicate key
+    returns the prior outcome and does not append another history event, so a
+    retry cannot advance counters or bill twice.
+    """
+    tenant_id, run_id, lead_id = str(tenant_id or ""), str(run_id or ""), str(lead_id or "")
+    stage = str(stage or "").strip().lower()
+    status = str(status or "accepted").strip().lower()
+    if not tenant_id or not run_id or not lead_id:
+        return {"ok": False, "reason": "missing_stage_identity"}
+    if status not in STAGE_STATUSES:
+        return {"ok": False, "reason": "invalid_stage_status", "status": status}
+    key = stage_transition_key(run_id, lead_id, stage)
+    sb = supabase or get_supabase()
+    try:
+        current_rows = (sb.table("pipeline_run_leads")
+                        .select("stage,stage_status,stage_reason,stage_idempotency_key,tenant_id")
+                        .eq("run_id", run_id).eq("lead_id", lead_id).limit(1).execute().data or [])
+        current = current_rows[0] if current_rows else None
+        if current and current.get("tenant_id") not in (None, tenant_id):
+            return {"ok": False, "reason": "tenant_scope_denied"}
+        if current and current.get("stage_idempotency_key") == key:
+            return {"ok": True, "replayed": True, "stage": current.get("stage"), "status": current.get("stage_status") or status, "idempotency_key": key}
+        check = validate_stage_transition(current.get("stage") if current else None, stage)
+        if not check["ok"]:
+            return {"ok": False, **check, "idempotency_key": key}
+        if current and check["reason"] == "same_stage":
+            prior_status = str(current.get("stage_status") or "accepted")
+            if prior_status == status and not reason:
+                return {"ok": True, "replayed": True, "stage": stage, "status": prior_status, "idempotency_key": key}
+
+        now = datetime.now(timezone.utc).isoformat()
+        row = {
+            "run_id": run_id, "lead_id": lead_id, "tenant_id": tenant_id,
+            "stage": stage, "stage_status": status, "stage_reason": (reason or None),
+            "stage_idempotency_key": key, "included": status == "accepted",
+            "updated_at": now,
+        }
+        if assignment_id:
+            row["crm_assignment_id"] = str(assignment_id)
+        sb.table("pipeline_run_leads").upsert(row, on_conflict="run_id,lead_id").execute()
+        # The history table is additive and may be absent on old compatibility
+        # deployments. The run-board write above remains the required barrier.
+        try:
+            sb.table("lead_state_history").insert({
+                "lead_id": lead_id, "tenant_id": tenant_id,
+                "from_state": current.get("stage") if current else None,
+                "to_state": stage, "event": f"stage.{status}",
+                "reason": (reason or None),
+                "metadata": {**(metadata or {}), "run_id": run_id, "idempotency_key": key},
+                "created_at": now,
+            }).execute()
+        except Exception as exc:
+            logger.debug("stage history projection unavailable: %s", type(exc).__name__)
+        return {"ok": True, "replayed": False, "stage": stage, "status": status, "idempotency_key": key}
+    except Exception as exc:
+        logger.warning("stage transition persistence failed: %s", type(exc).__name__)
+        return {"ok": False, "reason": "stage_transition_unavailable", "retryable": True, "idempotency_key": key}

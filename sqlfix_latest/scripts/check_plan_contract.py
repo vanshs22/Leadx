@@ -10,7 +10,7 @@ if current != {'free','starter','growth','agency'} or legacy != {'premium','ente
 violations=[]
 for p in (ROOT/'app').rglob('*.py'):
     if p == ROOT/'app/core/plans.py': continue
-    try: tree=ast.parse(p.read_text(errors='ignore'))
+    try: tree=ast.parse(p.read_text(encoding="utf-8-sig", errors="ignore"))
     except SyntaxError as exc: violations.append(f'{p}: {exc}'); continue
     for n in ast.walk(tree):
         if isinstance(n, ast.Constant) and isinstance(n.value,str) and n.value in legacy:

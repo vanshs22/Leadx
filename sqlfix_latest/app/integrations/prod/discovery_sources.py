@@ -56,6 +56,8 @@ def normalize_external(raw: dict, source: str, industry: str, location: str) -> 
 
 async def _request(method: str, url: str, *, headers: dict | None = None, params: dict | None = None,
                    json: dict | None = None, timeout: float = 30) -> dict:
+    from app.integrations.prod.discovery_runtime import assert_provider_allowed
+    assert_provider_allowed("external_lead_generation")
     async with httpx.AsyncClient(timeout=timeout, follow_redirects=False) as client:
         r = await client.request(method, url, headers=headers, params=params, json=json)
         if r.status_code >= 400:

@@ -5,7 +5,7 @@ import { useState } from "react";
 import Link from "next/link";
 import { admin, adminExtras } from "@/lib/admin";
 import { chartColors } from "@/lib/chartColors";
-import { ErrorState, PollingDeadlineState } from "@/components/ui/States";
+import { ErrorState } from "@/components/ui/States";
 import { Icon } from "@/components/ui/Icon";
 import { PageHeader } from "@/components/ui/Primitives";
 import dynamic from "next/dynamic";
@@ -24,10 +24,8 @@ export default function AdminOverviewPage() {
   const [keyHealth, setKeyHealth] = useState<any>(null);
   const [providerHealth, setProviderHealth] = useState<any>(null);
   const [platformSummary, setPlatformSummary] = useState<any>(null);
-  const [actionBusy, setActionBusy] = useState("");
   const [lastRefresh, setLastRefresh] = useState<Date | null>(null);
-  const [pollingExpired, setPollingExpired] = useState(false);
-  const [pollingReset, setPollingReset] = useState(0);
+  const [actionBusy, setActionBusy] = useState("");
 
   const load = async () => {
     setErr("");
@@ -59,15 +57,10 @@ export default function AdminOverviewPage() {
     setLastRefresh(new Date());
   };
 
-  const refresh = () => {
-    setPollingExpired(false);
-    setPollingReset((value) => value + 1);
-    void load();
-  };
+  const refresh = () => { void load(); };
 
-  useLiveLoader(load, 30000, [pollingReset], {
-    onDeadline: () => setPollingExpired(true),
-  });
+  // Read-only admin telemetry keeps reconciling indefinitely. The loader pauses hidden tabs and refreshes on visibility, so there is no deadline popup or background polling storm.
+  useLiveLoader(load, 30000, [], { deadlineMs: 0 });
 
   async function control(label: string, fn: () => Promise<any>) {
     setActionBusy(label);
@@ -107,7 +100,6 @@ export default function AdminOverviewPage() {
       <PageHeader eyebrow="LeadX control plane" title="Operator console" description="Run the service, protect quality, and keep clients supplied." actions={<div className={`inline-flex items-center gap-2 rounded-full border px-3 py-1.5 text-xs font-semibold ${system?.ok === false ? "border-rust-300 bg-rust-50 text-rust-700 dark:bg-rust-500/10 dark:text-rust-300" : "border-signal-300 bg-signal-50 text-signal-700 dark:bg-signal-500/10 dark:text-signal-300"}`}><span className="h-1.5 w-1.5 rounded-full bg-current" /> API {system?.ok === false ? "degraded" : "healthy"}</div>} />
 
       {err && <ErrorState error={err} onRetry={refresh} />}
-      {pollingExpired && <PollingDeadlineState onRefresh={refresh} />}
 
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
         {kpis.map((k) => (

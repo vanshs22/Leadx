@@ -2,7 +2,7 @@
 from __future__ import annotations
 import asyncio, importlib, time
 from datetime import datetime, timezone
-from app.integrations.prod.agent_registry import get_contract, validate_input
+from app.integrations.prod.agent_registry import get_contract, resolve_executor_key, validate_input
 from app.integrations.prod.agents_support import update_run, record_run_evidence, record_run_outcome
 
 
@@ -11,40 +11,55 @@ def _now():
 
 
 def _executor(agent_id: str):
-    # Legacy/core agents keep their dedicated executors. The 14.x specialized
-    # fabric agents are routed through the same bounded fabric instead of a
-    # second execution stack.
-    try:
-        return importlib.import_module(f"app.integrations.prod.agent_executors.{agent_id}").execute
-    except ModuleNotFoundError as exc:
-        if exc.name != f"app.integrations.prod.agent_executors.{agent_id}":
-            raise
-        from app.integrations.prod.agent_fabric import SPECIALIZED, execute_specialized
-        if agent_id not in SPECIALIZED and agent_id != "gtm":
-            raise
+    """Resolve only the executor declared by the trusted registry contract."""
+    executor_key = resolve_executor_key(agent_id)
+    if executor_key.startswith("dedicated:"):
+        module_name = executor_key.removeprefix("dedicated:")
+        module = importlib.import_module(f"app.integrations.prod.agent_executors.{module_name}")
+        return module.execute
+
+    if executor_key.startswith("fabric:"):
+        from app.integrations.prod.agent_fabric import execute_specialized
+        fabric_agent = executor_key.removeprefix("fabric:")
+
         async def execute(run):
-            if agent_id == "gtm":
-                from app.integrations.prod.agent_missions import create_mission
-                from app.integrations.prod import jobs
-                data = run.get("input_data") or {}
-                mission = create_mission(str(run["tenant_id"]), str(data.get("objective") or run.get("task") or "Run GTM mission"), data, str(data.get("mode") or "supervised"))
-                payload = {"tenant_id": str(run["tenant_id"]), "mission_id": str(mission["id"])}
-                handoff = jobs.submit(
-                    "agent.mission.tick", payload, tenant_id=str(run["tenant_id"]),
-                    idempotency_key=jobs.derived_idempotency_key(str(run["tenant_id"]), "agent.mission.tick", payload),
-                    operation_kind="agent.mission.tick", priority=1, created_by="gtm-agent",
-                    provider_required=True,
-                )
-                jid = jobs.accepted_job_id(handoff)
-                return {"agent":"gtm","mission_id":str(mission["id"]),"job_id":jid,"mode":mission.get("mode"),"graph":"discovery→enrichment→research+verification→signal→qualification→outreach→crm"}
-            return await execute_specialized(agent_id, {**(run.get("input_data") or {}), "tenant_id": str(run.get("tenant_id") or ""), "run_id": str(run.get("id") or "")})
+            return await execute_specialized(fabric_agent, {
+                **(run.get("input_data") or {}),
+                "tenant_id": str(run.get("tenant_id") or ""),
+                "run_id": str(run.get("id") or ""),
+            })
         return execute
+
+    if executor_key == "mission:gtm":
+        async def execute(run):
+            from app.integrations.prod.agent_missions import create_mission
+            from app.integrations.prod import jobs
+            data = run.get("input_data") or {}
+            mission = create_mission(
+                str(run["tenant_id"]),
+                str(data.get("objective") or run.get("task") or "Run GTM mission"),
+                data,
+                str(data.get("mode") or "supervised"),
+            )
+            payload = {"tenant_id": str(run["tenant_id"]), "mission_id": str(mission["id"])}
+            handoff = jobs.submit(
+                "agent.mission.tick", payload, tenant_id=str(run["tenant_id"]),
+                idempotency_key=jobs.derived_idempotency_key(str(run["tenant_id"]), "agent.mission.tick", payload),
+                operation_kind="agent.mission.tick", priority=1, created_by="gtm-agent",
+                provider_required=True,
+            )
+            jid = jobs.accepted_job_id(handoff)
+            return {"agent":"gtm","mission_id":str(mission["id"]),"job_id":jid,"mode":mission.get("mode"),"graph":"discovery→enrichment→research+verification→signal→qualification→outreach→crm"}
+        return execute
+
+    raise ValueError(f"invalid_executor_binding:{agent_id}")
 
 
 async def run(run: dict) -> dict:
     agent_id = str(run.get("agent_id") or "")
     contract = get_contract(agent_id)
-    input_data = validate_input(agent_id, run.get("input_data") or {})
+    raw_input = run.get("input_data")
+    input_data = validate_input(agent_id, raw_input)
     estimated_cost = float(input_data.get("estimated_cost") or 0)
     if estimated_cost > float(contract["max_cost"]):
         raise ValueError("agent_cost_limit_exceeded")
