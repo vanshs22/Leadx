@@ -1,0 +1,98 @@
+{
+  "task": "live-target5-validation.4",
+  "status": "PASS",
+  "evidence_class": "local",
+  "environment": "local Docker Compose",
+  "completed_utc": "2026-11-12T16:44:38.9865348Z",
+  "scope": "bounded local runtime readiness only; no pipeline, provider, remote, or outbound action",
+  "compose_file": "docker-compose.yml",
+  "temporary_local_auth_override_used": false,
+  "startup_timeout_seconds": 180,
+  "probe_timeouts_seconds": {
+    "http": 10,
+    "container_exec": 30
+  },
+  "checks": {
+    "docker_daemon": {
+      "status": "PASS",
+      "server_version": "29.9.1"
+    },
+    "compose_config": {
+      "status": "PASS",
+      "resolved_environment_values_rendered": false
+    },
+    "api_container": {
+      "status": "PASS",
+      "state": "running",
+      "health": "healthy"
+    },
+    "api_liveness": {
+      "status": "PASS",
+      "endpoint": "/health/live",
+      "http_status": 200,
+      "response_body_recorded": false
+    },
+    "api_readiness": {
+      "status": "PASS",
+      "endpoint": "/health/ready",
+      "http_status": 200,
+      "response_body_recorded": false
+    },
+    "worker": {
+      "status": "PASS",
+      "state": "running",
+      "health": "healthy",
+      "worker_health_probe": "PASS"
+    },
+    "queue_capability": {
+      "status": "PASS",
+      "source": "worker health probe",
+      "queue_and_reclaim_capability": true,
+      "queue_records_queried": false,
+      "queue_mutated": false
+    },
+    "redis": {
+      "status": "PASS",
+      "state": "running",
+      "health": "healthy",
+      "ping": "PONG"
+    },
+    "portal_container": {
+      "status": "PASS",
+      "state": "running",
+      "health": "healthy"
+    },
+    "portal_health": {
+      "status": "PASS",
+      "endpoint": "/api/health",
+      "http_status": 200,
+      "response_body_recorded": false
+    }
+  },
+  "preservation": {
+    "volumes_mutated": false,
+    "queues_mutated": false,
+    "down_v": false,
+    "volume_deletion": false,
+    "redis_flush": false,
+    "queue_clear": false,
+    "migration": false,
+    "reset": false,
+    "cleanup": false
+  },
+  "forbidden_actions": {
+    "remote_action": false,
+    "provider_call": false,
+    "pipeline_run_created": false,
+    "email_outreach_campaign_stripe_ses": false
+  },
+  "credentials_or_env_values_inspected": false,
+  "response_bodies_recorded": false,
+  "stop_reason": null,
+  "downstream_runtime_gate": "PASS",
+  "limitations": [
+    "This artifact proves only bounded local runtime readiness.",
+    "Queue connectivity was verified through worker capability evidence; no queue-record statistics were queried.",
+    "No replay, browser, remote diagnosis, provider, or live target-five validation was attempted."
+  ]
+}

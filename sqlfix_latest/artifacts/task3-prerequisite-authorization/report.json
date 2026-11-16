@@ -1,0 +1,210 @@
+{
+  "schema": "leadx.live-target5.task3-prerequisite-authorization.v1",
+  "task": "3. Establish non-secret prerequisites and execution authorization",
+  "decision": "BLOCKED",
+  "mode": "CHECK-ONLY",
+  "evidence_class": "static",
+  "execution_performed": false,
+  "assessment": "Sanitized prerequisite and authorization assessment only. No Docker, remote service, provider, database, queue, browser, pipeline, email, outreach, campaign, Stripe, or SES operation was attempted.",
+  "approved_scope": {
+    "tenant_id": "5655f9d9-b3c7-48f9-bb95-9f3fe0675854",
+    "icp_id": "377aaa3e-5eae-41fc-a12a-570e791490b3",
+    "vertical": "marketing agency",
+    "geography": [
+      "New Jersey",
+      "New York",
+      "Pennsylvania"
+    ],
+    "delivery": "portal",
+    "target": 5,
+    "confirmation_status": "PASS",
+    "evidence": [
+      "Current user instruction",
+      ".kiro/specs/live-target5-validation/tasks.md",
+      ".kiro/specs/live-target5-validation/design.md"
+    ],
+    "scope_note": "The scope matches the spec exactly. No additional tenant, ICP, geography, provider, campaign, email, or delivery scope was inferred."
+  },
+  "authorization_and_ownership": {
+    "scope_authorization": {
+      "status": "PRESENT",
+      "detail": "The exact scope is stated in the current instruction and the live-target5 specification."
+    },
+    "named_operator_approver": {
+      "status": "MISSING",
+      "detail": "No named approver, approval reference, maintenance window, or explicit live execution authorization was available."
+    },
+    "environment_class_and_target": {
+      "status": "MISSING",
+      "detail": "The task mode is described as LIVE, but no approved deployed/VPS/API/portal target, release identity, or environment owner was supplied. This report remains static evidence."
+    },
+    "monitoring_owner_and_stop_authority": {
+      "status": "MISSING",
+      "detail": "No named observer, monitoring destination, alert route, correlation identifier, or person with stop authority was supplied."
+    },
+    "cleanup_owner": {
+      "status": "MISSING",
+      "detail": "No named cleanup owner, temporary-resource list, retention period, verification step, or no-side-effect abort procedure was supplied."
+    },
+    "rollback_owner": {
+      "status": "MISSING",
+      "detail": "No named rollback/recovery owner, decision authority, runbook, backup/restore plan, or forward-fix procedure was supplied."
+    }
+  },
+  "numeric_ceilings": {
+    "requested_target": {
+      "status": "PRESENT",
+      "value": 5,
+      "source": "Approved scope in current instruction and live-target5 specification"
+    },
+    "hard_lead_cap": {
+      "status": "PRESENT",
+      "value": 500,
+      "source": "Live-target5 specification safety and task requirements"
+    },
+    "runtime_wall_clock_ceiling_seconds": {
+      "status": "MISSING",
+      "value": null
+    },
+    "request_and_concurrency_ceiling": {
+      "status": "MISSING",
+      "value": null
+    },
+    "provider_request_enrichment_retry_and_quota_ceiling": {
+      "status": "MISSING",
+      "value": null
+    },
+    "provider_cost_ceiling": {
+      "status": "MISSING",
+      "value": null
+    },
+    "database_row_assignment_reservation_crm_side_effect_ceiling": {
+      "status": "MISSING",
+      "value": null
+    },
+    "immediate_stop_thresholds": {
+      "status": "PARTIAL",
+      "detail": "The spec defines stop conditions for scope mismatch, forbidden action, duplicate job, cap violation, unsafe provider behavior, count mismatch, runtime loss, and side-effect ceiling violation, but no named stop authority or numeric thresholds were supplied."
+    },
+    "template_limits_not_authorization": {
+      "status": "NOT_USED",
+      "detail": "Numeric values in .env.uat.example and prior example artifacts were treated as templates, not approval or live ceilings."
+    }
+  },
+  "monitoring_and_evidence": {
+    "monitoring": {
+      "status": "MISSING",
+      "detail": "No approved health/alert signals, dashboard, observer, alert route, or monitoring owner was supplied."
+    },
+    "evidence_destination": {
+      "status": "PARTIAL",
+      "path": "sqlfix_latest/artifacts/task3-prerequisite-authorization/report.json",
+      "detail": "This sanitized report was written at the stated path. Approved retention, manifest owner, source revision, and live-evidence destination were not supplied."
+    }
+  },
+  "runtime_configuration_presence": {
+    "policy": "Presence/category only; no .env or credential values were read, printed, requested, or inspected.",
+    "file_presence": {
+      "sqlfix_latest/.env": "PRESENT; existence checked only; contents not read",
+      "sqlfix_latest/.env.example": "PRESENT; non-secret category declarations inspected",
+      "sqlfix_latest/.env.uat.example": "PRESENT; template category declarations inspected"
+    },
+    "categories": [
+      {
+        "category": "environment and deployment identity",
+        "template_evidence": "DECLARED",
+        "runtime_presence": "NOT_VERIFIED"
+      },
+      {
+        "category": "API and portal URL configuration",
+        "template_evidence": "DECLARED",
+        "runtime_presence": "NOT_VERIFIED"
+      },
+      {
+        "category": "Redis, queue, worker readiness, and failure policy",
+        "template_evidence": "DECLARED_IN_UAT_TEMPLATE",
+        "runtime_presence": "NOT_VERIFIED"
+      },
+      {
+        "category": "local/test mode and provider test/isolation controls",
+        "template_evidence": "DECLARED",
+        "runtime_presence": "NOT_VERIFIED"
+      },
+      {
+        "category": "portal-only delivery and bounded runtime/provider limits",
+        "template_evidence": "DECLARED_IN_UAT_TEMPLATE",
+        "runtime_presence": "NOT_VERIFIED"
+      },
+      {
+        "category": "monitoring, evidence retention, cleanup, and rollback ownership",
+        "template_evidence": "NOT_DECLARED_IN_INSPECTED_TEMPLATES",
+        "runtime_presence": "MISSING"
+      }
+    ],
+    "runtime_gate": "BLOCKED",
+    "detail": "File presence and template categories do not prove that the approved live runtime is configured or healthy."
+  },
+  "forbidden_action_and_isolation": {
+    "email": "PASS - explicitly forbidden by current instruction and spec; no action attempted",
+    "outreach": "PASS - explicitly forbidden by current instruction and spec; no action attempted",
+    "campaigns": "PASS - explicitly forbidden by current instruction and spec; no action attempted",
+    "stripe": "PASS - explicitly forbidden by current instruction and spec; no action attempted",
+    "ses": "PASS - explicitly forbidden by current instruction and spec; no action attempted",
+    "other_outbound_actions": "PASS - no remote/provider action attempted",
+    "local_test_provider_isolation": "POLICY_PRESENT_RUNTIME_NOT_VERIFIED",
+    "provider_calls": "PASS - zero provider calls attempted",
+    "isolation_gate": "BLOCKED",
+    "detail": "The check-only path honored the no-outbound boundary, but actual runtime isolation configuration was not verified because .env values were not inspected."
+  },
+  "dependent_gate_status": {
+    "task_4_runtime_recovery": "BLOCKED - environment target and runtime configuration readiness are not authorized or verified",
+    "task_5_remote_read_only_23505_diagnosis": "BLOCKED - named authorization, target, monitoring, and runtime/read-only channel prerequisites are missing",
+    "task_6_replay_matrix": "BLOCKED - approved disposable/test scope and side-effect ceilings are missing",
+    "task_7_authenticated_browser_baseline": "BLOCKED - approved environment, fixture ownership, monitoring, and cleanup ownership are missing",
+    "task_8_observed_defect_repair": "BLOCKED - dependent runtime/browser evidence is unavailable",
+    "task_9_browser_rerun": "BLOCKED - task 8 and runtime readiness are blocked",
+    "task_10_final_pre_live_gate": "BLOCKED - required authorization, budgets, monitoring, and cleanup/rollback evidence are missing",
+    "task_11_exactly_one_live_target5_run": "BLOCKED - all missing prerequisite categories above prevent request creation",
+    "task_12_final_decision": "BLOCKED - no live run may be created and required live evidence is absent"
+  },
+  "safety_boundary": {
+    "env_values_read": false,
+    "credentials_read_printed_requested_or_inspected": false,
+    "docker_started": false,
+    "remote_services_contacted": false,
+    "provider_contacted": false,
+    "database_or_supabase_contacted": false,
+    "queue_or_worker_started": false,
+    "pipeline_run_created": false,
+    "browser_session_started": false,
+    "email_attempted": false,
+    "outreach_attempted": false,
+    "campaign_attempted": false,
+    "stripe_contacted": false,
+    "ses_contacted": false,
+    "data_mutated": false,
+    "application_code_modified": false
+  },
+  "sources_inspected": [
+    ".kiro/specs/live-target5-validation/.config.kiro",
+    ".kiro/specs/live-target5-validation/tasks.md",
+    ".kiro/specs/live-target5-validation/design.md",
+    "sqlfix_latest/.env.example",
+    "sqlfix_latest/.env.uat.example",
+    "sqlfix_latest/artifacts/task9-bounded-live-validation-prerequisite/report.json",
+    "sqlfix_latest/artifacts/task12-bounded-prerequisite-assessment/report.json",
+    "sqlfix_latest/artifacts/task24-live-provider-deployment-prerequisite/report.md",
+    "sqlfix_latest/.env (presence only; contents not read)"
+  ],
+  "reopen_requirements": [
+    "Named operator approver and approval/change reference",
+    "Approved deployed/VPS/API/portal target, release identity, and environment class",
+    "Named monitoring observer, alert route, correlation identifier, and stop authority",
+    "Numeric runtime, request/concurrency, provider, cost, retry, timeout, and side-effect ceilings",
+    "Named cleanup owner with bounded cleanup and verification plan",
+    "Named rollback/recovery owner with approved runbook and decision authority",
+    "Approved redacted evidence destination, retention, and manifest owner",
+    "Non-secret runtime category verification without exposing credentials",
+    "Explicit provider isolation confirmation for all local/test checks"
+  ]
+}

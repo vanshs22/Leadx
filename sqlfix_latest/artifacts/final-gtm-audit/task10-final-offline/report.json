@@ -1,0 +1,253 @@
+{
+  "schema": "leadx.task10-final-offline-gate.v1",
+  "task": "10. Evaluate ordered readiness gates and issue the final decision",
+  "decision": "NO-GO",
+  "decision_scope": "public-paid-production",
+  "mode": "offline-gate-evaluation-only",
+  "evaluated_at": "2026-10-29T19:27:17.8697161Z",
+  "execution": {
+    "existing_artifacts_evaluated": true,
+    "local_checks_rerun": false,
+    "focused_validation_run": true,
+    "focused_validation": {
+      "command": "python -m pytest -q tests/test_final_gtm_audit.py tests/test_task10_3_local_mode_contract.py tests/test_task10_5_operational_evidence.py tests/test_task10_6_evidence_redaction.py",
+      "result": "FAIL",
+      "summary": "5 focused contract tests failed; 53 passed.",
+      "exact_failures": [
+        "Four execute_local_check fixtures returned BLOCKED because empty source_paths are rejected before the temporary command runs; expected PASS or FAIL/timeout behavior.",
+        "One unavailable-executable fixture returned diagnosis 'required local source declaration is empty' instead of an unavailable-executable diagnosis."
+      ],
+      "interpretation": "The report serializer/redaction checks mostly passed, but the existing offline evaluator contract is not fully green. No live or provider action occurred."
+    },
+    "uat_executed": false,
+    "live_validation_executed": false,
+    "providers_contacted": false,
+    "deployment_attempted": false,
+    "database_mutated": false,
+    "billing_or_email_action_attempted": false,
+    "env_file_read": false,
+    "secrets_requested_printed_or_inspected": false
+  },
+  "release_scope": {
+    "repository": "LeadX",
+    "source_root": "sqlfix_latest",
+    "head_commit": "2f963a3617aef66cfb8bce1c404b3aa5c908adb8",
+    "worktree_dirty": true,
+    "current_checkout_immutable_identity": false,
+    "identity_limitation": "Recorded evidence is tied to the checked-in HEAD or older audit scopes; uncommitted checkout changes are not included in an immutable release identity."
+  },
+  "evidence_classes": {
+    "tested": {
+      "meaning": "Recorded static or local checks were inspected. They do not establish UAT or live behavior.",
+      "artifacts": [
+        {
+          "class": "static",
+          "result": "PASS",
+          "claim": "Static inventory found no missing declared paths or commands in its recorded scope.",
+          "evidence": "artifacts/static-inventory/task2-manifest.json",
+          "limitation": "The manifest is not sufficient for the current dirty checkout release identity."
+        },
+        {
+          "class": "local",
+          "result": "PASS_WITH_RECORDED_FAILURES",
+          "claim": "Local validation recorded focused portal, syntax, contract, synthetic-flow, and recovery results.",
+          "evidence": "artifacts/local-validation/report.md",
+          "failed_checks": [
+            "compose.build",
+            "compose.service.startup.diagnostics",
+            "full.system.static.contracts",
+            "security.release.gate"
+          ],
+          "exact_failures": [
+            "Docker build/startup could not connect to the Docker Desktop Linux engine.",
+            "full.system.static.contracts failed: Migration: all canonical migrations included; PASS=72, FAIL=1, SKIP=2.",
+            "security.release.gate failed: full migration mirrors chain; RESULT=32/33."
+          ],
+          "limitations": [
+            "The local report does not establish a deployed runtime, remote schema, provider, billing, email, or live result.",
+            "The recorded local report is not a substitute for a current immutable release identity."
+          ]
+        }
+      ]
+    },
+    "blocked": {
+      "meaning": "The required execution boundary was intentionally not entered because prerequisites were absent.",
+      "artifacts": [
+        {
+          "class": "uat",
+          "result": "BLOCKED",
+          "check_state": "NOT TESTED",
+          "evidence": "artifacts/uat/task8-prerequisite-assessment/report.json",
+          "exact_blockers": [
+            "No Wave 7 approval.",
+            "No approved isolated UAT target, private prerequisite bundle, runtime profile, or identities/fixtures.",
+            "No provider scope/budget, cleanup owner, rollback owner, or evidence owner."
+          ]
+        },
+        {
+          "class": "live",
+          "result": "BLOCKED",
+          "check_state": "UNVERIFIED",
+          "evidence": "artifacts/task9-bounded-live-validation-prerequisite/report.json",
+          "exact_blockers": [
+            "No operator authorization, approved target/scope, private credential-ownership record, or maintenance window.",
+            "UAT prerequisite closure and prior-gate freshness are missing.",
+            "No monitoring/stop owner, numeric budgets, cleanup plan, rollback/recovery runbook, or approved evidence destination."
+          ]
+        }
+      ]
+    },
+    "unverified": {
+      "meaning": "No claim is made because the required UAT or live evidence does not exist.",
+      "claims": [
+        "Remote Supabase schema, RLS, realtime, and deployed database behavior.",
+        "Stripe billing, portal, cancellation, webhook, and authoritative payment-method behavior.",
+        "External discovery/enrichment/provider behavior, quota, cost, and paid-provider delivery.",
+        "SES or other email send/receive delivery.",
+        "Deployed API, portal, worker, DNS/TLS, runtime health, and staging end-to-end behavior.",
+        "Production monitoring, incident-response ownership, rollback execution, and final release-manifest approval."
+      ],
+      "evidence": [
+        "artifacts/local-validation/report.md",
+        "artifacts/uat/task8-prerequisite-assessment/report.md",
+        "artifacts/task9-bounded-live-validation-prerequisite/report.md"
+      ]
+    }
+  },
+  "ordered_gates": [
+    {
+      "order": 1,
+      "gate": "static_inventory_and_threat_review",
+      "decision": "NO-GO",
+      "evidence_state": "TESTED_WITH_RELEASE_IDENTITY_BLOCKER",
+      "reasons": [
+        "Recorded static inventory result is PASS for its recorded scope.",
+        "Current worktree has uncommitted changes, so the assessed artifact is not immutably identified for this checkout.",
+        "A historical or HEAD-only identity cannot close the current release gate."
+      ],
+      "evidence_required_to_reopen": [
+        "Clean or otherwise immutable release checkout.",
+        "Fresh redacted release identity manifest bound to the exact source revision and artifact inputs.",
+        "Fresh static inventory/threat review for that same identity."
+      ]
+    },
+    {
+      "order": 2,
+      "gate": "reproducible_local_build_and_focused_tests",
+      "decision": "NO-GO",
+      "evidence_state": "TESTED_WITH_FAILURES",
+      "reasons": [
+        "compose.build failed because the Docker Desktop Linux engine was unavailable.",
+        "compose.service.startup.diagnostics failed for the same unavailable Docker engine.",
+        "full.system.static.contracts failed because the full migration did not mirror the canonical migration chain.",
+        "security.release.gate failed on the full-migration-mirrors-chain check (32/33).",
+        "Focused task-10 contract validation failed 5 tests, so the offline evaluator contract is not fully green."
+      ],
+      "evidence_required_to_reopen": [
+        "Fresh local report bound to the selected immutable release identity.",
+        "Passing migration-chain consistency and security release checks.",
+        "Successful reproducible Compose build/startup or an explicitly bounded, reproducible replacement artifact.",
+        "Focused gate and redaction contract suite passes without evaluator-classification failures."
+      ]
+    },
+    {
+      "order": 3,
+      "gate": "isolated_uat",
+      "decision": "NO-GO",
+      "evidence_state": "BLOCKED_NOT_TESTED",
+      "reasons": [
+        "Task 8 prerequisite assessment is BLOCKED and all UAT checks remain NOT TESTED.",
+        "No approved isolated target, private runtime profile, identities/fixtures, Wave 7 approval, or bounded cleanup/rollback/evidence ownership was supplied."
+      ],
+      "evidence_required_to_reopen": [
+        "Wave 7 approval and complete secret-free prerequisite bundle.",
+        "Approved isolated UAT deployment, Supabase project, identities, fixtures, budgets, and selected checks.",
+        "Redacted UAT manifest with exact results, cleanup, rollback/recovery, and limitations."
+      ]
+    },
+    {
+      "order": 4,
+      "gate": "controlled_live_verification",
+      "decision": "NO-GO",
+      "evidence_state": "BLOCKED_UNVERIFIED",
+      "reasons": [
+        "Task 9 prerequisite assessment is BLOCKED; live validation was not executed.",
+        "Required authorization, target, credential ownership, maintenance window, monitoring/stop owner, budgets, cleanup, rollback/recovery, and evidence destination are missing.",
+        "No live claim may be inferred from static or local evidence."
+      ],
+      "evidence_required_to_reopen": [
+        "Approved non-destructive live profile with private credential references and explicit target scope.",
+        "Closed prior gates and current UAT evidence where required.",
+        "Bounded checks, numeric budgets, stop conditions, monitoring owner, cleanup plan, rollback/recovery runbook, and separate live manifest."
+      ]
+    },
+    {
+      "order": 5,
+      "gate": "final_release_approval",
+      "decision": "NO-GO",
+      "evidence_state": "BLOCKED_BY_PRIOR_GATES_AND_MISSING_APPROVAL_EVIDENCE",
+      "reasons": [
+        "Gate 1 is not closed for the current immutable release identity.",
+        "Gate 2 has recorded local failures.",
+        "Gate 3 is BLOCKED/NOT TESTED.",
+        "Gate 4 is BLOCKED/UNVERIFIED.",
+        "Monitoring/alert ownership, incident-response evidence, rollback/recovery evidence, support ownership, and release-manifest approval are not established for final approval."
+      ],
+      "evidence_required_to_reopen": [
+        "All prior gates PASS with matching, non-stale evidence classes and source revision.",
+        "Monitoring and alert ownership, support ownership, incident-response evidence, and rollback/recovery runbook.",
+        "Approved redacted release manifest and operator approval for the selected release."
+      ]
+    }
+  ],
+  "exact_blockers": [
+    {
+      "id": "release-identity-current-checkout",
+      "severity": "high",
+      "evidence_class": "static",
+      "finding": "The current sqlfix_latest worktree is dirty; existing identity evidence does not bind all current files to one immutable assessed artifact.",
+      "evidence": "artifacts/static-inventory/task2-manifest.json; artifacts/task9-bounded-live-validation-prerequisite/report.json"
+    },
+    {
+      "id": "local-migration-chain",
+      "severity": "high",
+      "evidence_class": "local",
+      "finding": "The canonical migration chain is not mirrored by the full migration; both full-system static contracts and the security release gate fail.",
+      "evidence": "artifacts/local-validation/full_system_static_contracts.log; artifacts/local-validation/security_release_gate.log"
+    },
+    {
+      "id": "local-compose-engine",
+      "severity": "high",
+      "evidence_class": "local",
+      "finding": "Compose build and startup diagnostics cannot connect to the Docker Desktop Linux engine.",
+      "evidence": "artifacts/local-validation/compose_build.log; artifacts/local-validation/compose_service_logs.log"
+    },
+    {
+      "id": "offline-evaluator-contract",
+      "severity": "medium",
+      "evidence_class": "local",
+      "finding": "Focused task-10 contract validation has 5 failures: empty source_paths are classified as blocked before temporary commands execute, and unavailable executables receive the wrong diagnosis.",
+      "evidence": "tests/test_final_gtm_audit.py; tests/test_task10_5_operational_evidence.py",
+      "validation": "53 passed, 5 failed"
+    },
+    {
+      "id": "uat-prerequisites",
+      "severity": "high",
+      "evidence_class": "uat",
+      "finding": "UAT is BLOCKED/NOT TESTED because its approved isolated prerequisites and Wave 7 approval are absent.",
+      "evidence": "artifacts/uat/task8-prerequisite-assessment/report.json"
+    },
+    {
+      "id": "live-prerequisites",
+      "severity": "high",
+      "evidence_class": "live",
+      "finding": "Live validation is BLOCKED/UNVERIFIED because authorization, target, budgets, ownership, cleanup, recovery, and evidence prerequisites are absent.",
+      "evidence": "artifacts/task9-bounded-live-validation-prerequisite/report.json"
+    }
+  ],
+  "redaction": {
+    "applied": true,
+    "secrets_detected": false,
+    "note": "Only safe metadata, statuses, limitations, and relative artifact references are recorded."
+  }
+}

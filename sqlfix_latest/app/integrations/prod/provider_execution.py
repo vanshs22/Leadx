@@ -33,6 +33,10 @@ class ProviderExecutionContext:
     attempt: int = 1
     budget_remaining: float | None = None
     cancellation_event: asyncio.Event | None = None
+    # A monotonic absolute deadline shared by the free/deep/paid stages for one lead.
+    deadline_at: float | None = None
+    # Optional deterministic clock for offline tests; production uses time.monotonic.
+    monotonic_clock: Callable[[], float] | None = None
     metadata: dict[str, Any] = dc_field(default_factory=dict)
 
     @classmethod
@@ -52,6 +56,8 @@ class ProviderExecutionContext:
             attempt=max(1, int(raw.get("attempt") or 1)),
             budget_remaining=raw.get("budget_remaining"),
             cancellation_event=raw.get("cancellation_event"),
+            deadline_at=(float(raw["deadline_at"]) if raw.get("deadline_at") is not None else None),
+            monotonic_clock=raw.get("monotonic_clock") if callable(raw.get("monotonic_clock")) else None,
             metadata=dict(raw.get("metadata") or {}),
         )
 
@@ -63,6 +69,19 @@ class ProviderExecutionContext:
 
     def cancelled(self) -> bool:
         return bool(self.cancellation_event and self.cancellation_event.is_set())
+
+    def monotonic(self) -> float:
+        return float(self.monotonic_clock()) if self.monotonic_clock else time.monotonic()
+
+    def remaining_seconds(self) -> float | None:
+        """Return the shared waterfall budget left for this lead."""
+        if self.deadline_at is None:
+            return None
+        return max(0.0, float(self.deadline_at) - self.monotonic())
+
+    def expired(self) -> bool:
+        remaining = self.remaining_seconds()
+        return remaining is not None and remaining <= 0.0
 
 
 class ProviderCancelled(asyncio.CancelledError):

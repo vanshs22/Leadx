@@ -1,0 +1,107 @@
+{
+  "schema": "leadx.test-environment-production-validation.task7-gate.v2",
+  "task": "test-environment-production-validation.7",
+  "overall": "PASS",
+  "environment_class": "disposable-local-test",
+  "evidence_class": "sanitized local/test gate review",
+  "scope": "Reviewed task 1-6 evidence and task 8 browser-repair evidence only; no real target-five run",
+  "gate_checks": {
+    "exploration_pass": true,
+    "preservation_pass": true,
+    "tagged_synthetic_tenant_and_icp_pass": true,
+    "deterministic_local_replay_pass": true,
+    "task5_client_admin_ephemeral_states": "PASS",
+    "task6_authenticated_client_browser": "PASS",
+    "task6_authenticated_admin_browser": "PASS",
+    "task6_client_selected": 11,
+    "task6_client_passed": 11,
+    "task6_admin_selected": 11,
+    "task6_admin_passed": 11,
+    "task6_failed": 0,
+    "task6_skipped": 0,
+    "task8_browser_repair_evidence": "PASS",
+    "local_test_guard_parity_pass": true,
+    "authenticated_browser_guard_parity": "PASS for observed synthetic scope",
+    "provider_isolation_pass": true,
+    "forbidden_action_count": 0,
+    "forbidden_action_guard_status": "PASS",
+    "cap_compliance": "PASS",
+    "maximum_observed_or_allowed_target": 500,
+    "cleanup_ownership": "PASS; task 9 owns deletion and post-run verification of temporary browser state",
+    "temporary_browser_state_deleted_by_task7": false,
+    "reserved_count": "NOT_TESTED",
+    "independent_crm_client_reconciliation": "NOT_TESTED",
+    "local_test_gate": "PASS"
+  },
+  "evidence_review": {
+    "task1_exploration": {
+      "status": "PASS",
+      "observation": "Unsafe profiles fail closed without provider calls, remote mutations, durable rows, real runs, or secret handling.",
+      "source": "tests/runtime_exploration/test_test_environment_production_validation_exploration.py"
+    },
+    "task2_preservation": {
+      "status": "PASS",
+      "observation": "Authentication, tenant scope, RLS-shaped access, idempotency, provider isolation, forbidden-action denial, the 500 cap, and metadata-only realtime checks passed locally.",
+      "source": "tests/runtime_preservation/test_test_environment_production_validation_preservation.py"
+    },
+    "task3_tagged_fixture": {
+      "status": "PASS",
+      "observation": "The disposable fixture requires a disposable-local-test profile, unique run tag, synthetic tenant/ICP tags, bounded rows, guard parity, provider isolation, and the 500 cap.",
+      "source": "tests/test_disposable_validation_fixture.py"
+    },
+    "task4_deterministic_replay": {
+      "status": "PASS",
+      "observation": "First, same-key, conflicting, and fresh-key replay outcomes are deterministic, opaque on conflict, distinct for fresh work, and scoped for cleanup.",
+      "source": "tests/test_test_environment_production_validation_replay.py"
+    },
+    "task5_ephemeral_browser_auth": {
+      "status": "PASS",
+      "observation": "Normal local client and admin login flows reached their protected routes and created opaque temporary state paths; contents were not inspected.",
+      "source": "artifacts/local-validation/task5-ephemeral-browser-auth.json"
+    },
+    "task6_authenticated_playwright": {
+      "status": "PASS",
+      "observation": "Client and admin selected matrices each passed 11 of 11 checks with zero failures and zero skips. Synthetic browser evidence covers the observed request/status, trace, count, realtime, UI-state, prospecting, and tenant-safety scope.",
+      "source": "artifacts/local-validation/task6-authenticated-playwright-validation-rerun.json"
+    },
+    "task8_browser_repairs": {
+      "status": "PASS",
+      "observation": "Focused shared frontend contract and portal runtime guard checks passed 3 of 3. This is repair evidence only; no live task 8 run occurred.",
+      "sources": [
+        "artifacts/local-validation/task6-authenticated-playwright-validation-rerun.json",
+        "tests/test_task8_preflight_repair_artifact.py",
+        "tests/test_task8_local_auth.py"
+      ]
+    }
+  },
+  "limitations": [
+    "Reserved count is NOT_TESTED because the selected authenticated browser suite exposes no independent reserved-count assertion.",
+    "Independent CRM-versus-client reconciliation is NOT_TESTED because the selected authenticated browser suite exposes no independent comparison.",
+    "The browser evidence is local synthetic evidence and does not prove production, UAT, Supabase/RLS, provider, or realtime-service behavior.",
+    "Temporary browser-state deletion is owned by task 9 and is not claimed as completed by task 7."
+  ],
+  "task8": {
+    "status": "AUTHORIZED_ONLY",
+    "precondition": "Task 7 local/test gate passed for observed scope",
+    "real_target_five_started": false,
+    "automatic_submission": false
+  },
+  "safety": {
+    "env_or_credentials_read": false,
+    "env_or_credentials_printed": false,
+    "env_or_credentials_requested": false,
+    "state_contents_read": false,
+    "bypass_auth_created": false,
+    "auth_rls_tenant_provider_guards_disabled": false,
+    "real_tenant_used": false,
+    "providers_contacted": false,
+    "email_outreach_campaign_stripe_ses_invoked": false,
+    "remote_sql_or_migrations": false,
+    "destructive_reset_performed": false,
+    "unrelated_data_cleaned": false,
+    "real_pipeline_work_created": false,
+    "cap_violation": false
+  },
+  "decision": "PASS",
+  "authorization": "Authorize task 8 only; do not infer reserved count or independent CRM/client reconciliation."
+}

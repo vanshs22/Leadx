@@ -1,0 +1,80 @@
+{
+  "schema": "leadx.test-environment-production-validation.task8.continuation-rerun.v1",
+  "task": "test-environment-production-validation.8 continuation",
+  "decision": "BLOCKED",
+  "execution_performed": false,
+  "evidence_class": "sanitized live-runtime preflight",
+  "scope": {
+    "tenant_id": "5655f9d9-b3c7-48f9-bb95-9f3fe0675854",
+    "icp_id": "377aaa3e-5eae-41fc-a12a-570e791490b3",
+    "vertical": "marketing agency",
+    "geography": ["New Jersey", "New York", "Pennsylvania"],
+    "delivery": "portal",
+    "requested_target": 5,
+    "hard_cap": 500
+  },
+  "opaque_auth_state": {
+    "client_state_path_present": true,
+    "admin_state_path_present": true,
+    "contents_inspected": false,
+    "credentials_or_tokens_read_or_printed": false,
+    "client_final_route": "/dashboard",
+    "client_session_status": 200,
+    "client_exact_tenant_dashboard_status": 200,
+    "client_exact_tenant_pipeline_status": 200,
+    "client_exact_tenant_quota_status": 200,
+    "client_exact_tenant_requests_status": 200,
+    "admin_final_route": "/admin",
+    "admin_platform_session_status": 200,
+    "admin_exact_tenant_status": 200,
+    "admin_exact_icp_list_status": 500,
+    "authenticated_scope_gate": "BLOCKED"
+  },
+  "read_only_admission_observations": {
+    "admin_provider_health_status": 200,
+    "admin_queue_metrics_status": 200,
+    "admin_tenant_runs_status": 200,
+    "admin_tenant_discovery_status": 200,
+    "approved_provider_list_and_budget": "NOT_OBSERVABLE from sanitized authenticated responses",
+    "no_outbound_policy": "NOT_CONFIRMED at the authenticated admission boundary",
+    "durable_duplicate_active_work_preflight": "NOT_OBSERVABLE without protected/raw payload inspection",
+    "side_effect_ceiling": "NOT_OBSERVABLE",
+    "stop_conditions": "NOT_OBSERVABLE in runtime telemetry",
+    "cleanup_ownership": "NOT_OBSERVABLE before a run identity exists",
+    "monitoring": "PARTIAL; run and queue read endpoints responded, but required admission policy telemetry was incomplete",
+    "forbidden_action_guard": "PASS by non-execution"
+  },
+  "run": {
+    "submission_count": 0,
+    "pipeline_request_created": false,
+    "fresh_idempotency_key_created": false,
+    "provider_calls": 0,
+    "second_submission": false,
+    "retry_cancel_or_cleanup": false,
+    "terminal_status": null,
+    "stop_reason": "Stopped before submission because the exact ICP read returned HTTP 500 and provider/budget, no-outbound, duplicate-work, side-effect, stop-condition, and cleanup-ownership gates were not all observable and passing."
+  },
+  "validation_results": {
+    "assigned_at_least_5": "NOT_TESTED",
+    "delivered_at_least_5": "NOT_TESTED",
+    "completed_status": "NOT_TESTED",
+    "crm_client_reconciliation": "NOT_TESTED",
+    "task_realtime_count_convergence": "NOT_TESTED",
+    "timing": "NOT_TESTED"
+  },
+  "safety_boundary": {
+    "env_values_read": false,
+    "credentials_read_printed_requested_or_persisted": false,
+    "storage_state_contents_read": false,
+    "raw_payloads_printed": false,
+    "email_outreach_campaign_stripe_ses": 0,
+    "provider_calls": false,
+    "pipeline_request_created": false,
+    "database_mutation": false,
+    "queue_mutation": false,
+    "migration_or_sql_mutation": false,
+    "reset_or_data_cleanup": false,
+    "cap_violation": false
+  },
+  "next_gate": "Resolve the authenticated exact-ICP HTTP 500 and expose sanitized admission telemetry for approved providers/budgets, no-outbound policy, duplicate active work, side-effect ceiling, stop conditions, and cleanup ownership. Then rerun read-only preflight; do not submit until every gate is PASS."
+}

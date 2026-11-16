@@ -1,0 +1,340 @@
+{
+  "benchmark_targets": [
+    5,
+    10,
+    50
+  ],
+  "cap_validation": {
+    "accepted_at_request_boundary": true,
+    "executed": false,
+    "target": 500,
+    "target_501_rejected": true
+  },
+  "evidence_boundary": "local synthetic fixtures only",
+  "evidence_class": "synthetic/offline",
+  "forbidden_action_counters": {
+    "campaign": 0,
+    "email": 0,
+    "outreach": 0,
+    "ses": 0,
+    "stripe": 0
+  },
+  "latency_claim": null,
+  "limitations": [
+    "Synthetic timings do not establish provider, deployed, or production speed.",
+    "No 20-30 second acceptance claim is evaluated by this matrix.",
+    "Target 500 is validated only at the request boundary and is not benchmarked."
+  ],
+  "production_speed_claim": false,
+  "provider_calls": 0,
+  "result": "MEASURED",
+  "runs": [
+    {
+      "cache": {
+        "hit_count": 2,
+        "hit_rate": 0.4
+      },
+      "concurrency": {
+        "configured_route_limit": 3,
+        "observed_route_max": 1,
+        "source_lanes": 3
+      },
+      "measurement": {
+        "authoritative_counts": {
+          "assigned": 5,
+          "delivered": 5,
+          "reserved": 5
+        },
+        "batch_mode": "existing-idempotent-boundaries",
+        "cancellation_outcome": {
+          "fenced": 0,
+          "late_writes": 0,
+          "status": "not_cancelled"
+        },
+        "counts": {
+          "assigned": 5,
+          "delivered": 5,
+          "reserved": 5
+        },
+        "elapsed_seconds": 0.0008398001082241535,
+        "end_timestamp": "2026-11-13T08:33:46.964384+00:00",
+        "enrichment_mode": "free-first/cache-aware",
+        "environment_class": "offline",
+        "evidence_class": "synthetic/offline",
+        "failures": {
+          "assignment": 0,
+          "delivery": 0,
+          "discovery": 0,
+          "enrichment": 0,
+          "persistence": 0
+        },
+        "forbidden_action_counters": {
+          "campaign": 0,
+          "email": 0,
+          "outreach": 0,
+          "ses": 0,
+          "stripe": 0
+        },
+        "provider_mode": "local_synthetic_denied",
+        "provider_overrun_count": 0,
+        "queue_outcome": {
+          "admitted": 3,
+          "discarded_after_stop": 0,
+          "max_depth": 3,
+          "status": "drained"
+        },
+        "route_count": 3,
+        "route_source_counts": {
+          "local": 1,
+          "osm": 1,
+          "web": 1
+        },
+        "stage_timings": {
+          "assignment": {
+            "duration_ms": 0.0,
+            "end_ms": 0.829,
+            "start_ms": 0.829
+          },
+          "delivery": {
+            "duration_ms": 0.0,
+            "end_ms": 0.832,
+            "start_ms": 0.832
+          },
+          "discovery": {
+            "duration_ms": 0.798,
+            "end_ms": 0.816,
+            "start_ms": 0.018
+          },
+          "enrichment": {
+            "duration_ms": 0.001,
+            "end_ms": 0.825,
+            "start_ms": 0.824
+          },
+          "persistence": {
+            "duration_ms": 0.0,
+            "end_ms": 0.827,
+            "start_ms": 0.827
+          }
+        },
+        "start_timestamp": "2026-11-13T08:33:46.964384+00:00",
+        "stop_reason": "target_met",
+        "target_count": 5,
+        "target_metric": "assigned",
+        "target_size": 5,
+        "workload_boundary": "synthetic target-speed matrix; hard cap 500; no live run"
+      },
+      "paid_fallback": {
+        "count": 0,
+        "provider_mode": "denied"
+      },
+      "result": "MEASURED",
+      "target": 5,
+      "total_elapsed_seconds": 0.00084
+    },
+    {
+      "cache": {
+        "hit_count": 5,
+        "hit_rate": 0.5
+      },
+      "concurrency": {
+        "configured_route_limit": 3,
+        "observed_route_max": 1,
+        "source_lanes": 3
+      },
+      "measurement": {
+        "authoritative_counts": {
+          "assigned": 10,
+          "delivered": 10,
+          "reserved": 10
+        },
+        "batch_mode": "existing-idempotent-boundaries",
+        "cancellation_outcome": {
+          "fenced": 0,
+          "late_writes": 0,
+          "status": "not_cancelled"
+        },
+        "counts": {
+          "assigned": 10,
+          "delivered": 10,
+          "reserved": 10
+        },
+        "elapsed_seconds": 0.0004891999997198582,
+        "end_timestamp": "2026-11-13T08:33:46.964384+00:00",
+        "enrichment_mode": "free-first/cache-aware",
+        "environment_class": "offline",
+        "evidence_class": "synthetic/offline",
+        "failures": {
+          "assignment": 0,
+          "delivery": 0,
+          "discovery": 0,
+          "enrichment": 0,
+          "persistence": 0
+        },
+        "forbidden_action_counters": {
+          "campaign": 0,
+          "email": 0,
+          "outreach": 0,
+          "ses": 0,
+          "stripe": 0
+        },
+        "provider_mode": "local_synthetic_denied",
+        "provider_overrun_count": 0,
+        "queue_outcome": {
+          "admitted": 3,
+          "discarded_after_stop": 0,
+          "max_depth": 3,
+          "status": "drained"
+        },
+        "route_count": 3,
+        "route_source_counts": {
+          "local": 1,
+          "osm": 1,
+          "web": 1
+        },
+        "stage_timings": {
+          "assignment": {
+            "duration_ms": 0.0,
+            "end_ms": 0.481,
+            "start_ms": 0.48
+          },
+          "delivery": {
+            "duration_ms": 0.0,
+            "end_ms": 0.483,
+            "start_ms": 0.482
+          },
+          "discovery": {
+            "duration_ms": 0.465,
+            "end_ms": 0.468,
+            "start_ms": 0.003
+          },
+          "enrichment": {
+            "duration_ms": 0.001,
+            "end_ms": 0.475,
+            "start_ms": 0.474
+          },
+          "persistence": {
+            "duration_ms": 0.001,
+            "end_ms": 0.478,
+            "start_ms": 0.477
+          }
+        },
+        "start_timestamp": "2026-11-13T08:33:46.964384+00:00",
+        "stop_reason": "target_met",
+        "target_count": 10,
+        "target_metric": "assigned",
+        "target_size": 10,
+        "workload_boundary": "synthetic target-speed matrix; hard cap 500; no live run"
+      },
+      "paid_fallback": {
+        "count": 0,
+        "provider_mode": "denied"
+      },
+      "result": "MEASURED",
+      "target": 10,
+      "total_elapsed_seconds": 0.000489
+    },
+    {
+      "cache": {
+        "hit_count": 25,
+        "hit_rate": 0.5
+      },
+      "concurrency": {
+        "configured_route_limit": 3,
+        "observed_route_max": 1,
+        "source_lanes": 3
+      },
+      "measurement": {
+        "authoritative_counts": {
+          "assigned": 50,
+          "delivered": 50,
+          "reserved": 50
+        },
+        "batch_mode": "existing-idempotent-boundaries",
+        "cancellation_outcome": {
+          "fenced": 0,
+          "late_writes": 0,
+          "status": "not_cancelled"
+        },
+        "counts": {
+          "assigned": 50,
+          "delivered": 50,
+          "reserved": 50
+        },
+        "elapsed_seconds": 0.0004928000271320343,
+        "end_timestamp": "2026-11-13T08:33:46.964384+00:00",
+        "enrichment_mode": "free-first/cache-aware",
+        "environment_class": "offline",
+        "evidence_class": "synthetic/offline",
+        "failures": {
+          "assignment": 0,
+          "delivery": 0,
+          "discovery": 0,
+          "enrichment": 0,
+          "persistence": 0
+        },
+        "forbidden_action_counters": {
+          "campaign": 0,
+          "email": 0,
+          "outreach": 0,
+          "ses": 0,
+          "stripe": 0
+        },
+        "provider_mode": "local_synthetic_denied",
+        "provider_overrun_count": 0,
+        "queue_outcome": {
+          "admitted": 3,
+          "discarded_after_stop": 0,
+          "max_depth": 3,
+          "status": "drained"
+        },
+        "route_count": 3,
+        "route_source_counts": {
+          "local": 1,
+          "osm": 1,
+          "web": 1
+        },
+        "stage_timings": {
+          "assignment": {
+            "duration_ms": 0.0,
+            "end_ms": 0.481,
+            "start_ms": 0.481
+          },
+          "delivery": {
+            "duration_ms": 0.0,
+            "end_ms": 0.483,
+            "start_ms": 0.483
+          },
+          "discovery": {
+            "duration_ms": 0.463,
+            "end_ms": 0.466,
+            "start_ms": 0.003
+          },
+          "enrichment": {
+            "duration_ms": 0.001,
+            "end_ms": 0.475,
+            "start_ms": 0.473
+          },
+          "persistence": {
+            "duration_ms": 0.001,
+            "end_ms": 0.478,
+            "start_ms": 0.478
+          }
+        },
+        "start_timestamp": "2026-11-13T08:33:46.964384+00:00",
+        "stop_reason": "target_met",
+        "target_count": 50,
+        "target_metric": "assigned",
+        "target_size": 50,
+        "workload_boundary": "synthetic target-speed matrix; hard cap 500; no live run"
+      },
+      "paid_fallback": {
+        "count": 0,
+        "provider_mode": "denied"
+      },
+      "result": "MEASURED",
+      "target": 50,
+      "total_elapsed_seconds": 0.000493
+    }
+  ],
+  "schema": "leadx.target5-speed-benchmark.v1"
+}

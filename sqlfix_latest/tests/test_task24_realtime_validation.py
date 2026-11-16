@@ -10,12 +10,17 @@ ROOT = Path(__file__).resolve().parents[1]
 MIGRATION = ROOT / "supabase/migrations/20261020001600_leadx_21_realtime_capture.sql"
 PORTAL = ROOT / "lead-crm-portal"
 
-# These are intentionally bounded fallbacks: views/global projections or tables
-# without a row-local tenant_id cannot safely publish tenant Broadcast events.
-# Their owning pages must reconcile through an authoritative API read instead.
+# These are intentionally bounded fallbacks: views/global projections, tables
+# without a row-local tenant_id, or task-trace tables not in the current
+# publication list cannot safely rely on tenant Broadcast events. Their owning
+# pages must reconcile through an authoritative API read instead.
+# The growth task-trace surfaces also use the page's visibility-aware bounded
+# API polling while their table filters are not in the current publication list.
 BOUNDED_FALLBACK_TABLES = {
-    "approval_inbox",
+    "agent_missions",
+    "agent_mission_tasks",
     "agent_approvals",
+    "approval_inbox",
     "email_sequence_steps",
     "lead_crm_cards",
     "leads_global",

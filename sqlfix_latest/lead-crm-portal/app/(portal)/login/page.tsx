@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { signInWithPassword } from "@/lib/auth";
 import { isLocalAuthProfile } from "@/lib/config";
@@ -8,8 +8,6 @@ import { Icon } from "@/components/ui/Icon";
 
 export default function ClientLoginPage() {
   const router = useRouter();
-  // Warm the dashboard bundle while the user enters credentials.
-  useEffect(() => { try { router.prefetch("/dashboard"); } catch {} }, [router]);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");

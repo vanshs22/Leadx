@@ -1,0 +1,86 @@
+{
+  "schema": "leadx.test-environment-production-validation.task10-final-manual-check.v1",
+  "task": "test-environment-production-validation.10",
+  "decision": "BLOCKED",
+  "decision_scope": "live-target-five-validation",
+  "local_test_scope": "PASS_WITH_NOT_TESTED_LIMITATIONS",
+  "evidence_class": "sanitized-local-test-and-live-prerequisite-review",
+  "execution": {
+    "task8_submission_count": 0,
+    "task8_execution_performed": false,
+    "task8_retry_or_second_run": false,
+    "live_pipeline_request_created": false,
+    "live_run_id": null,
+    "live_job_id": null,
+    "live_terminal_status": null
+  },
+  "local_test_evidence": {
+    "exploration": "PASS",
+    "preservation": "PASS",
+    "disposable_fixture": "PASS",
+    "durable_replay": "PASS",
+    "ephemeral_authenticated_browser_setup": "PASS_OBSERVED_SCOPE",
+    "authenticated_client_browser": "PASS_OBSERVED_SCOPE",
+    "authenticated_admin_browser": "PASS_OBSERVED_SCOPE",
+    "browser_reserved_count": "NOT_TESTED",
+    "browser_crm_client_reconciliation": "NOT_TESTED",
+    "local_test_gate": "PASS_OBSERVED_SCOPE",
+    "runtime_restoration": "PASS",
+    "cleanup": "PASS",
+    "guard_parity": "PASS_OBSERVED_SCOPE",
+    "no_outbound": "PASS"
+  },
+  "live_evidence": {
+    "task8_admission": "BLOCKED",
+    "authenticated_scope": "BLOCKED",
+    "live_monitoring": "NOT_OBSERVABLE",
+    "side_effect_ceiling": "NOT_OBSERVABLE",
+    "approved_provider_and_budget": "NOT_OBSERVABLE",
+    "fresh_idempotency_identity": "NOT_CREATED",
+    "real_provider_evidence": "NOT_TESTED",
+    "real_task_trace": "NOT_TESTED",
+    "real_realtime_convergence": "NOT_TESTED",
+    "live_timing": "NOT_TESTED",
+    "assigned_at_least_5": "NOT_TESTED",
+    "delivered_at_least_5": "NOT_TESTED",
+    "completed_status": "NOT_TESTED",
+    "crm_client_reconciliation": "NOT_TESTED"
+  },
+  "blocking_findings": [
+    "Task 8 stopped before submission because authenticated scope probes were unauthorized.",
+    "Live monitoring, side-effect ceilings, approved provider/budget policy, stop conditions, and cleanup ownership were not observable.",
+    "No real target-five request, provider/task execution, realtime convergence, timing, or business-state result exists.",
+    "Local synthetic assigned/delivered values cannot satisfy live acceptance criteria."
+  ],
+  "safety_boundary": {
+    "env_values_read": false,
+    "credentials_read_printed_requested_or_persisted": false,
+    "storage_state_contents_read": false,
+    "auth_rls_tenant_provider_guards_disabled": false,
+    "providers_contacted": false,
+    "supabase_contacted": false,
+    "remote_sql_or_migrations": false,
+    "destructive_reset": false,
+    "queue_or_redis_clear": false,
+    "email_outreach_campaign_stripe_ses": 0,
+    "duplicate_active_real_run": false,
+    "cap_violation": false
+  },
+  "evidence_sources": [
+    "tests/runtime_exploration/test_test_environment_production_validation_exploration.py",
+    "tests/runtime_preservation/test_test_environment_production_validation_preservation.py",
+    "tests/test_disposable_validation_fixture.py",
+    "tests/test_test_environment_production_validation_replay.py",
+    "artifacts/local-validation/task5-ephemeral-browser-auth.json",
+    "artifacts/local-validation/task6-authenticated-playwright-validation-rerun.json",
+    "artifacts/local-validation/task7-test-environment-production-validation-gate.json",
+    "artifacts/local-validation/task9-cleanup-restoration-evidence.json",
+    "artifacts/real-validation/task8-test-environment-production-validation-report.json"
+  ],
+  "redaction": {
+    "applied": true,
+    "secrets_detected": false,
+    "note": "Only sanitized statuses, bounded counts, evidence classes, and artifact references are recorded."
+  },
+  "reopen_condition": "Do not submit or retry task 8 until authenticated scope, monitoring, side-effect ceilings, provider/budget policy, stop conditions, and cleanup ownership are independently available and approved."
+}

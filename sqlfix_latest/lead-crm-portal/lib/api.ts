@@ -48,12 +48,26 @@ export function invalidateApiCache(prefix = "", tenantId?: string) {
 }
 
 /** Advance the client tenant boundary before replacing the active workspace. */
+export function clearPortalProjectionStorage(storage?: Pick<Storage, "length" | "key" | "removeItem">) {
+  const target = storage || (typeof window !== "undefined" ? sessionStorage : undefined);
+  if (!target) return;
+  try {
+    for (let index = target.length - 1; index >= 0; index -= 1) {
+      const key = target.key(index);
+      if (key?.startsWith("leadx:")) target.removeItem(key);
+    }
+  } catch {
+    // Storage may be unavailable in private browsing; API scope still resets.
+  }
+}
+
 export function beginTenantSwitch(previousTenantId?: string) {
   TENANT_SCOPE_EPOCH += 1;
   abortRequests(previousTenantId);
   GET_CACHE_EPOCH += 1;
   GET_CACHE.clear();
   GET_INFLIGHT.clear();
+  clearPortalProjectionStorage();
 }
 
 function staleScopeError(): DOMException {

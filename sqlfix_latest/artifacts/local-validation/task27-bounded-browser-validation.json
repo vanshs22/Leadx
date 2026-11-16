@@ -1,0 +1,121 @@
+{
+  "schema": "leadx.task27.bounded-browser-validation.v1",
+  "task": "27",
+  "run_mode": "bounded_local_browser_validation",
+  "evidence_classes": {
+    "browser": "localhost browser evidence only",
+    "local_stack": "local container and localhost HTTP diagnostics",
+    "production_shaped": "existing leadx-real-validation local Compose profile",
+    "uat": "BLOCKED",
+    "live_provider": "BLOCKED"
+  },
+  "safety": {
+    "env_read": false,
+    "secrets_printed_or_requested": false,
+    "real_provider_calls": false,
+    "supabase_stripe_ses_calls": false,
+    "email_outreach_campaign_or_billing_actions": false,
+    "destructive_migrations_or_resets": false,
+    "application_files_modified": false,
+    "external_browser_requests_blocked": true
+  },
+  "endpoints": [
+    {"url": "http://localhost:3000", "role": "portal", "status": "PASS", "http_status": 200},
+    {"url": "http://localhost:3000/api/health", "role": "portal health", "status": "PASS", "http_status": 200},
+    {"url": "http://localhost:8000/health", "role": "api health", "status": "PASS", "http_status": 200},
+    {"url": "http://localhost:8000/health/ready", "role": "api readiness", "status": "PASS", "http_status": 200},
+    {"url": "localhost:6379", "role": "Redis", "status": "PASS", "result": "PONG"}
+  ],
+  "stack": {
+    "profile": "leadx-real-validation",
+    "services": [
+      {"service": "api", "status": "PASS", "container_health": "healthy", "restarts": 0, "port": "8000"},
+      {"service": "portal", "status": "PASS", "container_health": "healthy", "restarts": 0, "port": "3000"},
+      {"service": "worker", "status": "PASS", "container_health": "healthy", "restarts": 0},
+      {"service": "redis", "status": "PASS", "container_health": "healthy", "restarts": 0, "port": "6379"}
+    ],
+    "readiness_observation": {
+      "db": "ready as reported by local API readiness endpoint; remote database behavior not independently tested",
+      "redis": "ready",
+      "auth": "ready at service boundary",
+      "worker": "ready; healthy_count=1; active_jobs=0; reclaim_capability=true",
+      "queue": "ready; depth=6; queued=0; running=6; failed=93",
+      "routes": "ready; missing=[]"
+    },
+    "diagnostic_limitations": [
+      "No container log contents were copied into the report. Bounded tail diagnostics found no worker, portal, or Redis error matches; API tail contained request-failure telemetry and was not promoted to a root-cause claim.",
+      "The currently running profile does not expose an approved authenticated test account to the browser. The documented local fixture profile was not started because ports were already occupied by the running profile and no existing process was stopped."
+    ]
+  },
+  "browser": {
+    "base_url": "http://localhost:3000",
+    "desktop_viewport": "1280x800",
+    "mobile_viewport": "375x812",
+    "desktop_unique_routes": 14,
+    "mobile_routes_checked": 6,
+    "console_error_events": 0,
+    "page_error_events": 0,
+    "horizontal_overflow_failures": 0,
+    "navigation_links_observed": 7,
+    "public_routes": [
+      {"route": "/", "status": "PASS", "http": 200, "result": "home rendered"},
+      {"route": "/pricing", "status": "PASS", "http": 200, "result": "pricing rendered"},
+      {"route": "/signup", "status": "PASS", "http": 200, "result": "signup rendered"},
+      {"route": "/login", "status": "PASS", "http": 200, "result": "client login rendered"},
+      {"route": "/admin/login", "status": "PASS", "http": 200, "result": "admin login rendered"},
+      {"route": "/accept-invite", "status": "PASS", "http": 200, "result": "invite state rendered"},
+      {"route": "/verify-email", "status": "PASS", "http": 200, "result": "verification state rendered"},
+      {"route": "/audit/demo", "status": "PASS", "http": 200, "result": "safe loading state observed; audit data not authenticated/tested"},
+      {"route": "/privacy", "status": "BLOCKED", "http": 200, "final_route": "/login?next=%2Fprivacy", "result": "auth redirect"},
+      {"route": "/security", "status": "BLOCKED", "http": 200, "final_route": "/login?next=%2Fsecurity", "result": "auth redirect"},
+      {"route": "/terms", "status": "BLOCKED", "http": 200, "final_route": "/login?next=%2Fterms", "result": "auth redirect"},
+      {"route": "/dpa", "status": "BLOCKED", "http": 200, "final_route": "/login?next=%2Fdpa", "result": "auth redirect"},
+      {"route": "/sample", "status": "BLOCKED", "http": 200, "final_route": "/login?next=%2Fsample", "result": "auth redirect"},
+      {"route": "/checkout", "status": "BLOCKED", "http": 200, "final_route": "/login?next=%2Fcheckout", "result": "auth redirect"}
+    ],
+    "client_routes": [
+      {"route": "/dashboard", "status": "BLOCKED"}, {"route": "/growth", "status": "BLOCKED"}, {"route": "/today", "status": "BLOCKED"}, {"route": "/search", "status": "BLOCKED"}, {"route": "/leads", "status": "BLOCKED"}, {"route": "/companies", "status": "BLOCKED"}, {"route": "/contacts", "status": "BLOCKED"}, {"route": "/deals", "status": "BLOCKED"}, {"route": "/sequences", "status": "BLOCKED"}, {"route": "/automations", "status": "BLOCKED"}, {"route": "/agents", "status": "BLOCKED"}, {"route": "/compose", "status": "BLOCKED"}, {"route": "/replies", "status": "BLOCKED"}, {"route": "/notifications", "status": "BLOCKED"}, {"route": "/pipeline", "status": "BLOCKED"}, {"route": "/activities", "status": "BLOCKED"}, {"route": "/reports", "status": "BLOCKED"}, {"route": "/revenue", "status": "BLOCKED"}, {"route": "/import", "status": "BLOCKED"}, {"route": "/team", "status": "BLOCKED"}, {"route": "/docs", "status": "BLOCKED"}, {"route": "/settings", "status": "BLOCKED"}, {"route": "/logs", "status": "BLOCKED"}, {"route": "/intelligence", "status": "BLOCKED"}, {"route": "/approvals", "status": "BLOCKED"}, {"route": "/onboarding", "status": "BLOCKED"}
+    ],
+    "admin_routes": [
+      {"route": "/admin", "status": "BLOCKED"}, {"route": "/admin/agents", "status": "BLOCKED"}, {"route": "/admin/automation", "status": "BLOCKED"}, {"route": "/admin/autonomous", "status": "BLOCKED"}, {"route": "/admin/health", "status": "BLOCKED"}, {"route": "/admin/icps", "status": "BLOCKED"}, {"route": "/admin/intelligence", "status": "BLOCKED"}, {"route": "/admin/jobs", "status": "BLOCKED"}, {"route": "/admin/keys", "status": "BLOCKED"}, {"route": "/admin/leads", "status": "BLOCKED"}, {"route": "/admin/notifications", "status": "BLOCKED"}, {"route": "/admin/ops", "status": "BLOCKED"}, {"route": "/admin/pipeline", "status": "BLOCKED"}, {"route": "/admin/prospecting", "status": "BLOCKED"}, {"route": "/admin/replies", "status": "BLOCKED"}, {"route": "/admin/runs", "status": "BLOCKED"}, {"route": "/admin/scale", "status": "BLOCKED"}, {"route": "/admin/search", "status": "BLOCKED"}, {"route": "/admin/security", "status": "BLOCKED"}, {"route": "/admin/support", "status": "BLOCKED"}, {"route": "/admin/suppression", "status": "BLOCKED"}, {"route": "/admin/tenants", "status": "BLOCKED"}, {"route": "/admin/territory", "status": "BLOCKED"}, {"route": "/admin/usage", "status": "BLOCKED"}
+    ]
+  },
+  "flow_results": [
+    {"flow": "public client login page", "status": "PASS", "evidence": "browser/local-stack", "detail": "200; Welcome back"},
+    {"flow": "public admin login page", "status": "PASS", "evidence": "browser/local-stack", "detail": "200; Admin access"},
+    {"flow": "authenticated client navigation", "status": "BLOCKED", "evidence": "browser/local-stack", "detail": "No approved account; 26 client routes redirected to /login"},
+    {"flow": "authenticated admin navigation", "status": "BLOCKED", "evidence": "browser/local-stack", "detail": "No approved account; 24 admin routes redirected to /admin/login"},
+    {"flow": "task-first lead-generation request", "status": "BLOCKED", "evidence": "browser/local-stack", "detail": "Unauthenticated GET and bounded POST to /crm/local-tenant/agent-missions returned 401; no run was created"},
+    {"flow": "GTM selected-subset/profile trace", "status": "BLOCKED", "evidence": "browser/local-stack", "detail": "Requires authenticated client/admin session; no profile trace was claimed"},
+    {"flow": "run progress/refetch/private invalidation", "status": "BLOCKED", "evidence": "browser/local-stack", "detail": "Requires an authenticated run; no realtime or invalidation success was claimed"},
+    {"flow": "stop/withdraw/cancel controls", "status": "BLOCKED", "evidence": "browser/local-stack", "detail": "Bounded unauthenticated cancel probe returned 401; authenticated control was not tested"},
+    {"flow": "logs/worker/queue diagnostics", "status": "PASS", "evidence": "local-stack", "detail": "All four containers healthy; Redis PONG; API readiness reported worker/queue/reclaim ready"},
+    {"flow": "safe failure and loading states", "status": "PASS", "evidence": "browser/local-stack", "detail": "Auth boundary returned 401; audit demo rendered a safe loading state; no page/console errors"},
+    {"flow": "outreach/sequence/campaign/reply/email/billing actions", "status": "NOT_TESTED", "evidence": "local-stack", "detail": "Explicitly excluded by safety scope"},
+    {"flow": "UAT/live-provider/deployment validation", "status": "BLOCKED", "evidence": "none", "detail": "Tasks 23 and 24 remain blocked and were not simulated"}
+  ],
+  "safe_api_probes": [
+    {"method": "GET", "path": "/crm/local-tenant/agent-missions", "status": "BLOCKED", "http": 401, "detail": "missing authenticated session"},
+    {"method": "POST", "path": "/crm/local-tenant/agent-missions", "status": "BLOCKED", "http": 401, "detail": "missing authenticated session; no side effect"},
+    {"method": "POST", "path": "/crm/local-tenant/agent-missions/invalid/cancel", "status": "BLOCKED", "http": 401, "detail": "missing authenticated session; no side effect"}
+  ],
+  "commands": [
+    "git status --short (workspace inspection)",
+    "docker ps --format ... (existing stack inspection; no start/rebuild needed)",
+    "docker inspect ... (health/restart inspection)",
+    "docker exec leadx-real-validation-redis-1 redis-cli ping",
+    "Invoke-WebRequest localhost:3000/api/health, localhost:8000/health, localhost:8000/health/ready",
+    "Playwright via node - from lead-crm-portal; bounded route checks with non-local requests aborted"
+  ],
+  "counts": {
+    "public_unique_routes": {"pass": 8, "blocked": 6, "fail": 0, "not_tested": 0},
+    "protected_routes": {"client_blocked": 26, "admin_blocked": 24, "fail": 0},
+    "browser_errors": {"console": 0, "page": 0, "horizontal_overflow": 0},
+    "safe_api_probes": {"pass": 0, "blocked": 3, "fail": 0}
+  },
+  "limitations": [
+    "This is local browser/local-stack evidence only and is not UAT, live-provider, deployment, Supabase/RLS/realtime, Stripe, SES, or production-data evidence.",
+    "No authenticated account, cookies, token, password, or secret was used. Authenticated client/admin, task execution, GTM subset execution, progress refetch, invalidation, and controls remain untested or blocked.",
+    "The running profile was not replaced because doing so would require stopping an existing local stack or changing its port occupancy."
+  ]
+}

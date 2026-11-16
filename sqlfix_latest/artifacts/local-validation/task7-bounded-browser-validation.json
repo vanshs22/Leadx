@@ -1,0 +1,176 @@
+{
+  "schema": "leadx.task7.bounded-browser-validation.v1",
+  "task": "7",
+  "overall": "BLOCKED",
+  "evidence_class": "synthetic/offline and browser-local contract only",
+  "environment": {
+    "portal_port_3000": "closed",
+    "api_port_8000": "closed",
+    "local_runtime_started": false,
+    "authenticated_ephemeral_fixture": "not available",
+    "provider_mode": "isolated; no provider response observed",
+    "supabase_contacted": false,
+    "credentials_or_env_values_inspected": false,
+    "cookies_tokens_passwords_or_storage_state_inspected": false,
+    "fixture_cleanup": "PASS; this run created no authentication or service fixture files"
+  },
+  "safety": {
+    "email_outreach_campaign_stripe_ses": false,
+    "providers_contacted": false,
+    "supabase_contacted": false,
+    "pipeline_work_created": false,
+    "real_leads_created_or_delivered": false,
+    "remote_sql_or_migrations": false,
+    "secrets_recorded": false,
+    "note": "One broad Python fixture command emitted blocked net-safety/DNS warnings before failing an unrelated target-run assertion; no provider response or side effect occurred. The isolated task-7 checks made no provider call."
+  },
+  "commands": [
+    {
+      "command": "$r = Test-NetConnection -ComputerName 127.0.0.1 -Port 3000 -WarningAction SilentlyContinue; [pscustomobject]@{port=3000; tcp=$r.TcpTestSucceeded} | ConvertTo-Json -Compress",
+      "result": "BLOCKED",
+      "exit_code": 0,
+      "output": "{port:3000,tcp:false}",
+      "limitation": "No local portal runtime was listening."
+    },
+    {
+      "command": "$r = Test-NetConnection -ComputerName 127.0.0.1 -Port 8000 -WarningAction SilentlyContinue; [pscustomobject]@{port=8000; tcp=$r.TcpTestSucceeded} | ConvertTo-Json -Compress",
+      "result": "BLOCKED",
+      "exit_code": 0,
+      "output": "{port:8000,tcp:false}",
+      "limitation": "No local API runtime was listening."
+    },
+    {
+      "command": "python -m pytest tests/test_task5_3_enrichment.py tests/test_field_enrichment_evidence.py tests/test_target_enrichment_timeout.py -q",
+      "result": "FAIL",
+      "exit_code": 1,
+      "output": "25 passed; 2 failed",
+      "failures": [
+        "test_target_runner_persists_discovery_before_enrichment_and_overlaps_leads: KeyError crm_saved",
+        "test_target_run_timeout_filters_candidate_and_finishes: KeyError crm_saved"
+      ],
+      "limitation": "These are target-run reconciliation fixture failures outside the isolated task-7 enrichment/contact contracts. The run also logged blocked net-safety/DNS attempts; it did not contact a provider successfully."
+    },
+    {
+      "command": "python -m pytest tests/test_task5_3_enrichment.py -q -k \"scrapling or free_mesh or paid or invalid_contact or local_mode or contact or waterfall or merge_rejects\" --tb=short",
+      "result": "PASS",
+      "exit_code": 0,
+      "output": "17 passed",
+      "limitation": "Synthetic monkeypatched enrichment paths only; no real provider call."
+    },
+    {
+      "command": "python -m pytest tests/test_field_enrichment_evidence.py -q --tb=short",
+      "result": "PASS",
+      "exit_code": 0,
+      "output": "4 passed",
+      "limitation": "Offline field evidence and contact-integrity contracts only."
+    },
+    {
+      "command": "npx playwright test e2e/portal-contracts.spec.ts --grep \"shared frontend|portal API|task 7|normalizes terminal|local provider-isolated\" --reporter=line",
+      "result": "PASS",
+      "exit_code": 0,
+      "output": "11 passed",
+      "limitation": "Offline Playwright contracts only; runtime/authenticated suites were not selected."
+    },
+    {
+      "command": "npx playwright test e2e/portal-contracts.spec.ts --workers=1 --timeout=15000 --reporter=line",
+      "result": "PASS",
+      "exit_code": 0,
+      "output": "14 passed; 12 skipped; 26 total",
+      "limitation": "The 12 skipped checks require a configured local base URL and authenticated fixture. No runtime or authentication state was supplied or inspected."
+    }
+  ],
+  "checks": [
+    {
+      "name": "client request entry",
+      "status": "NOT_TESTED",
+      "evidence": "offline fixture source only",
+      "reason": "No local portal runtime or authenticated ephemeral fixture was available."
+    },
+    {
+      "name": "admin request entry",
+      "status": "NOT_TESTED",
+      "evidence": "offline fixture source only",
+      "reason": "No local portal runtime or authenticated ephemeral fixture was available."
+    },
+    {
+      "name": "same-key replay display",
+      "status": "NOT_TESTED",
+      "evidence": "none",
+      "reason": "No durable authenticated backend was available and no pipeline work was created."
+    },
+    {
+      "name": "conflicting replay display",
+      "status": "NOT_TESTED",
+      "evidence": "none",
+      "reason": "No durable authenticated backend was available and no pipeline work was created."
+    },
+    {
+      "name": "target-five progress",
+      "status": "NOT_TESTED",
+      "evidence": "synthetic source fixture only",
+      "reason": "Browser rendering and API progress were unavailable without the local runtime."
+    },
+    {
+      "name": "task trace",
+      "status": "NOT_TESTED",
+      "evidence": "synthetic source fixture only",
+      "reason": "No authenticated browser page rendered the trace."
+    },
+    {
+      "name": "discovered/enriched/qualified/assigned/reserved/delivered counts",
+      "status": "NOT_TESTED",
+      "evidence": "offline terminal normalization contract passed",
+      "reason": "The contract normalizer is covered, but no client/admin count projection rendered."
+    },
+    {
+      "name": "loading/empty/error states",
+      "status": "NOT_TESTED",
+      "evidence": "source contracts only",
+      "reason": "Authenticated state checks were skipped because no runtime/auth fixture was configured."
+    },
+    {
+      "name": "CRM/client count rendering",
+      "status": "NOT_TESTED",
+      "evidence": "none",
+      "reason": "No authenticated browser projection was available."
+    },
+    {
+      "name": "/admin/prospecting",
+      "status": "NOT_TESTED",
+      "evidence": "source fixture exists but was not rendered",
+      "reason": "The bounded null/loading/error/valid browser check requires an authenticated local runtime."
+    },
+    {
+      "name": "tenant-safe access",
+      "status": "PASS",
+      "evidence": "synthetic/offline Playwright contract",
+      "limitation": "This proves the local boundary fixture and metadata invalidation contract, not production Supabase/RLS."
+    },
+    {
+      "name": "fixture cleanup",
+      "status": "PASS",
+      "evidence": "run observation",
+      "reason": "No ephemeral auth state, cookie, token, service, or pipeline fixture was created by this run."
+    },
+    {
+      "name": "forbidden outbound actions",
+      "status": "PASS",
+      "evidence": "run observation",
+      "reason": "No email, outreach, campaign, Stripe, SES, Supabase, provider, or pipeline action was intentionally invoked."
+    },
+    {
+      "name": "task-7 free-first enrichment and contact safety",
+      "status": "PASS",
+      "evidence": "17 isolated pytest contracts plus 4 field-evidence contracts",
+      "covered": [
+        "free/Scrapling/Crawl4AI ordering",
+        "paid fallback policy, credentials, unmet-field, quota, and bounded failure handling",
+        "field provenance and freshness preservation",
+        "social URL and malformed email rejection",
+        "invalid phone rejection",
+        "local mode provider isolation"
+      ]
+    }
+  ],
+  "conclusion": "Task 7 offline enrichment/contact contracts pass. Browser-dependent request, replay, target-five progress, trace, count, state, CRM, and admin prospecting checks remain NOT_TESTED/BLOCKED because ports 3000 and 8000 were closed and no authenticated fixture was available. No browser-local result is promoted to API, worker, provider, Supabase, or production evidence."
+}

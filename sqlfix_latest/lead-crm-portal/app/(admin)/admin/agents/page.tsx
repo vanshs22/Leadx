@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { admin } from "@/lib/admin";
 import { PageHeader, Panel, StatCard, StatGrid, StatusBadge } from "@/components/ui/Primitives";
+import { TaskTraceView } from "@/components/ui/OperationState";
 import { DataState, EmptyState, ErrorState, LoadingRows } from "@/components/ui/States";
 import { Icon } from "@/components/ui/Icon";
 
@@ -10,9 +11,40 @@ export default function AdminAgentsPage() {
   const [data, setData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<unknown>(null);
+  const [lastMissionTrace, setLastMissionTrace] = useState<Record<string, any> | null>(null);
+  const [missionLoading, setMissionLoading] = useState(true);
+  const [missionError, setMissionError] = useState<unknown>(null);
   const load = useCallback(async () => {
-    setLoading(true); setError(null);
-    try { setData(await admin.platformAgents()); } catch (caught) { setError(caught); } finally { setLoading(false); }
+    setLoading(true); setMissionLoading(true); setError(null); setMissionError(null);
+    try {
+      const d = await admin.platformAgents();
+      setData(d);
+      let tenantId = d?.runs?.find((run: any) => run?.tenant_id)?.tenant_id;
+      try {
+        const tenants = await admin.tenants("active", 1);
+        tenantId = tenants?.tenants?.[0]?.id || tenantId;
+      } catch {
+        // The platform registry remains useful when no tenant index is available.
+      }
+      if (tenantId) {
+        const missions = await admin.agentMissions(String(tenantId), 1);
+        const missionId = missions?.missions?.[0]?.id;
+        if (missionId) {
+          const detail = await admin.agentMission(String(tenantId), String(missionId));
+          setLastMissionTrace(detail?.mission?.task_trace || null);
+        } else {
+          setLastMissionTrace(null);
+        }
+      } else {
+        setLastMissionTrace(null);
+      }
+    } catch (caught: any) {
+      setError(caught?.message || "Could not load agent operations");
+      setMissionError(caught);
+    } finally {
+      setLoading(false);
+      setMissionLoading(false);
+    }
   }, []);
   useEffect(() => { void load(); }, [load]);
   const agents: any[] = data?.agents || [];
@@ -27,6 +59,7 @@ export default function AdminAgentsPage() {
       <StatCard label="Active now" value={active} tone="accent" icon={<Icon name="clock" size={16} />} />
       <StatCard label="Recent failures" value={failed} tone={failed ? "danger" : "success"} icon={<Icon name="health" size={16} />} />
     </StatGrid>
+    <TaskTraceView trace={lastMissionTrace} loading={missionLoading} error={missionError} />
     <div className="grid gap-4 lg:grid-cols-3">
       <Panel title="31-agent registry" description="One platform registry. Client workspaces do not expose this control surface." className="lg:col-span-2" bodyClassName="p-0">
         <DataState loading={loading} error={error} onRetry={() => void load()} isEmpty={!agents.length} empty={<EmptyState title="Agent registry unavailable" hint="The platform registry could not be loaded." />} skeleton={<LoadingRows rows={8} cols={3} />}>

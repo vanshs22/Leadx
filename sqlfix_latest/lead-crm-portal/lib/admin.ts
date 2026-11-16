@@ -7,20 +7,31 @@ function readCsrf(): string { return typeof document === "undefined" ? "" : docu
 export function setAdminKey(_k: string) { /* legacy compatibility: no browser credential storage */ }
 export function clearAdminKey() { /* legacy compatibility: no browser credential storage */ }
 export function getAdminKey(): string { return ""; }
-let adminSessionCache: { value: boolean; expiresAt: number } | null = null;
+let adminSessionCache: { value: boolean; expiresAt: number; userId: string } | null = null;
 let adminSessionPromise: Promise<boolean> | null = null;
 
+/**
+ * Platform-admin authorization is a separate session scope from client CRM
+ * ownership. Cache the probe only for the authenticated subject so a logout,
+ * login, or tenant switch cannot reuse another user's admin result.
+ */
 export async function hasAdminSession(): Promise<boolean> {
+  const session = await getSessionFast();
+  const userId = String(session?.user?.id || "");
+  if (!userId) {
+    adminSessionCache = null;
+    return false;
+  }
+  if (adminSessionCache && adminSessionCache.userId !== userId) adminSessionCache = null;
   if (adminSessionCache && adminSessionCache.expiresAt > Date.now()) return adminSessionCache.value;
   if (adminSessionPromise) return adminSessionPromise;
   adminSessionPromise = (async () => {
     try {
-      if (!(await getSessionFast())) return false;
       await adminApi("/platform/me");
-      adminSessionCache = { value: true, expiresAt: Date.now() + 15_000 };
+      adminSessionCache = { value: true, userId, expiresAt: Date.now() + 15_000 };
       return true;
     } catch {
-      adminSessionCache = { value: false, expiresAt: Date.now() + 5_000 };
+      adminSessionCache = { value: false, userId, expiresAt: Date.now() + 5_000 };
       return false;
     } finally {
       adminSessionPromise = null;
@@ -30,6 +41,12 @@ export async function hasAdminSession(): Promise<boolean> {
 }
 
 async function adminApi(path: string, init?: RequestInit) {
+  // The backend remains authoritative, but do not even issue platform reads
+  // from a browser that has not proved the platform-admin session. The probe
+  // itself is the sole exception to avoid recursion.
+  if (path !== "/platform/me" && !(await hasAdminSession())) {
+    throw createApiClientError(403, "Platform admin access required", { recovery: { action: "none", retryable: false } });
+  }
   const base = getApiBase();
   const url = `${base}${path.startsWith("/") ? path : `/${path}`}`;
   const requestId = createPortalRequestId(new Headers(init?.headers).get("X-Request-ID"));
@@ -182,6 +199,8 @@ export const admin = {
   ops: (days = 14) => adminApi(`/leads/v2/ops/dashboard?days=${days}`),
   health: () => adminApi("/health"),
   platformAgents: () => adminApi("/platform/agents"),
+  agentMissions: (tenantId: string, limit = 20) => adminApi(`/platform/agent-missions?tenant_id=${encodeURIComponent(tenantId)}&limit=${limit}`),
+  agentMission: (tenantId: string, missionId: string) => adminApi(`/platform/agent-missions/${encodeURIComponent(tenantId)}/${encodeURIComponent(missionId)}`),
 
   // Sample pack / QA / bad leads
   samplePack: (body: Record<string, unknown>) =>

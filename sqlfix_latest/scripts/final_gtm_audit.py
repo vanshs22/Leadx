@@ -42,6 +42,18 @@ class AuditCheck:
     gate_ids: tuple[str, ...] = ()
     prerequisite_env: tuple[str, ...] = ()
 
+    @property
+    def environment_class(self) -> str:
+        """Map the legacy audit level to the strict four-class contract."""
+        return {
+            "static": "static",
+            "synthetic/offline": "local",
+            "automated": "local",
+            "integration": "uat",
+            "live-staging": "live",
+            "live-provider": "live",
+        }[self.evidence_level]
+
 
 # Checked-in allowlist.  Keep every command and source path explicit; do not
 # replace this with globbing or broad test discovery.
@@ -407,6 +419,13 @@ def _safe_log(value: str) -> tuple[str, bool]:
 
 def execute_local_check(spec: AuditCheck, root: Path) -> dict[str, Any]:
     """Run one allowlisted local command and return bounded safe metadata."""
+    if spec.evidence_level not in _REMOTE_LEVELS and not spec.source_paths:
+        return {
+            "status": "BLOCKED",
+            "diagnosis": "required local source declaration is empty",
+            "details": {"missing_sources": [], "empty_sources": ["source_paths"]},
+            "log": "blocked: allowlisted source declaration is empty",
+        }
     missing = [path for path in spec.source_paths if not (root / path).is_file()]
     if missing:
         return {
@@ -414,6 +433,20 @@ def execute_local_check(spec: AuditCheck, root: Path) -> dict[str, Any]:
             "diagnosis": "required local producer or test is unavailable",
             "details": {"missing_sources": missing},
             "log": "blocked: allowlisted source path unavailable",
+        }
+    empty = []
+    for path in spec.source_paths:
+        try:
+            if not (root / path).read_text(encoding="utf-8", errors="replace").strip():
+                empty.append(path)
+        except OSError:
+            empty.append(path)
+    if empty:
+        return {
+            "status": "BLOCKED",
+            "diagnosis": "required local producer or test is empty",
+            "details": {"empty_sources": empty},
+            "log": "blocked: allowlisted source path is empty",
         }
     if spec.command is None:
         return {
@@ -451,6 +484,19 @@ def execute_local_check(spec: AuditCheck, root: Path) -> dict[str, Any]:
         }
     elapsed_ms = round((time.monotonic() - started) * 1000)
     output, detected = _safe_log(f"stdout:\n{completed.stdout}\nstderr:\n{completed.stderr}")
+    lowered_output = output.lower()
+    empty_collection = completed.returncode == 0 and (
+        "collected 0 items" in lowered_output
+        or "no tests collected" in lowered_output
+        or "no tests ran" in lowered_output
+    )
+    if empty_collection:
+        return {
+            "status": "BLOCKED",
+            "diagnosis": "allowlisted test command collected no tests",
+            "details": {"exit_code": completed.returncode, "duration_ms": elapsed_ms, "output_redacted": detected, "collected": 0},
+            "log": output,
+        }
     status = f"PASS—{spec.evidence_level}" if completed.returncode == 0 else "FAIL"
     diagnosis = "bounded allowlisted command completed" if completed.returncode == 0 else "bounded allowlisted command failed"
     return {

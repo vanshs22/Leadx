@@ -2,11 +2,11 @@
 
 import Link from "next/link";
 import { FormEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { crm, crmExtras, crmIntelligence, type DashboardResponse, type PipelineBoard, type ReportsSummary } from "@/lib/api";
+import { crm, crmExtras, crmIntelligence, crmMissions, type DashboardResponse, type PipelineBoard, type ReportsSummary } from "@/lib/api";
 import { getTenantId } from "@/lib/tenant";
 import { useCrmChange } from "@/lib/crmRealtime";
 import { useLiveLoader } from "@/lib/live";
-import { OperationStateCard, toOperationState } from "@/components/ui/OperationState";
+import { OperationStateCard, TaskTraceView, toOperationState } from "@/components/ui/OperationState";
 import { EmptyState, ErrorState, LoadingRows, PollingDeadlineState } from "@/components/ui/States";
 import { Icon } from "@/components/ui/Icon";
 import { Badge, Notice, PageHeader, Panel, QuietBreadcrumbs, StatCard, StatGrid, StatusBadge } from "@/components/ui/Primitives";
@@ -24,6 +24,8 @@ type GrowthData = {
   deals: any;
   email: any;
   learning: any;
+  mission: any;
+  missionError: unknown;
 };
 
 const EMPTY_DATA: GrowthData = {
@@ -39,6 +41,8 @@ const EMPTY_DATA: GrowthData = {
   deals: null,
   email: null,
   learning: null,
+  mission: null,
+  missionError: null,
 };
 
 const targetDefaults = {
@@ -122,6 +126,16 @@ export default function GrowthPage() {
     setFailedPanels(names.filter((_, i) => calls[i].status === "rejected"));
     const [dashboard, quota, requests, reports, pipeline, sequences, replies, tasks, deals, email, learning] = calls;
     const requestRows = result(requests, { requests: [] } as any)?.requests || [];
+    let mission = null;
+    let missionError: unknown = null;
+    try {
+      const missionIndex = await crmMissions.list(tenantId, 1);
+      const missionId = missionIndex?.missions?.[0]?.id;
+      if (missionId) mission = (await crmMissions.get(tenantId, String(missionId)))?.mission || null;
+    } catch (caught) {
+      missionError = caught;
+    }
+    if (generation !== refreshGeneration.current) return;
     let latestDiscovery = null;
     if (requestRows[0]?.id) {
       try { latestDiscovery = await crm.discoveryRequestStatus(tenantId, requestRows[0].id); } catch { latestDiscovery = null; }
@@ -140,6 +154,8 @@ export default function GrowthPage() {
       deals: result(deals, null),
       email: result(email, null),
       learning: result(learning, null),
+      mission,
+      missionError,
     };
     setData(next);
     if (calls.every((call) => call.status === "rejected")) setError(new Error("LeadX could not load workspace growth data."));
@@ -149,7 +165,7 @@ export default function GrowthPage() {
 
   useEffect(() => { void refresh(); }, [refresh]);
   useLiveLoader(() => refresh(true), 30_000, [refresh], { runImmediately: false, onDeadline: () => setPollingExpired(true) });
-  useCrmChange(() => { void refresh(true); }, { tables: ["discovery_requests", "pipeline_runs", "jobs", "lead_assignments", "lead_quality_gates", "lead_verification_observations", "lead_score_snapshots", "quota_usage", "email_replies", "notifications"] });
+  useCrmChange(() => { void refresh(true); }, { tables: ["discovery_requests", "pipeline_runs", "agent_missions", "agent_mission_tasks", "jobs", "lead_assignments", "lead_quality_gates", "lead_verification_observations", "lead_score_snapshots", "quota_usage", "email_replies", "notifications"] });
 
   async function requestDiscovery(event: FormEvent) {
     event.preventDefault();
@@ -275,6 +291,7 @@ export default function GrowthPage() {
       {pollingExpired && <PollingDeadlineState onRefresh={() => { setPollingExpired(false); void refresh(true); }} />}
       {notice && <Notice tone="success">{notice}</Notice>}
       {latestOperation && <OperationStateCard operation={latestOperation} title="Latest discovery run" onRefresh={() => { setPollingExpired(false); void refresh(true); }} />}
+      <TaskTraceView trace={data.mission?.task_trace} loading={loading && !data.mission && !data.missionError} error={data.missionError} />
 
       <section className="growth-banner overflow-hidden p-5 md:p-6" aria-labelledby="growth-flow-title">
         <div className="flex flex-wrap items-start justify-between gap-4">

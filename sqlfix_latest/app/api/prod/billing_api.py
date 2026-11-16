@@ -10,7 +10,11 @@ from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel
 
 from app.middleware.auth import TenantContext, require_admin, require_tenant
-from app.core.plans import PLANS, PLAN_LIMITS, PLAN_ENV_KEYS, LEGACY_PLAN_ALIASES, normalize_plan, plan_limit, plan_rank, public_plans
+from app.core.plans import (
+    PLANS, PLAN_LIMITS, PLAN_ENV_KEYS, LEGACY_PLAN_ALIASES, normalize_plan,
+    plan_limit, plan_rank, public_plans, PLAN_CATALOG_VERSION,
+    catalog_snapshot, entitlement_from_snapshot,
+)
 from app.memory.supabase_client import get_supabase
 
 router = APIRouter(prefix="/billing", tags=["billing"])
@@ -61,24 +65,113 @@ def _sb():
     return get_supabase()
 
 
+def _billing_tenant(tenant_id: str) -> dict[str, Any] | None:
+    """Read legacy billing columns first, then merge additive state if present."""
+    columns = (
+        "id,name,plan,leads_per_month_limit,stripe_customer_id,stripe_price_id,stripe_subscription_id,billing_status,billing_interval,"
+        "billing_catalog_version,billing_plan_snapshot,payment_method_state,stripe_payment_method_id,billing_cancel_at_period_end"
+    )
+    try:
+        base = (_sb().table("tenants").select(columns).eq("id", tenant_id).limit(1).execute().data or [])
+    except Exception:
+        # Compatibility with installations before the additive billing columns.
+        base = (_sb().table("tenants").select(
+            "id,name,plan,leads_per_month_limit,stripe_customer_id,stripe_price_id,stripe_subscription_id,billing_status,billing_interval"
+        ).eq("id", tenant_id).limit(1).execute().data or [])
+    if not base:
+        return None
+    return dict(base[0])
+
+
+def _payment_method_state(row: dict[str, Any]) -> str:
+    state = str(row.get("payment_method_state") or "").strip().lower()
+    if state in {"present", "absent", "unknown", "pending"}:
+        return state
+    return "absent" if not row.get("stripe_customer_id") else "unknown"
+
+
 @router.get("/status")
 def billing_status(ctx: TenantContext = Depends(require_tenant)):
-    rows = _sb().table("tenants").select(
-        "id,name,plan,leads_per_month_limit,stripe_customer_id,stripe_price_id,stripe_subscription_id,billing_status,billing_interval"
-    ).eq("id", ctx.tenant_id).limit(1).execute().data or []
-    if not rows:
+    row = _billing_tenant(ctx.tenant_id)
+    if not row:
         raise HTTPException(404, "Workspace not found")
-    row = rows[0]
-    return {
+    entitlement = entitlement_from_snapshot(row.get("plan"), row.get("billing_plan_snapshot"))
+    payment_state = _payment_method_state(row)
+    result = {
         "ok": True,
-        "plan": row.get("plan") or "free",
-        "leads_per_month_limit": row.get("leads_per_month_limit") or PLAN_LIMITS.get(row.get("plan"), 100),
+        "plan": entitlement["plan"],
+        "leads_per_month_limit": int(entitlement["limits"]["leads_per_month"]),
         "stripe_configured": bool(os.getenv("STRIPE_SECRET_KEY")),
         "billing_status": row.get("billing_status") or "",
         "billing_interval": row.get("billing_interval") or "",
         "stripe_price_id": row.get("stripe_price_id") or "",
-        "has_payment_method": bool(row.get("stripe_customer_id")),
+        "has_payment_method": payment_state == "present",
     }
+    # Keep the old response shape for pre-authority rows with no provider
+    # identity; richer state is exposed once a customer or snapshot exists.
+    if row.get("stripe_customer_id") or any(key in row for key in ("billing_catalog_version", "billing_plan_snapshot", "payment_method_state")):
+        result.update({
+            "plan_name": entitlement["name"],
+            "catalog_version": str(row.get("billing_catalog_version") or entitlement["catalog_version"]),
+            "plan_status": entitlement["status"],
+            "entitlement_source": "tenant_snapshot" if isinstance(row.get("billing_plan_snapshot"), dict) else "catalog",
+            "payment_method_state": payment_state,
+            "cancellation_state": "period_end" if row.get("billing_cancel_at_period_end") is True else "active",
+        })
+    return result
+
+
+class PortalRequest(BaseModel):
+    return_url: str | None = None
+
+
+class CancellationRequest(BaseModel):
+    immediate: bool = False
+    confirm: bool = False
+
+
+@router.post("/create-portal-session")
+async def create_portal_session(body: PortalRequest, ctx: TenantContext = Depends(require_admin)):
+    stripe = _stripe()
+    row = _billing_tenant(ctx.tenant_id)
+    customer = row.get("stripe_customer_id") if row else None
+    if not customer:
+        raise HTTPException(409, "A Stripe customer is not configured for this workspace.")
+    return_url = (body.return_url or os.getenv("APP_PUBLIC_URL") or "http://localhost:3000").rstrip("/")
+    try:
+        session = stripe.billing_portal.Session.create(customer=customer, return_url=return_url)
+    except Exception as exc:
+        raise HTTPException(502, "Unable to create billing portal session") from exc
+    return {"ok": True, "redirect_url": getattr(session, "url", None), "customer_configured": True}
+
+
+@router.post("/cancel")
+async def cancel_subscription(body: CancellationRequest, ctx: TenantContext = Depends(require_admin)):
+    if body.immediate and not body.confirm:
+        raise HTTPException(400, "Immediate cancellation requires explicit confirmation")
+    stripe = _stripe()
+    row = _billing_tenant(ctx.tenant_id)
+    subscription = row.get("stripe_subscription_id") if row else None
+    if not subscription:
+        raise HTTPException(409, "No active Stripe subscription is configured for this workspace.")
+    try:
+        if body.immediate:
+            result = stripe.Subscription.cancel(subscription)
+            cancellation = "immediate"
+        else:
+            result = stripe.Subscription.modify(subscription, cancel_at_period_end=True)
+            cancellation = "period_end"
+    except Exception as exc:
+        raise HTTPException(502, "Unable to update subscription cancellation") from exc
+    provider_status = getattr(result, "status", None) or (result.get("status") if isinstance(result, dict) else "pending")
+    updates = {"billing_cancel_at_period_end": not body.immediate, "billing_status": str(provider_status)}
+    try:
+        _sb().table("tenants").update(updates).eq("id", ctx.tenant_id).execute()
+    except Exception:
+        # Provider state remains authoritative even when an older local schema
+        # cannot persist the additive cancellation projection.
+        pass
+    return {"ok": True, "cancellation": cancellation, "provider_status": str(provider_status)}
 
 
 @router.post("/create-checkout-session")
@@ -305,12 +398,29 @@ async def stripe_webhook(request: Request):
                     updates.update({"plan": "free", "leads_per_month_limit": PLAN_LIMITS["free"], "allow_tier_b": False, "billing_grace_until": None})
             elif status in {"canceled", "unpaid"}:
                 updates.update({"plan": "free", "leads_per_month_limit": PLAN_LIMITS["free"], "allow_tier_b": False, "billing_grace_until": None, "pending_plan": None, "pending_leads_per_month_limit": None})
+            # Persist the exact catalog contract when the additive columns exist;
+            # the retry below keeps old tenant schemas compatible.
+            updates["billing_catalog_version"] = PLAN_CATALOG_VERSION
+            updates["billing_plan_snapshot"] = catalog_snapshot(plan, price_interval or updates.get("billing_interval"), updates.get("stripe_price_id"))
+            if "default_payment_method" in obj:
+                updates["payment_method_state"] = "present" if obj.get("default_payment_method") else "absent"
             try:
                 updated = await aexec(_sb().table("tenants").update(updates).eq("id", tenant_id))
-                if not updated.data: raise RuntimeError("tenant subscription update matched no workspace")
+                if not updated.data:
+                    raise RuntimeError("tenant subscription update matched no workspace")
             except Exception as exc:
-                await release_event_on_failure()
-                raise HTTPException(500, f"Stripe subscription billing update failed: {exc}") from exc
+                # Older schemas can still reconcile provider state through the
+                # legacy columns. Never fail a valid webhook only on projections.
+                compatible_updates = dict(updates)
+                for optional in ("billing_catalog_version", "billing_plan_snapshot", "payment_method_state"):
+                    compatible_updates.pop(optional, None)
+                try:
+                    updated = await aexec(_sb().table("tenants").update(compatible_updates).eq("id", tenant_id))
+                    if not updated.data:
+                        raise RuntimeError("tenant subscription update matched no workspace")
+                except Exception:
+                    await release_event_on_failure()
+                    raise HTTPException(500, f"Stripe subscription billing update failed: {exc}") from exc
 
     elif event_type == "invoice.payment_failed":
         tenant_id = tenant_id or metadata.get("tenant_id")

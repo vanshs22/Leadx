@@ -1,0 +1,170 @@
+{
+  "pbtResults": {},
+  "executionHistory": {
+    "1. Complete baseline property tests in parallel": [
+      {
+        "executionId": "b6f8da0a-0667-46a1-bc95-e77eb7585676",
+        "chatSessionId": "sess_04c0a8cd-f6f5-434b-b17e-8d89acafffcf",
+        "timestamp": 1793296740517
+      },
+      {
+        "executionId": "b6f8da0a-0667-46a1-bc95-e77eb7585676",
+        "chatSessionId": "sess_04c0a8cd-f6f5-434b-b17e-8d89acafffcf",
+        "timestamp": 1793296761902
+      },
+      {
+        "executionId": "b6f8da0a-0667-46a1-bc95-e77eb7585676",
+        "chatSessionId": "sess_04c0a8cd-f6f5-434b-b17e-8d89acafffcf",
+        "timestamp": 1793297096893
+      }
+    ],
+    "2. Define the evidence contract and complete the static baseline": [
+      {
+        "executionId": "b6f8da0a-0667-46a1-bc95-e77eb7585676",
+        "chatSessionId": "sess_04c0a8cd-f6f5-434b-b17e-8d89acafffcf",
+        "timestamp": 1793296742248
+      },
+      {
+        "executionId": "b6f8da0a-0667-46a1-bc95-e77eb7585676",
+        "chatSessionId": "sess_04c0a8cd-f6f5-434b-b17e-8d89acafffcf",
+        "timestamp": 1793297106642
+      },
+      {
+        "executionId": "b6f8da0a-0667-46a1-bc95-e77eb7585676",
+        "chatSessionId": "sess_04c0a8cd-f6f5-434b-b17e-8d89acafffcf",
+        "timestamp": 1793297441807
+      }
+    ],
+    "3. Implement and verify the shared specialized-agent lead authorization boundary": [
+      {
+        "executionId": "b6f8da0a-0667-46a1-bc95-e77eb7585676",
+        "chatSessionId": "sess_04c0a8cd-f6f5-434b-b17e-8d89acafffcf",
+        "timestamp": 1793296742393
+      },
+      {
+        "executionId": "b6f8da0a-0667-46a1-bc95-e77eb7585676",
+        "chatSessionId": "sess_04c0a8cd-f6f5-434b-b17e-8d89acafffcf",
+        "timestamp": 1793297452082
+      }
+    ],
+    "4. Make product state authoritative and delivery counts truthful": [
+      {
+        "executionId": "b6f8da0a-0667-46a1-bc95-e77eb7585676",
+        "chatSessionId": "sess_04c0a8cd-f6f5-434b-b17e-8d89acafffcf",
+        "timestamp": 1793296742915
+      },
+      {
+        "executionId": "55e9c514-33c3-4714-99e9-2db70b1567ca",
+        "chatSessionId": "sess_04c0a8cd-f6f5-434b-b17e-8d89acafffcf",
+        "timestamp": 1793298506686
+      },
+      {
+        "executionId": "55e9c514-33c3-4714-99e9-2db70b1567ca",
+        "chatSessionId": "sess_04c0a8cd-f6f5-434b-b17e-8d89acafffcf",
+        "timestamp": 1793299893432
+      }
+    ],
+    "5. Prepare reproducible release inputs and validate the production topology in parallel": [
+      {
+        "executionId": "b6f8da0a-0667-46a1-bc95-e77eb7585676",
+        "chatSessionId": "sess_04c0a8cd-f6f5-434b-b17e-8d89acafffcf",
+        "timestamp": 1793296743075
+      },
+      {
+        "executionId": "55e9c514-33c3-4714-99e9-2db70b1567ca",
+        "chatSessionId": "sess_04c0a8cd-f6f5-434b-b17e-8d89acafffcf",
+        "timestamp": 1793299901663
+      },
+      {
+        "executionId": "55e9c514-33c3-4714-99e9-2db70b1567ca",
+        "chatSessionId": "sess_04c0a8cd-f6f5-434b-b17e-8d89acafffcf",
+        "timestamp": 1793300251743
+      }
+    ],
+    "6. Add migration/schema preflight and recovery metadata": [
+      {
+        "executionId": "b6f8da0a-0667-46a1-bc95-e77eb7585676",
+        "chatSessionId": "sess_04c0a8cd-f6f5-434b-b17e-8d89acafffcf",
+        "timestamp": 1793296743169
+      },
+      {
+        "executionId": "55e9c514-33c3-4714-99e9-2db70b1567ca",
+        "chatSessionId": "sess_04c0a8cd-f6f5-434b-b17e-8d89acafffcf",
+        "timestamp": 1793300261478
+      },
+      {
+        "executionId": "55e9c514-33c3-4714-99e9-2db70b1567ca",
+        "chatSessionId": "sess_04c0a8cd-f6f5-434b-b17e-8d89acafffcf",
+        "timestamp": 1793300845823
+      }
+    ],
+    "7. Make CI collection real and prepare the isolated UAT bundle in parallel": [
+      {
+        "executionId": "b6f8da0a-0667-46a1-bc95-e77eb7585676",
+        "chatSessionId": "sess_04c0a8cd-f6f5-434b-b17e-8d89acafffcf",
+        "timestamp": 1793296743246
+      },
+      {
+        "executionId": "55e9c514-33c3-4714-99e9-2db70b1567ca",
+        "chatSessionId": "sess_04c0a8cd-f6f5-434b-b17e-8d89acafffcf",
+        "timestamp": 1793300854408
+      },
+      {
+        "executionId": "55e9c514-33c3-4714-99e9-2db70b1567ca",
+        "chatSessionId": "sess_04c0a8cd-f6f5-434b-b17e-8d89acafffcf",
+        "timestamp": 1793301413931
+      }
+    ],
+    "8. Run bounded isolated UAT only after Wave 7 approval": [
+      {
+        "executionId": "b6f8da0a-0667-46a1-bc95-e77eb7585676",
+        "chatSessionId": "sess_04c0a8cd-f6f5-434b-b17e-8d89acafffcf",
+        "timestamp": 1793296743387
+      },
+      {
+        "executionId": "55e9c514-33c3-4714-99e9-2db70b1567ca",
+        "chatSessionId": "sess_04c0a8cd-f6f5-434b-b17e-8d89acafffcf",
+        "timestamp": 1793301423867
+      },
+      {
+        "executionId": "55e9c514-33c3-4714-99e9-2db70b1567ca",
+        "chatSessionId": "sess_04c0a8cd-f6f5-434b-b17e-8d89acafffcf",
+        "timestamp": 1793301593078
+      }
+    ],
+    "9. Prepare, but do not execute, the bounded live-validation prerequisite": [
+      {
+        "executionId": "b6f8da0a-0667-46a1-bc95-e77eb7585676",
+        "chatSessionId": "sess_04c0a8cd-f6f5-434b-b17e-8d89acafffcf",
+        "timestamp": 1793296743476
+      },
+      {
+        "executionId": "55e9c514-33c3-4714-99e9-2db70b1567ca",
+        "chatSessionId": "sess_04c0a8cd-f6f5-434b-b17e-8d89acafffcf",
+        "timestamp": 1793301601260
+      },
+      {
+        "executionId": "55e9c514-33c3-4714-99e9-2db70b1567ca",
+        "chatSessionId": "sess_04c0a8cd-f6f5-434b-b17e-8d89acafffcf",
+        "timestamp": 1793302231728
+      }
+    ],
+    "10. Evaluate ordered readiness gates and issue the final decision": [
+      {
+        "executionId": "b6f8da0a-0667-46a1-bc95-e77eb7585676",
+        "chatSessionId": "sess_04c0a8cd-f6f5-434b-b17e-8d89acafffcf",
+        "timestamp": 1793296743555
+      },
+      {
+        "executionId": "55e9c514-33c3-4714-99e9-2db70b1567ca",
+        "chatSessionId": "sess_04c0a8cd-f6f5-434b-b17e-8d89acafffcf",
+        "timestamp": 1793301828385
+      },
+      {
+        "executionId": "55e9c514-33c3-4714-99e9-2db70b1567ca",
+        "chatSessionId": "sess_04c0a8cd-f6f5-434b-b17e-8d89acafffcf",
+        "timestamp": 1793302213412
+      }
+    ]
+  }
+}

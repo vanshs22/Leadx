@@ -1,0 +1,93 @@
+{
+  "schema": "leadx.test-environment-production-validation.task8.requested-preflight.v1",
+  "task": "test-environment-production-validation.8",
+  "decision": "BLOCKED",
+  "execution_performed": false,
+  "evidence_class": "sanitized live-runtime preflight",
+  "scope": {
+    "tenant_id": "5655f9d9-b3c7-48f9-bb95-9f3fe0675854",
+    "icp_id": "377aaa3e-5eae-41fc-a12a-570e791490b3",
+    "vertical": "marketing agency",
+    "geography": ["New Jersey", "New York", "Pennsylvania"],
+    "delivery": "portal",
+    "requested_target": 5,
+    "hard_cap": 500,
+    "bounded_defaults": {
+      "runtime_timeout_seconds": 300,
+      "max_route_cells": 15,
+      "enrichment_concurrency": 6,
+      "max_provider_calls": 30,
+      "max_paid_fallback_calls": 5,
+      "max_assigned": 5,
+      "max_delivered": 5,
+      "polling": "read-only",
+      "forbidden_actions": ["email", "outreach", "campaign", "Stripe", "SES"]
+    }
+  },
+  "preflight": {
+    "api_live": "PASS",
+    "api_ready": "PASS",
+    "api_routes": "PASS",
+    "client_state": "PRESENT; opaque contents not inspected",
+    "admin_state": "PRESENT; opaque contents not inspected",
+    "client_session": "PASS",
+    "client_exact_tenant_scope": "PASS",
+    "admin_session": "PASS",
+    "admin_exact_tenant_scope": "PASS",
+    "admin_exact_icp_scope": "PASS",
+    "admin_provider_health_read": "PASS; shape observed only",
+    "admin_queue_metrics_read": "PASS",
+    "admin_platform_summary_read": "PASS",
+    "local_test_gate": "PASS from existing sanitized task-7 evidence",
+    "forbidden_action_guard": "PASS by non-execution"
+  },
+  "admission_gates": {
+    "fresh_idempotency_identity": "NOT_CREATED",
+    "durable_preflight": "NOT_OBSERVABLE at approved authenticated boundary",
+    "approved_provider_list_and_budget": "PARTIAL; complete approved list and budget not safely observable",
+    "provider_call_ceiling_30": "NOT_OBSERVABLE before submission",
+    "paid_fallback_ceiling_5": "NOT_OBSERVABLE before submission",
+    "side_effect_ceiling": "NOT_OBSERVABLE before submission",
+    "stop_conditions": "NOT_OBSERVABLE as runtime-enforced telemetry",
+    "duplicate_active_job_check": "NOT_OBSERVABLE without protected/raw-state inspection",
+    "monitoring": "PASS for read-only health/queue/platform probes",
+    "cleanup_ownership": "NOT_OBSERVABLE before a run identity exists",
+    "gate_result": "BLOCKED"
+  },
+  "run": {
+    "submission_count": 0,
+    "pipeline_request_created": false,
+    "fresh_idempotency_key_used": false,
+    "second_submission": false,
+    "retry_cancel_or_cleanup": false,
+    "polling_performed": false,
+    "terminal_status": null,
+    "stop_reason": "Required admission ceilings and durable preflight were not observable; stopped before submission."
+  },
+  "validation_results": {
+    "assigned_at_least_5": "NOT_TESTED",
+    "delivered_at_least_5": "NOT_TESTED",
+    "completed_status": "NOT_TESTED",
+    "crm_client_reconciliation": "NOT_TESTED",
+    "task_trace_realtime_count_convergence": "NOT_TESTED",
+    "timing": "NOT_TESTED"
+  },
+  "safety_boundary": {
+    "env_values_read": false,
+    "credentials_read_printed_requested_or_persisted": false,
+    "storage_state_contents_read": false,
+    "raw_payloads_printed": false,
+    "provider_calls": false,
+    "pipeline_request_created": false,
+    "fresh_idempotency_key_created": false,
+    "second_submission": false,
+    "retry_or_cancel": false,
+    "database_mutation": false,
+    "queue_mutation": false,
+    "migration_or_sql_mutation": false,
+    "reset_or_data_cleanup": false,
+    "email_outreach_campaign_stripe_ses": 0,
+    "cap_violation": false
+  },
+  "next_gate": "Expose sanitized, read-only durable-preflight and runtime admission telemetry for provider budgets, side-effect ceilings, stop conditions, duplicate-active-work protection, and cleanup ownership. Do not submit until every admission gate is observable."
+}

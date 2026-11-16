@@ -5,6 +5,7 @@ engines; they do not create parallel discovery/enrichment/CRM implementations.
 """
 from __future__ import annotations
 from typing import Any
+from app.integrations.prod.agents_support import authorize_lead_access
 from app.integrations.prod.discovery_planner import build_plan
 from app.integrations.prod.intelligence_fabric import enrich_fields, research_company, verify_contact
 from app.integrations.prod.provider_adapters import adapter_catalog
@@ -22,14 +23,26 @@ SPECIALIZED = {
 }
 
 
-async def _load_leads(data: dict[str, Any], limit: int = 100) -> list[dict]:
-    ids=[str(x) for x in (data.get("lead_ids") or [])][:limit]
-    if not ids:
-        lead=data.get("lead")
-        return [lead] if isinstance(lead,dict) else []
+async def _load_leads(data: dict[str, Any], limit: int = 100, authorization=None) -> list[dict]:
+    from app.integrations.prod.agents_support import authorize_lead_access
+
+    requested = [str(x) for x in (data.get("lead_ids") or []) if x]
+    inline = data.get("lead")
+    if not requested and isinstance(inline, dict) and inline.get("id"):
+        requested = [str(inline["id"])]
+    if not requested:
+        return []
+    decision = authorization or authorize_lead_access(
+        data.get("principal"), str(data.get("tenant_id") or ""), data.get("mission_id"),
+        data.get("agent_id"), requested, "read", capability=data.get("capability"),
+    )
+    if not decision.authorized:
+        # Do not turn an authorization failure into a protected-record lookup.
+        return []
     from app.memory.supabase_client import get_supabase
     from app.services.aio import aexec
     sb=get_supabase()
+    ids=list(decision.lead_ids)[:limit]
     rows=(await aexec(sb.table("leads_global").select("*").in_("id",ids))).data or []
     # Hand-off: overlay what upstream enrichment/research agents saved in `enrichment` (email, owner, services, booking...).
     try:
@@ -74,7 +87,22 @@ async def _persist_enrichment(lead: dict[str, Any], enrichment: dict[str, Any]) 
         return {"saved": False, "reason": str(exc)[:300]}
 
 async def execute_specialized(agent: str, data: dict[str, Any]) -> dict[str, Any]:
-    leads = await _load_leads(data, int(data.get("agent_batch_limit") or 100))
+    from app.integrations.prod.agents_support import authorize_lead_access
+    data = {**data, "agent_id": agent}
+    requested = [str(x) for x in (data.get("lead_ids") or []) if x]
+    inline = data.get("lead")
+    if not requested and isinstance(inline, dict) and inline.get("id"):
+        requested = [str(inline["id"])]
+    authorization = authorize_lead_access(
+        data.get("principal"), str(data.get("tenant_id") or ""), data.get("mission_id"),
+        agent, requested, "read", capability=data.get("capability"),
+    )
+    if not authorization.authorized:
+        return {
+            "agent": agent, "status": "rejected", "reason_code": authorization.reason_code,
+            "requested_count": authorization.requested_count, "authorized_count": 0,
+        }
+    leads = await _load_leads(data, int(data.get("agent_batch_limit") or 100), authorization)
     channel = str(data.get("delivery_channel") or "portal").strip().lower()
     if agent == "personalization" and channel in {"", "portal", "crm", "none", "internal", "dashboard"}:
         return {"agent": agent, "status": "skipped", "skipped_reason": "not_needed_for_portal_delivery", "lead_ids": [str(x) for x in data.get("lead_ids") or []][:5000]}

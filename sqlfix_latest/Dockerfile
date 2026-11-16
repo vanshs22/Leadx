@@ -1,5 +1,6 @@
-# LeadX API — pinned production dependency image
-FROM python:3.12-slim-bookworm AS runtime
+# LeadX API — local default is version-pinned; production supplies an immutable digest.
+ARG PYTHON_BASE_IMAGE=python:3.12-slim-bookworm
+FROM ${PYTHON_BASE_IMAGE} AS runtime
 ENV PYTHONUNBUFFERED=1 PYTHONDONTWRITEBYTECODE=1 PIP_NO_CACHE_DIR=1 PYTHONPATH=/app WORKER_HEALTH_FILE=/tmp/leadx-worker-heartbeat PLAYWRIGHT_DOWNLOAD_CONNECTION_TIMEOUT=120000 PLAYWRIGHT_BROWSERS_PATH=/home/leadx/.cache/ms-playwright
 WORKDIR /app
 COPY requirements.lock requirements.txt ./

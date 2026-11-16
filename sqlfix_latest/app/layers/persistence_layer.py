@@ -48,18 +48,31 @@ def upsert_global(lead: dict) -> Optional[str]:
     except Exception as e: logger.warning("upsert_global failed: %s",e); return None
 
 async def upsert_global_batch(leads:list[dict])->list[dict]:
-    if not leads:return []
-    sb=get_supabase(); payloads=[_global_payload(x) for x in leads]
-    try:
-        rows=(await aexec(sb.table("leads_global").upsert(payloads,on_conflict="fingerprint"))).data or []
-        by={r.get("fingerprint"):r.get("id") for r in rows if r.get("fingerprint")}
-        for x in leads:
-            if x.get("fingerprint") in by:x["id"]=by[x["fingerprint"]]
-        return leads
-    except Exception:
-        for x in leads:
-            if not x.get("id"):x["id"]=await upsert_global(x)
-        return leads
+    """Persist fingerprinted leads through the idempotent global batch seam."""
+    if not leads:
+        return []
+    batchable = [lead for lead in leads if lead.get("fingerprint")]
+    non_batchable = [lead for lead in leads if not lead.get("fingerprint")]
+    sb = get_supabase()
+    if batchable:
+        payloads=[_global_payload(x) for x in batchable]
+        try:
+            rows=(await aexec(sb.table("leads_global").upsert(payloads,on_conflict="fingerprint"))).data or []
+            by={r.get("fingerprint"):r.get("id") for r in rows if r.get("fingerprint")}
+            for x in batchable:
+                if x.get("fingerprint") in by:
+                    x["id"]=by[x["fingerprint"]]
+        except Exception as exc:
+            logger.warning("global batch unavailable; falling back to row upserts: %s", type(exc).__name__)
+            for x in batchable:
+                if not x.get("id"):
+                    x["id"]=await upsert_global(x)
+    # A missing fingerprint has no safe ON CONFLICT key. Preserve the existing
+    # identity checks per row instead of creating a duplicate-prone bulk insert.
+    for x in non_batchable:
+        if not x.get("id"):
+            x["id"]=await upsert_global(x)
+    return leads
 
 @to_async
 def prepare_enrichment_pool(leads:list[dict],reuse_days:int=14):
@@ -126,6 +139,119 @@ def upsert_score(lead_id:str,score:int,tier:str,reasoning:str,lead:Optional[dict
         row.pop("pitch_line",None);row.pop("intent_score",None)
         try:sb.table("scores").upsert(row,on_conflict="lead_id").execute()
         except Exception as e:logger.warning("upsert_score failed: %s",e)
+
+async def upsert_enrichment_batch(items: list[tuple[str, dict]]) -> list[dict]:
+    """Upsert enrichment rows in one idempotent lead-keyed boundary.
+
+    Evidence remains per-field and is projected only after the durable
+    enrichment upsert.  If the batch boundary is unavailable, each row uses
+    the existing single-row path rather than partially guessing at success.
+    """
+    if not items:
+        return []
+    from app.integrations.prod.utils import is_valid_email
+
+    payloads: list[dict] = []
+    for lead_id, lead in items:
+        email = lead.get("email") if is_valid_email(lead.get("email")) else None
+        emails = [str(value).strip().lower() for value in (lead.get("emails") or []) if is_valid_email(value)]
+        payloads.append({
+            "lead_id": str(lead_id), "email": email,
+            "email_valid": bool(email) and lead.get("email_valid") is not False,
+            "emails": emails, "phone_from_web": lead.get("phone_from_web"),
+            "has_booking": bool(lead.get("has_booking") or lead.get("booking_platform")),
+            "booking_platform": lead.get("booking_platform"), "services": lead.get("services") or [],
+            "social_links": lead.get("social_links") or {},
+            "owner_name": lead.get("owner_name") or lead.get("decision_maker_name"),
+            "pitch_line": lead.get("pitch_line"), "intent_score": int(lead.get("intent_score") or 0),
+            "markdown_summary": (lead.get("markdown_summary") or "")[:4000] or None,
+            "raw_extraction": lead.get("raw_extraction") or {},
+            "enrichment_method": lead.get("enrichment_method"),
+            "enrichment_ok": bool(lead.get("enrichment_ok")),
+            "error": lead.get("enrichment_error"),
+            "extracted_at": datetime.now(timezone.utc).isoformat(),
+        })
+    try:
+        sb = get_supabase()
+        await aexec(sb.table("enrichment").upsert(payloads, on_conflict="lead_id"))
+    except Exception as exc:
+        logger.warning("enrichment batch unavailable; falling back to row writes: %s", type(exc).__name__)
+        results = []
+        for lead_id, lead in items:
+            try:
+                await upsert_enrichment(str(lead_id), lead)
+                results.append({"lead_id": str(lead_id), "ok": True, "fallback": True})
+            except Exception as row_exc:
+                logger.warning("enrichment fallback failed: %s", type(row_exc).__name__)
+                results.append({"lead_id": str(lead_id), "ok": False, "fallback": True})
+        return results
+
+    # The lead-keyed upsert above is the idempotent authority.  Additive
+    # projections may fail independently without replaying the durable batch.
+    results = []
+    for payload, (_lead_id, _lead) in zip(payloads, items):
+        try:
+            sb = get_supabase()
+            await aexec(sb.table("leads_global").update({"email": payload["email"]}).eq("id", payload["lead_id"]))
+        except Exception as exc:
+            logger.debug("global enrichment projection skipped: %s", type(exc).__name__)
+        try:
+            from app.integrations.prod.evidence_graph import record_field_evidence
+            record_field_evidence(
+                payload["lead_id"],
+                {k: v for k, v in payload.items() if k != "lead_id"},
+                source=payload.get("enrichment_method") or "enrichment", confidence=0.7,
+            )
+        except Exception as exc:
+            logger.debug("enrichment evidence projection skipped: %s", type(exc).__name__)
+        results.append({"lead_id": payload["lead_id"], "ok": True})
+    return results
+
+
+async def upsert_score_batch(items: list[tuple[str, int, str, str, Optional[dict]]]) -> list[dict]:
+    """Upsert score rows by lead key, retaining per-row fallback semantics."""
+    if not items:
+        return []
+    payloads: list[dict] = []
+    for lead_id, score, tier, reasoning, lead in items:
+        lead = lead or {}
+        row = {
+            "lead_id": str(lead_id), "deterministic_score": int(score), "total_score": int(score),
+            "tier": tier, "reasoning": reasoning,
+            "scored_at": datetime.now(timezone.utc).isoformat(),
+        }
+        for key in ("pitch_line", "intent_score", "fit_score", "opportunity_score", "contactability_score", "opportunity_score_overall", "intelligence_confidence", "opportunity_evidence"):
+            if lead.get(key) is not None:
+                row[key] = lead[key]
+        payloads.append(row)
+    try:
+        await aexec(get_supabase().table("scores").upsert(payloads, on_conflict="lead_id"))
+        return [{"lead_id": row["lead_id"], "ok": True} for row in payloads]
+    except Exception as exc:
+        logger.warning("score batch unavailable; falling back to row writes: %s", type(exc).__name__)
+        results = []
+        for lead_id, score, tier, reasoning, lead in items:
+            try:
+                await upsert_score(str(lead_id), int(score), tier, reasoning, lead)
+                results.append({"lead_id": str(lead_id), "ok": True, "fallback": True})
+            except Exception as row_exc:
+                logger.warning("score fallback failed: %s", type(row_exc).__name__)
+                results.append({"lead_id": str(lead_id), "ok": False, "fallback": True})
+        return results
+
+
+async def persist_enrichment_and_score_batch(items: list[tuple[str, int, str, str, dict]]) -> dict:
+    """Persist compatible enrichment and score rows, with explicit outcomes."""
+    if not items:
+        return {"enrichment": [], "scores": [], "ok": True}
+    enrichment = await upsert_enrichment_batch([(lead_id, lead) for lead_id, _score, _tier, _reasoning, lead in items])
+    scores = await upsert_score_batch(items)
+    return {
+        "enrichment": enrichment,
+        "scores": scores,
+        "ok": all(row.get("ok") for row in (*enrichment, *scores)),
+    }
+
 
 @to_async
 def record_enrich_failure(lead_id:Optional[str],website:str,error:str)->None:

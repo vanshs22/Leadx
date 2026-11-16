@@ -1,0 +1,57 @@
+{
+  "schema_version": "leadx.uat-prerequisites.v1",
+  "target": {
+    "name": "replace-with-isolated-uat-target",
+    "environment": "staging",
+    "api_url": "https://replace-with-uat-api.example.com",
+    "portal_url": "https://replace-with-uat.example.com",
+    "supabase_project_ref": "replace-with-uat-project-ref"
+  },
+  "authorization": {
+    "credential_owner": "replace-with-approved-owner",
+    "approval_reference": "replace-with-change-or-ticket-reference",
+    "credential_store": "replace-with-secret-store-or-github-environment",
+    "scope": "bounded isolated UAT only"
+  },
+  "approved_checks": [
+    "health.schema.rls",
+    "auth.client-admin-session",
+    "cross-tenant.negative",
+    "pipeline.request-approval-run-stop",
+    "cleanup.reporting"
+  ],
+  "tenants": [
+    {"name": "tenant_a", "id": "replace-with-tenant-a-id"},
+    {"name": "tenant_b", "id": "replace-with-tenant-b-id"}
+  ],
+  "users": [
+    {"name": "client", "id": "replace-with-client-user-id"},
+    {"name": "admin", "id": "replace-with-admin-user-id"}
+  ],
+  "fixtures": {
+    "lead_a_id": "replace-with-lead-a-id",
+    "lead_b_id": "replace-with-lead-b-id"
+  },
+  "budgets": {
+    "max_target": 1,
+    "max_provider_requests": 5,
+    "max_enrichments": 3,
+    "max_runtime_seconds": 300,
+    "max_retries": 1
+  },
+  "cleanup": {
+    "required": true,
+    "owner": "replace-with-cleanup-owner",
+    "plan": "remove only UAT-created users, tenants, fixtures, jobs, and evidence after review"
+  },
+  "rollback": {
+    "owner": "replace-with-rollback-owner",
+    "plan": "stop the isolated UAT stack and restore only approved UAT resources using the runbook",
+    "runbook": "replace-with-approved-uat-rollback-runbook"
+  },
+  "evidence": {
+    "owner": "replace-with-evidence-owner",
+    "destination": "artifacts/uat",
+    "retention_days": 30
+  }
+}

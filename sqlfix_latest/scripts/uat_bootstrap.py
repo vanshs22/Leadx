@@ -18,8 +18,10 @@ from urllib.request import Request, urlopen
 
 try:
     from scripts.uat_config import UatConfigurationError, validate_uat_environment
+    from scripts.uat_prerequisites import load_bundle
 except ModuleNotFoundError:  # direct script execution
     from uat_config import UatConfigurationError, validate_uat_environment
+    from uat_prerequisites import load_bundle
 
 
 class UatBootstrapError(RuntimeError):
@@ -166,10 +168,16 @@ def main() -> int:
     parser.add_argument("--dry-run", action="store_true", help="validate markers and print the bounded plan only")
     parser.add_argument("--apply", action="store_true", help="perform idempotent UAT-only provisioning")
     parser.add_argument("--output", type=Path, default=Path("artifacts/uat/bootstrap.json"))
+    parser.add_argument("--prerequisites", type=Path, default=None, help="secret-free isolated UAT prerequisite bundle")
     args = parser.parse_args()
     if args.dry_run == args.apply:
         parser.error("choose exactly one of --dry-run or --apply")
     try:
+        if args.apply:
+            raw_path = str(args.prerequisites or os.getenv("LEADX_UAT_PREREQUISITES_FILE", "")).strip()
+            _bundle, missing = load_bundle(Path(raw_path) if raw_path else None)
+            if missing:
+                raise UatBootstrapError("UAT prerequisite bundle is incomplete")
         validate_uat_environment(require_apply=args.apply, require_live=args.apply)
         if args.dry_run:
             print(json.dumps({"result": "NOT TESTED", "mode": "uat-dry-run", "bounded": True, "mutations": False}, indent=2))

@@ -33,6 +33,7 @@ from app.integrations.prod.provider_execution import (
     execute_provider,
     record_attempt,
 )
+from app.integrations.prod.utils import is_valid_email, normalize_phone
 
 ProviderFn = Callable[[dict, str], Awaitable[Optional[dict]]]
 # A provider returns {"value": Any, "confidence": 0..1, "source_url": str?} or None.
@@ -47,40 +48,22 @@ _DISPOSABLE = {"mailinator.com", "guerrillamail.com", "10minutemail.com", "tempm
 
 # ---------------------------------------------------------------- validators
 def validate_email(v: Any) -> tuple[bool, float]:
-    """Return (is_valid, quality_multiplier). Role inboxes are valid but weaker."""
+    """Return (is_valid, quality_multiplier) using the canonical contact rules."""
     s = str(v or "").strip().lower()
-    if not _EMAIL_RE.match(s):
+    if not is_valid_email(s):
         return False, 0.0
-    local, domain = s.rsplit("@", 1)
-    if domain in _DISPOSABLE:
-        return False, 0.0
+    local = s.rsplit("@", 1)[0]
     if local in _ROLE_LOCALPARTS:
         return True, 0.75
     return True, 1.0
 
 
 def validate_phone(v: Any) -> tuple[bool, float]:
+    """Accept only a canonical, parseable phone value."""
     raw = str(v or "").strip()
-    if not raw: return False, 0.0
-    digits_pre = re.sub(r"\D", "", raw)
-    nanp_digits = digits_pre[1:] if len(digits_pre) == 11 and digits_pre.startswith("1") else digits_pre
-    if len(nanp_digits) == 10 and (nanp_digits[0] in "01" or nanp_digits[3] in "01" or (nanp_digits[3:6] == "555" and nanp_digits[6:8] == "01")):
+    if not raw or normalize_phone(raw) is None:
         return False, 0.0
-    try:
-        import phonenumbers
-        parsed = phonenumbers.parse(raw, None if raw.startswith("+") else os.getenv("DEFAULT_PHONE_REGION", "US"))
-        if phonenumbers.is_possible_number(parsed) and phonenumbers.is_valid_number(parsed):
-            return True, 1.0
-        return False, 0.0
-    except Exception:
-        # Dependency-light fallback: accept international E.164-ish numbers
-        # instead of silently rejecting every non-NANP lead.
-        digits = re.sub(r"\D", "", raw)
-        if 7 <= len(digits) <= 15 and not (len(set(digits)) <= 2):
-            if len(digits) >= 10 and digits[-10:-7] == "555" and digits[-7:-5] == "01":
-                return False, 0.0
-            return True, 0.75
-        return False, 0.0
+    return True, 1.0
 
 
 def validate_url(v: Any) -> tuple[bool, float]:
@@ -111,6 +94,19 @@ VALIDATORS: dict[str, Callable[[Any], tuple[bool, float]]] = {
     "youtube_url": validate_url,
     "owner_name": validate_name,
 }
+
+
+def enrichment_value_reason(field_name: str, value: Any) -> str | None:
+    """Return a stable field-specific rejection code for audit output."""
+    if field_name == "email":
+        return None if validate_email(value)[0] else "invalid_email"
+    if field_name in {"phone", "phone_e164", "phone_normalized"}:
+        return None if validate_phone(value)[0] else "invalid_phone"
+    if field_name.endswith("_url") or field_name == "website":
+        return None if validate_url(value)[0] else "invalid_url"
+    if field_name == "owner_name":
+        return None if validate_name(value)[0] else "invalid_name"
+    return "invalid_field_value"
 
 
 def validate_enrichment_value(field_name: str, value: Any) -> tuple[bool, Any]:

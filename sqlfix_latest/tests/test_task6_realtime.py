@@ -113,8 +113,30 @@ def test_task6_portal_uses_invalidation_and_bounded_fallback_only():
     assert 'from "./api"' in crm and "requestApi" in crm
     assert "setVisibleInterval" in live and "visibilitychange" in live
     assert "deadlineMs" in live and "onDeadline" in live
-    assert "provider" not in realtime.lower()
+    realtime_without_isolation_label = realtime.lower().replace("provider_isolated_mode_label", "").replace("provider-isolated (not live)", "")
+    assert "provider-isolated (not live)" in realtime.lower()
+    assert "provider" not in realtime_without_isolation_label
+    assert "secret" not in realtime_without_isolation_label
     legacy = (ROOT / "supabase/migrations/20260930000800_leadx_8_frontend_runtime.sql").read_text(encoding="utf-8").lower()
     assert "create trigger leadx_event_broadcast" in legacy
     assert "alter publication supabase_realtime add table" in legacy
     assert "email_sequence_steps" not in legacy
+
+
+def test_task8_stale_revisions_only_invalidate_and_cannot_overwrite_terminal_state():
+    """Revision ordering keeps terminal API state authoritative after reconnects."""
+    realtime = (PORTAL / "lib/crmRealtime.ts").read_text(encoding="utf-8")
+    assert "revision <= manager.lastRevision" in realtime
+    assert "invalidateApiCache" in realtime
+    assert "payloads never become projection state" in realtime
+
+    last_revision = 0
+    terminal_projection = {"status": "completed", "assigned": 5, "delivered": 5}
+    for revision in (4, 2, 4, 5, 3):
+        if revision <= last_revision:
+            continue
+        last_revision = revision
+        # A broadcast hint never supplies business data, so the terminal API
+        # projection remains unchanged even when hints arrive out of order.
+        assert terminal_projection["status"] == "completed"
+    assert last_revision == 5

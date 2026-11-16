@@ -7,9 +7,12 @@ CRM engines remain the execution layer.
 """
 from __future__ import annotations
 from datetime import datetime, timezone, timedelta
+from dataclasses import replace
+from collections.abc import Mapping, Sequence
 import asyncio
 import os
 import logging
+import uuid
 from typing import Any
 from app.memory.supabase_client import get_supabase
 from app.services.aio import aexec
@@ -263,7 +266,144 @@ def preflight_mission(graph: list | tuple | None = None, registry: dict[str, dic
     return compile_mission(graph=graph, registry=registry)
 
 
-def create_mission(tenant_id: str, objective: str, input_data: dict | None = None, mode: str = "supervised") -> dict:
+def _task_first_request(
+    tenant_id: str,
+    objective: str,
+    input_data: Mapping[str, Any],
+    *,
+    profile_id: str | None = None,
+    selected_specialists: Sequence[str] | None = None,
+    use_case_id: str | None = None,
+    principal_id: str | None = None,
+    idempotency_key: str | None = None,
+    now: str | None = None,
+):
+    """Compile intake, routing, planning, and graph without an external effect."""
+    from app.orchestration.default_graph import build_default_plan
+    from app.orchestration.graph import build_dynamic_subset
+    from app.orchestration.intake import build_task_request
+    from app.orchestration.planner import plan
+    from app.orchestration.router import route
+
+    if not isinstance(input_data, Mapping):
+        raise ValueError("task_input_must_be_object")
+    values = dict(input_data)
+    selected_profile = profile_id or values.get("profile_id") or "lead_generation.default.v1"
+    selected = selected_specialists if selected_specialists is not None else values.get("selected_specialists")
+    if selected is not None:
+        if isinstance(selected, str) or not isinstance(selected, Sequence):
+            raise ValueError("selected_specialists_must_be_sequence")
+        values["selected_specialists"] = list(selected)
+    use_case = use_case_id or values.get("use_case_id") or "agent-mission"
+    principal = principal_id or values.get("principal_id") or f"legacy-api:{tenant_id}"
+    target = values.get("requested_target", values.get("target", values.get("target_new_leads", 0)))
+    metric = values.get("target_metric", "assigned")
+    entitlement = values.get("entitlement_snapshot") or {"allowed": True, "source": "legacy-compat"}
+    compliance = values.get("compliance_snapshot") or {"allowed": True, "source": "legacy-compat"}
+    policy = values.get("policy_snapshot") or {}
+    envelope = {
+        "tenant_id": tenant_id, "use_case_id": use_case, "principal_id": principal,
+        "principal_type": values.get("principal_type", "legacy_api"),
+        "actor_scope": {"tenant_id": tenant_id, "use_case_id": use_case, "principal_id": principal},
+        "profile_id": selected_profile, "objective": objective, "input": values,
+        "requested_target": target, "target_metric": metric,
+        "policy_snapshot": policy, "entitlement_snapshot": entitlement,
+        "compliance_snapshot": compliance,
+        "idempotency_key": idempotency_key or values.get("idempotency_key") or f"legacy-mission:{uuid.uuid4().hex}",
+        "evidence_class": values.get("evidence_class", "synthetic/offline"),
+        "environment": values.get("environment", "offline"),
+        "planner_version": "v1",
+    }
+    request = build_task_request(envelope, now=now)
+    decision = route(request, policy_context=policy)
+    if decision.profile_id == "gtm.mission.v1":
+        if values.get("mission_approval") is not True:
+            raise ValueError("mission_approval_required")
+        bounded = {**values, "selected_task_types": list(decision.included_task_types), "tenant_id": tenant_id, "use_case_id": use_case}
+        planned = plan(request, decision.profile_id, policy_snapshot=policy, entitlement_snapshot=entitlement, bounded_inputs=bounded)
+    elif decision.profile_id.startswith("single."):
+        if decision.profile_id == "single.outreach.v1" and not all(values.get(gate) is True for gate in ("communication_authorization", "approval", "consent", "suppression", "sender", "provider")):
+            raise ValueError("outreach_gates_required")
+        planned = plan(request, decision.profile_id, policy_snapshot=policy, entitlement_snapshot=entitlement, bounded_inputs=values)
+    else:
+        planned = build_default_plan(request, policy_snapshot=policy, entitlement_snapshot=entitlement, bounded_inputs=values)
+    graph = build_dynamic_subset(planned, mission_id=None, now=planned.created_at)
+    request = replace(request, status="planned", routing_decision=decision.to_dict(), routing_rationale=decision.reason)
+    return {"request": request, "routing": decision, "plan": planned, "graph": graph, "input_data": values}
+
+
+def compile_task_first_mission(
+    tenant_id: str,
+    objective: str,
+    input_data: Mapping[str, Any] | None = None,
+    *,
+    profile_id: str | None = None,
+    selected_specialists: Sequence[str] | None = None,
+    use_case_id: str | None = None,
+    principal_id: str | None = None,
+    idempotency_key: str | None = None,
+    now: str | None = None,
+) -> dict[str, Any]:
+    """Return the validated task-first compatibility projection, offline only."""
+    if not isinstance(objective, str) or not objective.strip():
+        raise ValueError("mission_objective_required")
+    return _task_first_request(
+        tenant_id, objective, input_data or {}, profile_id=profile_id,
+        selected_specialists=selected_specialists, use_case_id=use_case_id,
+        principal_id=principal_id, idempotency_key=idempotency_key, now=now,
+    )
+
+
+def _persist_task_first_mission(compiled: dict[str, Any], tenant_id: str, mode: str) -> dict:
+    request = compiled["request"]
+    plan_ir = compiled["plan"]
+    graph = compiled["graph"]
+    values = dict(compiled["input_data"])
+    orchestration = {
+        "task_request": request.to_dict(), "routing": compiled["routing"].to_dict(),
+        "plan": plan_ir.to_dict(), "graph": graph.to_dict(), "evidence_class": request.evidence_class,
+    }
+    mission_input = {**values, "_task_first": True, "_orchestration": orchestration}
+    timestamp = request.created_at or _now()
+    row = {"tenant_id": tenant_id, "objective": request.objective[:4000], "input_data": mission_input,
+           "mode": mode if mode in {"manual", "supervised", "autonomous"} else "supervised",
+           "parent_agent_id": "gtm", "graph_version": f"task-first-{request.profile_id}",
+           "graph_count": len(graph.tasks), "progress_total": len(graph.tasks), "progress_completed": 0,
+           "progress_failed": 0, "progress_skipped": 0, "progress_remaining": len(graph.tasks),
+           "status": "queued", "created_at": timestamp, "updated_at": timestamp}
+    out = _sb().table("agent_missions").insert(row).execute().data or []
+    if not out: raise RuntimeError("mission_create_failed")
+    mission = out[0]
+    tasks = []
+    for durable in graph.tasks:
+        task_input = {"mission_id": mission["id"], **values, **dict(durable.input_data),
+                      "_task_first": True, "_plan_task_id": durable.task_id}
+        tasks.append({"mission_id": mission["id"], "tenant_id": tenant_id, "task_id": durable.task_id,
+                      "topological_order": len(tasks), "agent_id": durable.agent_id,
+                      "objective": durable.task_type, "depends_on": list(durable.dependency_ids),
+                      "executor_key": durable.executor_key, "status": "queued" if durable.status == "ready" else "blocked",
+                      "attempts": 0, "max_attempts": durable.max_attempts, "run_after": timestamp,
+                      "lease_owner": None, "lease_expires_at": None, "lease_renewed_at": None,
+                      "error_category": None, "dependency_outcome": "pending", "terminal_result": None,
+                      "input_data": task_input, "created_at": timestamp, "updated_at": timestamp})
+    inserted = _sb().table("agent_mission_tasks").insert(tasks).execute().data or []
+    if len(inserted) != len(tasks): raise RuntimeError("mission_task_create_failed")
+    return mission
+
+
+def create_mission(
+    tenant_id: str, objective: str, input_data: dict | None = None, mode: str = "supervised", *,
+    task_first: bool = False, profile_id: str | None = None,
+    selected_specialists: Sequence[str] | None = None, use_case_id: str | None = None,
+    principal_id: str | None = None, idempotency_key: str | None = None,
+) -> dict:
+    if task_first:
+        compiled = compile_task_first_mission(
+            tenant_id, objective, input_data, profile_id=profile_id,
+            selected_specialists=selected_specialists, use_case_id=use_case_id,
+            principal_id=principal_id, idempotency_key=idempotency_key,
+        )
+        return _persist_task_first_mission(compiled, tenant_id, mode)
     # Validate every caller-controlled value and compile before touching the DB.
     payload = validate_input("gtm", input_data)
     if not isinstance(objective, str) or not objective.strip():
@@ -358,9 +498,10 @@ def _compact_handoff(dep_outputs: list[dict]) -> dict:
     if assignment_ids: merged["assignment_ids"] = assignment_ids[:5000]
     return merged
 
-async def _dependency_context(tenant_id: str, mission_id: str, deps: list[str]) -> dict:
+async def _dependency_context(tenant_id: str, mission_id: str, deps: list[str], *, task_first: bool = False) -> dict:
     if not deps: return {}
-    rows = (await aexec(_sb().table("agent_mission_tasks").select("agent_id,output_data,status").eq("mission_id",mission_id).eq("tenant_id",tenant_id).in_("agent_id",deps))).data or []
+    key = "task_id" if task_first else "agent_id"
+    rows = (await aexec(_sb().table("agent_mission_tasks").select("agent_id,task_id,output_data,status").eq("mission_id",mission_id).eq("tenant_id",tenant_id).in_(key,deps))).data or []
     return _compact_handoff([r.get("output_data") or {} for r in rows if r.get("status") == "done"])
 
 
@@ -384,14 +525,15 @@ async def tick_mission(tenant_id: str, mission_id: str) -> dict:
     mission = mission_rows[0]
     if mission["status"] in {"cancelled", "completed", "failed"}: return await get_mission(tenant_id, mission_id)
     tasks = (await aexec(_sb().table("agent_mission_tasks").select("*").eq("mission_id", mission_id).eq("tenant_id", tenant_id).order("topological_order"))).data or []
-    by_agent = {str(t["agent_id"]): t for t in tasks}
+    task_first = bool((mission.get("input_data") or {}).get("_task_first"))
+    by_dependency = {str(t.get("task_id")): t for t in tasks} if task_first else {str(t["agent_id"]): t for t in tasks}
 
     # Resolve dependency states first. A failed prerequisite fails the dependent
     # task rather than leaving the graph permanently blocked.
     for task in tasks:
         if task["status"] != "blocked": continue
         deps = task.get("depends_on") or []
-        dep_rows = [by_agent.get(str(d)) for d in deps]
+        dep_rows = [by_dependency.get(str(d)) for d in deps]
         if any(x and x.get("status") == "failed" for x in dep_rows):
             await aexec(_sb().table("agent_mission_tasks").update({
                 "status":"failed", "error":"dependency_failed", "error_category":"dependency_failed",
@@ -400,7 +542,7 @@ async def tick_mission(tenant_id: str, mission_id: str) -> dict:
             }).eq("id",task["id"]).eq("tenant_id",tenant_id).eq("status","blocked"))
             task["status"] = "failed"
         elif all(x and x.get("status") == "done" for x in dep_rows):
-            context = await _dependency_context(tenant_id, mission_id, deps)
+            context = await _dependency_context(tenant_id, mission_id, deps, task_first=task_first)
             base = task.get("input_data") or {}
             handoff = {**base, **context, "mission_id": mission_id, "mission_mode": mission.get("mode")}
             await aexec(_sb().table("agent_mission_tasks").update({"status":"queued","input_data":handoff,"updated_at":_now()}).eq("id",task["id"]).eq("tenant_id",tenant_id))

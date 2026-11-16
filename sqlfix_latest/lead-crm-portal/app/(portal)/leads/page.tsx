@@ -385,7 +385,10 @@ export default function LeadsPage() {
         bodyClassName="p-0"
       >
         {loading ? (
-          <LoadingRows rows={8} cols={6} />
+          <>
+            <p className="px-5 py-3 text-xs text-ink-muted" role="status">Loading leads…</p>
+            <LoadingRows rows={8} cols={6} />
+          </>
         ) : loadError ? (
           <div className="p-5"><ErrorState error={loadError} onRetry={load} /></div>
         ) : leads.length === 0 ? (

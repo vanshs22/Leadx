@@ -1,0 +1,83 @@
+{
+  "schema": "leadx.test-environment-production-validation.task8.continuation.v2",
+  "task": "test-environment-production-validation.8 continuation",
+  "decision": "BLOCKED",
+  "execution_performed": false,
+  "evidence_class": "live-runtime-prerequisite",
+  "observed_at": "2026-11-12T18:10:00Z",
+  "scope": {
+    "tenant_id": "5655f9d9-b3c7-48f9-bb95-9f3fe0675854",
+    "icp_id": "377aaa3e-5eae-41fc-a12a-570e791490b3",
+    "vertical": "marketing agency",
+    "geography": ["New Jersey", "New York", "Pennsylvania"],
+    "delivery": "portal",
+    "requested_target": 5,
+    "hard_cap": 500,
+    "scope_match": "PASS"
+  },
+  "runtime": {
+    "api_live_status": 200,
+    "api_ready_status": 200,
+    "api_routes_status": 200,
+    "portal_health_status": 200,
+    "required_components_ok": true,
+    "normal_authenticated_boundary": true,
+    "local_auth_override_changed_by_run": false
+  },
+  "opaque_auth_state": {
+    "client_state_path_present": true,
+    "admin_state_path_present": true,
+    "contents_inspected": false,
+    "credentials_or_tokens_read_or_printed": false,
+    "client_exact_scope": "PASS",
+    "admin_exact_scope": "PASS"
+  },
+  "admission_gates": {
+    "readiness": "PASS",
+    "authenticated_exact_scope": "PASS",
+    "monitoring": "PASS",
+    "provider_health_reachable": "PASS",
+    "approved_provider_list_and_budget": "NOT_OBSERVABLE",
+    "no_outbound_policy": "NOT_CONFIRMED",
+    "durable_preflight": "NOT_OBSERVABLE via authenticated API",
+    "timing_baseline": "NOT_TESTED before submission",
+    "side_effect_ceiling": "NOT_OBSERVABLE",
+    "stop_conditions": "NOT_OBSERVABLE",
+    "cleanup_ownership": "NOT_OBSERVABLE",
+    "fresh_idempotency_identity": "NOT_CREATED",
+    "forbidden_action_guard": "PASS by non-execution"
+  },
+  "run": {
+    "submission_count": 0,
+    "pipeline_request_created": false,
+    "fresh_idempotency_key_used": false,
+    "provider_calls": 0,
+    "second_submission": false,
+    "retry_cancel_or_cleanup": false,
+    "terminal_status": null,
+    "stop_reason": "Stopped before submission because provider/no-outbound policy, durable preflight, side-effect ceiling, stop conditions, cleanup ownership, and timing admission evidence were not all observable and passing."
+  },
+  "validation_results": {
+    "assigned_at_least_5": "NOT_TESTED",
+    "delivered_at_least_5": "NOT_TESTED",
+    "completed_status": "NOT_TESTED",
+    "crm_client_reconciliation": "NOT_TESTED",
+    "task_realtime_count_convergence": "NOT_TESTED",
+    "timing": "NOT_TESTED"
+  },
+  "safety_boundary": {
+    "env_values_read": false,
+    "credentials_read_printed_requested_or_persisted": false,
+    "storage_state_contents_read": false,
+    "raw_payloads_printed": false,
+    "email_outreach_campaign_stripe_ses": 0,
+    "provider_calls": false,
+    "pipeline_request_created": false,
+    "database_mutation": false,
+    "queue_mutation": false,
+    "migration_or_sql_mutation": false,
+    "reset_or_data_cleanup": false,
+    "cap_violation": false
+  },
+  "next_gate": "Expose and verify the missing authenticated admission evidence on this same runtime. Do not submit until every required gate is PASS."
+}

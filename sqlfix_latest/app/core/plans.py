@@ -32,8 +32,42 @@ PLANS: dict[str, dict[str, Any]] = {
 
 LEGACY_PLAN_ALIASES = {"premium": "agency", "enterprise": "agency"}
 PLAN_RANK = {"free": 0, "starter": 1, "growth": 2, "agency": 3}
+# This version identifies the catalog used to display and enforce entitlements.
+# Price IDs remain environment values; the catalog never invents customer-facing
+# prices when a Stripe mapping is pending.
+PLAN_CATALOG_VERSION = "2026-10-30.v1"
+PLAN_CATALOG_STATUS = "active"
 PLAN_LIMITS = {k: int(v["leads_per_month"]) for k, v in PLANS.items()}
 PLAN_ENV_KEYS = {(plan, interval): env for plan, spec in PLANS.items() for interval, env in spec["stripe_env_keys"].items()}
+
+
+def catalog_snapshot(value: str | None, interval: str | None = None, price_id: str | None = None) -> dict[str, Any]:
+    """Return the one versioned entitlement contract used by API and workers."""
+    plan = normalize_plan(value)
+    normalized_interval = str(interval or "").strip().lower() or None
+    return {
+        "catalog_version": PLAN_CATALOG_VERSION,
+        "status": PLAN_CATALOG_STATUS,
+        "plan": plan,
+        "name": PLANS[plan]["name"],
+        "interval": normalized_interval,
+        "limits": {"leads_per_month": plan_limit(plan), "research_runs": int(PLANS[plan]["research_runs"])},
+        "features": {
+            "max_children": int(PLANS[plan]["max_children"]),
+            "allow_tier_b": bool(PLANS[plan]["allow_tier_b"]),
+            "exclusive_leads": bool(PLANS[plan].get("exclusive_leads", False)),
+        },
+        "stripe_price_id": str(price_id).strip() if price_id else None,
+        "price_state": "configured" if price_id else ("pending" if normalized_interval else "not_required"),
+    }
+
+
+def entitlement_from_snapshot(value: str | None, snapshot: Any = None) -> dict[str, Any]:
+    """Use a valid tenant snapshot without trusting mutable legacy limits."""
+    if isinstance(snapshot, dict) and snapshot.get("catalog_version") and snapshot.get("plan"):
+        plan = normalize_plan(snapshot.get("plan"))
+        return catalog_snapshot(plan, snapshot.get("interval"), snapshot.get("stripe_price_id"))
+    return catalog_snapshot(value)
 
 
 def normalize_plan(value: str | None, default: str = "free") -> str:
@@ -75,6 +109,8 @@ def public_plans() -> list[dict[str, Any]]:
     return [
         {"key": key, "name": spec["name"], "leads_per_month": spec["leads_per_month"],
          "max_children": spec["max_children"], "allow_tier_b": spec["allow_tier_b"],
-         "exclusive_leads": spec.get("exclusive_leads", False), "research_runs": spec["research_runs"]}
+         "exclusive_leads": spec.get("exclusive_leads", False), "research_runs": spec["research_runs"],
+         "catalog_version": PLAN_CATALOG_VERSION, "status": PLAN_CATALOG_STATUS,
+         "billing_intervals": sorted(spec.get("stripe_env_keys", {}).keys()) or ["monthly"]}
         for key, spec in PLANS.items()
     ]

@@ -1,0 +1,173 @@
+{
+  "schema": "leadx.task30.post-remediation-validation.v1",
+  "task": "30",
+  "overall": {
+    "status": "FAIL",
+    "reason": "Readiness, queue/recovery, focused tests, public routes, and auth guards passed locally, but authenticated client/admin dashboard, GTM, task-trace, profile, realtime, and authenticated state coverage remained BLOCKED or NOT_TESTED because no approved non-secret fixture account was available.",
+    "promotion_boundary": "No result is promoted to UAT, live/provider, deployment, or production-readiness evidence."
+  },
+  "profile": {
+    "name": "leadx-real-validation",
+    "compose_file": "docker-compose.yml",
+    "target_services": ["api", "worker", "portal", "redis"],
+    "final_profile": "base Compose profile; the temporary local-validation override was not retained"
+  },
+  "evidence_classes": {
+    "browser": "localhost Playwright/browser evidence only",
+    "api_local_stack": "read-only localhost HTTP/API and container diagnostics",
+    "production_shaped_local": "existing leadx-real-validation Compose profile",
+    "static": "focused repository test and source-contract evidence",
+    "unavailable_blocked": "missing approved authenticated fixture or excluded operation",
+    "uat": "BLOCKED",
+    "live_provider": "BLOCKED",
+    "deployment": "BLOCKED"
+  },
+  "safety": {
+    "env_read": false,
+    "env_values_printed_or_inspected": false,
+    "secrets_requested_printed_or_persisted": false,
+    "approved_authenticated_fixture_available": false,
+    "credentials_cookies_storage_state_used": false,
+    "providers_contacted": false,
+    "email_outreach_campaign_billing_stripe_ses_actions": false,
+    "queue_clear_or_failed_job_delete": false,
+    "database_reset_or_migration": false,
+    "deployment": false,
+    "unrelated_stacks_stopped_or_replaced": false,
+    "application_source_tests_requirements_design_modified": false,
+    "written_artifacts": [
+      "artifacts/local-validation/task30-post-remediation-validation.json",
+      "artifacts/local-validation/task30-post-remediation-validation.md"
+    ]
+  },
+  "task29": {
+    "status": "PASS locally; remediation loaded and exercised",
+    "root_cause_and_remediation": [
+      "Readiness depended on fresh worker heartbeat plus queue and reclaim capability evidence; the remediation records and aggregates those capabilities instead of treating a healthy container or Redis alone as readiness.",
+      "Stale recovery previously selected only old locked_at rows and could miss lease-expired work; the remediation checks lease_expires_at and keeps owner/status predicates on the terminal update.",
+      "A terminal job row could be persisted while an additive accounting/finalizer transition failed; the remediation preserves terminal/error evidence and defers only the additive finalizer for later reconciliation.",
+      "Pipeline runs affected by worker lease loss are explicitly projected to queued or failed recovery state so the UI does not retain an orphaned running run.",
+      "The portal readiness contract now requires the direct and backend-proxy readiness status to match; worker housekeeping skips tenant-scoped cron entries without tenant scope."
+    ],
+    "focused_regression_result": "PASS: 25 tests passed in the three named Task 29 test modules."
+  },
+  "before_rebuild": {
+    "captured_at": "2026-10-30 local run",
+    "containers": [
+      {"name": "leadx-real-validation-api-1", "status": "running", "health": "healthy", "restarts": 0},
+      {"name": "leadx-real-validation-worker-1", "status": "running", "health": "healthy", "restarts": 0},
+      {"name": "leadx-real-validation-portal-1", "status": "running", "health": "healthy", "restarts": 0},
+      {"name": "leadx-real-validation-redis-1", "status": "running", "health": "healthy", "restarts": 0}
+    ],
+    "redis_ping": "PASS: PONG",
+    "health": {
+      "GET http://localhost:8000/health": {"status": "PASS", "http": 200, "ok": true},
+      "GET http://localhost:8000/health/ready": {"status": "PASS", "http": 200, "ok": true},
+      "GET http://localhost:8000/health/live": {"status": "PASS", "http": 200, "ok": true},
+      "GET http://localhost:3000/api/health": {"status": "PASS", "http": 200, "ok": true, "state": "ready"},
+      "GET http://localhost:3000/backend/health/live": {"status": "PASS", "http": 200, "ok": true},
+      "GET http://localhost:3000/backend/health/ready": {"status": "PASS", "http": 200, "ok": true}
+    },
+    "queue": {"status": "PASS", "depth": 3, "queued": 0, "running": 3, "failed": 97, "done": 6482, "cancelled": 18, "capability": true},
+    "worker": {"status": "PASS", "health_script": "worker health: PASS"},
+    "reclaim": {"status": "PASS", "capability": true},
+    "auth_safe_admin_probes": "BLOCKED: read-only admin jobs/runtime-health/scale-health endpoints returned 401; no credentials were requested or used."
+  },
+  "rebuild": {
+    "status": "PASS",
+    "reason": "API, worker, and portal images were older than the current Task 29 source/image set; Redis was healthy and was not rebuilt or restarted.",
+    "commands": [
+      "docker compose --project-name leadx-real-validation -f docker-compose.yml -f artifacts/local-validation/compose.local-validation.override.yml up -d --build --no-deps api worker portal",
+      "docker compose --project-name leadx-real-validation -f docker-compose.yml up -d --build --no-deps api worker portal"
+    ],
+    "note": "The first command was a temporary profile check. It changed only the selected containers to local-validation SQLite mode, so the base Compose profile was immediately restored with the second command before final evidence. No queue was cleared and no job was deleted."
+  },
+  "after_rebuild": {
+    "containers": [
+      {"name": "leadx-real-validation-api-1", "status": "running", "health": "healthy", "restarts": 0},
+      {"name": "leadx-real-validation-worker-1", "status": "running", "health": "healthy", "restarts": 0},
+      {"name": "leadx-real-validation-portal-1", "status": "running", "health": "healthy", "restarts": 0},
+      {"name": "leadx-real-validation-redis-1", "status": "running", "health": "healthy", "restarts": 0, "restarted": false}
+    ],
+    "redis_ping": {"status": "PASS", "result": "PONG", "evidence": "api_local_stack"},
+    "health": {
+      "GET http://localhost:8000/health": {"status": "PASS", "http": 200, "ok": true},
+      "GET http://localhost:8000/health/ready": {"status": "PASS", "http": 200, "ok": true},
+      "GET http://localhost:8000/health/live": {"status": "PASS", "http": 200, "ok": true},
+      "GET http://localhost:3000/api/health": {"status": "PASS", "http": 200, "ok": true, "state": "ready"},
+      "GET http://localhost:3000/backend/health/live": {"status": "PASS", "http": 200, "ok": true},
+      "GET http://localhost:3000/backend/health/ready": {"status": "PASS", "http": 200, "ok": true},
+      "direct_proxy_readiness_consistency": "PASS: direct and backend proxy returned HTTP 200 with matching ready component outcomes"
+    },
+    "components": {"db": "ready", "redis": "ready", "worker": "ready", "queue": "ready", "reclaim": "ready", "routes": "ready", "auth": "ready"},
+    "queue": {"status": "PASS", "depth": 2, "queued": 0, "running": 2, "failed": 97, "done": 6506, "cancelled": 18, "capability": true},
+    "worker": {"status": "PASS", "health_script": "worker health: PASS", "healthy_count": 1, "reclaim_capability": true},
+    "recovery": {"status": "PASS", "reclaim_capability": true, "explicit_reap_invoked": false, "failed_history_preserved": true},
+    "read_only_job_snapshot": {"status": "PASS", "rows_observed": 500, "observed_statuses": {"done": 491, "running": 2, "failed": 7}, "observed_exhausted": 7, "observed_reaped": 0, "limitation": "bounded list snapshot; queue_stats is authoritative for total failed count"},
+    "auth_safe_admin_probes": "BLOCKED: read-only admin jobs/runtime-health/scale-health endpoints returned 401; no credentials were requested or used."
+  },
+  "focused_tests": {
+    "status": "PASS",
+    "command": "python -m pytest -q tests/test_api_health_contract.py tests/test_worker_queue_hardening.py tests/test_orchestration_recovery.py",
+    "counts": {"passed": 25, "failed": 0, "skipped": 0},
+    "evidence": "static/local safe-fake regression evidence"
+  },
+  "playwright": {
+    "contract_suite": {
+      "status": "PASS",
+      "command": "\\node_modules\\.bin\\playwright.cmd test e2e/portal-contracts.spec.ts --config=e2e/playwright.config.ts --workers=1 --timeout=15000 --reporter=line",
+      "counts": {"total": 21, "passed": 13, "failed": 0, "skipped": 8},
+      "limitation": "Eight authenticated synthetic tests skipped because no LEADX_E2E_STORAGE_STATE was available."
+    },
+    "bounded_route_matrix": {
+      "status": "PASS for available unauthenticated coverage; authenticated coverage remains blocked",
+      "command": "inline Playwright runner via node -; localhost-only request guard; desktop 1280x800 and mobile 375x812",
+      "desktop": {"total": 64, "pass": 8, "fail": 0, "blocked": 56, "not_tested": 0},
+      "mobile": {"total": 6, "pass": 6, "fail": 0, "blocked": 0, "not_tested": 0},
+      "browser_errors": {"console": 0, "page": 0, "local_request_failures": 0},
+      "audit_demo_loading_state": "PASS",
+      "route_statuses": {
+        "public_pass": ["/", "/pricing", "/signup", "/login", "/admin/login", "/accept-invite", "/verify-email", "/audit/demo"],
+        "public_auth_blocked": ["/privacy", "/security", "/terms", "/dpa", "/sample", "/checkout"],
+        "client_auth_blocked": ["/dashboard", "/growth", "/today", "/search", "/leads", "/companies", "/contacts", "/deals", "/sequences", "/automations", "/agents", "/compose", "/replies", "/notifications", "/pipeline", "/activities", "/reports", "/revenue", "/import", "/team", "/docs", "/settings", "/logs", "/intelligence", "/approvals", "/onboarding"],
+        "admin_auth_blocked": ["/admin", "/admin/agents", "/admin/automation", "/admin/autonomous", "/admin/health", "/admin/icps", "/admin/intelligence", "/admin/jobs", "/admin/keys", "/admin/leads", "/admin/notifications", "/admin/ops", "/admin/pipeline", "/admin/prospecting", "/admin/replies", "/admin/runs", "/admin/scale", "/admin/search", "/admin/security", "/admin/support", "/admin/suppression", "/admin/tenants", "/admin/territory", "/admin/usage"]
+      }
+    }
+  },
+  "flows": [
+    {"flow": "direct API liveness and readiness", "status": "PASS", "evidence": "api_local_stack", "detail": "HTTP 200 for /health/live and /health/ready; queue, worker, reclaim, Redis, DB, and routes ready."},
+    {"flow": "portal /api/health and /backend/health/ready consistency", "status": "PASS", "evidence": "api_local_stack", "detail": "Both returned HTTP 200 ready and matched direct API readiness."},
+    {"flow": "Redis PONG and worker/container health", "status": "PASS", "evidence": "production_shaped_local", "detail": "Four target containers healthy, zero restarts after rebuild, Redis PONG, worker health script PASS."},
+    {"flow": "queue/job/reclaim diagnostics", "status": "PASS", "evidence": "production_shaped_local", "detail": "Queue capability and reclaim capability ready; queue_stats preserved failed=97; read-only job snapshot observed terminal failures without deleting them."},
+    {"flow": "focused Task 29 tests", "status": "PASS", "evidence": "static", "detail": "25 passed, 0 failed."},
+    {"flow": "public browser routes", "status": "PASS", "evidence": "browser", "detail": "8 desktop public routes and 6 mobile public routes rendered without browser errors."},
+    {"flow": "client and admin auth guards", "status": "PASS", "evidence": "browser", "detail": "Unauthenticated protected routes redirected to the existing client/admin login boundaries."},
+    {"flow": "authenticated client dashboard routes", "status": "BLOCKED", "evidence": "unavailable/blocked", "detail": "No approved non-secret client fixture account or storage state was available; 26 routes were auth-guard blocked."},
+    {"flow": "authenticated admin dashboard routes", "status": "BLOCKED", "evidence": "unavailable/blocked", "detail": "No approved non-secret admin fixture account or storage state was available; 24 routes were auth-guard blocked."},
+    {"flow": "GTM selected-subset profile", "status": "BLOCKED", "evidence": "unavailable/blocked", "detail": "Requires an authenticated fixture; no request or execution was created."},
+    {"flow": "task-trace and profile visibility", "status": "BLOCKED", "evidence": "unavailable/blocked", "detail": "Requires authenticated dashboard/task projection; no success was inferred from static routes."},
+    {"flow": "authenticated realtime/invalidation/refetch", "status": "BLOCKED", "evidence": "unavailable/blocked", "detail": "No authenticated run or private tenant fixture existed. Mock realtime contract tests passed separately in the static Playwright suite."},
+    {"flow": "authenticated loading/empty/error states", "status": "BLOCKED", "evidence": "unavailable/blocked", "detail": "Authenticated fixture state unavailable. Public audit loading state passed; no write flow was used to manufacture state."},
+    {"flow": "outreach/email/provider/Stripe/SES actions", "status": "NOT_TESTED", "evidence": "unavailable/blocked", "detail": "Explicitly forbidden by Task 30 scope."},
+    {"flow": "UAT/live-provider/deployment validation", "status": "BLOCKED", "evidence": "unavailable/blocked", "detail": "Separate gates remain blocked and were not simulated."}
+  ],
+  "exact_commands": [
+    "git status --short",
+    "docker ps -a --format '{{.Names}}|{{.Status}}|{{.Image}}|{{.Ports}}'",
+    "docker inspect --format '{{.Name}}|{{.State.Status}}|{{.State.Health.Status}}|{{.RestartCount}}|{{.State.StartedAt}}|{{.Image}}' <target-container>",
+    "docker exec leadx-real-validation-redis-1 redis-cli ping",
+    "Invoke-WebRequest GET http://localhost:8000/health, /health/ready, /health/live, http://localhost:3000/api/health, /backend/health/live, /backend/health/ready",
+    "docker exec leadx-real-validation-worker-1 python scripts/check_worker_health.py",
+    "docker exec leadx-real-validation-api-1 python -c '<read-only jobs.queue_stats aggregate>'",
+    "docker exec leadx-real-validation-api-1 python -c '<read-only jobs.list_jobs aggregate>'",
+    "python -m pytest -q tests/test_api_health_contract.py tests/test_worker_queue_hardening.py tests/test_orchestration_recovery.py",
+    "\\node_modules\\.bin\\playwright.cmd test e2e/portal-contracts.spec.ts --config=e2e/playwright.config.ts --workers=1 --timeout=15000 --reporter=line",
+    "inline Playwright via node - with localhost-only request guard and bounded public/auth-guard route matrix"
+  ],
+  "limitations": [
+    "No approved non-secret authenticated client/admin account or storage state was available; authenticated dashboard, GTM, task-trace, profile, realtime, and authenticated state checks remain BLOCKED or NOT_TESTED.",
+    "The read-only admin diagnostics endpoints returned 401 because no admin credentials were available; container-local aggregate diagnostics were used instead.",
+    "Queue list inspection was bounded to 500 observed rows; the authoritative total failed count came from queue_stats and remained 97 before and after rebuild.",
+    "The report records local and production-shaped-local evidence only. It does not prove Supabase/RLS/realtime, provider, Stripe, SES, UAT, deployment, monitoring, rollback, support ownership, or production readiness."
+  ]
+}

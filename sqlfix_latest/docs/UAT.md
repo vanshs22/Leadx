@@ -10,8 +10,10 @@ From `sqlfix_latest` in PowerShell:
 Copy-Item .env.uat.example .env.uat
 # Edit .env.uat using the UAT secret store values. Do not commit .env.uat.
 python scripts/uat_runner.py --dry-run --output artifacts/uat-dry-run
-python scripts/uat_runner.py --preflight --output artifacts/uat-preflight
+python scripts/uat_runner.py --preflight --prerequisites path/to/prerequisites.json --output artifacts/uat-preflight
 ```
+
+Before any live bootstrap or run, copy `artifacts/uat/prerequisites.example.json` to a private, operator-supplied `prerequisites.json` and replace its non-secret target, tenant, user, fixture, budget, cleanup, rollback, ownership, approval, and evidence fields. The bundle must not contain passwords, tokens, API keys, or provider credentials. Preflight fails closed when the file is absent, contains placeholders, has fewer than two isolated tenants, lacks both client/admin fixture users, omits approved checks, exceeds the bounded budget, or lacks cleanup, rollback, or evidence metadata. Keep the file outside source control and pass it with `--prerequisites` or `LEADX_UAT_PREREQUISITES_FILE`.
 
 The dry run and preflight make no network calls. A live run requires both explicit command and environment markers:
 
@@ -19,10 +21,10 @@ The dry run and preflight make no network calls. A live run requires both explic
 $env:LEADX_UAT_APPLY = "1"
 docker compose --env-file .env.uat --project-name leadx-uat -f docker-compose.uat.yml config
 docker compose --env-file .env.uat --project-name leadx-uat -f docker-compose.uat.yml up -d api worker portal redis
-python scripts/uat_bootstrap.py --apply --output artifacts/uat-bootstrap.json
+python scripts/uat_bootstrap.py --apply --prerequisites path/to/prerequisites.json --output artifacts/uat-bootstrap.json
 # Copy the sanitized tenant/fixture IDs into LEADX_UAT_TENANT_A_ID,
 # LEADX_UAT_TENANT_B_ID, and LEADX_UAT_LEAD_A_ID in the UAT secret store.
-python scripts/uat_runner.py --run-live --output artifacts/uat
+python scripts/uat_runner.py --run-live --prerequisites path/to/prerequisites.json --output artifacts/uat
 ```
 
 To stop only UAT services:

@@ -1,0 +1,102 @@
+{
+  "schema": "leadx.target5-task13-live-validation.v1",
+  "task": "13. Run exactly one real target-five pipeline validation",
+  "decision": "BLOCKED",
+  "evidence_class": "live-runtime-prerequisite",
+  "execution_performed": false,
+  "scope": {
+    "tenant_id": "5655f9d9-b3c7-48f9-bb95-9f3fe0675854",
+    "icp_id": "377aaa3e-5eae-41fc-a12a-570e791490b3",
+    "vertical": "marketing agency",
+    "geography": ["New Jersey", "New York", "Pennsylvania"],
+    "delivery": "portal",
+    "requested_target": 5,
+    "target_metric": "assigned_and_delivered_required_for_pass"
+  },
+  "prerequisite_checks": [
+    {
+      "check": "Docker/API/worker/Redis runtime availability",
+      "status": "BLOCKED",
+      "evidence_class": "live-runtime-prerequisite",
+      "detail": "Docker API was unavailable on the local machine: Docker Desktop Linux engine named pipe could not be opened. No containers were observed and no health endpoint or Redis probe was attempted after this prerequisite failure."
+    },
+    {
+      "check": "Durable queue health",
+      "status": "NOT_TESTED",
+      "evidence_class": "unavailable/blocked",
+      "detail": "Could not verify the worker queue or durable job capability because the runtime prerequisite was unavailable."
+    },
+    {
+      "check": "Configured target scope",
+      "status": "NOT_TESTED",
+      "evidence_class": "unavailable/blocked",
+      "detail": "The supplied tenant and ICP scope was recorded exactly as authorized, but no authenticated or runtime-backed scope check was possible. No secrets, .env values, or credentials were read or requested."
+    },
+    {
+      "check": "Forbidden-action guard",
+      "status": "PASS",
+      "evidence_class": "static",
+      "detail": "No pipeline request, provider call, email, outreach, campaign, Stripe, SES, migration, reset, cleanup, retry, mutation, or outbound action was attempted."
+    }
+  ],
+  "run": {
+    "idempotency_key_created": false,
+    "submission_count": 0,
+    "same_key_replay_observed": false,
+    "provider_calls": 0,
+    "run_id": null,
+    "job_id": null,
+    "stop_reason": "Prerequisite gate failed before submission"
+  },
+  "validation_results": [
+    {"check": "23505 classification/replay", "status": "NOT_TESTED"},
+    {"check": "Fresh submission", "status": "NOT_TESTED"},
+    {"check": "Route invocation and free-first ordering", "status": "NOT_TESTED"},
+    {"check": "Scrapling/Crawl4AI/free enrichment and bounded paid fallback", "status": "NOT_TESTED"},
+    {"check": "Contact validation", "status": "NOT_TESTED"},
+    {"check": "Deduplication", "status": "NOT_TESTED"},
+    {"check": "Qualification", "status": "NOT_TESTED"},
+    {"check": "Assignment", "status": "NOT_TESTED"},
+    {"check": "CRM persistence", "status": "NOT_TESTED"},
+    {"check": "Portal delivery", "status": "NOT_TESTED"},
+    {"check": "Assigned/delivered/status reconciliation", "status": "NOT_TESTED"},
+    {"check": "Task traces", "status": "NOT_TESTED"},
+    {"check": "Recovery/cancellation/timeouts", "status": "NOT_TESTED"},
+    {"check": "Realtime convergence", "status": "NOT_TESTED"},
+    {"check": "Elapsed time and 20-30 second criterion", "status": "NOT_TESTED"}
+  ],
+  "counts": {
+    "requested_target": 5,
+    "discovered": null,
+    "enriched": null,
+    "qualified": null,
+    "assigned": null,
+    "reserved": null,
+    "delivered": null,
+    "status": null,
+    "elapsed_seconds": null
+  },
+  "safety_boundary": {
+    "env_file_read": false,
+    "credentials_read_printed_or_requested": false,
+    "provider_calls": false,
+    "pipeline_request_created": false,
+    "database_mutations": false,
+    "queue_mutations": false,
+    "email_outreach_campaign_stripe_ses": false,
+    "migrations_resets_cleanup_retries": false,
+    "data_deleted": false
+  },
+  "observed_operations": [
+    {
+      "operation": "Docker runtime availability check",
+      "result": "BLOCKED",
+      "sanitized_detail": "Docker API unavailable; Docker Desktop Linux engine pipe could not be opened."
+    }
+  ],
+  "limitations": [
+    "No live target-five execution occurred.",
+    "No provider, database, queue, API, worker, Redis, portal, realtime, CRM, assignment, or delivery evidence exists for this attempt.",
+    "No PASS can be claimed for the requested pipeline outcome; assigned >= 5, delivered >= 5, and status=completed were not observed."
+  ]
+}

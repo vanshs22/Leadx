@@ -244,3 +244,37 @@ def test_legacy_retry_tolerates_missing_reopen_schema(monkeypatch):
     monkeypatch.setattr(jobs, "_sb", lambda: store)
     assert jobs.retry_job("job-legacy") == {"ok": True, "job_id": "job-legacy"}
     assert store.rows("jobs")[0]["status"] == "queued"
+
+
+def test_terminal_recovery_preserves_failed_evidence_when_finalizer_is_unavailable(monkeypatch):
+    from app.integrations.prod import jobs
+    from conftest import FakeSupabase
+
+    stale = (datetime.now(timezone.utc) - timedelta(hours=2)).isoformat()
+    fake = FakeSupabase({
+        "jobs": [{
+            "id": "job-stale-finalizer", "kind": "email.bulk", "status": "running",
+            "locked_by": "dead-worker", "locked_at": stale, "attempts": 3,
+            "max_attempts": 3, "payload": {"_job_context": {"durable_handoff": True}},
+        }]
+    })
+    monkeypatch.setattr(jobs, "_sb", lambda: fake)
+
+    def unavailable(*_args, **_kwargs):
+        raise jobs.QueueTransitionError(operation="finish", job_id="job-stale-finalizer")
+
+    monkeypatch.setattr(jobs, "_finish_job_operation", unavailable)
+    assert jobs.reap_stale(minutes=1) == 1
+    row = fake.rows("jobs")[0]
+    assert row["status"] == "failed"
+    assert row["error"] == "worker_lost_reaped"
+    assert row["terminal_result"]["error"] == "worker_lost_reaped"
+    assert row["accounting_reconciliation_status"] == "pending"
+
+
+def test_global_cron_does_not_enqueue_tenant_scoped_signal_refresh():
+    from app import worker
+
+    assert worker._cron_entry_is_admissible("signals.refresh", {}) is False
+    assert worker._cron_entry_is_admissible("signals.refresh", {"tenant_id": "tenant-1"}) is True
+    assert worker._cron_entry_is_admissible("alerts.run", {}) is True

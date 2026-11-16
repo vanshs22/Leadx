@@ -32,7 +32,13 @@ _CORRELATION_FIELDS = {
     "lease_age_seconds", "retry_outcome", "reap_outcome", "outcome",
     "operation", "error_code", "method", "path", "status_code",
     "latency_ms", "policy", "capacity", "queue_capable", "active_jobs",
-    "count", "depth", "reason",
+    "count", "depth", "reason", "target_size", "target_metric", "stage",
+    "stage_start_ms", "stage_end_ms", "duration_ms", "route_count", "source_count",
+    "enrichment_mode", "batch_mode", "assigned_count", "reserved_count", "delivered_count",
+    "failure_count", "provider_overrun_count", "evidence_class", "queue_outcome",
+    "provider_outcome", "dependency_mode", "authenticated_scope", "terminal_status",
+    "cancellation_outcome", "timeout_outcome", "stop_reason", "forbidden_action_count",
+    "cleanup_outcome", "rollback_outcome", "environment_class",
 }
 
 
@@ -131,14 +137,16 @@ def correlation_fields(**values: Any) -> dict[str, Any]:
             value = value if re.fullmatch(r"tenant_[0-9a-f]{24}", str(value)) else tenant_scope(value, authorized=True)
         elif name == "error_code":
             value = error_code(value)
-        elif name in {"job_id", "worker_id", "kind", "dependency", "operation", "outcome", "retry_outcome", "reap_outcome", "status", "reason", "method", "path", "policy"}:
+        elif name in {"job_id", "worker_id", "kind", "dependency", "operation", "outcome", "retry_outcome", "reap_outcome", "status", "reason", "method", "path", "policy", "target_metric", "stage", "enrichment_mode", "batch_mode", "evidence_class", "queue_outcome", "provider_outcome", "dependency_mode", "authenticated_scope", "terminal_status", "cancellation_outcome", "timeout_outcome", "stop_reason", "cleanup_outcome", "rollback_outcome", "environment_class"}:
             value = safe_token(value)
-        elif name in {"attempt", "max_attempts", "status_code", "capacity", "active_jobs", "count", "depth"}:
+        elif name in {"attempt", "max_attempts", "status_code", "capacity", "active_jobs", "count", "depth", "target_size", "route_count", "source_count", "assigned_count", "reserved_count", "delivered_count", "failure_count", "provider_overrun_count", "forbidden_action_count"}:
             try:
                 value = max(0, int(value))
+                if name in {"target_size", "route_count", "source_count", "assigned_count", "reserved_count", "delivered_count", "failure_count", "provider_overrun_count"}:
+                    value = min(500, value)
             except (TypeError, ValueError):
                 continue
-        elif name in {"queue_age_seconds", "lease_age_seconds", "latency_ms"}:
+        elif name in {"queue_age_seconds", "lease_age_seconds", "latency_ms", "stage_start_ms", "stage_end_ms", "duration_ms"}:
             try:
                 value = round(max(0.0, float(value)), 3)
             except (TypeError, ValueError):

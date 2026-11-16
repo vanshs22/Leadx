@@ -1,0 +1,124 @@
+{
+  "schema": "leadx.task8-prerequisite-assessment.v1",
+  "decision": "BLOCKED",
+  "uat_gate": "BLOCKED",
+  "uat_checks": "NOT TESTED",
+  "mode": "prerequisite-assessment-only",
+  "wave": 8,
+  "wave_7_approval_supplied": false,
+  "external_contacts": false,
+  "env_file_read": false,
+  "secrets_requested_or_printed": false,
+  "remote_supabase_contacted": false,
+  "live_provider_contacted": false,
+  "stripe_contacted": false,
+  "deployed_checks_run": false,
+  "production_or_uat_data_mutated": false,
+  "deployed_or_live_actions_attempted": false,
+  "source_files_changed": false,
+  "redaction": {
+    "applied": true,
+    "credentials_or_secret_values_present": false,
+    "customer_or_provider_payloads_present": false
+  },
+  "evidence_inspected": [
+    ".kiro/specs/production-readiness-blockers/bugfix.md",
+    ".kiro/specs/production-readiness-blockers/design.md",
+    ".kiro/specs/production-readiness-blockers/tasks.md",
+    ".kiro/specs/production-readiness-blockers/.config.kiro",
+    "sqlfix_latest/docs/UAT.md",
+    "sqlfix_latest/scripts/uat_config.py",
+    "sqlfix_latest/scripts/uat_prerequisites.py",
+    "sqlfix_latest/scripts/uat_runner.py",
+    "sqlfix_latest/.env.uat.example",
+    "sqlfix_latest/docker-compose.uat.yml",
+    "sqlfix_latest/.github/workflows/uat-gates.yml",
+    "sqlfix_latest/artifacts/uat/prerequisites.example.json",
+    "sqlfix_latest/artifacts/uat/preflight/report.json",
+    "sqlfix_latest/artifacts/uat/preflight-verified/report.json",
+    "sqlfix_latest/artifacts/uat/task14-prerequisite-assessment/report.json"
+  ],
+  "existing_artifact_interpretation": "Existing UAT preflight and Task 14 records are historical blocked/configuration evidence only. No live PASS or remote contact was inferred.",
+  "offline_validation": {
+    "command": "python scripts/uat_runner.py --preflight --prerequisites artifacts/uat/prerequisites.example.json --output artifacts/uat/task8-offline-preflight",
+    "result": "BLOCKED",
+    "network": false,
+    "artifact": "artifacts/uat/task8-offline-preflight/report.json",
+    "interpretation": "Offline fail-closed preflight only; not UAT evidence",
+    "focused_pytest": {
+      "command": "pytest -q tests/test_task7_uat_prerequisites.py",
+      "result": "NOT RUN",
+      "reason": "pytest executable was unavailable in the shell"
+    }
+  },
+  "missing_prerequisites": [
+    {
+      "id": "wave-7-approval",
+      "requirement": "Recorded approval that Wave 7 CI/UAT-prerequisite work is complete and authorizes the bounded Wave 8 assessment"
+    },
+    {
+      "id": "operator-authorization",
+      "requirement": "Separate operator authorization naming the isolated UAT target, selected checks, bounded quota/cost scope, and permission to run them"
+    },
+    {
+      "id": "private-prerequisite-bundle",
+      "requirement": "Completed private secret-free prerequisites.json; only the placeholder template is present and it intentionally contains replacement markers"
+    },
+    {
+      "id": "private-uat-runtime-profile",
+      "requirement": "Private secret-store/process configuration with explicit staging/UAT markers, apply authorization where fixture mutation is approved, disabled local auth/dev bypass and local validation, fail-closed queue, portal-only delivery, and bounded budgets"
+    },
+    {
+      "id": "deployed-uat-services",
+      "requirement": "Approved non-local HTTPS API and portal targets with DNS/TLS, healthy API, portal, worker, dedicated Redis namespace, and unique worker identity"
+    },
+    {
+      "id": "isolated-supabase-uat",
+      "requirement": "Separate UAT Supabase project with current schema deployed, private credentials, and authorization to use that project"
+    },
+    {
+      "id": "isolated-identities-fixtures",
+      "requirement": "Two isolated UAT tenants, client and platform-admin users, platform-admin role, and sanitized tenant/lead fixture IDs"
+    },
+    {
+      "id": "provider-scope-budget",
+      "requirement": "Approved test-only discovery/enrichment sources, request/enrichment/runtime/retry limits within the UAT caps, timeouts, and paid-fallback decision"
+    },
+    {
+      "id": "cleanup-rollback-evidence",
+      "requirement": "Named cleanup and rollback owners, stop condition, retention/cleanup plan, recovery runbook, and redacted evidence destination"
+    },
+    {
+      "id": "conditional-email-scope",
+      "requirement": "If email is selected: verified UAT SES identity/sender, sandbox recipient, inbound receipt transport, and explicit test-only scope; otherwise SES remains out of scope"
+    }
+  ],
+  "unverified_checks": [
+    {"check_id": "health.schema.rls", "status": "NOT TESTED"},
+    {"check_id": "auth.client-admin-session", "status": "NOT TESTED"},
+    {"check_id": "team.invite", "status": "NOT TESTED"},
+    {"check_id": "pipeline.request-approval-run-stop", "status": "NOT TESTED"},
+    {"check_id": "mission.31-agents", "status": "NOT TESTED"},
+    {"check_id": "discovery.enrichment.qualification", "status": "NOT TESTED"},
+    {"check_id": "crm.assignment.delivery", "status": "NOT TESTED"},
+    {"check_id": "realtime.convergence", "status": "NOT TESTED"},
+    {"check_id": "ses.outbound-inbound-hooks", "status": "NOT TESTED"},
+    {"check_id": "retry.recovery", "status": "NOT TESTED"},
+    {"check_id": "cross-tenant.negative", "status": "NOT TESTED"},
+    {"check_id": "cleanup.reporting", "status": "NOT TESTED"}
+  ],
+  "gate": {
+    "id": "uat_live",
+    "status": "BLOCKED",
+    "check_status": "NOT TESTED",
+    "reason": "Wave 7 approval, private prerequisite bundle, separate approved UAT target, authorized credentials, and operator approval were not supplied. No live UAT result may be claimed.",
+    "reopen_with": [
+      "Wave 7 approval",
+      "completed private secret-free prerequisite bundle",
+      "private UAT runtime profile and authorized credentials",
+      "approved isolated deployed target and fixture references",
+      "bounded check/provider scope",
+      "cleanup, rollback, and evidence ownership"
+    ]
+  }
+}

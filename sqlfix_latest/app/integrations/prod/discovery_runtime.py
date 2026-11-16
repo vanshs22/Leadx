@@ -253,19 +253,258 @@ def assignment_confirmed_count(
     return len(confirmed)
 
 
+def normalize_target_metric(value: Any) -> str:
+    """Compatibility default: existing runs count durable assignments."""
+    return "delivered" if str(value or "").strip().lower() == "delivered" else "assigned"
+
+
+def reconcile_delivery_counts(
+    assignments: Iterable[Mapping[str, Any]] | None = None,
+    *,
+    tenant_id: str | None = None,
+    run_id: str | None = None,
+) -> dict[str, Any]:
+    """Derive delivery counts from durable, optionally scoped rows only."""
+    rows = [row for row in (assignments or []) if isinstance(row, Mapping)]
+    if tenant_id is not None:
+        rows = [row for row in rows if str(row.get("tenant_id") or "") == str(tenant_id)]
+    if run_id is not None:
+        rows = [row for row in rows if str(row.get("run_id") or "") == str(run_id)]
+    unique: dict[str, Mapping[str, Any]] = {}
+    for row in rows:
+        key = str(row.get("id") or row.get("assignment_id") or "")
+        if key:
+            unique.setdefault(key, row)
+    assigned = reserved = delivered = failed = replaced = 0
+    for row in unique.values():
+        assignment_state = str(row.get("status") or "new").lower()
+        delivery_state = str(row.get("delivery_status") or row.get("outbox_state") or "pending").lower()
+        if assignment_state not in {"rejected", "expired", "cancelled", "replaced"}:
+            assigned += 1
+        if str(row.get("reservation_status") or "").lower() in {"reserved", "consumed"} or delivery_state in {"pending", "processing", "retryable"}:
+            reserved += 1
+        if delivery_state in {"sent", "delivered", "portal"} or row.get("delivered_at"):
+            delivered += 1
+        if delivery_state in {"failed", "dead-letter", "dead_letter"}:
+            failed += 1
+        if assignment_state == "replaced":
+            replaced += 1
+    mismatch = assigned < delivered or reserved > assigned
+    return {"assigned": assigned, "reserved": reserved, "delivered": delivered,
+            "failed": failed, "replaced": replaced, "reconciled": not mismatch,
+            "mismatch_reason": "delivered_exceeds_assigned" if delivered > assigned else ("reserved_exceeds_assigned" if reserved > assigned else None)}
+
+
+def reconcile_target_counts(
+    run_leads: Iterable[Mapping[str, Any]] | None = None,
+    assignments: Iterable[Mapping[str, Any]] | None = None,
+    *,
+    target: int = 0,
+    metric: str = "assigned",
+    tenant_id: str | None = None,
+    run_id: str | None = None,
+) -> dict[str, Any]:
+    """Derive one target projection from persisted board and assignment rows.
+
+    The pipeline's in-memory counters are progress hints only.  This helper is
+    deliberately pure so the worker and offline checks can use the same
+    authority: ``pipeline_run_leads`` for stage progress and
+    ``lead_assignments`` for reservation/delivery outcomes.
+    """
+    board_rows = [row for row in (run_leads or []) if isinstance(row, Mapping)]
+    if tenant_id is not None:
+        board_rows = [row for row in board_rows if str(row.get("tenant_id") or "") == str(tenant_id)]
+    if run_id is not None:
+        board_rows = [row for row in board_rows if str(row.get("run_id") or "") == str(run_id)]
+    unique_board: dict[str, Mapping[str, Any]] = {}
+    for row in board_rows:
+        key = str(row.get("lead_id") or row.get("id") or "")
+        if key:
+            # Upserts advance the same run/lead row; the latest durable row is
+            # the authoritative stage after a retry or duplicate worker.
+            unique_board[key] = row
+
+    stages = {"discovered": 1, "enriched": 2, "gated": 3, "assignment": 4,
+              "assigned": 4, "crm": 5, "delivery": 6, "delivered": 6}
+    accepted_board = [
+        row for row in unique_board.values()
+        if str(row.get("stage_status") or "accepted").lower() not in {"rejected", "failed", "retryable"}
+    ]
+    discovered = len(unique_board)
+    enriched = sum(stages.get(str(row.get("stage") or "").lower(), 0) >= 2 for row in accepted_board)
+    qualified = sum(stages.get(str(row.get("stage") or "").lower(), 0) >= 3 for row in accepted_board)
+    board_failed = sum(
+        str(row.get("stage_status") or "").lower() in {"rejected", "failed", "retryable"}
+        for row in unique_board.values()
+    )
+
+    delivery = reconcile_delivery_counts(
+        assignments, tenant_id=tenant_id, run_id=run_id,
+    )
+    assignment_rows = [row for row in (assignments or []) if isinstance(row, Mapping)]
+    if tenant_id is not None:
+        assignment_rows = [row for row in assignment_rows if str(row.get("tenant_id") or "") == str(tenant_id)]
+    if run_id is not None:
+        assignment_rows = [row for row in assignment_rows if str(row.get("run_id") or "") == str(run_id)]
+    crm_failed = sum(
+        str(row.get("crm_status") or "").lower() in {"failed", "retryable", "pending"}
+        for row in assignment_rows
+        if str(row.get("status") or "new").lower() not in {"rejected", "expired", "cancelled"}
+    )
+    crm_saved = max(0, delivery["assigned"] - crm_failed)
+    failed = delivery["failed"] + board_failed
+    if crm_failed:
+        failed = max(failed, crm_failed)
+
+    requested = max(0, int(target or 0))
+    target_metric = normalize_target_metric(metric)
+    satisfied = delivery["delivered"] if target_metric == "delivered" else delivery["assigned"]
+    remaining = max(0, requested - satisfied)
+    mismatch_reason = delivery.get("mismatch_reason")
+    if crm_failed and not mismatch_reason:
+        mismatch_reason = "crm_projection_pending"
+    return {
+        "discovered": discovered,
+        "enriched": enriched,
+        "qualified": qualified,
+        "assigned": delivery["assigned"],
+        "reserved": delivery["reserved"],
+        "delivered": delivery["delivered"],
+        "crm_saved": crm_saved,
+        "client_visible": crm_saved,
+        "failed": failed,
+        "delivery_failed": delivery["failed"],
+        "replaced": delivery["replaced"],
+        "remaining": remaining,
+        "shortfall": remaining,
+        "target": requested,
+        "target_metric": target_metric,
+        "satisfied": satisfied,
+        "reconciled": bool(delivery["reconciled"] and not crm_failed),
+        "mismatch_reason": mismatch_reason,
+    }
+
+
+def reconcile_business_state(
+    run_leads: Iterable[Mapping[str, Any]] | None = None,
+    assignments: Iterable[Mapping[str, Any]] | None = None,
+    *,
+    target: int = 0,
+    metric: str = "assigned",
+    crm_projections: Iterable[Mapping[str, Any]] | None = None,
+    client_rows: Iterable[Mapping[str, Any]] | None = None,
+    tenant_id: str | None = None,
+    run_id: str | None = None,
+) -> dict[str, Any]:
+    """Reconcile assignment, CRM, and client projections from durable rows.
+
+    ``crm_projections`` and ``client_rows`` are optional for compatibility with
+    callers that only have the legacy assignment projection.  Production
+    completion passes both explicitly; missing or extra projection identities
+    then block completion instead of being converted into optimistic counts.
+    """
+    counts = reconcile_target_counts(
+        run_leads, assignments, target=target, metric=metric,
+        tenant_id=tenant_id, run_id=run_id,
+    )
+    assignment_rows = [row for row in (assignments or []) if isinstance(row, Mapping)]
+    if tenant_id is not None:
+        assignment_rows = [row for row in assignment_rows if str(row.get("tenant_id") or "") == str(tenant_id)]
+    if run_id is not None:
+        assignment_rows = [row for row in assignment_rows if str(row.get("run_id") or "") == str(run_id)]
+    active = {
+        str(row.get("id") or row.get("assignment_id"))
+        for row in assignment_rows
+        if row.get("id") or row.get("assignment_id")
+        if str(row.get("status") or "new").lower() not in {"rejected", "expired", "cancelled", "replaced"}
+    }
+    if crm_projections is None and client_rows is None:
+        return counts
+
+    def _ids(rows: Iterable[Mapping[str, Any]] | None) -> set[str]:
+        values: set[str] = set()
+        for row in rows or []:
+            if not isinstance(row, Mapping):
+                continue
+            identity = row.get("assignment_id") or row.get("assignment_ref") or row.get("id")
+            if identity is not None:
+                values.add(str(identity))
+        return values
+
+    crm_ids = {
+        str(row.get("assignment_id") or row.get("assignment_ref") or row.get("id"))
+        for row in (crm_projections or [])
+        if isinstance(row, Mapping) and row.get("crm_saved") is True
+    }
+    visible_ids = _ids(client_rows)
+    extra_client = visible_ids - active
+    counts["crm_saved"] = len(active & crm_ids)
+    counts["client_visible"] = len(active & visible_ids)
+    missing_crm = active - crm_ids
+    missing_client = active - visible_ids
+    extra_crm = crm_ids - active
+    if missing_crm:
+        counts["mismatch_reason"] = "crm_projection_missing"
+    elif missing_client:
+        counts["mismatch_reason"] = "client_projection_missing"
+    elif extra_crm:
+        counts["mismatch_reason"] = "crm_projection_out_of_scope"
+    elif extra_client:
+        counts["mismatch_reason"] = "client_projection_out_of_scope"
+    elif counts["crm_saved"] != counts["client_visible"]:
+        counts["mismatch_reason"] = "crm_client_count_mismatch"
+    counts["reconciled"] = bool(counts.get("reconciled") and not counts.get("mismatch_reason"))
+    return counts
+
+
+def target_terminal_status(
+    counts: Mapping[str, Any], *, target: int, metric: str = "assigned", cancelled: bool = False,
+) -> dict[str, Any]:
+    """Choose a truthful terminal result after durable count reconciliation."""
+    requested = max(0, int(target or 0))
+    target_metric = normalize_target_metric(metric)
+    assigned = max(0, int(counts.get("assigned") or 0))
+    delivered = max(0, int(counts.get("delivered") or 0))
+    satisfied = delivered if target_metric == "delivered" else assigned
+    if cancelled:
+        return {"status": "cancelled", "reason": "cancelled", "retryable": False}
+    if counts.get("reconciled") is not True:
+        return {
+            "status": "partial" if assigned or delivered else "failed",
+            "reason": str(counts.get("mismatch_reason") or "count_reconciliation_blocked"),
+            "retryable": True,
+        }
+    if target_metric == "assigned" and int(counts.get("delivery_failed") or 0) > 0:
+        return {"status": "partial", "reason": "delivery_retryable", "retryable": True}
+    if requested > 0 and satisfied >= requested:
+        return {"status": "completed", "reason": "target_met", "retryable": False}
+    if assigned or delivered:
+        return {
+            "status": "partial",
+            "reason": "delivery_shortfall" if target_metric == "delivered" else "target_shortfall",
+            "retryable": True,
+        }
+    return {"status": "failed", "reason": "no_delivery_ready", "retryable": True}
+
+
 def target_stop_projection(
     target: int,
     assignment_confirmed: int,
     *,
+    delivered: int = 0,
+    metric: str = "assigned",
     persisted_qualifying: int = 0,
     persisted_contactable: int = 0,
     budget_remaining: int | float | None = None,
     stop_reason: str | None = None,
 ) -> dict[str, Any]:
-    """Build the durable, assignment-based stop projection for a run."""
+    """Build a durable stop projection for the selected target metric."""
     requested = max(0, int(target or 0))
+    normalized_metric = normalize_target_metric(metric)
     confirmed = max(0, int(assignment_confirmed or 0))
-    gap = max(0, requested - confirmed)
+    delivered_count = max(0, int(delivered or 0))
+    satisfied = delivered_count if normalized_metric == "delivered" else confirmed
+    gap = max(0, requested - satisfied)
     if gap == 0 and requested:
         reason = "target_met"
     elif budget_remaining is not None and float(budget_remaining) <= 0:
@@ -275,9 +514,10 @@ def target_stop_projection(
     else:
         reason = "in_progress"
     return {
-        "metric": "assignment_confirmed",
+        "metric": "delivered" if normalized_metric == "delivered" else "assignment_confirmed",
         "target": requested,
         "assignment_confirmed": confirmed,
+        "delivered": delivered_count,
         "remaining_gap": gap,
         "persisted_qualifying": max(0, int(persisted_qualifying or 0)),
         "persisted_contactable": max(0, int(persisted_contactable or 0)),
@@ -565,6 +805,8 @@ def typed_route_error(error: Any, *, category: str | None = None, retryable: boo
     text = str(name).lower()
     if any(token in text for token in ("cancel", "abort", "stop")):
         kind = "cancelled"
+    elif "cursor_loop" in text or "cursor" in text and "loop" in text:
+        kind = "cursor_loop"
     elif any(token in text for token in ("quota", "rate", "429", "402")):
         kind = "quota_exhausted"
     elif any(token in text for token in ("timeout", "timedout")):
@@ -602,11 +844,16 @@ def annotate_route_result(row: dict[str, Any], *, route_cell: dict[str, Any] | N
     cell_id = route_cell_id_value or row.get("route_cell_id") or cell.get("route_cell_id") or cell.get("cell_id") or cell.get("route_cell")
     cell_id = str(cell_id or route_cell_id(source_name, sub_icp=str(sub_icp or cell.get("sub_icp_id") or ""),
                                              geography=str(geography_value or ""), query=str(query_value or "")))
-    cursor_value = cursor if cursor is not None else row.get("cursor", {"page": max(1, int(page or 1)), "token": None})
+    cursor_value = cursor if cursor is not None else row.get(
+        "cursor", cell.get("cursor", {"page": max(1, int(page or 1)), "token": None})
+    )
     if isinstance(cursor_value, dict):
         page_value = int(cursor_value.get("page") or page or 1)
     else:
         page_value = max(1, int(page or 1))
+    next_cursor_value = next_cursor if next_cursor is not None else row.get(
+        "next_cursor", cell.get("next_cursor")
+    )
     evidence = str(evidence_level or row.get("evidence_level") or
                    (row.get("source_provenance") or {}).get("evidence_level") or
                    ("L0" if source_name in {"local_fixture", "synthetic"} else "L1"))
@@ -640,14 +887,18 @@ def annotate_route_result(row: dict[str, Any], *, route_cell: dict[str, Any] | N
         "actual_cost": float(row.get("actual_cost") or actual_cost or 0),
         "quota_event": quota_event or row.get("quota_event"),
         "typed_error": typed_error if typed_error is not None else row.get("typed_error"),
-        "next_cursor": next_cursor if next_cursor is not None else row.get("next_cursor"),
+        "next_cursor": next_cursor_value,
         "exhausted": bool(row.get("exhausted", exhausted)),
         "retryable": bool(row.get("retryable", retryable)),
         "fallback_reason": fallback_reason or row.get("fallback_reason"),
     }
     row.update({key: value for key, value in metadata.items()})
     source_entry = dict(provenance)
-    source_entry.update({key: metadata[key] for key in ("source", "source_family", "source_reference", "observed_at", "raw_hash", "evidence_level", "billable", "estimated_cost", "actual_cost", "quota_event")})
+    source_entry.update({key: metadata[key] for key in (
+        "route_cell_id", "source", "source_family", "sub_icp", "geography", "query",
+        "page", "cursor", "next_cursor", "source_reference", "observed_at", "raw_hash",
+        "evidence_level", "billable", "estimated_cost", "actual_cost", "quota_event",
+    )})
     row["source_provenance"] = source_entry
     by_source = row.get("source_provenance_by_source") if isinstance(row.get("source_provenance_by_source"), dict) else {}
     by_source.setdefault(source_name, source_entry)

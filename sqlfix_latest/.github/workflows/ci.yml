@@ -25,6 +25,8 @@ jobs:
       - run: python scripts/check_plan_contract.py
       - run: python scripts/release_audit.py
       - run: pip-audit -r requirements.lock --strict
+      - name: Verify backend test collection
+        run: python scripts/ci_collection.py --runner pytest --path tests
       - run: pytest -q
   frontend:
     runs-on: ubuntu-latest

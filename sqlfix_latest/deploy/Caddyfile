@@ -1,0 +1,4 @@
+{$LEADX_PUBLIC_HOST} {
+    encode gzip
+    reverse_proxy portal:3000
+}

@@ -79,7 +79,8 @@ def test_task21_full_migration_mirrors_canonical_section():
     migration = MIGRATION.read_text(encoding="utf-8").strip()
     full = FULL.read_text(encoding="utf-8")
     assert MIGRATION.name in full
-    marker = "-- CANONICAL MIGRATION 32: " + MIGRATION.name
+    marker_number = sorted((ROOT / "supabase/migrations").glob("*.sql"), key=lambda path: path.name).index(MIGRATION) + 1
+    marker = f"-- CANONICAL MIGRATION {marker_number:02d}: " + MIGRATION.name
     assert marker in full
     section = full.split(marker, 1)[1].split("COMMIT;", 1)[0]
     # The working standalone file also carries additive Task 3 SQL. Compare

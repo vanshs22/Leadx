@@ -26,6 +26,8 @@ def _executor(agent_id: str):
             return await execute_specialized(fabric_agent, {
                 **(run.get("input_data") or {}),
                 "tenant_id": str(run.get("tenant_id") or ""),
+                "agent_id": fabric_agent,
+                "principal": run.get("principal") or {"kind": "system_worker" if (run.get("input_data") or {}).get("system_owned") is True else "worker", "tenant_id": str(run.get("tenant_id") or ""), "run_id": str(run.get("id") or "")},
                 "run_id": str(run.get("id") or ""),
             })
         return execute

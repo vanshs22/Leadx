@@ -25,6 +25,7 @@ import json
 import logging
 import os
 import threading
+import time
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 from typing import Any, Awaitable, Callable, Mapping, Optional
@@ -106,6 +107,36 @@ def execution_fence(job_id: str, worker_id: str | None = None, tenant_id: str | 
     if tenant_id and str(row.get("tenant_id") or "") != str(tenant_id):
         return False
     return True
+
+
+def pipeline_run_identity(job: Mapping[str, Any]) -> tuple[str, str]:
+    """Return the linked pipeline run and tenant without falling back across tenants."""
+    payload = job.get("payload") if isinstance(job.get("payload"), Mapping) else {}
+    run_id = str(job.get("run_id") or payload.get("run_id") or job.get("id") or "")
+    tenant_id = str(job.get("tenant_id") or payload.get("tenant_id") or "")
+    return run_id, tenant_id
+
+
+def _is_transient_transport_error(exc: BaseException) -> bool:
+    text = str(exc).lower()
+    return any(token in text for token in (
+        "remoteprotocolerror", "server disconnected", "connection reset",
+        "readtimeout", "connecterror", "temporarily unavailable", "502", "503",
+    )) or exc.__class__.__name__.lower() in {"remoteprotocolerror", "readtimeout", "connecterror"}
+
+
+def _execute_with_transport_retry(factory: Callable[[], Any], *, attempts: int = 3, base_delay: float = 0.25) -> Any:
+    """Retry only transient PostgREST transport failures; never duplicate policy decisions."""
+    last: BaseException | None = None
+    for attempt in range(max(1, attempts)):
+        try:
+            return factory().execute()
+        except Exception as exc:
+            last = exc
+            if not _is_transient_transport_error(exc) or attempt + 1 >= attempts:
+                raise
+            time.sleep(base_delay * (2 ** attempt))
+    raise last or RuntimeError("durable queue operation failed")
 
 
 class ScopedResetContractError(ValueError):
@@ -375,11 +406,106 @@ class QueueDependencyError(RuntimeError):
         operation: str,
         worker_id: str | None = None,
         job_id: str | None = None,
+        reason_code: str = "queue_dependency_failure",
     ) -> None:
         super().__init__(message)
         self.operation = operation
         self.worker_id = worker_id
         self.job_id = job_id
+        self.reason_code = reason_code[:80]
+
+
+DURABLE_REASON_CODES = frozenset({
+    "idempotency_mismatch",
+    "active_duplicate",
+    "queue_dependency_failure",
+    "conflict_unresolved",
+})
+
+
+def _exception_code(exc: BaseException) -> str:
+    """Read only a bounded database/provider error code, never its payload."""
+    return str(getattr(exc, "code", "") or "").strip().upper()[:32]
+
+
+def _is_unique_conflict(exc: BaseException) -> bool:
+    code = _exception_code(exc)
+    message = str(exc).lower()
+    return code in {"23505", "409"} or any(
+        token in message for token in ("duplicate", "duplicate key", "unique constraint", "already exists")
+    )
+
+
+def _safe_operation_rows(tenant_id: str, operation: str, key: str, scope_hash: str) -> list[dict]:
+    """Resolve one operation without trusting a caller-controlled tenant.
+
+    The first lookup is tenant-scoped for the common case. The fallback is
+    operation/key-only so a cross-tenant reuse is classified generically; it
+    never returns the foreign row to the caller.
+    """
+    columns = "tenant_id,scope_hash,request_hash,job_id,status,response,accounting_status"
+    query = (_sb().table("job_operations").select(columns)
+             .eq("tenant_id", str(tenant_id))
+             .eq("operation_kind", operation)
+             .eq("idempotency_key", key)
+             .limit(1))
+    rows = query.execute().data or []
+    if rows:
+        return rows
+    rows = (_sb().table("job_operations").select(columns)
+            .eq("operation_kind", operation)
+            .eq("idempotency_key", key)
+            .limit(1).execute().data or [])
+    return rows
+
+
+def _classify_existing_operation(
+    existing: Mapping[str, Any],
+    *,
+    tenant_id: str,
+    scope_hash: str,
+    request_hash: str,
+    provider_operation_id: str,
+) -> dict[str, Any]:
+    """Return a safe replay/conflict result for one durable operation row."""
+    if (str(existing.get("tenant_id")) != str(tenant_id)
+            or existing.get("scope_hash") != scope_hash
+            or existing.get("request_hash") != request_hash):
+        return {
+            "ok": False,
+            "outcome": "conflict",
+            "reason": "idempotency_mismatch",
+            "reason_code": "idempotency_mismatch",
+        }
+
+    status = str(existing.get("status") or "processing").lower()
+    if status in {"completed", "rejected", "cancelled"}:
+        result = dict(existing.get("response") or {})
+        outcome = "replay"
+        result.update({
+            "ok": status != "rejected",
+            "outcome": outcome,
+            "replayed": True,
+            "job_id": existing.get("job_id"),
+            "status": status,
+            "accounting_status": existing.get("accounting_status"),
+            "provider_operation_id": provider_operation_id,
+        })
+        return result
+
+    # A processing row is an active duplicate. Returning its existing job id
+    # is safe only after the identity hashes above have matched.
+    return {
+        "ok": True,
+        "outcome": "in_progress",
+        "reason": "active_duplicate",
+        "reason_code": "active_duplicate",
+        "replayed": False,
+        "job_id": existing.get("job_id"),
+        "status": status,
+        "accounting_status": existing.get("accounting_status"),
+        "provider_operation_id": provider_operation_id,
+    }
 
 
 class QueueTransitionError(QueueDependencyError):
@@ -736,65 +862,82 @@ def prepare_job(
         "provider_required": bool(provider_required),
     }
     try:
-        raw = _sb().rpc(
-            "leadx_prepare_job",
-            {
-                "p_tenant_id": str(tenant_id),
-                "p_operation_kind": operation,
-                "p_idempotency_key": key,
-                "p_scope_hash": scope_hash,
-                "p_request_hash": request_hash,
-                "p_job_kind": kind,
-                "p_payload": durable_payload,
-                "p_requested_credits": int(requested_credits or 0),
-                "p_authorized": bool(authorized),
-                "p_priority": int(priority),
-                "p_delay_seconds": int(delay_seconds),
-                "p_max_attempts": int(max_attempts),
-                "p_created_by": str(created_by or "api")[:160],
-            },
-        ).execute()
+        raw = _execute_with_transport_retry(
+            lambda: _sb().rpc(
+                "leadx_prepare_job",
+                {
+                    "p_tenant_id": str(tenant_id),
+                    "p_operation_kind": operation,
+                    "p_idempotency_key": key,
+                    "p_scope_hash": scope_hash,
+                    "p_request_hash": request_hash,
+                    "p_job_kind": kind,
+                    "p_payload": durable_payload,
+                    "p_requested_credits": int(requested_credits or 0),
+                    "p_authorized": bool(authorized),
+                    "p_priority": int(priority),
+                    "p_delay_seconds": int(delay_seconds),
+                    "p_max_attempts": int(max_attempts),
+                    "p_created_by": str(created_by or "api")[:160],
+                },
+            )
+        )
         result = _rpc_data(getattr(raw, "data", raw))
     except Exception as exc:
         # A concurrent/repeated submission can surface as a database unique
         # conflict before the RPC returns its replay/in-progress JSON. Resolve
-        # that durable row before classifying the request as an outage.
-        code = str(getattr(exc, "code", "") or "").upper()
-        message = str(exc).lower()
-        if code in {"23505", "409"} or "duplicate" in message or "unique" in message:
+        # only that durable identity before classifying the request as an outage.
+        if _is_unique_conflict(exc):
             try:
-                rows = (_sb().table("job_operations")
-                    .select("tenant_id,principal_scope,scope_hash,request_hash,job_id,status,response,accounting_status")
-                    .eq("tenant_id", str(tenant_id))
-                    .eq("principal_scope", scope_hash)
-                    .eq("operation_kind", operation)
-                    .eq("idempotency_key", key)
-                    .limit(1).execute().data or [])
+                rows = _safe_operation_rows(str(tenant_id), operation, key, scope_hash)
                 if rows:
-                    existing = rows[0]
-                    if (str(existing.get("tenant_id")) != str(tenant_id)
-                            or existing.get("scope_hash") != scope_hash
-                            or existing.get("request_hash") != request_hash):
-                        return {"ok": False, "outcome": "conflict", "reason": "idempotency_mismatch"}
-                    existing_status = str(existing.get("status") or "processing")
-                    outcome = "replay" if existing_status in {"completed", "rejected", "cancelled"} else "in_progress"
-                    result = dict(existing.get("response") or {})
-                    result.update({"ok": existing_status != "rejected", "outcome": outcome,
-                                   "replayed": outcome == "replay", "job_id": existing.get("job_id"),
-                                   "status": existing_status, "accounting_status": existing.get("accounting_status")})
-                    result.setdefault("provider_operation_id", provider_operation_id)
+                    result = _classify_existing_operation(
+                        rows[0], tenant_id=str(tenant_id), scope_hash=scope_hash,
+                        request_hash=request_hash, provider_operation_id=provider_operation_id,
+                    )
+                    emit_telemetry(
+                        logger, logging.INFO,
+                        "job.prepare_conflict_classified",
+                        kind=kind, tenant_id=tenant_id,
+                        status=result.get("status") or "processing",
+                        dependency="durable_queue", outcome=result.get("outcome"),
+                        reason_code=result.get("reason_code") or result.get("reason"),
+                        operation="prepare",
+                    )
                     return result
+                emit_telemetry(
+                    logger, logging.ERROR, "job.prepare_conflict_unresolved",
+                    kind=kind, tenant_id=tenant_id, status="rejected",
+                    dependency="durable_queue", outcome="conflict_unresolved",
+                    reason_code="conflict_unresolved", operation="prepare",
+                    error_code=telemetry_error_code(exc),
+                )
+                raise QueueDependencyError(
+                    operation="prepare", reason_code="conflict_unresolved",
+                ) from exc
+            except QueueDependencyError:
+                raise
             except Exception as replay_exc:
-                emit_telemetry(logger, logging.WARNING, "job.prepare_replay_lookup_failed",
-                    kind=kind, dependency="durable_queue", outcome="lookup_failed",
-                    operation="prepare", error_code=telemetry_error_code(replay_exc))
+                emit_telemetry(
+                    logger, logging.ERROR, "job.prepare_replay_lookup_failed",
+                    kind=kind, tenant_id=tenant_id, status="rejected",
+                    dependency="durable_queue", outcome="queue_failure",
+                    reason_code="queue_dependency_failure", operation="prepare",
+                    error_code=telemetry_error_code(replay_exc),
+                )
+                raise QueueDependencyError(
+                    operation="prepare", reason_code="queue_dependency_failure",
+                ) from replay_exc
         emit_telemetry(
             logger, logging.ERROR, "job.prepare_failed", tenant_id=tenant_id,
             tenant_authorized=bool(tenant_id), kind=kind, status="rejected",
-            dependency="durable_queue", outcome="queue_failure", operation="prepare",
+            dependency="durable_queue", outcome="queue_failure",
+            reason_code="queue_dependency_failure", operation="prepare",
             error_code=telemetry_error_code(exc),
         )
-        raise QueueDependencyError(operation="prepare") from exc
+        raise QueueDependencyError(
+            operation="prepare", reason_code="queue_dependency_failure",
+        ) from exc
 
     outcome = str(result.get("outcome") or "").lower()
     if outcome == "accepted" and result.get("job_id"):
@@ -828,9 +971,9 @@ def prepare_job(
     emit_telemetry(
         logger, logging.ERROR, "job.prepare_invalid_result", kind=kind,
         status="rejected", dependency="durable_queue", outcome="invalid_result",
-        operation="prepare",
+        reason_code="queue_dependency_failure", operation="prepare",
     )
-    raise QueueDependencyError(operation="prepare")
+    raise QueueDependencyError(operation="prepare", reason_code="queue_dependency_failure")
 
 
 def submit(
@@ -951,6 +1094,16 @@ def _finish_job_operation(
         raise QueueTransitionError(operation="finish", job_id=job_id) from exc
 
 
+def _defer_operation_finish(job_id: str, exc: QueueTransitionError, *, operation: str) -> None:
+    """Keep the terminal job row authoritative when its additive finalizer is unavailable."""
+    emit_telemetry(
+        logger, logging.ERROR, "job.operation_finish_deferred",
+        job_id=job_id, status="pending_reconciliation",
+        dependency="job_operation_finalizer", outcome="deferred",
+        operation=operation, error_code=telemetry_error_code(exc),
+    )
+
+
 def _reopen_job_operation(job_id: str, *, legacy_compatible: bool = False) -> dict:
     """Re-reserve task-9 accounting before an explicit terminal retry."""
     try:
@@ -1041,9 +1194,22 @@ def enqueue(
     return jid
 
 
+def _active_unique_job(kind: str, tenant_id: Any) -> dict | None:
+    """Read the row protected by the legacy active-job unique index."""
+    query = _sb().table("jobs").select("id,tenant_id,kind,status").eq("kind", kind)
+    query = query.is_("tenant_id", "null") if tenant_id is None else query.eq("tenant_id", tenant_id)
+    rows = query.in_("status", ["queued", "running"]).limit(1).execute().data or []
+    return rows[0] if rows else None
+
+
 def enqueue_unique(kind: str, payload: Optional[dict] = None, **kw) -> Optional[str]:
-    """Atomically enqueue an active unique job. The DB partial unique index is
-    the concurrency authority; the old check-then-insert race is gone."""
+    """Atomically enqueue an active unique job.
+
+    A duplicate insert is classified from the durable active row.  The legacy
+    ``None`` return remains the compatibility signal for a proven active
+    duplicate; an unresolved conflict is fail-closed instead of being treated
+    as an idle/duplicate queue.
+    """
     tenant_id = kw.get("tenant_id")
     jid = kw.pop("job_id", None) or str(uuid4())
     row = {
@@ -1057,18 +1223,49 @@ def enqueue_unique(kind: str, payload: Optional[dict] = None, **kw) -> Optional[
         data = _sb().table("jobs").insert(row).execute().data or []
         return data[0].get("id", jid) if data else jid
     except Exception as exc:
-        # Unique violation means another worker won the race. Other failures
-        # obey the normal queue fail-closed policy.
-        msg = str(exc).lower()
-        if "unique" in msg or "duplicate" in msg or "23505" in msg:
-            return None
+        if _is_unique_conflict(exc):
+            try:
+                existing = _active_unique_job(kind, tenant_id)
+            except Exception as lookup_exc:
+                emit_telemetry(
+                    logger, logging.ERROR, "job.enqueue_unique_lookup_failed",
+                    tenant_id=tenant_id, kind=kind, status="rejected",
+                    dependency="durable_queue", outcome="queue_failure",
+                    reason_code="queue_dependency_failure", operation="enqueue_unique",
+                    error_code=telemetry_error_code(lookup_exc),
+                )
+                raise QueueDependencyError(
+                    operation="enqueue_unique", reason_code="queue_dependency_failure",
+                ) from lookup_exc
+            if existing:
+                emit_telemetry(
+                    logger, logging.INFO, "job.enqueue_unique_duplicate",
+                    tenant_id=tenant_id, kind=kind, status=existing.get("status"),
+                    dependency="durable_queue", outcome="active_duplicate",
+                    reason_code="active_duplicate", operation="enqueue_unique",
+                )
+                return None
+            emit_telemetry(
+                logger, logging.ERROR, "job.enqueue_unique_conflict_unresolved",
+                tenant_id=tenant_id, kind=kind, status="rejected",
+                dependency="durable_queue", outcome="conflict_unresolved",
+                reason_code="conflict_unresolved", operation="enqueue_unique",
+                error_code=telemetry_error_code(exc),
+            )
+            raise QueueDependencyError(
+                operation="enqueue_unique", reason_code="conflict_unresolved",
+            ) from exc
         emit_telemetry(
             logger, logging.ERROR, "job.enqueue_unique_failed", tenant_id=tenant_id,
             tenant_authorized=bool(tenant_id), kind=kind, status="rejected",
-            dependency="durable_queue", outcome="queue_failure", operation="enqueue_unique",
+            dependency="durable_queue", outcome="queue_failure",
+            reason_code="queue_dependency_failure", operation="enqueue_unique",
             error_code=telemetry_error_code(exc),
         )
-        if FAIL_CLOSED: raise RuntimeError("Durable job queue unavailable") from exc
+        if FAIL_CLOSED:
+            raise QueueDependencyError(
+                operation="enqueue_unique", reason_code="queue_dependency_failure",
+            ) from exc
         return None
 
 
@@ -1083,7 +1280,10 @@ def claim_next(worker_id: str, kinds: Optional[list[str]] = None) -> Optional[di
     worker cannot mistake an outage for an idle queue.
     """
     try:
-        rows = _sb().rpc("leadx_claim_next_job", {"p_worker_id": worker_id, "p_kinds": kinds}).execute().data or []
+        raw = _execute_with_transport_retry(
+            lambda: _sb().rpc("leadx_claim_next_job", {"p_worker_id": worker_id, "p_kinds": kinds})
+        )
+        rows = getattr(raw, "data", raw) or []
         return rows[0] if rows else None
     except Exception as exc:
         emit_telemetry(
@@ -1110,10 +1310,12 @@ def probe_queue_capability(worker_id: str, kinds: Optional[list[str]] = None) ->
         reclaim_capable = False
         reclaim_checked_at = None
         try:
-            raw = _sb().rpc(
-                "leadx_probe_queue_capability",
-                {"p_worker_id": str(worker_id), "p_checked_at": checked_at},
-            ).execute()
+            raw = _execute_with_transport_retry(
+                lambda: _sb().rpc(
+                    "leadx_probe_queue_capability",
+                    {"p_worker_id": str(worker_id), "p_checked_at": checked_at},
+                )
+            )
             probe = _rpc_data(getattr(raw, "data", raw))
             if probe:
                 reclaim_capable = bool(probe.get("reclaim_capability", probe.get("ok", False)))
@@ -1225,11 +1427,15 @@ def reconcile_pending_accounting(limit: int = 100) -> int:
                 except Exception:
                     logger.warning("failed pipeline run reconciliation skipped job_id=%s", row.get("id"), exc_info=True)
             terminal_status = "completed" if row.get("status") == "done" else "cancelled" if row.get("status") == "cancelled" else "rejected"
-            _finish_job_operation(
-                str(row["id"]), terminal_status,
-                {"status": row.get("status"), "result": row.get("result") or {}, "error": row.get("error")},
-                legacy_compatible=_is_legacy_job(row),
-            )
+            try:
+                _finish_job_operation(
+                    str(row["id"]), terminal_status,
+                    {"status": row.get("status"), "result": row.get("result") or {}, "error": row.get("error")},
+                    legacy_compatible=_is_legacy_job(row),
+                )
+            except QueueTransitionError as exc:
+                _defer_operation_finish(str(row["id"]), exc, operation="reconcile")
+                continue
             updated = (_sb().table("jobs").update({"accounting_reconciliation_status": "reconciled"})
                        .eq("id", row["id"]).eq("accounting_reconciliation_status", "pending").execute().data or [])
             reconciled += len(updated)
@@ -1342,12 +1548,17 @@ def fail(
         )
 
     if not retry:
-        _finish_job_operation(
-            job_id,
-            "rejected",
-            {"status": "failed", "error": error},
-            legacy_compatible=_is_legacy_job(rows[0]),
-        )
+        try:
+            _finish_job_operation(
+                job_id,
+                "rejected",
+                {"status": "failed", "error": error},
+                legacy_compatible=_is_legacy_job(rows[0]),
+            )
+        except QueueTransitionError as exc:
+            # The job row is already terminal and retains its error evidence.
+            # Leave accounting reconciliation pending for the next housekeeping pass.
+            _defer_operation_finish(job_id, exc, operation="fail")
         try:
             from app.integrations.prod.notifications import notify_sync
 
@@ -1470,8 +1681,21 @@ def reap_stale(minutes: int = STALE_LOCK_MINUTES) -> int:
     """
     cutoff = (_now() - timedelta(minutes=minutes)).isoformat()
     try:
-        rows = (_sb().table("jobs").select("id,kind,attempts,max_attempts,payload")
-                .eq("status", "running").lt("locked_at", cutoff).limit(500).execute().data or [])
+        rows = (_sb().table("jobs").select("id,tenant_id,kind,attempts,max_attempts,payload,locked_at,lease_expires_at")
+                .eq("status", "running").limit(500).execute().data or [])
+        now = _now()
+        stale_rows = []
+        for row in rows:
+            lease_expired = False
+            if row.get("lease_expires_at"):
+                try:
+                    lease_expired = datetime.fromisoformat(str(row["lease_expires_at"]).replace("Z", "+00:00")) <= _now()
+                except (TypeError, ValueError):
+                    lease_expired = True
+            locked_stale = not row.get("locked_at") or str(row.get("locked_at")) < cutoff
+            if lease_expired or locked_stale:
+                stale_rows.append(row)
+        rows = stale_rows
         reaped = 0
         for job in rows:
             attempts = int(job.get("attempts") or 0)
@@ -1495,8 +1719,20 @@ def reap_stale(minutes: int = STALE_LOCK_MINUTES) -> int:
                 patch["finished_at"] = _now().isoformat()
                 patch["terminal_result"] = {"status": "failed", "error": "worker_lost_reaped", "error_category": "lease_expired"}
                 patch["accounting_reconciliation_status"] = "pending"
-            updated = (_sb().table("jobs").update(patch).eq("id", job["id"])
-                       .eq("status", "running").lt("locked_at", cutoff).execute().data or [])
+            updated_query = _sb().table("jobs").update(patch).eq("id", job["id"]).eq("status", "running")
+            lease_expired_now = False
+            if job.get("lease_expires_at"):
+                try:
+                    lease_expired_now = datetime.fromisoformat(str(job["lease_expires_at"]).replace("Z", "+00:00")) <= _now()
+                except (TypeError, ValueError):
+                    lease_expired_now = True
+            if lease_expired_now:
+                updated_query = updated_query.eq("lease_expires_at", job.get("lease_expires_at"))
+            elif job.get("locked_at"):
+                updated_query = updated_query.lt("locked_at", cutoff)
+            else:
+                updated_query = updated_query.is_("locked_at", "null")
+            updated = (updated_query.execute().data or [])
             if not updated:
                 emit_telemetry(
                     logger, logging.INFO, "job.reap_skipped", job_id=job["id"],
@@ -1512,30 +1748,46 @@ def reap_stale(minutes: int = STALE_LOCK_MINUTES) -> int:
                 dependency="durable_queue", outcome="reaped",
                 reap_outcome="requeued" if status == "queued" else "terminal_failure",
             )
-            if status == "failed" and job.get("kind") == "pipeline.run":
-                # The run_id doubles as the job id. Without this the UI keeps
-                # showing the orphaned pipeline_runs row as "running" forever.
+            if job.get("kind") == "pipeline.run":
                 try:
-                    (_sb().table("pipeline_runs").update({
-                        "status": "failed",
-                        "error_message": "worker_lost_reaped",
-                        "finished_at": _now().isoformat(),
-                        "meta": {"stage": "failed", "message": "Worker stopped before this run finished. Start it again."},
-                    }).eq("id", job["id"]).in_("status", ["running", "queued"]).execute())
+                    run_id, tenant_id = pipeline_run_identity(job)
+                    recovery_meta = {
+                        "stage": "recovery",
+                        "message": "Worker lease expired; work was requeued." if status == "queued" else "Worker stopped before this run finished. Start it again.",
+                        "recovery_status": "requeued" if status == "queued" else "terminal",
+                        "stop_reason": "lease_lost",
+                        "job_id": str(job["id"]),
+                    }
+                    patch_run = {
+                        "status": "queued" if status == "queued" else "failed",
+                        "meta": recovery_meta,
+                    }
+                    if status != "queued":
+                        patch_run.update({"error_message": "worker_lost_reaped", "finished_at": _now().isoformat()})
+                    query = (_sb().table("pipeline_runs").update(patch_run)
+                             .eq("id", run_id).in_("status", ["running", "queued"]))
+                    if tenant_id:
+                        query = query.eq("tenant_id", tenant_id)
+                    query.execute()
                 except Exception as exc:
                     emit_telemetry(
                         logger, logging.WARNING, "pipeline.reap_finalize_failed",
-                        job_id=job["id"], kind=job.get("kind"), status="failed",
+                        job_id=job["id"], kind=job.get("kind"), status=status,
                         dependency="pipeline_state", outcome="optional_failure",
                         operation="reap", error_code=telemetry_error_code(exc),
                     )
             if status == "failed":
-                _finish_job_operation(
-                    job["id"],
-                    "rejected",
-                    {"status": "failed", "error": "worker_lost_reaped"},
-                    legacy_compatible=_is_legacy_job(job),
-                )
+                try:
+                    _finish_job_operation(
+                        job["id"],
+                        "rejected",
+                        {"status": "failed", "error": "worker_lost_reaped"},
+                        legacy_compatible=_is_legacy_job(job),
+                    )
+                except QueueTransitionError as exc:
+                    # Reaping already persisted the terminal row. Do not stop
+                    # recovery for an additive accounting/finalizer failure.
+                    _defer_operation_finish(job["id"], exc, operation="reap")
             reaped += 1
         if reaped:
             emit_telemetry(

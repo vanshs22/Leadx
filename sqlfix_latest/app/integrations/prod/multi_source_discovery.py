@@ -429,6 +429,11 @@ def merge_leads(batches: list[list[dict]], min_quality: int = 50) -> list[dict]:
     by_name: dict[str, str] = {}  # name_key -> fp
 
     def provenance_entries(lead: dict) -> dict[str, dict]:
+        by_source = lead.get("source_provenance_by_source")
+        if isinstance(by_source, dict):
+            entries = {str(source): dict(entry) for source, entry in by_source.items() if isinstance(entry, dict)}
+            if entries:
+                return entries
         value = lead.get("source_provenance")
         if not isinstance(value, dict):
             return {}
@@ -441,6 +446,8 @@ def merge_leads(batches: list[list[dict]], min_quality: int = 50) -> list[dict]:
             if not isinstance(lead, dict):
                 continue
             lead = annotate_route_result(lead)
+            if "+" in str(lead.get("source") or "") and isinstance(lead.get("source_provenance_by_source"), dict):
+                lead["source_provenance_by_source"].pop(str(lead.get("source")), None)
             if (lead.get("discovery_quality") or 0) < min_quality:
                 continue
             fp = lead.get("fingerprint")
@@ -501,6 +508,92 @@ def merge_leads(batches: list[list[dict]], min_quality: int = 50) -> list[dict]:
     return merged
 
 
+FREE_ROUTE_LANES = frozenset({"osm", "local_fixture"})
+PAID_ROUTE_LANES = frozenset({"maps", "web", "yelp", "facebook", "linkedin", "instagram"})
+ROUTE_LANE_ORDER = ("osm", "maps", "web", "yelp", "facebook", "linkedin", "instagram")
+
+
+def _route_cell(
+    source: str,
+    industry: str,
+    location: str,
+    queries: list[str],
+    budget: int,
+    *,
+    lane_index: int,
+) -> dict[str, Any]:
+    """Build one bounded executable cell for the existing source adapter."""
+    query = "|".join(str(item).strip() for item in queries if str(item).strip())
+    return {
+        "route_cell_id": route_cell_id(source, sub_icp=industry, geography=location, query=query),
+        "source": source,
+        "source_lane": source,
+        "source_family": "local" if source in FREE_ROUTE_LANES else source,
+        "sub_icp_id": industry,
+        "geography": location,
+        "query": query,
+        "page": 1,
+        "cursor": {"page": 1, "token": None},
+        "requested_limit": max(0, int(budget or 0)),
+        "budget": {"result": max(0, int(budget or 0)), "page": 1, "lane_index": lane_index},
+        "free_first": source in FREE_ROUTE_LANES,
+        "state": "planned",
+    }
+
+
+def _route_event(cell: dict[str, Any], *, event: str, selected: bool = True,
+                 invoked: bool = False, normalized_count: int = 0,
+                 dedupe_keys: list[str] | None = None, next_cursor: Any = None,
+                 failure: dict[str, Any] | None = None,
+                 target_stop_reason: str | None = None) -> dict[str, Any]:
+    """Return bounded route evidence without provider payloads or credentials."""
+    return {
+        "event": event,
+        "route_cell_id": cell["route_cell_id"],
+        "source": cell["source"],
+        "geography": cell["geography"],
+        "query": cell["query"],
+        "page": cell["page"],
+        "cursor": cell["cursor"],
+        "next_cursor": next_cursor,
+        "budget": dict(cell["budget"]),
+        "selected": selected,
+        "invoked": invoked,
+        "normalized_result_count": int(normalized_count),
+        "dedupe_keys": list(dedupe_keys or [])[:100],
+        "provenance": {"source": cell["source"], "route_cell_id": cell["route_cell_id"]},
+        "failure": failure,
+        "target_stop_reason": target_stop_reason,
+    }
+
+
+def _route_batch_rows(batch: Any, cell: dict[str, Any]) -> tuple[list[dict[str, Any]], dict[str, Any] | None]:
+    """Normalize one adapter page and reject a non-advancing cursor."""
+    contract = getattr(batch, "contract", {}) if batch is not None else {}
+    cursor = contract.get("cursor", cell["cursor"])
+    next_cursor = contract.get("next_cursor")
+    if next_cursor is not None and next_cursor == cursor:
+        return [], typed_route_error("cursor_loop", category="cursor_loop", retryable=False)
+    contract_failure = contract.get("typed_error")
+    if isinstance(contract_failure, dict) and contract_failure:
+        return [], contract_failure
+    rows = [
+        annotate_route_result(
+            row,
+            route_cell=cell,
+            cursor=cursor,
+            page=int(contract.get("page") or cell["page"]),
+            requested_limit=cell["requested_limit"],
+            next_cursor=next_cursor,
+            exhausted=bool(contract.get("exhausted", True)),
+            billable=cell["source"] not in FREE_ROUTE_LANES,
+            evidence_level="L0" if cell["source"] == "local_fixture" else "L1",
+        )
+        for row in (batch or []) if isinstance(row, dict)
+    ]
+    return rows, None
+
+
 async def discover_multi_source(
     industry: str,
     locations: list[str],
@@ -511,137 +604,198 @@ async def discover_multi_source(
     *,
     target: int | None = None,
     assignment_confirmed: int = 0,
+    target_metric: str = "assigned",
     cancellation: Any = None,
     stop_event: Any = None,
 ) -> list[dict]:
     """
-    Run all enabled sources in parallel per location, then merge.
-    Maps is not primary — each enabled source gets its own budget.
+    Execute bounded route cells through the existing source adapters, free first.
+
+    Discovery results are candidates only. ``assignment_confirmed`` is the durable
+    stop signal; raw provider yield never satisfies the target by itself.
     """
     from app.integrations.prod.discovery_runtime import local_validation_mode, synthetic_discovery, _is_cancelled
-    if local_validation_mode():
-        rows = synthetic_discovery(industry, locations, limit_per_location=int((budget or {}).get("maps", 10) or 10))
-        return RouteBatch(rows, contract={"contract_version": "leadx-route-result-v1", "source": "local_fixture", "exhausted": True})
-    if _is_cancelled(cancellation) or _is_cancelled(stop_event) or (target is not None and int(assignment_confirmed or 0) >= int(target)):
-        return RouteBatch([], contract={"contract_version": "leadx-route-result-v1", "stop_reason": "cancelled_or_target_met"})
+
     enabled = {**DEFAULT_SOURCES, **(sources or {})}
     budgets = {**DEFAULT_BUDGET, **(budget or {})}
-    qlist = queries or DEFAULT_QUERIES.get(industry.lower().replace(" ", ""), [industry])
-
-    all_batches: list[list[dict]] = []
+    qlist = list(queries or DEFAULT_QUERIES.get(industry.lower().replace(" ", ""), [industry]))
+    if target_metric not in {"assigned", "delivered"}:
+        raise ValueError("target_metric must be assigned or delivered")
     route_events: list[dict[str, Any]] = []
+    route_cells: list[dict[str, Any]] = []
+    all_batches: list[list[dict]] = []
     source_counts: dict[str, int] = defaultdict(int)
 
-    from app.integrations.prod.paid_policy import paid_stage_allowed, contactable, free_is_sufficient
+    def stopped() -> str | None:
+        if _is_cancelled(cancellation) or _is_cancelled(stop_event):
+            return "cancelled"
+        if target is not None and int(assignment_confirmed or 0) >= int(target):
+            return "target_met"
+        return None
 
-    for location in locations:
-        if _is_cancelled(cancellation) or _is_cancelled(stop_event) or (target is not None and int(assignment_confirmed or 0) >= int(target)):
-            route_events.append({"category": "cancelled_or_target_met", "location": location})
-            break
-        tasks = []
-        labels = []
+    initial_stop = stopped()
+    if initial_stop:
+        return RouteBatch([], contract={"contract_version": "leadx-route-result-v1", "stop_reason": initial_stop,
+                                        "route_cells": [], "target": target, "target_metric": target_metric})
 
-        # Stage 1 (free): OpenStreetMap open data. No key, no per-call cost.
-        free_rows: list[dict] = []
-        if enabled.get("osm", True) and (os.getenv("LEADX_FREE_OSM", "1") or "1") != "0":
-            try:
-                from app.integrations.prod.exhaustive_discovery import osm_exhaustive
-                free_rows = await osm_exhaustive(industry, location)
-            except Exception as exc:
-                route_events.append({"route_cell_id": route_cell_id("osm", sub_icp=industry, geography=location, query="osm"),
-                                     "typed_error": typed_route_error(exc, fallback_reason="osm_failure")})
-                logger.warning("free OSM discovery failed for %s: %s", location, type(exc).__name__)
-            free_rows = [annotate_route_result(row, route_cell={"source": "osm", "source_family": "local", "sub_icp_id": industry,
-                                                               "geography": location, "query": "osm", "result_budget": int(budgets.get("osm", 0) or 0)},
-                                               page=1, cursor={"page": 1, "token": None}, requested_limit=int(budgets.get("osm", 0) or 0),
-                                               evidence_level="L1", billable=False) for row in free_rows if isinstance(row, dict)]
-            if free_rows:
-                want_cap = max(int(budgets.get("maps", 40)) * 3, 100)
-                free_rows = sorted(free_rows, key=lambda r: not contactable(r))[:want_cap]
-                source_counts["osm"] += len(free_rows)
-                all_batches.append(free_rows)
-
-        # Stage 2 (paid, Serper): maps/web/yelp/facebook run only when the free
-        # stage did not already yield enough contactable candidates.
-        paid_ok, paid_reason = paid_stage_allowed(
-            free_rows, int(budgets.get("maps", 40)),
-            credential_available=bool(os.getenv("DECODO_API_KEY") or os.getenv("SERPER_API_KEY") or os.getenv("APOLLO_API_KEY") or os.getenv("HUNTER_API_KEY")),
-            unmet_gap=not free_is_sufficient(free_rows, int(budgets.get("maps", 40))),
-            remaining_quota=int(os.getenv("LEADX_DISCOVERY_REMAINING_QUOTA", str(int(budgets.get("maps", 40))))),
-        )
-        if not paid_ok:
-            logger.info("paid Serper lanes skipped for %s: %s (free contactable=%s)", location, paid_reason,
-                        sum(1 for r in free_rows if contactable(r)))
-        paid_lanes = {"maps", "web", "yelp", "facebook"}
-        lane_on = lambda name: bool(enabled.get(name)) and (paid_ok or name not in paid_lanes)
-
-        if lane_on("maps"):
-            tasks.append(source_maps(industry, location, qlist, budgets.get("maps", 40)))
-            labels.append("maps")
-        if lane_on("linkedin"):
-            tasks.append(source_linkedin(industry, location, budgets.get("linkedin", 25)))
-            labels.append("linkedin")
-        if lane_on("instagram"):
-            tasks.append(source_instagram(industry, location, budgets.get("instagram", 20)))
-            labels.append("instagram")
-        if lane_on("web"):
-            tasks.append(source_web(industry, location, qlist, budgets.get("web", 25)))
-            labels.append("web")
-        if lane_on("yelp"):
-            tasks.append(source_yelp(industry, location, budgets.get("yelp", 15)))
-            labels.append("yelp")
-        if lane_on("facebook"):
-            tasks.append(source_facebook(industry, location, budgets.get("facebook", 15)))
-            labels.append("facebook")
-
-        if not tasks:
-            continue
-
-        results = await asyncio.gather(*tasks, return_exceptions=True)
-        for label, res in zip(labels, results):
-            if isinstance(res, Exception):
-                error_record = {"route_cell_id": route_cell_id(label, sub_icp=industry, geography=location, query="|".join(qlist)),
-                                "typed_error": typed_route_error(res, fallback_reason=f"{label}_failure")}
-                route_events.append(error_record)
-                logger.warning("source %s failed: %s", label, type(res).__name__)
-                continue
-            normalized = [annotate_route_result(row, route_cell={"source": label, "source_family": label,
-                                                                  "sub_icp_id": industry, "geography": location,
-                                                                  "query": "|".join(qlist), "result_budget": int(budgets.get(label, 0) or 0)},
-                                                   page=1, cursor={"page": 1, "token": None},
-                                                   requested_limit=int(budgets.get(label, 0) or 0),
-                                                   evidence_level="L1", billable=label not in {"osm", "local_fixture"})
-                         for row in res if isinstance(row, dict)]
-            source_counts[label] += len(normalized)
+    # Local validation uses the same route-cell/evidence shape but never enters an
+    # adapter. This keeps zero provider calls explicit and testable.
+    if local_validation_mode():
+        for index, location in enumerate(dict.fromkeys(str(item) for item in locations if str(item).strip())):
+            cell = _route_cell("local_fixture", industry, location, qlist,
+                               int((budget or {}).get("maps", 10) or 10), lane_index=index)
+            route_cells.append(cell)
+            route_events.append(_route_event(cell, event="selected"))
+            rows = synthetic_discovery(industry, [location], limit_per_location=cell["requested_limit"])
+            normalized = [annotate_route_result(row, route_cell=cell, page=1,
+                                                 cursor=cell["cursor"], requested_limit=cell["requested_limit"],
+                                                 exhausted=True, billable=False, evidence_level="L0")
+                          for row in rows]
             all_batches.append(normalized)
+            source_counts["local_fixture"] += len(normalized)
+            route_events.append(_route_event(
+                cell, event="completed", invoked=False, normalized_count=len(normalized),
+                dedupe_keys=[str(row.get("dedupe_key")) for row in normalized],
+            ))
+        merged = stable_route_dedupe([row for batch in all_batches for row in batch])
+        return RouteBatch(merged, contract={"contract_version": "leadx-route-result-v1", "source": "local_fixture",
+                                            "source_family": "local", "actual_result_count": len(merged),
+                                            "route_cells": route_cells, "target": target,
+                                            "target_metric": target_metric, "stop_reason": "shortfall" if target else None,
+                                            "exhausted": True}, route_events=route_events)
 
+    from app.integrations.prod.paid_policy import paid_stage_allowed, contactable, free_is_sufficient
+    adapters = {
+        "maps": lambda location, cell: source_maps(industry, location, qlist, cell["requested_limit"]),
+        "web": lambda location, cell: source_web(industry, location, qlist, cell["requested_limit"]),
+        "yelp": lambda location, cell: source_yelp(industry, location, cell["requested_limit"]),
+        "facebook": lambda location, cell: source_facebook(industry, location, cell["requested_limit"]),
+        "linkedin": lambda location, cell: source_linkedin(industry, location, cell["requested_limit"]),
+        "instagram": lambda location, cell: source_instagram(industry, location, cell["requested_limit"]),
+    }
+
+    for location in dict.fromkeys(str(item) for item in locations if str(item).strip()):
+        free_rows: list[dict] = []
+        for lane_index, source in enumerate(ROUTE_LANE_ORDER):
+            if source != "osm" and not enabled.get(source, False):
+                continue
+            if source == "osm" and not enabled.get("osm", True):
+                continue
+            cell = _route_cell(source, industry, location, qlist,
+                               int(budgets.get(source, 0) or 0), lane_index=lane_index)
+            route_cells.append(cell)
+            route_events.append(_route_event(cell, event="selected"))
+            stop_reason = stopped()
+            if stop_reason:
+                route_events.append(_route_event(cell, event="stopped", selected=False,
+                                                  target_stop_reason=stop_reason))
+                break
+
+            if source in PAID_ROUTE_LANES and free_rows:
+                paid_ok, paid_reason = paid_stage_allowed(
+                    free_rows, int(budgets.get("maps", 40)),
+                    credential_available=bool(os.getenv("DECODO_API_KEY") or os.getenv("SERPER_API_KEY") or os.getenv("APOLLO_API_KEY") or os.getenv("HUNTER_API_KEY")),
+                    unmet_gap=not free_is_sufficient(free_rows, int(budgets.get("maps", 40))),
+                    remaining_quota=int(os.getenv("LEADX_DISCOVERY_REMAINING_QUOTA", str(int(budgets.get("maps", 40))))),
+                )
+                if not paid_ok:
+                    route_events.append(_route_event(
+                        cell, event="blocked", selected=False,
+                        failure={"category": "paid_fallback_gated", "reason": paid_reason},
+                    ))
+                    continue
+            elif source in PAID_ROUTE_LANES and not free_rows:
+                paid_ok, paid_reason = paid_stage_allowed(
+                    [], int(budgets.get("maps", 40)),
+                    credential_available=bool(os.getenv("DECODO_API_KEY") or os.getenv("SERPER_API_KEY") or os.getenv("APOLLO_API_KEY") or os.getenv("HUNTER_API_KEY")),
+                    unmet_gap=True,
+                    remaining_quota=int(os.getenv("LEADX_DISCOVERY_REMAINING_QUOTA", str(int(budgets.get("maps", 40))))),
+                )
+                if not paid_ok:
+                    route_events.append(_route_event(
+                        cell, event="blocked", selected=False,
+                        failure={"category": "paid_fallback_gated", "reason": paid_reason},
+                    ))
+                    continue
+
+            if source == "osm":
+                try:
+                    from app.integrations.prod.exhaustive_discovery import osm_exhaustive
+                    batch = await osm_exhaustive(industry, location)
+                except Exception as exc:
+                    failure = typed_route_error(exc, fallback_reason="osm_failure")
+                    route_events.append(_route_event(cell, event="failed", invoked=True, failure=failure))
+                    logger.warning("free OSM discovery failed for %s: %s", location, type(exc).__name__)
+                    continue
+            else:
+                try:
+                    batch = await adapters[source](location, cell)
+                except Exception as exc:
+                    failure = typed_route_error(exc, fallback_reason=f"{source}_failure")
+                    route_events.append(_route_event(cell, event="failed", invoked=True, failure=failure))
+                    logger.warning("source %s failed: %s", source, type(exc).__name__)
+                    continue
+
+            adapter_events = list(getattr(batch, "route_events", []) or [])
+            for adapter_event in adapter_events[:20]:
+                if isinstance(adapter_event, dict):
+                    route_events.append(_route_event(
+                        cell, event="failed" if adapter_event.get("typed_error") else "adapter_event",
+                        invoked=True, failure=adapter_event.get("typed_error") or adapter_event.get("failure"),
+                    ))
+            normalized, cursor_failure = _route_batch_rows(batch, cell)
+            if cursor_failure:
+                route_events.append(_route_event(cell, event="failed", invoked=True,
+                                                  failure=cursor_failure))
+                continue
+            dedupe_keys = [str(row.get("dedupe_key")) for row in normalized if row.get("dedupe_key")]
+            route_events.append(_route_event(cell, event="invoked", invoked=True,
+                                              normalized_count=len(normalized), dedupe_keys=dedupe_keys,
+                                              next_cursor=getattr(batch, "contract", {}).get("next_cursor")))
+            if normalized:
+                if source == "osm":
+                    free_rows.extend(normalized)
+                source_counts[source] += len(normalized)
+                all_batches.append(normalized)
+
+            stop_reason = stopped()
+            if stop_reason:
+                route_events.append(_route_event(cell, event="stopped", selected=False,
+                                                  target_stop_reason=stop_reason))
+                break
+        if stopped():
+            break
         await asyncio.sleep(0.2)
 
-    merged = merge_leads(all_batches, min_quality=min_quality)
-    # Stronger entity resolution (phone/domain/name+city/social)
+    # Stable route dedupe runs before the legacy quality/entity merge so every
+    # cross-route source hit and field-level provenance remains available.
+    route_rows = stable_route_dedupe([row for batch in all_batches for row in batch])
+    merged = merge_leads([route_rows], min_quality=min_quality)
     try:
         from app.integrations.prod.entity_resolution import resolve_entities
         before = len(merged)
         merged = resolve_entities(merged)
         logger.info("entity resolution %s → %s unique businesses", before, len(merged))
-    except Exception as e:
-        logger.warning("entity resolution skipped: %s", e)
-
-    multi = sum(1 for l in merged if len(l.get("sources_hit") or []) >= 2)
+    except Exception as exc:
+        logger.warning("entity resolution skipped: %s", type(exc).__name__)
 
     try:
         from app.integrations.prod.source_lanes import annotate_lane
-        for L in merged:
-            annotate_lane(L)
-    except Exception as exc: __import__("logging").getLogger(__name__).debug("suppressed optional failure: %s", exc)
+        for lead in merged:
+            annotate_lane(lead)
+    except Exception as exc:
+        logger.debug("suppressed optional failure: %s", type(exc).__name__)
 
-    logger.info(
-        "multi-source discovery industry=%s locations=%s counts=%s merged=%s multi_hit=%s",
-        industry, len(locations), dict(source_counts), len(merged), multi,
+    stop_reason = stopped() or ("target_met" if target is not None and int(assignment_confirmed or 0) >= int(target) else "shortfall")
+    return RouteBatch(
+        merged,
+        contract={"contract_version": "leadx-route-result-v1", "source": "multi_source",
+                  "source_family": "mixed", "actual_result_count": len(merged),
+                  "source_counts": dict(source_counts), "route_cells": route_cells,
+                  "target": target, "target_metric": target_metric, "stop_reason": stop_reason,
+                  "exhausted": True},
+        route_events=route_events,
     )
-    return RouteBatch(merged, contract={"contract_version": "leadx-route-result-v1", "source": "multi_source",
-                                        "source_family": "mixed", "actual_result_count": len(merged),
-                                        "exhausted": not route_events}, route_events=route_events)
 
 
 

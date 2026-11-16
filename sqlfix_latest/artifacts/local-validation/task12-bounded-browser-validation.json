@@ -1,0 +1,143 @@
+{
+  "schema": "leadx.task12.bounded-browser-validation.v1",
+  "task": "12",
+  "overall": "BLOCKED",
+  "evidence_class": "browser-local and synthetic/offline only",
+  "environment": {
+    "portal": "temporary Next dev server on localhost:3000",
+    "backend": "temporary loopback-only disposable stub for health and unauthenticated guard checks",
+    "compose_profile": "not available; Docker daemon unavailable",
+    "provider_mode": "provider-isolated; no provider requests",
+    "credentials_or_env_values_inspected": false,
+    "temporary_fixture_files_removed": true
+  },
+  "safety": {
+    "email_outreach_campaign_stripe_ses_or_other_outbound_actions": false,
+    "providers_contacted": false,
+    "supabase_contacted": false,
+    "real_leads_created_or_delivered": false,
+    "remote_sql_or_migrations": false,
+    "credentials_tokens_or_env_values_recorded": false
+  },
+  "commands": [
+    {
+      "command": "cd sqlfix_latest/lead-crm-portal; .\\node_modules\\.bin\\playwright.cmd test e2e/portal-contracts.spec.ts --config=e2e/playwright.config.ts --workers=1 --timeout=15000 --reporter=line",
+      "result": "PASS",
+      "exit_code": 0,
+      "output": "26 total; 14 passed; 0 failed; 12 skipped",
+      "limitation": "No base URL or storage state was configured, so authenticated browser suites were skipped."
+    },
+    {
+      "command": "cd sqlfix_latest/lead-crm-portal; LEADX_E2E_URL=http://localhost:3000 .\\node_modules\\.bin\\playwright.cmd test e2e/portal-contracts.spec.ts --config=e2e/playwright.config.ts --grep 'portal runtime guards' --workers=1 --timeout=15000 --reporter=line",
+      "result": "FAIL",
+      "exit_code": 1,
+      "output": "2 failed",
+      "artifact": "test-results/portal-contracts-portal-ru-f58c6-a-safe-correlation-contract/trace.zip",
+      "limitation": "The portal was running without an API dependency; readiness parity returned 500 and the unauthenticated guard timed out."
+    },
+    {
+      "command": "cd sqlfix_latest/lead-crm-portal; LEADX_E2E_URL=http://localhost:3000 .\\node_modules\\.bin\\playwright.cmd test e2e/portal-contracts.spec.ts --config=e2e/playwright.config.ts --grep 'portal runtime guards' --workers=1 --timeout=15000 --reporter=line",
+      "result": "PASS",
+      "exit_code": 0,
+      "output": "2 passed",
+      "limitation": "The checks used a disposable loopback stub that only returned health and unauthorized responses."
+    },
+    {
+      "command": "cd sqlfix_latest/lead-crm-portal; LEADX_E2E_URL=http://localhost:3000; LEADX_E2E_STORAGE_STATE=C:\\Users\\vansh\\Leadx-1\\sqlfix_latest\\.tmp-browser-storage-state.json; .\\node_modules\\.bin\\playwright.cmd test e2e/portal-contracts.spec.ts --config=e2e/playwright.config.ts --grep 'authenticated synthetic|admin prospecting null-state|synthetic revenue' --workers=1 --timeout=15000 --reporter=line",
+      "result": "FAIL",
+      "exit_code": 1,
+      "output": "10 failed; 0 passed",
+      "artifacts": [
+        "test-results/portal-contracts-authentic-92336--scoped-synthetic-responses/trace.zip",
+        "test-results/portal-contracts-authentic-4ee42--for-client-and-admin-views/trace.zip",
+        "test-results/portal-contracts-synthetic-fcfa8-oped-run-and-queue-progress/trace.zip"
+      ],
+      "limitation": "The local synthetic auth fixture reached page responses, but expected authenticated headings, task trace, request controls, and state controls did not render. No real request or provider work was attempted."
+    },
+    {
+      "command": "cd sqlfix_latest; docker compose --project-name leadx-real-validation ps --format json",
+      "result": "BLOCKED",
+      "exit_code": 1,
+      "output": "Docker daemon unavailable on the Windows named pipe",
+      "limitation": "No Compose API, worker, Redis, or durable local backend was available."
+    }
+  ],
+  "checks": [
+    {
+      "name": "fresh submission",
+      "status": "NOT_TESTED",
+      "evidence": "none",
+      "reason": "The existing browser fixture only models a pending synthetic request; no durable authenticated backend was available for a fresh submission."
+    },
+    {
+      "name": "same-key replay",
+      "status": "NOT_TESTED",
+      "evidence": "none",
+      "reason": "No safe authenticated durable submission fixture was available."
+    },
+    {
+      "name": "conflicting replay response",
+      "status": "NOT_TESTED",
+      "evidence": "none",
+      "reason": "No safe authenticated durable submission fixture was available."
+    },
+    {
+      "name": "target-five progress",
+      "status": "FAIL",
+      "evidence": "browser test trace",
+      "reason": "The synthetic client discovery check could not find the Request opportunities control after navigation."
+    },
+    {
+      "name": "task trace",
+      "status": "FAIL",
+      "evidence": "browser test trace",
+      "reason": "The GTM execution task trace region did not render in the authenticated synthetic page check."
+    },
+    {
+      "name": "assigned and delivered counts",
+      "status": "BLOCKED",
+      "evidence": "synthetic/offline contract only",
+      "reason": "Terminal count normalization exists in the Playwright contract suite, but no authenticated browser projection loaded for this run."
+    },
+    {
+      "name": "completed, shortfall, and error states",
+      "status": "BLOCKED",
+      "evidence": "synthetic/offline fixtures only",
+      "reason": "Authenticated state pages did not reach the expected controls or state text."
+    },
+    {
+      "name": "cancel, recovery, and timeout visibility",
+      "status": "PASS",
+      "evidence": "synthetic/offline Playwright contracts",
+      "artifact": "e2e/portal-contracts.spec.ts task 7 and task 24 mocked realtime contracts",
+      "limitation": "This proves the deterministic mock lifecycle and deadline behavior, not a live UI or worker."
+    },
+    {
+      "name": "realtime reconnect and refetch",
+      "status": "PASS",
+      "evidence": "synthetic/offline Playwright contracts",
+      "artifact": "e2e/portal-contracts.spec.ts task 24 mocked realtime contracts",
+      "limitation": "Private realtime was not contacted; mocked invalidation only triggers authoritative refetch behavior."
+    },
+    {
+      "name": "loading and empty states",
+      "status": "BLOCKED",
+      "evidence": "browser test trace",
+      "reason": "The authenticated loading/empty check could not find the expected page state."
+    },
+    {
+      "name": "tenant-safe access",
+      "status": "PASS",
+      "evidence": "browser guard plus synthetic/offline boundary",
+      "artifact": "e2e/portal-contracts.spec.ts task 34 local provider-isolated auth and realtime boundary",
+      "limitation": "This does not prove production Supabase/RLS or durable role separation."
+    },
+    {
+      "name": "forbidden outbound actions",
+      "status": "PASS",
+      "evidence": "sanitized run observation",
+      "reason": "No email, outreach, campaign, Stripe, SES, provider, Supabase, or real lead action was invoked."
+    }
+  ],
+  "conclusion": "Browser-local validation is incomplete. Public readiness and unauthenticated guards pass only with a disposable loopback stub; authenticated workflow checks fail to render expected synthetic states; replay checks remain not tested. No production, provider, realtime-service, or deployment claim is made."
+}

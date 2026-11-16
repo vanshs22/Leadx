@@ -1,0 +1,137 @@
+{
+  "schema": "leadx.final-real-validation.v1",
+  "decision": "BLOCKED",
+  "evidence_class": "live-runtime-read-only",
+  "execution_performed": false,
+  "scope": {
+    "requested_target": 5,
+    "allowed": ["discovery", "enrichment", "qualification", "assignment", "reservation", "CRM projection", "delivery verification"],
+    "forbidden": ["email", "outreach", "campaign", "Stripe", "SES"],
+    "mutation_policy": "No mutation after prerequisite gate failure"
+  },
+  "runtime": {
+    "api": "healthy",
+    "worker": "healthy",
+    "redis": "healthy",
+    "portal": "healthy",
+    "api_readiness": "PASS",
+    "portal_health": "PASS",
+    "observed_api_ports": [8000],
+    "observed_portal_ports": [3000]
+  },
+  "blocking_root_cause": {
+    "id": "authenticated-read-only-tenant-scope-unavailable",
+    "status": "BLOCKED",
+    "detail": "The existing protected read-only tenant and active-ICP listing interfaces could not be used because no existing admin session was present. Exactly one authorized test tenant, default/active ICP, and geography therefore could not be identified from safe non-secret metadata.",
+    "safe_evidence": {
+      "tenant_listing_endpoint": "GET /leads/v2/admin/tenants?limit=100",
+      "tenant_listing_status": 401,
+      "tenant_listing_error": "Missing admin session",
+      "tenant_listing_request_id": "a51bde36…3b8538",
+      "icp_listing_endpoint": "GET /leads/v2/admin/icps?active=true",
+      "icp_listing_status": 401,
+      "icp_listing_error": "Missing admin session",
+      "icp_listing_request_id": "9ca4f1df…4a3e1c9",
+      "unauthenticated_crm_probe": "Not attempted in this validation"
+    }
+  },
+  "validation_results": [
+    {
+      "check": "Existing Docker stack health",
+      "status": "PASS",
+      "evidence_class": "live-read-only",
+      "detail": "API, worker, portal, and Redis were already running and healthy. No start, restart, or compose mutation was performed."
+    },
+    {
+      "check": "Safe tenant identification",
+      "status": "BLOCKED",
+      "evidence_class": "live-read-only",
+      "detail": "Protected tenant listing returned 401 Missing admin session. No tenant was inferred from placeholders, source files, environment values, or prior reports."
+    },
+    {
+      "check": "Safe default/active ICP and geography identification",
+      "status": "BLOCKED",
+      "evidence_class": "live-read-only",
+      "detail": "Protected ICP listing returned 401 Missing admin session. No ICP or geography was inferred."
+    },
+    {
+      "check": "Target-5 pipeline request/run/job creation",
+      "status": "NOT RUN",
+      "evidence_class": "unavailable/blocked",
+      "detail": "Stopped before mutation because the unique authorized tenant prerequisite was not satisfied."
+    },
+    {
+      "check": "Discovery, planning, route context, enrichment, verification, qualification, assignment, reservation, CRM projection, delivery, database progress, realtime/refetch, dashboard trace, count reconciliation, and target stop",
+      "status": "NOT TESTED",
+      "evidence_class": "unavailable/blocked",
+      "detail": "No real run existed. Static definitions and prior synthetic/offline evidence were excluded."
+    },
+    {
+      "check": "No email/outreach/campaign/Stripe/SES",
+      "status": "PASS",
+      "evidence_class": "live-read-only",
+      "detail": "No such operation was attempted."
+    }
+  ],
+  "counts": {
+    "requested_target": 5,
+    "tenant_count_identified": null,
+    "icp_count_identified": null,
+    "discovered": null,
+    "enriched": null,
+    "qualified": null,
+    "assigned": null,
+    "reserved": null,
+    "delivered": null,
+    "target_stop": null
+  },
+  "agent_stage_execution_evidence": {
+    "status": "NOT AVAILABLE",
+    "detail": "No pipeline request or agent stage was created."
+  },
+  "commands_and_results": [
+    {
+      "operation": "docker ps --format ...",
+      "result": "PASS; API, worker, portal, and Redis healthy"
+    },
+    {
+      "operation": "GET http://localhost:8000/health/ready",
+      "result": "PASS; HTTP 200; database, Redis, auth, worker, queue, and routes ready"
+    },
+    {
+      "operation": "GET http://localhost:8000/health/routes",
+      "result": "PASS; HTTP 200; expected routes present"
+    },
+    {
+      "operation": "GET http://localhost:3000/api/health",
+      "result": "PASS; HTTP 200; portal and upstream ready"
+    },
+    {
+      "operation": "GET /leads/v2/admin/tenants?limit=100",
+      "result": "BLOCKED; HTTP 401 Missing admin session"
+    },
+    {
+      "operation": "GET /leads/v2/admin/icps?active=true",
+      "result": "BLOCKED; HTTP 401 Missing admin session"
+    }
+  ],
+  "safety_boundary": {
+    "env_file_read": false,
+    "credentials_read_printed_requested_or_created": false,
+    "browser_secrets_read": false,
+    "tenant_or_icp_guessed": false,
+    "provider_calls": false,
+    "pipeline_request_created": false,
+    "database_mutations": false,
+    "queue_mutations": false,
+    "email_outreach_campaign_stripe_ses": false,
+    "source_changes": false,
+    "data_deleted": false
+  },
+  "limitations": [
+    "The protected read-only service boundary needs an already-authenticated admin session or equivalent existing authenticated mechanism before tenant metadata can be inspected.",
+    "Because the unique tenant/ICP gate failed, paid-fallback policy was not evaluated and no provider or pipeline action was attempted.",
+    "No real success, counts, stage evidence, dashboard trace, realtime behavior, or reconciliation can be claimed."
+  ],
+  "next_prerequisite": "Make an existing authorized admin session available through the running localhost service without exposing or requesting secrets, then rerun only the read-only tenant/active-ICP identification gate."
+}

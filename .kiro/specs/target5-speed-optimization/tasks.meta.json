@@ -1,0 +1,224 @@
+{
+  "pbtResults": {},
+  "executionHistory": {
+    "1. Write the target-speed bug-condition exploration property": [
+      {
+        "executionId": "0808ee1d-e6f8-4711-9cc5-e993c913eacd",
+        "chatSessionId": "sess_04c0a8cd-f6f5-434b-b17e-8d89acafffcf",
+        "timestamp": 1794512727350
+      },
+      {
+        "executionId": "0808ee1d-e6f8-4711-9cc5-e993c913eacd",
+        "chatSessionId": "sess_04c0a8cd-f6f5-434b-b17e-8d89acafffcf",
+        "timestamp": 1794512737412
+      },
+      {
+        "executionId": "0808ee1d-e6f8-4711-9cc5-e993c913eacd",
+        "chatSessionId": "sess_04c0a8cd-f6f5-434b-b17e-8d89acafffcf",
+        "timestamp": 1794512999706
+      }
+    ],
+    "2. Write the preservation property before implementation": [
+      {
+        "executionId": "0808ee1d-e6f8-4711-9cc5-e993c913eacd",
+        "chatSessionId": "sess_04c0a8cd-f6f5-434b-b17e-8d89acafffcf",
+        "timestamp": 1794512727431
+      },
+      {
+        "executionId": "0808ee1d-e6f8-4711-9cc5-e993c913eacd",
+        "chatSessionId": "sess_04c0a8cd-f6f5-434b-b17e-8d89acafffcf",
+        "timestamp": 1794512999591
+      },
+      {
+        "executionId": "0808ee1d-e6f8-4711-9cc5-e993c913eacd",
+        "chatSessionId": "sess_04c0a8cd-f6f5-434b-b17e-8d89acafffcf",
+        "timestamp": 1794513187345
+      }
+    ],
+    "3. Add sanitized timing and work-budget instrumentation": [
+      {
+        "executionId": "0808ee1d-e6f8-4711-9cc5-e993c913eacd",
+        "chatSessionId": "sess_04c0a8cd-f6f5-434b-b17e-8d89acafffcf",
+        "timestamp": 1794512727605
+      },
+      {
+        "executionId": "0808ee1d-e6f8-4711-9cc5-e993c913eacd",
+        "chatSessionId": "sess_04c0a8cd-f6f5-434b-b17e-8d89acafffcf",
+        "timestamp": 1794513187513
+      },
+      {
+        "executionId": "0808ee1d-e6f8-4711-9cc5-e993c913eacd",
+        "chatSessionId": "sess_04c0a8cd-f6f5-434b-b17e-8d89acafffcf",
+        "timestamp": 1794513845191
+      }
+    ],
+    "4. Implement bounded concurrent route-cell/source execution": [
+      {
+        "executionId": "0808ee1d-e6f8-4711-9cc5-e993c913eacd",
+        "chatSessionId": "sess_04c0a8cd-f6f5-434b-b17e-8d89acafffcf",
+        "timestamp": 1794512727681
+      },
+      {
+        "executionId": "0808ee1d-e6f8-4711-9cc5-e993c913eacd",
+        "chatSessionId": "sess_04c0a8cd-f6f5-434b-b17e-8d89acafffcf",
+        "timestamp": 1794513845323
+      },
+      {
+        "executionId": "0808ee1d-e6f8-4711-9cc5-e993c913eacd",
+        "chatSessionId": "sess_04c0a8cd-f6f5-434b-b17e-8d89acafffcf",
+        "timestamp": 1794514439412
+      },
+      {
+        "executionId": "9586681d-ce1c-4986-bb4d-e78d9af659e0",
+        "chatSessionId": "sess_04c0a8cd-f6f5-434b-b17e-8d89acafffcf",
+        "timestamp": 1794557977547
+      },
+      {
+        "executionId": "9586681d-ce1c-4986-bb4d-e78d9af659e0",
+        "chatSessionId": "sess_04c0a8cd-f6f5-434b-b17e-8d89acafffcf",
+        "timestamp": 1794558713162
+      }
+    ],
+    "5. Implement the deadline-bounded free-first enrichment waterfall": [
+      {
+        "executionId": "0808ee1d-e6f8-4711-9cc5-e993c913eacd",
+        "chatSessionId": "sess_04c0a8cd-f6f5-434b-b17e-8d89acafffcf",
+        "timestamp": 1794512727751
+      },
+      {
+        "executionId": "0808ee1d-e6f8-4711-9cc5-e993c913eacd",
+        "chatSessionId": "sess_04c0a8cd-f6f5-434b-b17e-8d89acafffcf",
+        "timestamp": 1794514439680
+      },
+      {
+        "executionId": "0808ee1d-e6f8-4711-9cc5-e993c913eacd",
+        "chatSessionId": "sess_04c0a8cd-f6f5-434b-b17e-8d89acafffcf",
+        "timestamp": 1794514984498
+      },
+      {
+        "executionId": "9586681d-ce1c-4986-bb4d-e78d9af659e0",
+        "chatSessionId": "sess_04c0a8cd-f6f5-434b-b17e-8d89acafffcf",
+        "timestamp": 1794557977712
+      },
+      {
+        "executionId": "9586681d-ce1c-4986-bb4d-e78d9af659e0",
+        "chatSessionId": "sess_04c0a8cd-f6f5-434b-b17e-8d89acafffcf",
+        "timestamp": 1794558713271
+      }
+    ],
+    "6. Use safe existing batch boundaries for persistence, CRM, assignment, and delivery": [
+      {
+        "executionId": "0808ee1d-e6f8-4711-9cc5-e993c913eacd",
+        "chatSessionId": "sess_04c0a8cd-f6f5-434b-b17e-8d89acafffcf",
+        "timestamp": 1794512727815
+      },
+      {
+        "executionId": "0808ee1d-e6f8-4711-9cc5-e993c913eacd",
+        "chatSessionId": "sess_04c0a8cd-f6f5-434b-b17e-8d89acafffcf",
+        "timestamp": 1794514984300
+      },
+      {
+        "executionId": "0808ee1d-e6f8-4711-9cc5-e993c913eacd",
+        "chatSessionId": "sess_04c0a8cd-f6f5-434b-b17e-8d89acafffcf",
+        "timestamp": 1794515344994
+      },
+      {
+        "executionId": "9586681d-ce1c-4986-bb4d-e78d9af659e0",
+        "chatSessionId": "sess_04c0a8cd-f6f5-434b-b17e-8d89acafffcf",
+        "timestamp": 1794557986442
+      },
+      {
+        "executionId": "9586681d-ce1c-4986-bb4d-e78d9af659e0",
+        "chatSessionId": "sess_04c0a8cd-f6f5-434b-b17e-8d89acafffcf",
+        "timestamp": 1794558713556
+      }
+    ],
+    "7. Add the focused benchmark matrix": [
+      {
+        "executionId": "0808ee1d-e6f8-4711-9cc5-e993c913eacd",
+        "chatSessionId": "sess_04c0a8cd-f6f5-434b-b17e-8d89acafffcf",
+        "timestamp": 1794512727947
+      },
+      {
+        "executionId": "0808ee1d-e6f8-4711-9cc5-e993c913eacd",
+        "chatSessionId": "sess_04c0a8cd-f6f5-434b-b17e-8d89acafffcf",
+        "timestamp": 1794515345113
+      },
+      {
+        "executionId": "9586681d-ce1c-4986-bb4d-e78d9af659e0",
+        "chatSessionId": "sess_04c0a8cd-f6f5-434b-b17e-8d89acafffcf",
+        "timestamp": 1794557896689
+      }
+    ],
+    "8.1 Verify the original bug-condition exploration now passes": [
+      {
+        "executionId": "0808ee1d-e6f8-4711-9cc5-e993c913eacd",
+        "chatSessionId": "sess_04c0a8cd-f6f5-434b-b17e-8d89acafffcf",
+        "timestamp": 1794512728025
+      },
+      {
+        "executionId": "9586681d-ce1c-4986-bb4d-e78d9af659e0",
+        "chatSessionId": "sess_04c0a8cd-f6f5-434b-b17e-8d89acafffcf",
+        "timestamp": 1794557908253
+      },
+      {
+        "executionId": "9586681d-ce1c-4986-bb4d-e78d9af659e0",
+        "chatSessionId": "sess_04c0a8cd-f6f5-434b-b17e-8d89acafffcf",
+        "timestamp": 1794558712837
+      }
+    ],
+    "8.2 Verify the original preservation properties still pass": [
+      {
+        "executionId": "0808ee1d-e6f8-4711-9cc5-e993c913eacd",
+        "chatSessionId": "sess_04c0a8cd-f6f5-434b-b17e-8d89acafffcf",
+        "timestamp": 1794512728101
+      },
+      {
+        "executionId": "9586681d-ce1c-4986-bb4d-e78d9af659e0",
+        "chatSessionId": "sess_04c0a8cd-f6f5-434b-b17e-8d89acafffcf",
+        "timestamp": 1794557908580
+      },
+      {
+        "executionId": "9586681d-ce1c-4986-bb4d-e78d9af659e0",
+        "chatSessionId": "sess_04c0a8cd-f6f5-434b-b17e-8d89acafffcf",
+        "timestamp": 1794558712988
+      }
+    ],
+    "9. Final local synthetic gate": [
+      {
+        "executionId": "0808ee1d-e6f8-4711-9cc5-e993c913eacd",
+        "chatSessionId": "sess_04c0a8cd-f6f5-434b-b17e-8d89acafffcf",
+        "timestamp": 1794512728242
+      },
+      {
+        "executionId": "9586681d-ce1c-4986-bb4d-e78d9af659e0",
+        "chatSessionId": "sess_04c0a8cd-f6f5-434b-b17e-8d89acafffcf",
+        "timestamp": 1794558722860
+      },
+      {
+        "executionId": "9586681d-ce1c-4986-bb4d-e78d9af659e0",
+        "chatSessionId": "sess_04c0a8cd-f6f5-434b-b17e-8d89acafffcf",
+        "timestamp": 1794558935942
+      }
+    ],
+    "10. One bounded real measurement gate and final checkpoint": [
+      {
+        "executionId": "0808ee1d-e6f8-4711-9cc5-e993c913eacd",
+        "chatSessionId": "sess_04c0a8cd-f6f5-434b-b17e-8d89acafffcf",
+        "timestamp": 1794512728318
+      }
+    ],
+    "8. Re-run the exact exploration and preservation properties after implementation": [
+      {
+        "executionId": "9586681d-ce1c-4986-bb4d-e78d9af659e0",
+        "chatSessionId": "sess_04c0a8cd-f6f5-434b-b17e-8d89acafffcf",
+        "timestamp": 1794557908013
+      },
+      {
+        "executionId": "9586681d-ce1c-4986-bb4d-e78d9af659e0",
+        "chatSessionId": "sess_04c0a8cd-f6f5-434b-b17e-8d89acafffcf",
+        "timestamp": 1794558713061
+      }
+    ]
+  }
+}

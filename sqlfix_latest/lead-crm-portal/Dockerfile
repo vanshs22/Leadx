@@ -1,4 +1,6 @@
-FROM node:20-alpine
+# Local default is version-pinned; production supplies an immutable digest.
+ARG NODE_BASE_IMAGE=node:20-alpine
+FROM ${NODE_BASE_IMAGE}
 
 ENV NEXT_TELEMETRY_DISABLED=1
 WORKDIR /app

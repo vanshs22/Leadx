@@ -10920,7 +10920,7 @@ REVOKE ALL ON TABLE public.canonical_contact_states,public.canonical_verificatio
 GRANT SELECT,INSERT,UPDATE ON TABLE public.canonical_contact_states,public.canonical_verification_observations,public.canonical_bounce_feedback,public.canonical_quality_decisions,public.canonical_replacement_requests TO service_role;
 
 -- ============================================================================
--- CANONICAL MIGRATION 29: 20261001001300_leadx_16_delivery_outbox.sql
+-- CANONICAL MIGRATION 31: 20261001001300_leadx_16_delivery_outbox.sql
 -- ============================================================================
 ALTER TABLE IF EXISTS public.delivery_outbox ADD COLUMN IF NOT EXISTS stable_event_id text, ADD COLUMN IF NOT EXISTS destination text NOT NULL DEFAULT 'portal', ADD COLUMN IF NOT EXISTS provider text, ADD COLUMN IF NOT EXISTS payload_hash text, ADD COLUMN IF NOT EXISTS outbox_state text NOT NULL DEFAULT 'pending', ADD COLUMN IF NOT EXISTS next_attempt_at timestamptz, ADD COLUMN IF NOT EXISTS safe_error_code text, ADD COLUMN IF NOT EXISTS safe_error_detail text, ADD COLUMN IF NOT EXISTS replay_count integer NOT NULL DEFAULT 0, ADD COLUMN IF NOT EXISTS replay_of_id uuid, ADD COLUMN IF NOT EXISTS reconciled_at timestamptz, ADD COLUMN IF NOT EXISTS reconciliation_key text;
 DO $$ BEGIN ALTER TABLE public.delivery_outbox ADD CONSTRAINT delivery_outbox_outbox_state_check CHECK(outbox_state IN ('pending','processing','delivered','retryable','dead-letter','cancelled')) NOT VALID; EXCEPTION WHEN duplicate_object THEN NULL; END $$;
@@ -10936,7 +10936,7 @@ CREATE OR REPLACE FUNCTION public.leadx_replay_delivery_outbox(p_outbox_id uuid,
 REVOKE ALL ON FUNCTION public.leadx_replay_delivery_outbox(uuid,text) FROM PUBLIC,anon,authenticated; GRANT EXECUTE ON FUNCTION public.leadx_replay_delivery_outbox(uuid,text) TO service_role;
 
 -- ============================================================================
--- CANONICAL MIGRATION 30: 20261001001400_leadx_16_economic_ledger.sql
+-- CANONICAL MIGRATION 32: 20261001001400_leadx_16_economic_ledger.sql
 -- ============================================================================
 CREATE TABLE IF NOT EXISTS public.economic_ledger_events (id uuid PRIMARY KEY DEFAULT gen_random_uuid(),tenant_id uuid NOT NULL REFERENCES public.tenants(id) ON DELETE CASCADE,event_key text NOT NULL,event_type text NOT NULL CHECK(event_type IN ('requested','reserved','reservation_released','consumed','provider_usage','delivery_outcome','refund','replacement_credit','stripe_report')),direction text NOT NULL CHECK(direction IN ('debit','credit','informational')),quantity numeric(20,6) NOT NULL CHECK(quantity>=0),unit text NOT NULL CHECK(unit IN ('lead','credit','provider_call','usd_cents','event')),source_type text NOT NULL,source_id text,job_operation_id uuid,provider text,period date,assignment_id uuid,metadata jsonb NOT NULL DEFAULT '{}'::jsonb,occurred_at timestamptz NOT NULL DEFAULT now(),created_at timestamptz NOT NULL DEFAULT now(),UNIQUE(tenant_id,event_key));
 CREATE INDEX IF NOT EXISTS idx_economic_ledger_tenant_period ON public.economic_ledger_events(tenant_id,period,occurred_at DESC); CREATE INDEX IF NOT EXISTS idx_economic_ledger_source ON public.economic_ledger_events(tenant_id,source_type,source_id); CREATE INDEX IF NOT EXISTS idx_economic_ledger_job ON public.economic_ledger_events(tenant_id,job_operation_id) WHERE job_operation_id IS NOT NULL;
@@ -10954,7 +10954,7 @@ REVOKE ALL ON public.economic_ledger_balances,public.economic_ledger_reconciliat
 -- Missing/generic offers are shared. Target vertical is never a lock key.
 
 -- ============================================================================
--- CANONICAL MIGRATION 31: 20261020001500_leadx_exclusivity_learning_quota.sql
+-- CANONICAL MIGRATION 33: 20261020001500_leadx_exclusivity_learning_quota.sql
 -- ============================================================================
 ALTER TABLE public.icp_profiles
   ALTER COLUMN exclusivity SET DEFAULT 'shared';
@@ -11048,7 +11048,7 @@ CREATE POLICY tenant_icp_recommendations_update ON public.tenant_icp_recommendat
 CREATE INDEX IF NOT EXISTS idx_tenant_icp_recommendations_status ON public.tenant_icp_recommendations(tenant_id, status, created_at DESC);
 
 -- ============================================================================
--- CANONICAL MIGRATION 32: 20261020001600_leadx_21_realtime_capture.sql
+-- CANONICAL MIGRATION 34: 20261020001600_leadx_21_realtime_capture.sql
 -- ============================================================================
 -- LeadX task 21: tenant-safe database change signals.
 -- Broadcast is an invalidation hint; APIs remain authoritative. The lists below
@@ -11366,7 +11366,7 @@ GRANT EXECUTE ON FUNCTION public.leadx_reserve_discovery_quota(uuid,uuid,uuid,in
 NOTIFY pgrst, 'reload schema';
 
 -- ============================================================================
--- CANONICAL MIGRATION 33: 20261020001700_leadx_5_tenant_scope_hardening.sql
+-- CANONICAL MIGRATION 35: 20261020001700_leadx_5_tenant_scope_hardening.sql
 -- ============================================================================
 -- LeadX Task 5: additive tenant scope and security checks.
 ALTER TABLE IF EXISTS public.job_operations
@@ -11882,4 +11882,72 @@ BEGIN
 EXCEPTION WHEN duplicate_object THEN NULL;
 END $$;
 NOTIFY pgrst, 'reload schema';
+-- CANONICAL MIGRATION 41: 20261030000600_leadx_product_state_authority.sql
+-- LeadX product-state authority: additive billing, support, target, and reconciliation fields.
+ALTER TABLE IF EXISTS public.tenants
+  ADD COLUMN IF NOT EXISTS billing_catalog_version text,
+  ADD COLUMN IF NOT EXISTS billing_plan_snapshot jsonb,
+  ADD COLUMN IF NOT EXISTS payment_method_state text,
+  ADD COLUMN IF NOT EXISTS stripe_payment_method_id text,
+  ADD COLUMN IF NOT EXISTS billing_cancel_at_period_end boolean NOT NULL DEFAULT false;
+
+DO $$
+BEGIN
+  ALTER TABLE public.tenants
+    ADD CONSTRAINT tenants_payment_method_state_check
+    CHECK (payment_method_state IS NULL OR payment_method_state IN ('present','absent','unknown','pending'))
+    NOT VALID;
+EXCEPTION WHEN duplicate_object THEN NULL;
+END $$;
+
+ALTER TABLE IF EXISTS public.support_conversations
+  ADD COLUMN IF NOT EXISTS ticket_status text NOT NULL DEFAULT 'open',
+  ADD COLUMN IF NOT EXISTS ticket_owner text,
+  ADD COLUMN IF NOT EXISTS ticket_version integer NOT NULL DEFAULT 1,
+  ADD COLUMN IF NOT EXISTS resolved_at timestamptz,
+  ADD COLUMN IF NOT EXISTS closed_at timestamptz,
+  ADD COLUMN IF NOT EXISTS closure_reason text;
+
+DO $$
+BEGIN
+  ALTER TABLE public.support_conversations
+    ADD CONSTRAINT support_ticket_status_check
+    CHECK (ticket_status IN ('open','triaged','in_progress','waiting','resolved','closed'))
+    NOT VALID;
+EXCEPTION WHEN duplicate_object THEN NULL;
+END $$;
+
+CREATE TABLE IF NOT EXISTS public.support_ticket_events (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  conversation_id uuid NOT NULL REFERENCES public.support_conversations(id) ON DELETE CASCADE,
+  from_status text NOT NULL,
+  to_status text NOT NULL,
+  owner text,
+  closure_reason text,
+  version integer NOT NULL CHECK (version > 0),
+  created_at timestamptz NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS idx_support_ticket_events_conversation
+  ON public.support_ticket_events(conversation_id, version DESC);
+
+ALTER TABLE IF EXISTS public.pipeline_runs
+  ADD COLUMN IF NOT EXISTS target_count integer NOT NULL DEFAULT 0,
+  ADD COLUMN IF NOT EXISTS target_metric text NOT NULL DEFAULT 'assigned',
+  ADD COLUMN IF NOT EXISTS reconciliation_status text NOT NULL DEFAULT 'pending',
+  ADD COLUMN IF NOT EXISTS reconciliation_reason text;
+
+DO $$
+BEGIN
+  ALTER TABLE public.pipeline_runs
+    ADD CONSTRAINT pipeline_runs_target_metric_check
+    CHECK (target_metric IN ('assigned','delivered'))
+    NOT VALID;
+EXCEPTION WHEN duplicate_object THEN NULL;
+END $$;
+
+CREATE INDEX IF NOT EXISTS idx_pipeline_runs_reconciliation
+  ON public.pipeline_runs(tenant_id, reconciliation_status, started_at DESC);
+
+NOTIFY pgrst, 'reload schema';
+
 COMMIT;

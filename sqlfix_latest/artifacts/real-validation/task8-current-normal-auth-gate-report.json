@@ -1,0 +1,89 @@
+{
+  "schema": "leadx.test-environment-production-validation.task8.current-auth-gate.v1",
+  "task": "8",
+  "decision": "BLOCKED",
+  "execution_performed": false,
+  "evidence_class": "live-runtime-prerequisite",
+  "scope": {
+    "tenant_id": "5655f9d9-b3c7-48f9-bb95-9f3fe0675854",
+    "icp_id": "377aaa3e-5eae-41fc-a12a-570e791490b3",
+    "vertical": "marketing agency",
+    "geography": ["New Jersey", "New York", "Pennsylvania"],
+    "delivery": "portal",
+    "requested_target": 5,
+    "hard_cap": 500,
+    "scope_declared": true
+  },
+  "readiness": {
+    "api_live_status": 200,
+    "api_ready_status": 200,
+    "api_ready_required_components_ok": true,
+    "api_ready_component_count": 9,
+    "api_routes_status": 200,
+    "portal_health_status": 200,
+    "durable_preflight_log_observed": false,
+    "durable_preflight": "NOT_OBSERVED",
+    "readiness_gate": "PASS",
+    "durable_preflight_gate": "BLOCKED"
+  },
+  "opaque_auth_state": {
+    "client_state_path_used": true,
+    "admin_state_path_used": true,
+    "contents_inspected": false,
+    "credentials_or_tokens_read_or_printed": false,
+    "client_portal_status": 200,
+    "client_portal_route": "/dashboard",
+    "client_session_status": 200,
+    "client_scope_match": false,
+    "client_role_present": true,
+    "client_exact_tenant_discovery_probe_status": 403,
+    "client_exact_tenant_quota_probe_status": 403,
+    "admin_portal_status": 200,
+    "admin_portal_route": "/admin",
+    "admin_exact_icp_probe_status": 403,
+    "admin_provider_health_probe_status": 404,
+    "admin_queue_metrics_probe_status": 404,
+    "admin_runs_probe_status": 404,
+    "authenticated_scope_gate": "FAIL"
+  },
+  "admission_gates": {
+    "fresh_idempotency_identity": "NOT_CREATED",
+    "approved_provider_list_and_budget": "NOT_OBSERVABLE",
+    "monitoring": "NOT_OBSERVABLE at authenticated boundary",
+    "side_effect_ceiling": "NOT_OBSERVABLE",
+    "stop_conditions": "NOT_OBSERVABLE",
+    "cleanup_ownership": "NOT_OBSERVABLE",
+    "forbidden_action_guard": "PASS by non-execution"
+  },
+  "run": {
+    "submission_count": 0,
+    "pipeline_request_created": false,
+    "fresh_idempotency_key_used": false,
+    "provider_calls": 0,
+    "second_submission": false,
+    "retry_cancel_or_cleanup": false,
+    "terminal_status": null,
+    "stop_reason": "Authenticated client state did not match the approved tenant and authenticated scope probes were denied; stopped before submission."
+  },
+  "safety_boundary": {
+    "env_values_read": false,
+    "credentials_read_printed_requested_or_persisted": false,
+    "storage_state_contents_read": false,
+    "email_outreach_campaign_stripe_ses": 0,
+    "provider_calls": false,
+    "database_mutation": false,
+    "queue_mutation": false,
+    "migration_or_sql_mutation": false,
+    "reset_or_data_cleanup": false,
+    "cap_violation": false
+  },
+  "validation_results": {
+    "assigned_at_least_5": "NOT_TESTED",
+    "delivered_at_least_5": "NOT_TESTED",
+    "completed_status": "NOT_TESTED",
+    "crm_client_reconciliation": "NOT_TESTED",
+    "task_realtime_count_convergence": "NOT_TESTED",
+    "timing": "NOT_TESTED"
+  },
+  "next_gate": "Provide already-authorized opaque client/admin state that resolves to the approved tenant and exposes authenticated monitoring, provider policy, side-effect ceilings, stop conditions, and cleanup ownership. Do not submit until those gates pass."
+}

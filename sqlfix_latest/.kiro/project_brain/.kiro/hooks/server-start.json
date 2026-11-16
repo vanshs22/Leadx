@@ -1,0 +1,11 @@
+{
+  "version": "v1",
+  "hooks": [{
+    "name": "Start MCP server on Kiro start",
+    "trigger": "SessionStart",
+    "action": {
+      "type": "command",
+      "command": "cd sqlfix_latest && python -m .kiro.project_brain.server"
+    }
+  }]
+}

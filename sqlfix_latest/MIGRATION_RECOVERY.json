@@ -1,0 +1,28 @@
+{
+  "schema_version": "leadx.migration-recovery.v1",
+  "apply_mode": "operator_approved_only",
+  "advisory_lock": {
+    "required": true,
+    "scope": "one canonical chain per target database",
+    "acquire_before": "any live migration apply"
+  },
+  "backup": {
+    "required": true,
+    "restore_point": "operator-supplied approved backup or disposable-schema snapshot",
+    "restore_test_required": true
+  },
+  "rollback": {
+    "required": true,
+    "mode": "forward_fix_or_restore",
+    "automatic_down_migration": false
+  },
+  "operator_approval": {
+    "required": true,
+    "evidence": "signed release/change record outside this source tree"
+  },
+  "migrations": {},
+  "limitations": [
+    "This file records the safety boundary; it is not proof that a backup, restore drill, or disposable-schema validation has run.",
+    "No migration in this repository is authorized for live apply by this metadata alone."
+  ]
+}

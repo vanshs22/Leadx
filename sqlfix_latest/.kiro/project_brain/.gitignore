@@ -1,0 +1,13 @@
+# Project Brain index (generated)
+index.db
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Cache
+__pycache__/
+.pytest_cache/
+.coverage

@@ -22,9 +22,11 @@ from urllib.request import Request, urlopen
 try:
     from scripts.release_evidence import EvidenceRecord, EvidenceReport, _redact_text
     from scripts.uat_config import UatConfigurationError, required_live_keys, validate_uat_environment
+    from scripts.uat_prerequisites import load_bundle
 except ModuleNotFoundError:  # direct script execution
     from release_evidence import EvidenceRecord, EvidenceReport, _redact_text
     from uat_config import UatConfigurationError, required_live_keys, validate_uat_environment
+    from uat_prerequisites import load_bundle
 
 
 UAT_SCOPE = {"repository": "LeadX", "source_root": "sqlfix_latest", "scope": "real-provider-uat"}
@@ -181,6 +183,16 @@ def _write_report(report: EvidenceReport, output: Path) -> tuple[Path, Path]:
     return report.write_report(output)
 
 
+def _prerequisite_path(args: argparse.Namespace) -> Path | None:
+    raw = str(getattr(args, "prerequisites", "") or os.getenv("LEADX_UAT_PREREQUISITES_FILE", "")).strip()
+    return Path(raw) if raw else None
+
+
+def _prerequisite_missing(args: argparse.Namespace) -> list[str]:
+    _bundle, missing = load_bundle(_prerequisite_path(args))
+    return missing
+
+
 def _new_report(run_id: str, mode: str) -> EvidenceReport:
     return EvidenceReport(run_id=run_id, release_scope=UAT_SCOPE, mode=mode, gate_requirements={"uat_live": {}, "uat_local_reference": {}})
 
@@ -190,14 +202,16 @@ def preflight(args: argparse.Namespace) -> int:
     try:
         config = validate_uat_environment()
         missing = list(required_live_keys())
-        details = {"manifest_checks": len(UAT_CHECK_MANIFEST), "max_target": config.max_target, "max_provider_requests": config.max_provider_requests, "max_enrichments": config.max_enrichments}
+        missing.extend(_prerequisite_missing(args))
+        missing = list(dict.fromkeys(missing))
+        details = {"manifest_checks": len(UAT_CHECK_MANIFEST), "max_target": config.max_target, "max_provider_requests": config.max_provider_requests, "max_enrichments": config.max_enrichments, "prerequisite_bundle": bool(_prerequisite_path(args))}
         status = "PASS—synthetic/offline" if not missing else "BLOCKED"
-        _record(report, "uat.config-safety", "UAT markers, fail-closed flags, and provider budgets are safe", status, "PASS" if not missing else "UNVERIFIED", "preflight passed without network calls" if not missing else "live credentials or fixture IDs are unavailable", details=details, prerequisites=[{"name": key, "available": key not in missing} for key in missing] or [{"name": "UAT configuration", "available": True}], local=True)
+        _record(report, "uat.config-safety", "UAT markers, isolated prerequisite bundle, fail-closed flags, and provider budgets are safe", status, "PASS" if not missing else "UNVERIFIED", "preflight passed without network calls" if not missing else "UAT prerequisite or fixture inputs are unavailable", details=details, prerequisites=[{"name": key, "available": key not in missing} for key in missing] or [{"name": "UAT configuration and prerequisite bundle", "available": True}], local=True)
         for check in UAT_CHECK_MANIFEST:
             _record(report, check["id"], check["claim"], "NOT TESTED", "NOT_RUN", "live check not selected by preflight", details={"paths": list(check["paths"])}, prerequisites=[{"name": "--run-live", "available": False}])
         _record(report, "reusable.restart-recovery", "Existing restart recovery harness remains the local synthetic reference", "PASS—synthetic/offline", "PASS", "local reference only; no deployment restart was attempted", details={"source": "scripts/restart_recovery.py"}, local=True)
         _write_report(report, Path(args.output))
-        print(json.dumps({"result": "PASS" if not missing else "BLOCKED", "mode": "uat-preflight", "network": False, "artifact": str(Path(args.output) / "report.json")}, indent=2))
+        print(json.dumps({"result": "PASS" if not missing else "BLOCKED", "mode": "uat-preflight", "network": False, "missing_count": len(missing), "artifact": str(Path(args.output) / "report.json")}, indent=2))
         return 0
     except UatConfigurationError as exc:
         _record(report, "uat.config-safety", "UAT configuration is fail-closed", "BLOCKED", "UNVERIFIED", str(exc), details={"network": False})
@@ -213,6 +227,8 @@ def run_live(args: argparse.Namespace) -> int:
         print(json.dumps({"result": "BLOCKED", "reason": str(exc)}, indent=2))
         return 2
     missing = list(required_live_keys())
+    missing.extend(_prerequisite_missing(args))
+    missing = list(dict.fromkeys(missing))
     report = _new_report(str(uuid.uuid4()), "uat-live")
     if missing:
         for check in UAT_CHECK_MANIFEST:
@@ -377,6 +393,7 @@ def main() -> int:
     mode.add_argument("--preflight", action="store_true", help="validate UAT markers and prerequisites; no network")
     mode.add_argument("--run-live", action="store_true", help="execute the approved UAT target")
     parser.add_argument("--output", type=Path, default=Path("artifacts/uat"))
+    parser.add_argument("--prerequisites", type=Path, default=None, help="secret-free isolated UAT prerequisite bundle")
     args = parser.parse_args()
     if args.dry_run:
         args.preflight = True

@@ -30,8 +30,11 @@ Use only synthetic/offline checks for this change:
 
 ```powershell
 python scripts/check_migrations.py
+python scripts/check_migrations.py --snapshot path/to/disposable-schema.json
 python scripts/check_rls_coverage.py
-pytest -q tests/test_task16_data_plane_migrations.py
+pytest -q tests/test_task16_data_plane_migrations.py tests/test_task6_migration_preflight.py
 ```
+
+`check_migrations.py` compares the ordered chain and one-shot mirror, checks duplicate policy/constraint guards, reports existing-row-sensitive changes, validates recovery metadata, and can inspect a disposable schema snapshot. It never connects to Supabase, acquires the advisory lock, applies SQL, or performs rollback. A blocked result must be reviewed and resolved before any live operator approval.
 
 Do not put real provider credentials or secrets in tests. A live Supabase introspection, migration apply, runtime startup integration, provider adapters, historical backfill, and portal presentation are explicitly outside this additive scope.

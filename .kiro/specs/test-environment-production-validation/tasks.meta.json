@@ -1,0 +1,274 @@
+{
+  "pbtResults": {},
+  "executionHistory": {
+    "1. Write test-only profile exploration tests before implementation": [
+      {
+        "executionId": "40198305-6fd7-4ea0-ac45-896460ad4cf7",
+        "chatSessionId": "sess_04c0a8cd-f6f5-434b-b17e-8d89acafffcf",
+        "timestamp": 1794480775612
+      },
+      {
+        "executionId": "40198305-6fd7-4ea0-ac45-896460ad4cf7",
+        "chatSessionId": "sess_04c0a8cd-f6f5-434b-b17e-8d89acafffcf",
+        "timestamp": 1794480783852
+      },
+      {
+        "executionId": "40198305-6fd7-4ea0-ac45-896460ad4cf7",
+        "chatSessionId": "sess_04c0a8cd-f6f5-434b-b17e-8d89acafffcf",
+        "timestamp": 1794480962425
+      }
+    ],
+    "2. Write production guard-parity preservation tests before implementation": [
+      {
+        "executionId": "40198305-6fd7-4ea0-ac45-896460ad4cf7",
+        "chatSessionId": "sess_04c0a8cd-f6f5-434b-b17e-8d89acafffcf",
+        "timestamp": 1794480775683
+      },
+      {
+        "executionId": "40198305-6fd7-4ea0-ac45-896460ad4cf7",
+        "chatSessionId": "sess_04c0a8cd-f6f5-434b-b17e-8d89acafffcf",
+        "timestamp": 1794480970109
+      },
+      {
+        "executionId": "40198305-6fd7-4ea0-ac45-896460ad4cf7",
+        "chatSessionId": "sess_04c0a8cd-f6f5-434b-b17e-8d89acafffcf",
+        "timestamp": 1794481224384
+      }
+    ],
+    "3.1 Re-run the exact Property 1 exploration tests and confirm unsafe setup is refused": [
+      {
+        "executionId": "40198305-6fd7-4ea0-ac45-896460ad4cf7",
+        "chatSessionId": "sess_04c0a8cd-f6f5-434b-b17e-8d89acafffcf",
+        "timestamp": 1794480775800
+      },
+      {
+        "executionId": "40198305-6fd7-4ea0-ac45-896460ad4cf7",
+        "chatSessionId": "sess_04c0a8cd-f6f5-434b-b17e-8d89acafffcf",
+        "timestamp": 1794481478494
+      },
+      {
+        "executionId": "40198305-6fd7-4ea0-ac45-896460ad4cf7",
+        "chatSessionId": "sess_04c0a8cd-f6f5-434b-b17e-8d89acafffcf",
+        "timestamp": 1794481571920
+      }
+    ],
+    "3.2 Re-run the exact Property 2 preservation tests and confirm guard parity": [
+      {
+        "executionId": "40198305-6fd7-4ea0-ac45-896460ad4cf7",
+        "chatSessionId": "sess_04c0a8cd-f6f5-434b-b17e-8d89acafffcf",
+        "timestamp": 1794480775852
+      },
+      {
+        "executionId": "40198305-6fd7-4ea0-ac45-896460ad4cf7",
+        "chatSessionId": "sess_04c0a8cd-f6f5-434b-b17e-8d89acafffcf",
+        "timestamp": 1794481478727
+      },
+      {
+        "executionId": "40198305-6fd7-4ea0-ac45-896460ad4cf7",
+        "chatSessionId": "sess_04c0a8cd-f6f5-434b-b17e-8d89acafffcf",
+        "timestamp": 1794481571827
+      }
+    ],
+    "4. Run deterministic durable replay tests at the local/test boundary": [
+      {
+        "executionId": "40198305-6fd7-4ea0-ac45-896460ad4cf7",
+        "chatSessionId": "sess_04c0a8cd-f6f5-434b-b17e-8d89acafffcf",
+        "timestamp": 1794480775916
+      },
+      {
+        "executionId": "40198305-6fd7-4ea0-ac45-896460ad4cf7",
+        "chatSessionId": "sess_04c0a8cd-f6f5-434b-b17e-8d89acafffcf",
+        "timestamp": 1794481580512
+      },
+      {
+        "executionId": "40198305-6fd7-4ea0-ac45-896460ad4cf7",
+        "chatSessionId": "sess_04c0a8cd-f6f5-434b-b17e-8d89acafffcf",
+        "timestamp": 1794481823982
+      }
+    ],
+    "5. Configure ephemeral browser authentication and storage state": [
+      {
+        "executionId": "84e36886-600e-4b80-b0f6-aa26ccbe941b",
+        "chatSessionId": "sess_04c0a8cd-f6f5-434b-b17e-8d89acafffcf",
+        "timestamp": 1794490565167
+      },
+      {
+        "executionId": "84e36886-600e-4b80-b0f6-aa26ccbe941b",
+        "chatSessionId": "sess_04c0a8cd-f6f5-434b-b17e-8d89acafffcf",
+        "timestamp": 1794493723448
+      },
+      {
+        "executionId": "148849f0-8ce7-40b9-91be-4721bcd26cad",
+        "chatSessionId": "sess_04c0a8cd-f6f5-434b-b17e-8d89acafffcf",
+        "timestamp": 1794494176957
+      },
+      {
+        "executionId": "46c3f89e-a101-4339-bcc3-21e5e40eb9fe",
+        "chatSessionId": "sess_04c0a8cd-f6f5-434b-b17e-8d89acafffcf",
+        "timestamp": 1794501638712
+      },
+      {
+        "executionId": "8f0334ff-d094-4cf4-9d9a-46482131833c",
+        "chatSessionId": "sess_04c0a8cd-f6f5-434b-b17e-8d89acafffcf",
+        "timestamp": 1794502136898
+      },
+      {
+        "executionId": "0593d21c-3557-4f67-b4e9-36afacb37932",
+        "chatSessionId": "sess_04c0a8cd-f6f5-434b-b17e-8d89acafffcf",
+        "timestamp": 1794502860894
+      },
+      {
+        "executionId": "90943c1e-0cb9-4f7f-ba7a-1cace3c8363e",
+        "chatSessionId": "sess_04c0a8cd-f6f5-434b-b17e-8d89acafffcf",
+        "timestamp": 1794503818129
+      },
+      {
+        "executionId": "90943c1e-0cb9-4f7f-ba7a-1cace3c8363e",
+        "chatSessionId": "sess_04c0a8cd-f6f5-434b-b17e-8d89acafffcf",
+        "timestamp": 1794505013297
+      },
+      {
+        "executionId": "76a63fa7-5935-4f47-9fb5-23f6b89e90ac",
+        "chatSessionId": "sess_04c0a8cd-f6f5-434b-b17e-8d89acafffcf",
+        "timestamp": 1794505850216
+      },
+      {
+        "executionId": "48fb4904-55b5-4b45-a4f7-f853dc5ddade",
+        "chatSessionId": "sess_04c0a8cd-f6f5-434b-b17e-8d89acafffcf",
+        "timestamp": 1794506027099
+      }
+    ],
+    "6. Run authenticated Playwright client/admin validation": [
+      {
+        "executionId": "40198305-6fd7-4ea0-ac45-896460ad4cf7",
+        "chatSessionId": "sess_04c0a8cd-f6f5-434b-b17e-8d89acafffcf",
+        "timestamp": 1794480776054
+      },
+      {
+        "executionId": "40198305-6fd7-4ea0-ac45-896460ad4cf7",
+        "chatSessionId": "sess_04c0a8cd-f6f5-434b-b17e-8d89acafffcf",
+        "timestamp": 1794482074891
+      },
+      {
+        "executionId": "40198305-6fd7-4ea0-ac45-896460ad4cf7",
+        "chatSessionId": "sess_04c0a8cd-f6f5-434b-b17e-8d89acafffcf",
+        "timestamp": 1794482202598
+      },
+      {
+        "executionId": "84e36886-600e-4b80-b0f6-aa26ccbe941b",
+        "chatSessionId": "sess_04c0a8cd-f6f5-434b-b17e-8d89acafffcf",
+        "timestamp": 1794490573403
+      },
+      {
+        "executionId": "84e36886-600e-4b80-b0f6-aa26ccbe941b",
+        "chatSessionId": "sess_04c0a8cd-f6f5-434b-b17e-8d89acafffcf",
+        "timestamp": 1794493011501
+      }
+    ],
+    "7. Pass the local/test end-to-end gate": [
+      {
+        "executionId": "40198305-6fd7-4ea0-ac45-896460ad4cf7",
+        "chatSessionId": "sess_04c0a8cd-f6f5-434b-b17e-8d89acafffcf",
+        "timestamp": 1794480776132
+      },
+      {
+        "executionId": "40198305-6fd7-4ea0-ac45-896460ad4cf7",
+        "chatSessionId": "sess_04c0a8cd-f6f5-434b-b17e-8d89acafffcf",
+        "timestamp": 1794482210624
+      },
+      {
+        "executionId": "84e36886-600e-4b80-b0f6-aa26ccbe941b",
+        "chatSessionId": "sess_04c0a8cd-f6f5-434b-b17e-8d89acafffcf",
+        "timestamp": 1794493020409
+      }
+    ],
+    "8. Run one bounded real target-five validation after local gates pass": [
+      {
+        "executionId": "40198305-6fd7-4ea0-ac45-896460ad4cf7",
+        "chatSessionId": "sess_04c0a8cd-f6f5-434b-b17e-8d89acafffcf",
+        "timestamp": 1794480776202
+      },
+      {
+        "executionId": "84e36886-600e-4b80-b0f6-aa26ccbe941b",
+        "chatSessionId": "sess_04c0a8cd-f6f5-434b-b17e-8d89acafffcf",
+        "timestamp": 1794493145537
+      },
+      {
+        "executionId": "84e36886-600e-4b80-b0f6-aa26ccbe941b",
+        "chatSessionId": "sess_04c0a8cd-f6f5-434b-b17e-8d89acafffcf",
+        "timestamp": 1794493608850
+      },
+      {
+        "executionId": "0593d21c-3557-4f67-b4e9-36afacb37932",
+        "chatSessionId": "sess_04c0a8cd-f6f5-434b-b17e-8d89acafffcf",
+        "timestamp": 1794503011529
+      },
+      {
+        "executionId": "90943c1e-0cb9-4f7f-ba7a-1cace3c8363e",
+        "chatSessionId": "sess_04c0a8cd-f6f5-434b-b17e-8d89acafffcf",
+        "timestamp": 1794504358474
+      },
+      {
+        "executionId": "48fb4904-55b5-4b45-a4f7-f853dc5ddade",
+        "chatSessionId": "sess_04c0a8cd-f6f5-434b-b17e-8d89acafffcf",
+        "timestamp": 1794506386642
+      },
+      {
+        "executionId": "f77405e6-e889-4ba3-982f-d16238b5da1b",
+        "chatSessionId": "sess_04c0a8cd-f6f5-434b-b17e-8d89acafffcf",
+        "timestamp": 1794507082217
+      },
+      {
+        "executionId": "2656d1e3-24f7-44ec-96ba-9ba8ecdf1e2e",
+        "chatSessionId": "sess_04c0a8cd-f6f5-434b-b17e-8d89acafffcf",
+        "timestamp": 1794507642127
+      }
+    ],
+    "9. Clean up the bounded run and restore production guards": [
+      {
+        "executionId": "40198305-6fd7-4ea0-ac45-896460ad4cf7",
+        "chatSessionId": "sess_04c0a8cd-f6f5-434b-b17e-8d89acafffcf",
+        "timestamp": 1794480776253
+      },
+      {
+        "executionId": "90943c1e-0cb9-4f7f-ba7a-1cace3c8363e",
+        "chatSessionId": "sess_04c0a8cd-f6f5-434b-b17e-8d89acafffcf",
+        "timestamp": 1794504358728
+      },
+      {
+        "executionId": "90943c1e-0cb9-4f7f-ba7a-1cace3c8363e",
+        "chatSessionId": "sess_04c0a8cd-f6f5-434b-b17e-8d89acafffcf",
+        "timestamp": 1794504851581
+      }
+    ],
+    "10. Final manual-check gate": [
+      {
+        "executionId": "40198305-6fd7-4ea0-ac45-896460ad4cf7",
+        "chatSessionId": "sess_04c0a8cd-f6f5-434b-b17e-8d89acafffcf",
+        "timestamp": 1794480776306
+      },
+      {
+        "executionId": "90943c1e-0cb9-4f7f-ba7a-1cace3c8363e",
+        "chatSessionId": "sess_04c0a8cd-f6f5-434b-b17e-8d89acafffcf",
+        "timestamp": 1794504851508
+      },
+      {
+        "executionId": "90943c1e-0cb9-4f7f-ba7a-1cace3c8363e",
+        "chatSessionId": "sess_04c0a8cd-f6f5-434b-b17e-8d89acafffcf",
+        "timestamp": 1794505013460
+      }
+    ],
+    "3. Implement the disposable local/test fixture boundary": [
+      {
+        "executionId": "40198305-6fd7-4ea0-ac45-896460ad4cf7",
+        "chatSessionId": "sess_04c0a8cd-f6f5-434b-b17e-8d89acafffcf",
+        "timestamp": 1794481239925
+      },
+      {
+        "executionId": "40198305-6fd7-4ea0-ac45-896460ad4cf7",
+        "chatSessionId": "sess_04c0a8cd-f6f5-434b-b17e-8d89acafffcf",
+        "timestamp": 1794481479160
+      }
+    ]
+  }
+}

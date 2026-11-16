@@ -1,5 +1,6 @@
-# Low-memory LinkedIn scraper for Linux VPS
-FROM python:3.11-slim-bookworm
+# Local default is version-pinned; production supplies an immutable digest.
+ARG PYTHON_BASE_IMAGE=python:3.11-slim-bookworm
+FROM ${PYTHON_BASE_IMAGE}
 
 ENV DEBIAN_FRONTEND=noninteractive
 ENV PYTHONUNBUFFERED=1

@@ -1,5 +1,6 @@
 import Link from "next/link";
-import { PollingDeadlineState } from "./States";
+import { StatusBadge } from "./Primitives";
+import { EmptyState, ErrorState, LoadingRows, PollingDeadlineState } from "./States";
 
 export type OperationState = {
   runId?: string;
@@ -218,4 +219,95 @@ export function OperationStateCard({
       </div>
     </section>
   );
+}
+
+
+type TaskTraceViewProps = {
+  trace?: Record<string, any> | null;
+  loading?: boolean;
+  error?: unknown;
+};
+
+function traceList(value: unknown): any[] {
+  return Array.isArray(value) ? value : [];
+}
+
+function traceLabel(value: unknown): string {
+  return value == null || value === "" ? "—" : String(value).replace(/[_-]+/g, " ");
+}
+
+function traceTaskLabel(value: unknown): string {
+  return value == null || value === "" ? "—" : String(value).replace(/[._-]+/g, " ");
+}
+
+function traceJson(value: unknown): string {
+  if (value == null || value === "") return "—";
+  if (typeof value === "string" || typeof value === "number" || typeof value === "boolean") return String(value);
+  try { return JSON.stringify(value); } catch { return "—"; }
+}
+
+/** Read-only GTM subset/profile/task trace backed by the authoritative projection. */
+export function TaskTraceView({ trace, loading = false, error }: TaskTraceViewProps) {
+  if (loading) return <section className="panel" aria-busy="true" aria-label="GTM execution task trace"><LoadingRows rows={5} cols={3} /></section>;
+  if (error) return <ErrorState error={error} />;
+  if (!trace) return <section className="panel" aria-label="GTM execution task trace"><EmptyState title="No GTM trace yet" hint="A selected GTM mission or lead-generation run will appear here after it is created." /></section>;
+
+  const profile = traceRecord(trace.profile);
+  const plan = traceRecord(trace.plan);
+  const tasks = traceList(trace.tasks);
+  const counts = traceRecord(trace.counts);
+  const included = traceList(plan.included_tasks?.length ? plan.included_tasks : profile.included_tasks);
+  const excluded = traceList(plan.excluded_tasks?.length ? plan.excluded_tasks : profile.excluded_tasks);
+
+  return (
+    <section className="panel" aria-label="GTM execution task trace">
+      <div className="panel-header">
+        <div className="min-w-0">
+          <h2 className="panel-title">GTM execution trace</h2>
+          <p className="section-sub">Selected work and evidence from the tenant-safe authoritative projection.</p>
+        </div>
+        <StatusBadge status={trace.status || "unknown"} />
+      </div>
+      <div className="panel-body space-y-5">
+        <dl className="grid gap-x-6 gap-y-4 sm:grid-cols-2 lg:grid-cols-4">
+          <div><dt className="label">Profile</dt><dd className="mt-1 text-xs font-semibold text-ink">{traceLabel(profile.profile_id || trace.request?.profile_id)}</dd></div>
+          <div><dt className="label">Plan version</dt><dd className="mt-1 text-xs font-semibold text-ink">{traceLabel(plan.plan_version)}</dd></div>
+          <div><dt className="label">Evidence</dt><dd className="mt-1 text-xs font-semibold text-ink">{traceLabel(trace.evidence_class)}</dd></div>
+          <div><dt className="label">Revision</dt><dd className="mt-1 text-xs font-semibold tabular-nums text-ink">{trace.revision ?? "—"}</dd></div>
+        </dl>
+
+        <div className="grid gap-4 lg:grid-cols-2">
+          <div className="rounded-lg border border-line bg-surface-3/40 p-4">
+            <h3 className="text-xs font-semibold uppercase tracking-wide text-ink-muted">Included agents/tasks</h3>
+            <ul className="mt-3 space-y-1.5 text-xs text-ink">{included.length ? included.map((item, index) => <li key={`${String(item)}-${index}`} className="font-mono">{String(item)}</li>) : <li className="text-ink-faint">No selected subset reported.</li>}</ul>
+          </div>
+          <div className="rounded-lg border border-line bg-surface-3/40 p-4">
+            <h3 className="text-xs font-semibold uppercase tracking-wide text-ink-muted">Excluded by policy</h3>
+            <ul className="mt-3 space-y-1.5 text-xs text-ink">{excluded.length ? excluded.map((item, index) => <li key={`${String(item)}-${index}`} className="font-mono">{String(item)}</li>) : <li className="text-ink-faint">No exclusions reported.</li>}</ul>
+          </div>
+        </div>
+
+        <div className="overflow-x-auto rounded-lg border border-line">
+          <table className="data-table min-w-[760px]"><caption className="sr-only">GTM task trace</caption><thead><tr><th scope="col">Task</th><th scope="col">Status</th><th scope="col">Dependencies</th><th scope="col">Evidence</th><th scope="col">Budget / spend</th></tr></thead>
+            <tbody>{tasks.length ? tasks.map((task, index) => <tr key={String(task.task_id || task.id || index)}><td className="font-mono text-xs text-ink">{traceTaskLabel(task.task_type || task.agent_id)}</td><td><StatusBadge status={task.status || "unknown"} /></td><td className="max-w-[190px] text-xs text-ink-muted">{traceList(task.dependencies || task.depends_on).map(String).join(", ") || "—"}</td><td className="max-w-[180px] text-xs text-ink-muted">{traceList(task.evidence_refs).join(", ") || "—"}</td><td className="max-w-[220px] break-words font-mono text-[11px] text-ink-muted">{traceJson(task.budget_snapshot || task.spent_to_date)}</td></tr>) : <tr><td colSpan={5} className="px-4 py-8 text-center text-xs text-ink-faint">No selected tasks reported.</td></tr>}</tbody>
+          </table>
+        </div>
+
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+          {Object.entries(counts).filter(([key]) => ["target", "discovered", "qualified", "assigned", "reserved", "delivered", "remaining", "shortfall"].includes(key)).map(([key, value]) => <div key={key} className="rounded-lg border border-line bg-surface-3/40 px-3 py-2.5"><div className="text-[11px] capitalize text-ink-faint">{key.replace(/_/g, " ")}</div><div className="mt-1 text-sm font-semibold tabular-nums text-ink">{traceJson(value)}</div></div>)}
+        </div>
+
+        <div className="space-y-1.5 rounded-lg border border-line bg-surface-3/40 px-3 py-2.5 text-xs text-ink-muted">
+          <div><b className="font-semibold text-ink">Dependencies:</b> {traceJson(plan.dependencies)}</div>
+          <div><b className="font-semibold text-ink">Budgets:</b> {traceJson(plan.budgets)}</div>
+          <div><b className="font-semibold text-ink">Terminal reason:</b> {traceLabel(trace.terminal_reason)}</div>
+          <div><b className="font-semibold text-ink">Realtime:</b> private invalidation only; the UI refetches authoritative state.</div>
+        </div>
+      </div>
+    </section>
+  );
+}
+
+function traceRecord(value: unknown): Record<string, any> {
+  return value && typeof value === "object" && !Array.isArray(value) ? value as Record<string, any> : {};
 }

@@ -122,3 +122,52 @@ def test_assignment_target_fences_every_route_decision():
     assert plan["route_cells"]
     assert all(item["reason"] == "target_met" for item in plan["decision_tests"])
     assert all(item["decision"] == "skip" for item in plan["decision_tests"])
+
+
+def test_selection_decision_records_canonical_target_context():
+    from app.integrations.prod.lead_selection_planner import build_selection_decision
+
+    decision = build_selection_decision(
+        target=5,
+        rotation_key="context:gym:new-york",
+        tenant_id="tenant-a",
+        run_id="run-a",
+        icp_id="icp-a",
+        vertical="gym",
+        locations=["New York"],
+        queries=["women's gym"],
+        parent_icp={"id": "icp-a", "offer_category": "lead_gen_service"},
+        sub_icps=[{"id": "sub-a", "label": "fitness center"}],
+    )
+
+    assert decision["target"] == 5
+    assert decision["icp_id"] == "icp-a"
+    assert decision["normalized_plan"]["canonical_vertical"]["name"] == "gym"
+    assert decision["normalized_plan"]["geography"]["requested"] == ["New York"]
+    assert "women's gym" in decision["normalized_plan"]["query_families"][0]["queries"]
+    assert decision["parent_icp"]["id"] == "icp-a"
+    assert decision["sub_icps"][0]["label"] == "fitness center"
+
+
+def test_selection_order_is_deterministic_free_first_and_enabled_only():
+    from app.integrations.prod.lead_selection_planner import build_selection_decision
+
+    kwargs = {
+        "target": 5,
+        "rotation_key": "order:gym:new-york",
+        "enabled_sources": {
+            "osm": True, "maps": False, "web": True,
+            "yelp": True, "facebook": False, "linkedin": True, "instagram": True,
+        },
+    }
+    first = build_selection_decision(**kwargs)
+    second = build_selection_decision(**kwargs)
+    order = first["lane_policy"]["order"]
+
+    assert first["lane_policy"] == second["lane_policy"]
+    assert set(order[:2]) == {"osm", "web"}
+    assert set(order[2:]) == {"yelp", "linkedin", "instagram"}
+    assert "maps" not in order and "facebook" not in order
+    assert first["target"] == 5
+    assert "free/local lanes" in first["lane_policy"]["execution_order_reason"]
+    assert "quota/social lanes" in first["rationale"]

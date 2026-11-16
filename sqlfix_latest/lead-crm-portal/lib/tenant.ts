@@ -34,6 +34,20 @@ export function clearTenant() {
   localStorage.removeItem(USER_KEY);
 }
 
+/**
+ * Accept only a tenant-scoped membership projection. Platform-admin context is
+ * deliberately not a client-owner shortcut; it must use the admin boundary.
+ */
+export function isClientWorkspaceProjection(value: unknown): value is { tenant_id: string; tenant_name?: string; role?: string } {
+  if (!value || typeof value !== "object") return false;
+  const row = value as Record<string, unknown>;
+  const tenantId = typeof row.tenant_id === "string" ? row.tenant_id.trim() : "";
+  const scope = String(row.scope || row.actor_scope || row.principal_type || "").toLowerCase();
+  if (!tenantId || row.platform_admin === true || scope === "platform" || scope === "platform_admin") return false;
+  const role = String(row.role || "").toLowerCase();
+  return !role || ["owner", "admin", "member", "viewer"].includes(role);
+}
+
 /** Hook-friendly: read tenant; empty means user must pick workspace */
 export function useTenantId(): string {
   if (typeof window === "undefined") return "";

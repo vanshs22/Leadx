@@ -1,0 +1,104 @@
+{
+  "pbtResults": {},
+  "executionHistory": {
+    "1. Write and run the bug-condition exploration tests before implementing the fix": [
+      {
+        "executionId": "2f6777f9-e644-4799-8637-741b49d7a361",
+        "chatSessionId": "sess_ff39f7bf-84f9-4107-b192-c09324a101f2",
+        "timestamp": 1794573876874
+      },
+      {
+        "executionId": "2f6777f9-e644-4799-8637-741b49d7a361",
+        "chatSessionId": "sess_ff39f7bf-84f9-4107-b192-c09324a101f2",
+        "timestamp": 1794573890536
+      },
+      {
+        "executionId": "2f6777f9-e644-4799-8637-741b49d7a361",
+        "chatSessionId": "sess_ff39f7bf-84f9-4107-b192-c09324a101f2",
+        "timestamp": 1794574256698
+      }
+    ],
+    "2. Inspect the portal/API reconnect and run-status fallback seam": [
+      {
+        "executionId": "2f6777f9-e644-4799-8637-741b49d7a361",
+        "chatSessionId": "sess_ff39f7bf-84f9-4107-b192-c09324a101f2",
+        "timestamp": 1794573876960
+      },
+      {
+        "executionId": "2f6777f9-e644-4799-8637-741b49d7a361",
+        "chatSessionId": "sess_ff39f7bf-84f9-4107-b192-c09324a101f2",
+        "timestamp": 1794574270456
+      }
+    ],
+    "3. Inspect the worker/queue heartbeat and discovery-to-enrichment handoff seam": [
+      {
+        "executionId": "2f6777f9-e644-4799-8637-741b49d7a361",
+        "chatSessionId": "sess_ff39f7bf-84f9-4107-b192-c09324a101f2",
+        "timestamp": 1794573877086
+      }
+    ],
+    "4. Write and run preservation property tests before implementation": [
+      {
+        "executionId": "2f6777f9-e644-4799-8637-741b49d7a361",
+        "chatSessionId": "sess_ff39f7bf-84f9-4107-b192-c09324a101f2",
+        "timestamp": 1794573877151
+      }
+    ],
+    "5.1 Fix portal authoritative recovery": [
+      {
+        "executionId": "2f6777f9-e644-4799-8637-741b49d7a361",
+        "chatSessionId": "sess_ff39f7bf-84f9-4107-b192-c09324a101f2",
+        "timestamp": 1794573877217
+      }
+    ],
+    "5.2 Fix worker heartbeat and ownership visibility": [
+      {
+        "executionId": "2f6777f9-e644-4799-8637-741b49d7a361",
+        "chatSessionId": "sess_ff39f7bf-84f9-4107-b192-c09324a101f2",
+        "timestamp": 1794573877287
+      }
+    ],
+    "5.3 Fix durable discovery-to-enrichment handoff": [
+      {
+        "executionId": "2f6777f9-e644-4799-8637-741b49d7a361",
+        "chatSessionId": "sess_ff39f7bf-84f9-4107-b192-c09324a101f2",
+        "timestamp": 1794573877356
+      }
+    ],
+    "5.4 Add only the missing bounded wait and target-stop guard": [
+      {
+        "executionId": "2f6777f9-e644-4799-8637-741b49d7a361",
+        "chatSessionId": "sess_ff39f7bf-84f9-4107-b192-c09324a101f2",
+        "timestamp": 1794573877425
+      }
+    ],
+    "5.5 Re-run the exact exploration tests as expected-behavior verification": [
+      {
+        "executionId": "2f6777f9-e644-4799-8637-741b49d7a361",
+        "chatSessionId": "sess_ff39f7bf-84f9-4107-b192-c09324a101f2",
+        "timestamp": 1794573877551
+      }
+    ],
+    "5.6 Re-run the exact preservation tests": [
+      {
+        "executionId": "2f6777f9-e644-4799-8637-741b49d7a361",
+        "chatSessionId": "sess_ff39f7bf-84f9-4107-b192-c09324a101f2",
+        "timestamp": 1794573877614
+      }
+    ],
+    "6. Run bounded target-seven speed and result verification": [
+      {
+        "executionId": "2f6777f9-e644-4799-8637-741b49d7a361",
+        "chatSessionId": "sess_ff39f7bf-84f9-4107-b192-c09324a101f2",
+        "timestamp": 1794573877686
+      }
+    ],
+    "7. Publish the scoped PASS/FAIL/BLOCKED/NOT TESTED evidence checkpoint": [
+      {
+        "executionId": "2f6777f9-e644-4799-8637-741b49d7a361",
+        "chatSessionId": "sess_ff39f7bf-84f9-4107-b192-c09324a101f2",
+        "timestamp": 1794573877758
+      }
+    ]
+  }
+}

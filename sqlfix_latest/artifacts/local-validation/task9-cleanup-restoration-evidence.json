@@ -1,0 +1,97 @@
+{
+  "schema": "leadx.task9.cleanup-restoration.v1",
+  "task": "9",
+  "overall": "PASS",
+  "evidence_class": "sanitized local cleanup and runtime restoration",
+  "cleanup": {
+    "browser_auth_state": {
+      "status": "PASS",
+      "removed_paths": [
+        "%TEMP%\\leadx-task5-ephemeral-auth\\client.json",
+        "%TEMP%\\leadx-task5-ephemeral-auth\\admin.json",
+        "%TEMP%\\leadx-task5-ephemeral-auth\\normal-client.json",
+        "%TEMP%\\leadx-task5-ephemeral-auth\\normal-admin.json",
+        "%TEMP%\\leadx-task5-ephemeral-auth\\normal-client-current.json",
+        "%TEMP%\\leadx-task5-ephemeral-auth\\normal-admin-current.json"
+      ],
+      "remaining_name_count": 0,
+      "contents_inspected": false
+    },
+    "task5_confirmation_or_helper_files": {
+      "status": "PASS",
+      "removed_paths": [],
+      "present_in_dedicated_temp_directory": false,
+      "contents_inspected": false
+    },
+    "external_local_auth_override": {
+      "status": "PASS",
+      "removed_paths": ["C:\\Users\\vansh\\Leadx-local-auth-override.yml"],
+      "contents_inspected": false
+    },
+    "durable_records": {
+      "status": "NOT_REQUIRED",
+      "real_target5_run": "NOT_RUN",
+      "durable_test_records_created": false,
+      "database_rows_deleted": false,
+      "migrations_or_resets_run": false
+    }
+  },
+  "runtime": {
+    "compose_file": "docker-compose.yml",
+    "compose_project": "sqlfix_latest",
+    "services_restarted": ["api", "worker", "portal"],
+    "redis_restarted": false,
+    "volumes_or_queues_cleared": false,
+    "service_status": {
+      "api": "running/healthy",
+      "worker": "running/healthy",
+      "portal": "running/healthy",
+      "redis": "running/healthy"
+    },
+    "probes": {
+      "api_live_http": 200,
+      "api_ready_http": 200,
+      "portal_health_http": 200,
+      "redis_ping": "PONG",
+      "worker_health": "PASS"
+    }
+  },
+  "temporary_compose_probe": {
+    "status": "CLEANED_SCOPED_RESOURCES",
+    "reason": "The base project was already bound to host port 6379, so a separate probe project could not start Redis.",
+    "containers_and_network_removed": true,
+    "probe_volume_deleted": false,
+    "base_project_volume_or_queue_touched": false
+  },
+  "guards": {
+    "auth_session_and_refresh": "PASS",
+    "tenant_authorization_and_cross_tenant_denial": "PASS",
+    "rls_and_scoped_reads_writes": "PASS",
+    "provider_isolation_and_forbidden_actions": "PASS",
+    "cap_500_and_rejection_above_cap": "PASS",
+    "metadata_only_realtime_contract": "PASS",
+    "no_outbound_regression": "PASS",
+    "offline_regression_tests": "94 passed",
+    "provider_mode": "denied",
+    "forbidden_actions": {
+      "email": 0,
+      "outreach": 0,
+      "campaign": 0,
+      "stripe": 0,
+      "ses": 0
+    }
+  },
+  "safety": {
+    "env_or_credentials_read_or_printed": false,
+    "providers_contacted": false,
+    "supabase_contacted": false,
+    "real_pipeline_work_created": false,
+    "unrelated_files_deleted": false,
+    "base_project_volume_or_queue_deleted": false
+  },
+  "verification": {
+    "focused_guard_suite": "PASS",
+    "focused_guard_suite_note": "The first host-side run was blocked by an inherited distributed-rate-limit dependency; the same offline suite passed with process-local synthetic fallback flags. No source or runtime configuration was changed.",
+    "evidence_artifacts_are_sanitized": true
+  }
+}

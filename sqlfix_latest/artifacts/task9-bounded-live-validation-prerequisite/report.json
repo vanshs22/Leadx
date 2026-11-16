@@ -1,0 +1,164 @@
+{
+  "schema": "leadx.task9-bounded-live-validation-prerequisite.v1",
+  "decision": "BLOCKED",
+  "live_validation": "UNVERIFIED",
+  "mode": "prerequisite-assessment-only",
+  "execution_performed": false,
+  "safety_boundary": {
+    "env_file_read": false,
+    "secrets_requested_printed_or_inspected": false,
+    "external_contacts": false,
+    "remote_supabase_contacted": false,
+    "live_provider_contacted": false,
+    "stripe_contacted": false,
+    "deployed_endpoints_contacted": false,
+    "deployment_attempted": false,
+    "migration_attempted": false,
+    "billing_or_email_action_attempted": false,
+    "data_mutated": false
+  },
+  "evidence_inspected": [
+    ".kiro/specs/production-readiness-blockers/bugfix.md",
+    ".kiro/specs/production-readiness-blockers/design.md",
+    ".kiro/specs/production-readiness-blockers/tasks.md",
+    "sqlfix_latest/artifacts/uat/task8-prerequisite-assessment/report.json",
+    "sqlfix_latest/artifacts/uat/task14-prerequisite-assessment/report.json",
+    "sqlfix_latest/artifacts/task12-bounded-prerequisite-assessment/report.json",
+    "sqlfix_latest/artifacts/final-gtm-audit/task10-3-local/report.json",
+    "sqlfix_latest/docker-compose.production.yml",
+    "sqlfix_latest/deploy/Caddyfile",
+    "sqlfix_latest/scripts/check_production_topology.py",
+    "sqlfix_latest/artifacts/uat/prerequisites.example.json"
+  ],
+  "offline_validation": {
+    "check_id": "production.topology.static",
+    "command": "python scripts/check_production_topology.py",
+    "result": "PASS",
+    "blockers": [],
+    "interpretation": "Checked-in production topology only; no Docker start or deployment evidence"
+  },
+  "current_gate_status": {
+    "release_identity": {
+      "status": "OPEN",
+      "limitation": "Recorded audit is scoped to commit 2f3df36b1111f55e5c1b111d2dc696a93dd94d6c while the current worktree has uncommitted changes"
+    },
+    "local_automated": {
+      "status": "CLOSED",
+      "failed_checks": [
+        "security.rls",
+        "reset.fresh_run",
+        "runtime.worker_state",
+        "discovery.quality",
+        "discovery.enrichment.contact",
+        "email.ses_sandbox"
+      ]
+    },
+    "integration": {
+      "status": "CLOSED",
+      "reason": "Required checks NOT TESTED"
+    },
+    "uat": {
+      "status": "BLOCKED",
+      "checks": "NOT TESTED",
+      "reason": "No approved isolated UAT profile, target, identities, fixtures, or Wave 7 approval"
+    },
+    "live_staging": {
+      "status": "CLOSED",
+      "reason": "Required deployment and staging checks NOT TESTED"
+    },
+    "public_production": {
+      "status": "NO-GO",
+      "reason": "Prior gates failed, blocked, missing, or unverified"
+    }
+  },
+  "required_prerequisites": [
+    {
+      "id": "operator_authorization",
+      "status": "MISSING",
+      "required": "Approver, approval reference, selected checks, environment, time window, and explicit bounded read-only authorization"
+    },
+    {
+      "id": "credential_ownership",
+      "status": "MISSING",
+      "required": "Named owner and least-privilege private secret-store reference for each selected credential class; no values in artifacts"
+    },
+    {
+      "id": "approved_target_scope",
+      "status": "MISSING",
+      "required": "Exact approved API/portal/VPS target, Supabase project reference, release/build identity, tenant/fixture scope, selected checks, and exclusions"
+    },
+    {
+      "id": "uat_prerequisite_closure",
+      "status": "BLOCKED",
+      "required": "Current isolated UAT evidence where required, including target, identities, fixtures, cleanup, and rollback ownership"
+    },
+    {
+      "id": "prior_gate_freshness",
+      "status": "MISSING",
+      "required": "Current rerun or replacement evidence for failed/stale local and UAT gates against the selected release revision"
+    },
+    {
+      "id": "maintenance_window",
+      "status": "MISSING",
+      "required": "UTC start/end, operator, change-freeze boundary, and automatic stop deadline"
+    },
+    {
+      "id": "monitoring_owner",
+      "status": "MISSING",
+      "required": "Named observer, health/alert signals, alert route, correlation ID, and stop authority"
+    },
+    {
+      "id": "evidence_destination",
+      "status": "MISSING",
+      "required": "Approved redacted relative destination, retention, manifest owner, source revision, check IDs, and cost/cleanup record"
+    }
+  ],
+  "approved_non_destructive_checks": [
+    "deployment health and release identity",
+    "DNS/TLS inspection",
+    "read-only schema and migration lineage comparison",
+    "read-only RLS and tenant-isolation checks with approved identities",
+    "read-only runtime, queue, worker, and observability health",
+    "read-only or test-mode billing state without charge/cancellation",
+    "explicitly selected provider dry-run/status checks within budget",
+    "email verification/status only unless a separate test-only send/receive approval exists"
+  ],
+  "required_budgets": {
+    "status": "MISSING",
+    "fields": [
+      "wall_clock_and_maintenance_window",
+      "request_and_concurrency_limits",
+      "provider_requests_enrichments_retries_and_quota_by_provider",
+      "provider_billing_email_cost_ceiling_and_alert_threshold",
+      "target_fixture_and_database_row_limits",
+      "email_send_and_receipt_limit_if_selected",
+      "per_check_timeout_and_cumulative_failure_threshold",
+      "immediate_stop_conditions"
+    ],
+    "note": "UAT example caps are not live authorization"
+  },
+  "cleanup": {
+    "status": "MISSING",
+    "required": "Named owner, temporary-resource cleanup, retention, verification, and no-side-effect abort procedure"
+  },
+  "rollback_recovery": {
+    "status": "MISSING",
+    "required": "Approved deployment/runtime recovery runbook, decision authority, and backup/restore or forward-fix plan for any separately approved mutation"
+  },
+  "evidence": {
+    "status": "MISSING_FOR_NEW_RUN",
+    "required": "Separate live manifest with environment, source revision, scope, check results, redaction, costs, cleanup, and limitations"
+  },
+  "reopen_criteria": [
+    "operator authorization",
+    "private credential ownership/profile",
+    "approved target and release scope",
+    "current prerequisite and prior-gate evidence",
+    "explicit check selection",
+    "numeric budgets and stop conditions",
+    "maintenance window and monitoring owner",
+    "cleanup plan",
+    "rollback/recovery runbook",
+    "evidence destination"
+  ]
+}

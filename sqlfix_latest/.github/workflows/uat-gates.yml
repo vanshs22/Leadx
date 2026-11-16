@@ -14,6 +14,11 @@ on:
         required: true
         default: false
         type: boolean
+      prerequisites_file:
+        description: "Path to the supplied secret-free isolated UAT prerequisite bundle"
+        required: true
+        default: artifacts/uat/prerequisites.json
+        type: string
 
 jobs:
   uat:
@@ -56,6 +61,7 @@ jobs:
       REQUIRE_REDIS_FOR_API_READY: "1"
       REQUIRE_WORKER_READY: "1"
       REQUIRE_DISTRIBUTED_RATE_LIMIT: "1"
+      LEADX_UAT_PREREQUISITES_FILE: ${{ inputs.prerequisites_file }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -64,15 +70,15 @@ jobs:
       - name: Install locked backend dependencies
         run: pip install -r requirements.lock
       - name: UAT preflight
-        run: python scripts/uat_runner.py --preflight --output artifacts/uat-preflight
+        run: python scripts/uat_runner.py --preflight --prerequisites "${{ inputs.prerequisites_file }}" --output artifacts/uat-preflight
       - name: Provision UAT fixtures
         if: ${{ inputs.mode == 'live' && inputs.bootstrap }}
-        run: python scripts/uat_bootstrap.py --apply --output artifacts/uat-bootstrap.json
+        run: python scripts/uat_bootstrap.py --apply --prerequisites "${{ inputs.prerequisites_file }}" --output artifacts/uat-bootstrap.json
       - name: Run bounded real-provider UAT
         if: ${{ inputs.mode == 'live' }}
         env:
           LEADX_UAT_APPLY: "1"
-        run: python scripts/uat_runner.py --run-live --output artifacts/uat
+        run: python scripts/uat_runner.py --run-live --prerequisites "${{ inputs.prerequisites_file }}" --output artifacts/uat
       - name: Upload sanitized UAT evidence
         if: always()
         uses: actions/upload-artifact@v4

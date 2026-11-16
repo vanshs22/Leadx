@@ -1,0 +1,529 @@
+{
+  "pbtResults": {
+    "1. Write the bug-condition exploration tests before implementing the fix": {
+      "status": "passed",
+      "failingExample": "pytest -q tests/runtime_exploration/test_pipeline_runtime_stuck_exploration.py: 10 failed, 10 passed. Counterexamples: job-1/run-1 lease reaping left pipeline_runs(run-1) status=running; same-id tenant-a job changed tenant-b pipeline_runs status to queued; target_met/cancelled/timed_out/lease_lost terminal payloads had meta.stop_reason=None; delivered target_count=5 with delivered=2 was status=completed; dependency_outcome=unavailable dependency_name=queue was status=completed; terminal meta omitted evidence_class, stage_timings, queue_outcome, provider_outcome, cancellation_outcome, dependency_mode, forbidden_action_counters, and authoritative_counts.",
+      "lastRunTimestamp": 1794561979165
+    },
+    "3.4 Re-run the exact Property 1 exploration tests and confirm the bug-condition cases pass.": {
+      "status": "passed",
+      "lastRunTimestamp": 1794566816701
+    },
+    "3.5 Re-run the exact Property 2 preservation tests and confirm they still pass.": {
+      "status": "passed",
+      "lastRunTimestamp": 1794566821307
+    }
+  },
+  "executionHistory": {
+    "1. Write the bug-condition exploration tests before implementing the fix": [
+      {
+        "executionId": "ef2dea0c-e348-48b4-977b-55a81ecf1dca",
+        "chatSessionId": "sess_ff39f7bf-84f9-4107-b192-c09324a101f2",
+        "timestamp": 1794561801907
+      },
+      {
+        "executionId": "ef2dea0c-e348-48b4-977b-55a81ecf1dca",
+        "chatSessionId": "sess_ff39f7bf-84f9-4107-b192-c09324a101f2",
+        "timestamp": 1794561813720
+      },
+      {
+        "executionId": "ef2dea0c-e348-48b4-977b-55a81ecf1dca",
+        "chatSessionId": "sess_ff39f7bf-84f9-4107-b192-c09324a101f2",
+        "timestamp": 1794562006827
+      }
+    ],
+    "2. Write preservation property tests before implementation": [
+      {
+        "executionId": "ef2dea0c-e348-48b4-977b-55a81ecf1dca",
+        "chatSessionId": "sess_ff39f7bf-84f9-4107-b192-c09324a101f2",
+        "timestamp": 1794561801997
+      },
+      {
+        "executionId": "ef2dea0c-e348-48b4-977b-55a81ecf1dca",
+        "chatSessionId": "sess_ff39f7bf-84f9-4107-b192-c09324a101f2",
+        "timestamp": 1794562017312
+      },
+      {
+        "executionId": "ef2dea0c-e348-48b4-977b-55a81ecf1dca",
+        "chatSessionId": "sess_ff39f7bf-84f9-4107-b192-c09324a101f2",
+        "timestamp": 1794562208211
+      }
+    ],
+    "3.1 Close the job-to-run recovery and stop-fencing seam in the existing lease/reaper, worker, pipeline execution-fence, timeout, cancellation, and terminal paths.": [
+      {
+        "executionId": "ef2dea0c-e348-48b4-977b-55a81ecf1dca",
+        "chatSessionId": "sess_ff39f7bf-84f9-4107-b192-c09324a101f2",
+        "timestamp": 1794561802165
+      },
+      {
+        "executionId": "ef2dea0c-e348-48b4-977b-55a81ecf1dca",
+        "chatSessionId": "sess_ff39f7bf-84f9-4107-b192-c09324a101f2",
+        "timestamp": 1794562219470
+      },
+      {
+        "executionId": "ef2dea0c-e348-48b4-977b-55a81ecf1dca",
+        "chatSessionId": "sess_ff39f7bf-84f9-4107-b192-c09324a101f2",
+        "timestamp": 1794562665664
+      }
+    ],
+    "3.2 Make authoritative tenant/run-scoped assignment, reservation, CRM/client projection, and delivery reconciliation the completion oracle.": [
+      {
+        "executionId": "ef2dea0c-e348-48b4-977b-55a81ecf1dca",
+        "chatSessionId": "sess_ff39f7bf-84f9-4107-b192-c09324a101f2",
+        "timestamp": 1794561802258
+      },
+      {
+        "executionId": "ef2dea0c-e348-48b4-977b-55a81ecf1dca",
+        "chatSessionId": "sess_ff39f7bf-84f9-4107-b192-c09324a101f2",
+        "timestamp": 1794562676696
+      },
+      {
+        "executionId": "ef2dea0c-e348-48b4-977b-55a81ecf1dca",
+        "chatSessionId": "sess_ff39f7bf-84f9-4107-b192-c09324a101f2",
+        "timestamp": 1794563377323
+      }
+    ],
+    "3.3 Complete timing/readiness evidence through existing telemetry and benchmark contracts.": [
+      {
+        "executionId": "ef2dea0c-e348-48b4-977b-55a81ecf1dca",
+        "chatSessionId": "sess_ff39f7bf-84f9-4107-b192-c09324a101f2",
+        "timestamp": 1794561802333
+      },
+      {
+        "executionId": "ef2dea0c-e348-48b4-977b-55a81ecf1dca",
+        "chatSessionId": "sess_ff39f7bf-84f9-4107-b192-c09324a101f2",
+        "timestamp": 1794563388369
+      },
+      {
+        "executionId": "ef2dea0c-e348-48b4-977b-55a81ecf1dca",
+        "chatSessionId": "sess_ff39f7bf-84f9-4107-b192-c09324a101f2",
+        "timestamp": 1794563857972
+      }
+    ],
+    "3.4 Re-run the exact Property 1 exploration tests and confirm the bug-condition cases pass.": [
+      {
+        "executionId": "ef2dea0c-e348-48b4-977b-55a81ecf1dca",
+        "chatSessionId": "sess_ff39f7bf-84f9-4107-b192-c09324a101f2",
+        "timestamp": 1794561802413
+      },
+      {
+        "executionId": "ef2dea0c-e348-48b4-977b-55a81ecf1dca",
+        "chatSessionId": "sess_ff39f7bf-84f9-4107-b192-c09324a101f2",
+        "timestamp": 1794563869276
+      },
+      {
+        "executionId": "ef2dea0c-e348-48b4-977b-55a81ecf1dca",
+        "chatSessionId": "sess_ff39f7bf-84f9-4107-b192-c09324a101f2",
+        "timestamp": 1794563958016
+      }
+    ],
+    "3.5 Re-run the exact Property 2 preservation tests and confirm they still pass.": [
+      {
+        "executionId": "ef2dea0c-e348-48b4-977b-55a81ecf1dca",
+        "chatSessionId": "sess_ff39f7bf-84f9-4107-b192-c09324a101f2",
+        "timestamp": 1794561802475
+      },
+      {
+        "executionId": "ef2dea0c-e348-48b4-977b-55a81ecf1dca",
+        "chatSessionId": "sess_ff39f7bf-84f9-4107-b192-c09324a101f2",
+        "timestamp": 1794563968783
+      },
+      {
+        "executionId": "ef2dea0c-e348-48b4-977b-55a81ecf1dca",
+        "chatSessionId": "sess_ff39f7bf-84f9-4107-b192-c09324a101f2",
+        "timestamp": 1794564029159
+      }
+    ],
+    "4. Establish the common protected validation and evidence boundary": [
+      {
+        "executionId": "ef2dea0c-e348-48b4-977b-55a81ecf1dca",
+        "chatSessionId": "sess_ff39f7bf-84f9-4107-b192-c09324a101f2",
+        "timestamp": 1794561802552
+      },
+      {
+        "executionId": "ef2dea0c-e348-48b4-977b-55a81ecf1dca",
+        "chatSessionId": "sess_ff39f7bf-84f9-4107-b192-c09324a101f2",
+        "timestamp": 1794564039718
+      },
+      {
+        "executionId": "ef2dea0c-e348-48b4-977b-55a81ecf1dca",
+        "chatSessionId": "sess_ff39f7bf-84f9-4107-b192-c09324a101f2",
+        "timestamp": 1794564321318
+      }
+    ],
+    "5. Prove control integrity before treating any run as readiness evidence": [
+      {
+        "executionId": "ef2dea0c-e348-48b4-977b-55a81ecf1dca",
+        "chatSessionId": "sess_ff39f7bf-84f9-4107-b192-c09324a101f2",
+        "timestamp": 1794561802624
+      },
+      {
+        "executionId": "ef2dea0c-e348-48b4-977b-55a81ecf1dca",
+        "chatSessionId": "sess_ff39f7bf-84f9-4107-b192-c09324a101f2",
+        "timestamp": 1794564331373
+      },
+      {
+        "executionId": "ef2dea0c-e348-48b4-977b-55a81ecf1dca",
+        "chatSessionId": "sess_ff39f7bf-84f9-4107-b192-c09324a101f2",
+        "timestamp": 1794564566153
+      }
+    ],
+    "6. Validate isolated Supabase schema, RLS, authentication, and tenant isolation": [
+      {
+        "executionId": "ef2dea0c-e348-48b4-977b-55a81ecf1dca",
+        "chatSessionId": "sess_ff39f7bf-84f9-4107-b192-c09324a101f2",
+        "timestamp": 1794561802699
+      },
+      {
+        "executionId": "ef2dea0c-e348-48b4-977b-55a81ecf1dca",
+        "chatSessionId": "sess_ff39f7bf-84f9-4107-b192-c09324a101f2",
+        "timestamp": 1794564576673
+      },
+      {
+        "executionId": "ef2dea0c-e348-48b4-977b-55a81ecf1dca",
+        "chatSessionId": "sess_ff39f7bf-84f9-4107-b192-c09324a101f2",
+        "timestamp": 1794564812295
+      }
+    ],
+    "7. Probe the isolated API, worker, and queue path": [
+      {
+        "executionId": "ef2dea0c-e348-48b4-977b-55a81ecf1dca",
+        "chatSessionId": "sess_ff39f7bf-84f9-4107-b192-c09324a101f2",
+        "timestamp": 1794561802772
+      },
+      {
+        "executionId": "ef2dea0c-e348-48b4-977b-55a81ecf1dca",
+        "chatSessionId": "sess_ff39f7bf-84f9-4107-b192-c09324a101f2",
+        "timestamp": 1794564821990
+      },
+      {
+        "executionId": "ef2dea0c-e348-48b4-977b-55a81ecf1dca",
+        "chatSessionId": "sess_ff39f7bf-84f9-4107-b192-c09324a101f2",
+        "timestamp": 1794565260278
+      }
+    ],
+    "8. Test provider routing, yield, normalization, cancellation, and latency safely": [
+      {
+        "executionId": "ef2dea0c-e348-48b4-977b-55a81ecf1dca",
+        "chatSessionId": "sess_ff39f7bf-84f9-4107-b192-c09324a101f2",
+        "timestamp": 1794561802853
+      },
+      {
+        "executionId": "ef2dea0c-e348-48b4-977b-55a81ecf1dca",
+        "chatSessionId": "sess_ff39f7bf-84f9-4107-b192-c09324a101f2",
+        "timestamp": 1794565271165
+      },
+      {
+        "executionId": "ef2dea0c-e348-48b4-977b-55a81ecf1dca",
+        "chatSessionId": "sess_ff39f7bf-84f9-4107-b192-c09324a101f2",
+        "timestamp": 1794565552726
+      }
+    ],
+    "9. Test quota and rate-limit enforcement with fixtures": [
+      {
+        "executionId": "ef2dea0c-e348-48b4-977b-55a81ecf1dca",
+        "chatSessionId": "sess_ff39f7bf-84f9-4107-b192-c09324a101f2",
+        "timestamp": 1794561802929
+      },
+      {
+        "executionId": "ef2dea0c-e348-48b4-977b-55a81ecf1dca",
+        "chatSessionId": "sess_ff39f7bf-84f9-4107-b192-c09324a101f2",
+        "timestamp": 1794565563287
+      },
+      {
+        "executionId": "ef2dea0c-e348-48b4-977b-55a81ecf1dca",
+        "chatSessionId": "sess_ff39f7bf-84f9-4107-b192-c09324a101f2",
+        "timestamp": 1794565905037
+      }
+    ],
+    "10. Test email handoff with a mail sink or authorized sandbox": [
+      {
+        "executionId": "ef2dea0c-e348-48b4-977b-55a81ecf1dca",
+        "chatSessionId": "sess_ff39f7bf-84f9-4107-b192-c09324a101f2",
+        "timestamp": 1794561803057
+      },
+      {
+        "executionId": "ef2dea0c-e348-48b4-977b-55a81ecf1dca",
+        "chatSessionId": "sess_ff39f7bf-84f9-4107-b192-c09324a101f2",
+        "timestamp": 1794565916057
+      },
+      {
+        "executionId": "ef2dea0c-e348-48b4-977b-55a81ecf1dca",
+        "chatSessionId": "sess_ff39f7bf-84f9-4107-b192-c09324a101f2",
+        "timestamp": 1794566101915
+      }
+    ],
+    "11. Validate CRM and client projection reconciliation": [
+      {
+        "executionId": "ef2dea0c-e348-48b4-977b-55a81ecf1dca",
+        "chatSessionId": "sess_ff39f7bf-84f9-4107-b192-c09324a101f2",
+        "timestamp": 1794561803134
+      },
+      {
+        "executionId": "ef2dea0c-e348-48b4-977b-55a81ecf1dca",
+        "chatSessionId": "sess_ff39f7bf-84f9-4107-b192-c09324a101f2",
+        "timestamp": 1794566111598
+      },
+      {
+        "executionId": "ef2dea0c-e348-48b4-977b-55a81ecf1dca",
+        "chatSessionId": "sess_ff39f7bf-84f9-4107-b192-c09324a101f2",
+        "timestamp": 1794566267962
+      }
+    ],
+    "12. Validate realtime event delivery and recovery": [
+      {
+        "executionId": "ef2dea0c-e348-48b4-977b-55a81ecf1dca",
+        "chatSessionId": "sess_ff39f7bf-84f9-4107-b192-c09324a101f2",
+        "timestamp": 1794561803203
+      },
+      {
+        "executionId": "ef2dea0c-e348-48b4-977b-55a81ecf1dca",
+        "chatSessionId": "sess_ff39f7bf-84f9-4107-b192-c09324a101f2",
+        "timestamp": 1794566279215
+      },
+      {
+        "executionId": "ef2dea0c-e348-48b4-977b-55a81ecf1dca",
+        "chatSessionId": "sess_ff39f7bf-84f9-4107-b192-c09324a101f2",
+        "timestamp": 1794566437545
+      }
+    ],
+    "13. Measure controlled latency only after the dependency chain is eligible": [
+      {
+        "executionId": "ef2dea0c-e348-48b4-977b-55a81ecf1dca",
+        "chatSessionId": "sess_ff39f7bf-84f9-4107-b192-c09324a101f2",
+        "timestamp": 1794561803279
+      },
+      {
+        "executionId": "ef2dea0c-e348-48b4-977b-55a81ecf1dca",
+        "chatSessionId": "sess_ff39f7bf-84f9-4107-b192-c09324a101f2",
+        "timestamp": 1794566448025
+      },
+      {
+        "executionId": "ef2dea0c-e348-48b4-977b-55a81ecf1dca",
+        "chatSessionId": "sess_ff39f7bf-84f9-4107-b192-c09324a101f2",
+        "timestamp": 1794566710649
+      }
+    ],
+    "14. Checkpoint and publish the scoped readiness report": [
+      {
+        "executionId": "ef2dea0c-e348-48b4-977b-55a81ecf1dca",
+        "chatSessionId": "sess_ff39f7bf-84f9-4107-b192-c09324a101f2",
+        "timestamp": 1794561803356
+      },
+      {
+        "executionId": "ef2dea0c-e348-48b4-977b-55a81ecf1dca",
+        "chatSessionId": "sess_ff39f7bf-84f9-4107-b192-c09324a101f2",
+        "timestamp": 1794566721282
+      },
+      {
+        "executionId": "ef2dea0c-e348-48b4-977b-55a81ecf1dca",
+        "chatSessionId": "sess_ff39f7bf-84f9-4107-b192-c09324a101f2",
+        "timestamp": 1794566896490
+      }
+    ],
+    "3. Implement only the runtime/readiness correction exposed by tasks 1 and 2": [
+      {
+        "executionId": "ef2dea0c-e348-48b4-977b-55a81ecf1dca",
+        "chatSessionId": "sess_ff39f7bf-84f9-4107-b192-c09324a101f2",
+        "timestamp": 1794564029268
+      }
+    ],
+    "15. Preflight Docker and start the isolated Compose validation profile": [
+      {
+        "executionId": "40a3fec4-105d-4667-92f6-6c4de681545c",
+        "chatSessionId": "sess_ff39f7bf-84f9-4107-b192-c09324a101f2",
+        "timestamp": 1794567292548
+      },
+      {
+        "executionId": "40a3fec4-105d-4667-92f6-6c4de681545c",
+        "chatSessionId": "sess_ff39f7bf-84f9-4107-b192-c09324a101f2",
+        "timestamp": 1794567302665
+      },
+      {
+        "executionId": "77cfbe92-0862-4c9d-8a38-2c82a70e5e3f",
+        "chatSessionId": "sess_ff39f7bf-84f9-4107-b192-c09324a101f2",
+        "timestamp": 1794567915953
+      },
+      {
+        "executionId": "77cfbe92-0862-4c9d-8a38-2c82a70e5e3f",
+        "chatSessionId": "sess_ff39f7bf-84f9-4107-b192-c09324a101f2",
+        "timestamp": 1794567921702
+      },
+      {
+        "executionId": "77cfbe92-0862-4c9d-8a38-2c82a70e5e3f",
+        "chatSessionId": "sess_ff39f7bf-84f9-4107-b192-c09324a101f2",
+        "timestamp": 1794568109115
+      }
+    ],
+    "16. Validate the authenticated target-5 API, worker, and queue path": [
+      {
+        "executionId": "40a3fec4-105d-4667-92f6-6c4de681545c",
+        "chatSessionId": "sess_ff39f7bf-84f9-4107-b192-c09324a101f2",
+        "timestamp": 1794567292636
+      },
+      {
+        "executionId": "7a1d2187-0703-4e64-bbd6-e1de12ff0e51",
+        "chatSessionId": "sess_ff39f7bf-84f9-4107-b192-c09324a101f2",
+        "timestamp": 1794568497133
+      },
+      {
+        "executionId": "68173d30-3e98-494f-8ce8-f34d7b08af53",
+        "chatSessionId": "sess_ff39f7bf-84f9-4107-b192-c09324a101f2",
+        "timestamp": 1794568976673
+      },
+      {
+        "executionId": "73240360-2e44-4887-adca-3ff005b8bc72",
+        "chatSessionId": "sess_ff39f7bf-84f9-4107-b192-c09324a101f2",
+        "timestamp": 1794570822734
+      }
+    ],
+    "17. Run the mail-sink or separately authorized email-sandbox handoff": [
+      {
+        "executionId": "40a3fec4-105d-4667-92f6-6c4de681545c",
+        "chatSessionId": "sess_ff39f7bf-84f9-4107-b192-c09324a101f2",
+        "timestamp": 1794567292701
+      }
+    ],
+    "18. Rerun the controlled target-5 latency benchmark after dependencies pass": [
+      {
+        "executionId": "40a3fec4-105d-4667-92f6-6c4de681545c",
+        "chatSessionId": "sess_ff39f7bf-84f9-4107-b192-c09324a101f2",
+        "timestamp": 1794567292809
+      }
+    ],
+    "19. Tear down synthetic execution and publish final evidence classification": [
+      {
+        "executionId": "40a3fec4-105d-4667-92f6-6c4de681545c",
+        "chatSessionId": "sess_ff39f7bf-84f9-4107-b192-c09324a101f2",
+        "timestamp": 1794567292876
+      }
+    ],
+    "20. Inspect the redacted login evidence and browser request contract": [
+      {
+        "executionId": "68173d30-3e98-494f-8ce8-f34d7b08af53",
+        "chatSessionId": "sess_ff39f7bf-84f9-4107-b192-c09324a101f2",
+        "timestamp": 1794568984136
+      },
+      {
+        "executionId": "55ab0867-2d66-4571-954f-e10f613ea77b",
+        "chatSessionId": "sess_ff39f7bf-84f9-4107-b192-c09324a101f2",
+        "timestamp": 1794569453991
+      }
+    ],
+    "21. Verify the protected local login prerequisites": [
+      {
+        "executionId": "55ab0867-2d66-4571-954f-e10f613ea77b",
+        "chatSessionId": "sess_ff39f7bf-84f9-4107-b192-c09324a101f2",
+        "timestamp": 1794569454152
+      },
+      {
+        "executionId": "73240360-2e44-4887-adca-3ff005b8bc72",
+        "chatSessionId": "sess_ff39f7bf-84f9-4107-b192-c09324a101f2",
+        "timestamp": 1794570822572
+      }
+    ],
+    "15. Preflight the confirmed Supabase identity and capabilities": [
+      {
+        "executionId": "bc4fd79c-173b-4460-9b49-3a3a54f493d7",
+        "chatSessionId": "sess_ff39f7bf-84f9-4107-b192-c09324a101f2",
+        "timestamp": 1794571356305
+      },
+      {
+        "executionId": "bc4fd79c-173b-4460-9b49-3a3a54f493d7",
+        "chatSessionId": "sess_ff39f7bf-84f9-4107-b192-c09324a101f2",
+        "timestamp": 1794571392915
+      },
+      {
+        "executionId": "195e2282-3e6f-4316-92f6-f3348bc4e8c2",
+        "chatSessionId": "sess_ff39f7bf-84f9-4107-b192-c09324a101f2",
+        "timestamp": 1794571740042
+      },
+      {
+        "executionId": "195e2282-3e6f-4316-92f6-f3348bc4e8c2",
+        "chatSessionId": "sess_ff39f7bf-84f9-4107-b192-c09324a101f2",
+        "timestamp": 1794571746357
+      },
+      {
+        "executionId": "504b93be-b387-4596-9bbb-ddd9de046639",
+        "chatSessionId": "sess_ff39f7bf-84f9-4107-b192-c09324a101f2",
+        "timestamp": 1794572072108
+      }
+    ],
+    "16. Inspect schema and migration compatibility read-only": [
+      {
+        "executionId": "bc4fd79c-173b-4460-9b49-3a3a54f493d7",
+        "chatSessionId": "sess_ff39f7bf-84f9-4107-b192-c09324a101f2",
+        "timestamp": 1794571356389
+      }
+    ],
+    "17. Verify existing admin/client accounts and tenant/RLS boundaries": [
+      {
+        "executionId": "bc4fd79c-173b-4460-9b49-3a3a54f493d7",
+        "chatSessionId": "sess_ff39f7bf-84f9-4107-b192-c09324a101f2",
+        "timestamp": 1794571356462
+      }
+    ],
+    "18. Connect isolated Docker services with the existing configuration": [
+      {
+        "executionId": "bc4fd79c-173b-4460-9b49-3a3a54f493d7",
+        "chatSessionId": "sess_ff39f7bf-84f9-4107-b192-c09324a101f2",
+        "timestamp": 1794571356588
+      },
+      {
+        "executionId": "504b93be-b387-4596-9bbb-ddd9de046639",
+        "chatSessionId": "sess_ff39f7bf-84f9-4107-b192-c09324a101f2",
+        "timestamp": 1794572072270
+      },
+      {
+        "executionId": "c0b412cc-2e3e-4a7e-9fed-f494883119ea",
+        "chatSessionId": "sess_ff39f7bf-84f9-4107-b192-c09324a101f2",
+        "timestamp": 1794572250113
+      },
+      {
+        "executionId": "c0b412cc-2e3e-4a7e-9fed-f494883119ea",
+        "chatSessionId": "sess_ff39f7bf-84f9-4107-b192-c09324a101f2",
+        "timestamp": 1794572256105
+      },
+      {
+        "executionId": "c0b412cc-2e3e-4a7e-9fed-f494883119ea",
+        "chatSessionId": "sess_ff39f7bf-84f9-4107-b192-c09324a101f2",
+        "timestamp": 1794572730986
+      }
+    ],
+    "19. Check authentication, sessions, and protected routes": [
+      {
+        "executionId": "bc4fd79c-173b-4460-9b49-3a3a54f493d7",
+        "chatSessionId": "sess_ff39f7bf-84f9-4107-b192-c09324a101f2",
+        "timestamp": 1794571356696
+      }
+    ],
+    "20. Execute exactly one bounded target-5 pipeline run": [
+      {
+        "executionId": "bc4fd79c-173b-4460-9b49-3a3a54f493d7",
+        "chatSessionId": "sess_ff39f7bf-84f9-4107-b192-c09324a101f2",
+        "timestamp": 1794571356785
+      }
+    ],
+    "21. Reconcile assignment and delivery authoritatively": [
+      {
+        "executionId": "bc4fd79c-173b-4460-9b49-3a3a54f493d7",
+        "chatSessionId": "sess_ff39f7bf-84f9-4107-b192-c09324a101f2",
+        "timestamp": 1794571356873
+      }
+    ],
+    "22. Capture speed and lifecycle evidence for the same run": [
+      {
+        "executionId": "bc4fd79c-173b-4460-9b49-3a3a54f493d7",
+        "chatSessionId": "sess_ff39f7bf-84f9-4107-b192-c09324a101f2",
+        "timestamp": 1794571356971
+      }
+    ],
+    "23. Clean up, roll back, and publish the final report": [
+      {
+        "executionId": "bc4fd79c-173b-4460-9b49-3a3a54f493d7",
+        "chatSessionId": "sess_ff39f7bf-84f9-4107-b192-c09324a101f2",
+        "timestamp": 1794571357053
+      }
+    ]
+  }
+}

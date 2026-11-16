@@ -76,12 +76,16 @@ async def _paid_contact_refill(out: dict[str, Any], observations: list[dict]) ->
     if paid_fallback_mode() == "never" or _has_verified_contact(out) or out.get("_paid_refill_done"):
         return out
     try:
-        from app.integrations.prod.enrichment_mesh import configured_enrichment_providers, enrich_with_paid_connectors
+        from app.integrations.prod.enrichment_mesh import (
+            _provider_endpoint,
+            configured_enrichment_providers,
+            enrich_with_paid_connectors,
+        )
         providers = configured_enrichment_providers()
         gap = not _has_verified_contact(out)
         quota = int(out.get("_remaining_quota", 0) or 0)
         allowed, reason = paid_stage_allowed(
-            [out], 1, credential_available=bool(providers), unmet_gap=gap,
+            [out], 1, credential_available=any(_provider_endpoint(p.name) for p in providers), unmet_gap=gap,
             remaining_quota=quota,
         )
         if not allowed:

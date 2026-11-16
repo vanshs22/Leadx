@@ -70,22 +70,29 @@ def record_memory(tenant_id: str, agent_id: str, key: str, value: Any, confidenc
         log.warning("agent memory write failed", exc_info=True)
 
 
-def _lead(lead_id: str, tenant_id: str, *, mission_id: str | None = None) -> dict:
-    # Direct agent runs may only touch leads already assigned to the tenant.
-    # A GTM mission is different: discovery creates global leads first and CRM
-    # assignment happens near the end of the mission. Upstream mission agents
-    # therefore need read access to the global lead before assignment. The
-    # mission_id is the explicit boundary; arbitrary direct runs keep the old
-    # tenant-ownership requirement.
-    if not mission_id:
-        assignments = (_sb().table("lead_assignments").select("lead_id")
-                       .eq("lead_id", lead_id).eq("tenant_id", tenant_id)
-                       .not_.in_("status", ["rejected", "expired"]).limit(1).execute().data or [])
-        if not assignments:
-            raise ValueError("lead_not_found_or_not_owned")
+def _lead(
+    lead_id: str,
+    tenant_id: str,
+    *,
+    mission_id: str | None = None,
+    agent_id: str | None = None,
+    principal: object = None,
+    operation: str = "read",
+) -> dict:
+    from app.integrations.prod.agents_support import authorize_lead_access
+
+    # Direct runs follow the shared assignment policy: if not mission_id:
+    # the helper requires an active tenant assignment before reading.
+    # Safe legacy denial code: lead_not_found_or_not_owned.
+    decision = authorize_lead_access(
+        principal, tenant_id, mission_id, agent_id, [lead_id], operation,
+        supabase=_sb(),
+    )
+    if not decision.authorized:
+        raise ValueError(decision.reason_code)
     rows = _sb().table("leads_global").select("*").eq("id", lead_id).limit(1).execute().data or []
     if not rows:
-        raise ValueError("lead_not_found")
+        raise ValueError("lead_not_found_or_not_owned")
     lead = dict(rows[0])
     # Hand-off: upstream agents (enrichment/research) persist into the `enrichment` table, so overlay it here;
     # otherwise verification/qualification never see the email, owner, services or booking data they produced.
@@ -134,7 +141,7 @@ async def execute_agent_task(run: dict, expected_agent: str | None = None) -> di
             if not ids: raise ValueError("lead_id_or_lead_ids_required")
             results = []
             for lid in ids[:100]:
-                lead = (await offload(_lead, lid, tenant_id, mission_id=data.get("mission_id")))
+                lead = (await offload(_lead, lid, tenant_id, mission_id=data.get("mission_id"), agent_id=agent, principal=run.get("principal") or {"kind": "system_worker" if data.get("system_owned") is True else "worker", "tenant_id": tenant_id, "run_id": rid}))
                 if agent == "enrichment":
                     from app.integrations.prod.enricher import enrich_one
                     from app.layers.persistence_layer import upsert_enrichment
@@ -209,7 +216,7 @@ async def execute_agent_task(run: dict, expected_agent: str | None = None) -> di
         elif agent == "outreach" and str(data.get("delivery_channel") or "portal").strip().lower() not in {"", "portal", "crm", "none", "internal", "dashboard"}:
             from app.integrations.prod.ai_intelligence import build_lead_brief
             ids = [str(x) for x in (data.get("lead_ids") or ([data.get("lead_id")] if data.get("lead_id") else []))]
-            briefs = [{"lead_id": lid, "brief": build_lead_brief((await offload(_lead, lid, tenant_id, mission_id=data.get("mission_id"))), str(data.get("offer") or ""))} for lid in ids[:50]]
+            briefs = [{"lead_id": lid, "brief": build_lead_brief((await offload(_lead, lid, tenant_id, mission_id=data.get("mission_id"), agent_id=agent, principal=run.get("principal") or {"kind": "system_worker" if data.get("system_owned") is True else "worker", "tenant_id": tenant_id, "run_id": rid})), str(data.get("offer") or ""))} for lid in ids[:50]]
             enrolled = 0
             from app.integrations.prod.approval_inbox import auto_approve_enabled
             tenant_auto_approve = auto_approve_enabled(tenant_id)
@@ -236,7 +243,15 @@ async def execute_agent_task(run: dict, expected_agent: str | None = None) -> di
             if data.get("mission_id") and data.get("lead_ids"):
                 from app.integrations.prod.quality import assign_lead
                 from app.services.delivery import deliver_batch
-                ids=[str(x) for x in data.get("lead_ids")][:5000]
+                ids=[str(x) for x in data.get("lead_ids") if x]
+                from app.integrations.prod.agents_support import authorize_lead_access
+                decision = await offload(
+                    authorize_lead_access, run.get("principal") or {"kind": "system_worker" if data.get("system_owned") is True else "worker", "tenant_id": tenant_id, "run_id": rid},
+                    tenant_id, data.get("mission_id"), agent, ids, "mutate",
+                )
+                if not decision.authorized:
+                    raise ValueError(decision.reason_code)
+                ids=list(decision.lead_ids)[:5000]
                 rows=(await offload(_sb().table("leads_global").select("*").in_("id", ids).execute)).data or []
                 score_rows=(await offload(_sb().table("scores").select("lead_id,total_score,deterministic_score,tier").in_("lead_id",ids))).data or []
                 score_map={str(x.get("lead_id")):x for x in score_rows}

@@ -1,0 +1,190 @@
+# Production-only topology. Keep docker-compose.yml for explicit local use.
+# Render with an approved environment source and immutable image/base-image refs.
+name: leadx-production
+
+services:
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        PYTHON_BASE_IMAGE: ${LEADX_PYTHON_BASE_IMAGE:?set an immutable Python base image digest}
+    environment:
+      ENVIRONMENT: production
+      LEAD_ENGINE_DEV_AUTH_BYPASS: "0"
+      LOCAL_AUTHENTICATION_FLAG: "0"
+      LOCAL_VALIDATION_MODE: "0"
+      LEADX_REQUIRE_EMAIL_VERIFICATION: "true"
+      REQUIRE_DISTRIBUTED_RATE_LIMIT: "1"
+      REQUIRE_REDIS_FOR_API_READY: "1"
+      REQUIRE_WORKER_READY: "1"
+      JOB_QUEUE_FAIL_CLOSED: "1"
+      PAID_PROVIDER_ISOLATION: "1"
+      REDIS_URL: redis://:${REDIS_PASSWORD:?set a Redis password}@redis:6379/0
+      CORS_ORIGINS: ${CORS_ORIGINS:?set the approved HTTPS portal origin}
+      PUBLIC_API_URL: ${PUBLIC_API_URL:?set the public HTTPS API URL}
+      SUPABASE_URL: ${SUPABASE_URL:?set the production Supabase URL}
+      SUPABASE_ANON_KEY: ${SUPABASE_ANON_KEY:?set the production Supabase anon key}
+      SUPABASE_SERVICE_ROLE_KEY: ${SUPABASE_SERVICE_ROLE_KEY:?set the production Supabase service key}
+      UNSUBSCRIBE_SECRET: ${UNSUBSCRIBE_SECRET:?set an unsubscribe secret}
+      INTEGRATION_OAUTH_STATE_SECRET: ${INTEGRATION_OAUTH_STATE_SECRET:?set an OAuth state secret}
+      DELIVERY_CONFIG_KEY: ${DELIVERY_CONFIG_KEY:?set a delivery config key}
+      LEAD_ENGINE_SERVICE_KEY: ${LEAD_ENGINE_SERVICE_KEY:?set a service key}
+      LEADX_PROCESS: api
+      WEB_CONCURRENCY: ${WEB_CONCURRENCY:-1}
+    networks: [internal]
+    volumes:
+      - leadx-production-durable-data:/var/lib/leadx
+    init: true
+    restart: "on-failure:5"
+    stop_grace_period: 20s
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health/ready', timeout=4)"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    depends_on:
+      redis:
+        condition: service_healthy
+
+  worker:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        PYTHON_BASE_IMAGE: ${LEADX_PYTHON_BASE_IMAGE:?set an immutable Python base image digest}
+    environment:
+      ENVIRONMENT: production
+      LEAD_ENGINE_DEV_AUTH_BYPASS: "0"
+      LOCAL_AUTHENTICATION_FLAG: "0"
+      LOCAL_VALIDATION_MODE: "0"
+      LEADX_REQUIRE_EMAIL_VERIFICATION: "true"
+      REQUIRE_DISTRIBUTED_RATE_LIMIT: "1"
+      JOB_QUEUE_FAIL_CLOSED: "1"
+      PAID_PROVIDER_ISOLATION: "1"
+      REDIS_URL: redis://:${REDIS_PASSWORD:?set a Redis password}@redis:6379/0
+      CORS_ORIGINS: ${CORS_ORIGINS:?set the approved HTTPS portal origin}
+      PUBLIC_API_URL: ${PUBLIC_API_URL:?set the public HTTPS API URL}
+      SUPABASE_URL: ${SUPABASE_URL:?set the production Supabase URL}
+      SUPABASE_ANON_KEY: ${SUPABASE_ANON_KEY:?set the production Supabase anon key}
+      SUPABASE_SERVICE_ROLE_KEY: ${SUPABASE_SERVICE_ROLE_KEY:?set the production Supabase service key}
+      UNSUBSCRIBE_SECRET: ${UNSUBSCRIBE_SECRET:?set an unsubscribe secret}
+      INTEGRATION_OAUTH_STATE_SECRET: ${INTEGRATION_OAUTH_STATE_SECRET:?set an OAuth state secret}
+      DELIVERY_CONFIG_KEY: ${DELIVERY_CONFIG_KEY:?set a delivery config key}
+      LEAD_ENGINE_SERVICE_KEY: ${LEAD_ENGINE_SERVICE_KEY:?set a service key}
+      LEADX_REDIS_NAMESPACE: ${LEADX_REDIS_NAMESPACE:?set a unique production Redis namespace}
+      LEADX_PROCESS: worker
+      WORKER_ID: ${WORKER_ID:?set a unique production worker identity}
+      WORKER_CONCURRENCY: ${WORKER_CONCURRENCY:-3}
+      WORKER_QUEUE_FAILURE_POLICY: stop
+    networks: [internal]
+    volumes:
+      - leadx-production-durable-data:/var/lib/leadx
+    init: true
+    restart: "on-failure:5"
+    stop_grace_period: 20s
+    healthcheck:
+      test: ["CMD", "python", "scripts/check_worker_health.py"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    depends_on:
+      redis:
+        condition: service_healthy
+
+  portal:
+    build:
+      context: ./lead-crm-portal
+      dockerfile: Dockerfile
+      args:
+        NODE_BASE_IMAGE: ${LEADX_NODE_BASE_IMAGE:?set an immutable Node base image digest}
+        API_UPSTREAM: http://api:8000
+        NEXT_PUBLIC_SUPABASE_URL: ${SUPABASE_URL:?set the production Supabase URL}
+        NEXT_PUBLIC_SUPABASE_ANON_KEY: ${SUPABASE_ANON_KEY:?set the production Supabase anon key}
+        NEXT_PUBLIC_LEADX_LOCAL_AUTH: "0"
+    environment:
+      API_UPSTREAM: http://api:8000
+      LEADX_PORTAL_PROFILE: container
+      NODE_ENV: production
+      PORT: "3000"
+      NEXT_PUBLIC_SUPABASE_URL: ${SUPABASE_URL:?set the production Supabase URL}
+      NEXT_PUBLIC_SUPABASE_ANON_KEY: ${SUPABASE_ANON_KEY:?set the production Supabase anon key}
+      NEXT_PUBLIC_LEADX_LOCAL_AUTH: "0"
+    networks: [internal, edge]
+    init: true
+    restart: "on-failure:5"
+    stop_grace_period: 20s
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3000/api/health', { cache: 'no-store' }).then(async (response) => { if (!response.ok) process.exit(1); }).catch(() => process.exit(1))"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    depends_on:
+      api:
+        condition: service_healthy
+
+  # The only public interface. TLS termination and the public hostname belong here.
+  reverse-proxy:
+    image: ${LEADX_PROXY_IMAGE:?set an immutable reverse-proxy image digest}
+    environment:
+      LEADX_PUBLIC_HOST: ${LEADX_PUBLIC_HOST:?set the public HTTPS hostname}
+    volumes:
+      - ./deploy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - leadx-production-caddy-data:/data
+      - leadx-production-caddy-config:/config
+    ports:
+      - "80:80"
+      - "443:443"
+    networks: [edge]
+    restart: "unless-stopped"
+    depends_on:
+      portal:
+        condition: service_healthy
+
+  redis:
+    image: ${LEADX_REDIS_IMAGE:?set an immutable Redis image digest}
+    command: ["redis-server", "--appendonly", "yes", "--requirepass", "${REDIS_PASSWORD:?set a Redis password}"]
+    environment:
+      REDIS_PASSWORD: ${REDIS_PASSWORD:?set a Redis password}
+    volumes:
+      - leadx-production-redis-data:/data
+    networks: [internal]
+    restart: "on-failure:5"
+    healthcheck:
+      test: ["CMD-SHELL", "redis-cli -a \"$$REDIS_PASSWORD\" ping | grep PONG"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+      start_period: 5s
+
+  # Optional and private. Enable only when the approved scraper image inputs exist.
+  linkedin-scraper:
+    profiles: [linkedin]
+    build:
+      context: ./services/linkedin-scraper
+      args:
+        PYTHON_BASE_IMAGE: ${LEADX_SCRAPER_BASE_IMAGE:?set an immutable scraper base image digest}
+    environment:
+      CHROME_BIN: /usr/bin/chromium
+      CHROMEDRIVER_PATH: /usr/bin/chromedriver
+      CHROME_SINGLE_PROCESS: "0"
+      LINKEDIN_PAGE_WAIT: "2.5"
+    networks: [internal]
+    restart: "unless-stopped"
+    mem_limit: 1024m
+    memswap_limit: 2048m
+    shm_size: 64mb
+
+volumes:
+  leadx-production-durable-data:
+  leadx-production-redis-data:
+  leadx-production-caddy-data:
+  leadx-production-caddy-config:
+
+networks:
+  internal:
+    internal: true
+  edge:

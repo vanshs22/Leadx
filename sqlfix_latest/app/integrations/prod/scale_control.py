@@ -198,25 +198,88 @@ def scale_health() -> dict:
         "worker_count": len(safe_workers),
     }
 
-def claim_idempotency(key:str,operation:str,*,tenant_id:str|None=None,scope_hash:str|None=None,request_hash:str|None=None,response:dict|None=None)->tuple[bool,dict|None]:
-    sb=_sb()
+def claim_idempotency(key: str, operation: str, *, tenant_id: str | None = None,
+                      scope_hash: str | None = None, request_hash: str | None = None,
+                      response: dict | None = None) -> tuple[bool, dict | None]:
+    """Claim one HTTP mutation without hiding identity or dependency conflicts."""
+    sb = _sb()
+    params = {
+        "p_key": key,
+        "p_operation": operation,
+        "p_tenant_id": tenant_id,
+        "p_scope_hash": scope_hash,
+        "p_request_hash": request_hash,
+    }
     try:
-        r=sb.rpc('claim_operation_idempotency',{'p_key':key,'p_operation':operation,'p_tenant_id':tenant_id,'p_scope_hash':scope_hash,'p_request_hash':request_hash}).execute().data or []
-        row=r[0] if isinstance(r,list) and r else r if isinstance(r,dict) else {}
-        acquired=bool(row.get('acquired'))
-        return acquired, row.get('existing_response')
-    except Exception:
-        # Safe fallback: unique constraint still prevents duplicate insertion.
+        raw = sb.rpc("claim_operation_idempotency", params).execute().data or []
+        row = raw[0] if isinstance(raw, list) and raw else raw if isinstance(raw, dict) else {}
+        return bool(row.get("acquired")), row.get("existing_response")
+    except Exception as rpc_error:
+        # Compatibility fallback for installations without the RPC. The
+        # unique index remains the write authority; this path only classifies
+        # the row after an insert conflict and never deletes or overwrites it.
         try:
-            ins=sb.table('operation_idempotency').insert({'idempotency_key':key,'operation':operation,'tenant_id':tenant_id,'scope_hash':scope_hash,'request_hash':request_hash,'status':'processing','response':{}}).execute().data or []
-            return bool(ins), None
-        except Exception:
-            existing=sb.table('operation_idempotency').select('response,status,scope_hash,request_hash').eq('idempotency_key',key).eq('operation',operation).eq('scope_hash',scope_hash or '').limit(1).execute().data or []
-            if existing and (existing[0].get('request_hash') or '') != (request_hash or ''):
-                return False, {'idempotency_mismatch': True}
-            if existing and existing[0].get('status') == 'completed':
-                return False, existing[0].get('response')
-            return False, None
+            inserted = sb.table("operation_idempotency").insert({
+                "idempotency_key": key,
+                "operation": operation,
+                "tenant_id": tenant_id,
+                "scope_hash": scope_hash or "",
+                "request_hash": request_hash or "",
+                "status": "processing",
+                "response": response or {},
+            }).execute().data or []
+            if inserted:
+                return True, None
+        except Exception as insert_error:
+            code = str(getattr(insert_error, "code", "") or "").upper()
+            message = str(insert_error).lower()
+            is_conflict = code in {"23505", "409"} or "duplicate" in message or "unique" in message
+            if not is_conflict:
+                emit_telemetry(
+                    logger, logging.ERROR, "idempotency.claim_failed",
+                    status="rejected", dependency="database", outcome="queue_failure",
+                    reason_code="queue_dependency_failure", operation="claim",
+                    error_code=telemetry_error_code(insert_error),
+                )
+                return False, {"idempotency_error": True, "reason_code": "queue_dependency_failure"}
+        try:
+            existing = (sb.table("operation_idempotency")
+                        .select("tenant_id,response,status,scope_hash,request_hash")
+                        .eq("idempotency_key", key)
+                        .eq("operation", operation)
+                        .limit(1).execute().data or [])
+        except Exception as lookup_error:
+            emit_telemetry(
+                logger, logging.ERROR, "idempotency.lookup_failed",
+                status="rejected", dependency="database", outcome="queue_failure",
+                reason_code="queue_dependency_failure", operation="claim",
+                error_code=telemetry_error_code(lookup_error),
+            )
+            return False, {"idempotency_error": True, "reason_code": "queue_dependency_failure"}
+        if not existing:
+            emit_telemetry(
+                logger, logging.ERROR, "idempotency.conflict_unresolved",
+                status="rejected", dependency="database", outcome="conflict_unresolved",
+                reason_code="conflict_unresolved", operation="claim",
+                error_code=telemetry_error_code(rpc_error),
+            )
+            return False, {"idempotency_error": True, "reason_code": "conflict_unresolved"}
+        row = existing[0]
+        if (row.get("tenant_id") != tenant_id
+                or (row.get("scope_hash") or "") != (scope_hash or "")
+                or (row.get("request_hash") or "") != (request_hash or "")):
+            return False, {"idempotency_mismatch": True, "reason_code": "idempotency_mismatch"}
+        if row.get("status") == "completed":
+            return False, row.get("response")
+        return False, {"reason": "active_duplicate", "reason_code": "active_duplicate"}
+    except Exception as exc:
+        emit_telemetry(
+            logger, logging.ERROR, "idempotency.claim_failed",
+            status="rejected", dependency="database", outcome="queue_failure",
+            reason_code="queue_dependency_failure", operation="claim",
+            error_code=telemetry_error_code(exc),
+        )
+        return False, {"idempotency_error": True, "reason_code": "queue_dependency_failure"}
 
 def finish_idempotency(key:str,operation:str,response:dict,status:str='completed',*,scope_hash:str|None=None,request_hash:str|None=None):
     try:return _sb().rpc('finish_operation_idempotency',{'p_key':key,'p_operation':operation,'p_response':response or {},'p_status':status,'p_scope_hash':scope_hash,'p_request_hash':request_hash}).execute()
@@ -237,6 +300,8 @@ def adaptive_target_state(
     budget_remaining: int | float | None = None,
     current_tranche: int | None = None,
     refill_used: bool = False,
+    metric: str = "assigned",
+    delivered: int = 0,
 ) -> dict:
     """Coordinate target stop and tranche admission without provider I/O."""
     from app.integrations.prod.lead_selection_planner import adaptive_tranche_decision
@@ -254,6 +319,8 @@ def adaptive_target_state(
     projection = target_stop_projection(
         target,
         assignment_confirmed,
+        metric=metric,
+        delivered=delivered,
         persisted_qualifying=persisted_qualifying,
         persisted_contactable=persisted_contactable,
         budget_remaining=budget_remaining,

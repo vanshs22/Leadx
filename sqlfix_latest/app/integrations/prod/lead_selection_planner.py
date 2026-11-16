@@ -13,6 +13,8 @@ import json
 import math
 from typing import Any, Iterable
 
+from app.core.runtime_config import MAX_LEADS_PER_RUN
+
 SCHEMA_VERSION = "lead-selection-v1"
 LANES = ("osm", "maps", "web", "yelp", "facebook", "linkedin", "instagram")
 
@@ -32,7 +34,7 @@ class TierMix:
 
 def tier_mix_for_target(target: int, *, allow_tier_b: bool = True, allow_tier_c: bool = True) -> TierMix:
     """Return target-aware A/B/C delivery mix; every delivered C needs contact."""
-    value = max(0, int(target or 0))
+    value = max(0, min(MAX_LEADS_PER_RUN, int(target or 0)))
     if value <= 100:
         a_pct, b_pct = 40, 35
     elif value <= 500:
@@ -61,6 +63,18 @@ def _rotation_offset(key: str, lane_count: int) -> int:
     if lane_count <= 0:
         return 0
     return int.from_bytes(sha256(str(key or "default").encode()).digest()[:8], "big") % lane_count
+
+
+def _execution_lane_order(rotation_key: str, enabled: dict[str, bool]) -> list[str]:
+    """Rotate enabled lanes within free-first and quota/social families."""
+    free = [lane for lane in ("osm", "maps", "web") if enabled.get(lane, False)]
+    quota = [lane for lane in ("yelp", "facebook", "linkedin", "instagram") if enabled.get(lane, False)]
+
+    def rotated(lanes: list[str], family: str) -> list[str]:
+        offset = _rotation_offset(f"{rotation_key}:{family}", len(lanes))
+        return lanes[offset:] + lanes[:offset]
+
+    return rotated(free, "free") + rotated(quota, "quota")
 
 
 def _lane_budgets(target: int, enabled: dict[str, bool]) -> dict[str, int]:
@@ -104,15 +118,14 @@ def build_selection_decision(
     assigned_count: int = 0,
     max_route_cells: int = 96,
 ) -> dict[str, Any]:
-    target = max(0, int(target or 0))
+    target = max(0, min(MAX_LEADS_PER_RUN, int(target or 0)))
     enabled = {lane: True for lane in LANES}
     for key, value in (enabled_sources or {}).items():
         if key in enabled:
             enabled[key] = bool(value)
     mix = tier_mix_for_target(target, allow_tier_b=allow_tier_b, allow_tier_c=allow_tier_c)
-    order = list(LANES)
-    offset = _rotation_offset(rotation_key, len(order))
-    order = order[offset:] + order[:offset]
+    order = _execution_lane_order(rotation_key, enabled)
+    offset = _rotation_offset(rotation_key, len(LANES))
     planned = int((lane_plan or {}).get("tranche_size") or 0)
     normalized_plan = build_normalized_plan(
         target=target,
@@ -159,6 +172,7 @@ def build_selection_decision(
             "catalog_planned_lanes": planned,
             "free_first": ["osm", "maps", "web"],
             "social_lanes": ["linkedin", "instagram", "facebook"],
+            "execution_order_reason": "Enabled free/local lanes run before enabled quota/social lanes; each family rotates deterministically from the rotation key.",
         },
         "normalized_plan": normalized_plan,
         "parent_icp": normalized_plan["parent_icp"],
@@ -168,7 +182,7 @@ def build_selection_decision(
         "route_cells": normalized_plan["route_cells"],
         "stop_policy": normalized_plan["stop_policy"],
         "selection_order": ["eligible_tier_a", "eligible_tier_b", "multi_source", "composite_quality", "contactability", "score"],
-        "rationale": "Prefer verified Tier A coverage, rotate enabled lanes deterministically, then use eligible Tier B only for target shortfall.",
+        "rationale": "Prefer verified Tier A coverage, then execute enabled free/local lanes before quota/social lanes with deterministic family rotation; use eligible Tier B only for target shortfall.",
     }
 
 

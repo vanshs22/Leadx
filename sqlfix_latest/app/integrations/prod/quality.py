@@ -10,6 +10,7 @@ from datetime import datetime, timezone, timedelta
 from typing import Optional
 
 from app.memory.supabase_client import get_supabase
+from app.core.runtime_config import MAX_LEADS_PER_RUN
 
 logger = logging.getLogger("lead_engine.quality")
 
@@ -496,6 +497,8 @@ async def assign_lead(
         try:
             run_rows = (await aexec(sb.table("pipeline_runs").select("requested_target,target_mode").eq("id", run_id).eq("tenant_id", tenant_id).limit(1))).data or []
             target = int(run_rows[0].get("requested_target") or 0) if run_rows else 0
+            if target > MAX_LEADS_PER_RUN:
+                return {"assigned": False, "reason": "target_cap_exceeded"}
             if target > 0:
                 claimed = (await aexec(sb.rpc("claim_pipeline_run_slot", {"p_run_id": run_id, "p_tenant_id": tenant_id, "p_target": target}))).data
                 if claimed is not True:
@@ -663,6 +666,7 @@ async def assign_lead(
             "status": "new",
             "stage_id": new_stage_id,
             "discovery_request_id": discovery_request_id,
+            "assignment_idempotency_key": assignment_key,
         }
         if existing_assignment_id:
             updated = (await aexec(
@@ -730,6 +734,37 @@ async def assign_lead(
 
     assignment_rows = (await aexec(sb.table("lead_assignments").select("id").eq("lead_id", lead_id).eq("tenant_id", tenant_id).limit(1))).data or []
     assignment_id = assignment_rows[0].get("id") if assignment_rows else None
+    if assignment_id and run_id:
+        # The assignment row is durable before this barrier. CRM projection is
+        # not admitted until the assignment stage is durably recorded.
+        try:
+            from app.layers.persistence_layer import record_stage_transition
+            assignment_transition = await record_stage_transition(
+                str(tenant_id), str(run_id), str(lead_id), "assignment", "accepted",
+                assignment_id=str(assignment_id), metadata={"assignment_key": assignment_key},
+                supabase=sb,
+            )
+        except Exception as exc:
+            assignment_transition = {"ok": False, "reason": "assignment_stage_unavailable"}
+            logger.warning("assignment stage barrier failed tenant=%s assignment=%s: %s", tenant_id, assignment_id, type(exc).__name__)
+        if not assignment_transition.get("ok"):
+            try:
+                await aexec(sb.table("lead_assignments").update({
+                    "status": "rejected", "delivery_status": "failed", "crm_status": "retryable",
+                }).eq("id", str(assignment_id)).eq("tenant_id", str(tenant_id)))
+                if discovery_request_id:
+                    await aexec(sb.rpc("release_tenant_discovery_slot", {
+                        "p_tenant_id": tenant_id, "p_request_id": discovery_request_id,
+                    }))
+                else:
+                    await aexec(sb.rpc("release_tenant_lead_slot", {
+                        "p_tenant_id": tenant_id, "p_tier": (tier or "A").upper(),
+                    }))
+                if run_slot_claimed:
+                    await aexec(sb.rpc("release_pipeline_run_slot", {"p_run_id": run_id, "p_tenant_id": tenant_id}))
+            except Exception:
+                logger.error("assignment stage barrier cleanup failed", exc_info=True)
+            return {"assigned": False, "reason": "assignment_stage_unavailable", "retryable": True}
     crm_projection = {"crm_saved": True, "crm_status": "not_configured"}
     if assignment_id:
         try:

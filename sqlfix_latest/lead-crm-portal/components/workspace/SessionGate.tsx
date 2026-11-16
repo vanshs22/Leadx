@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { getApiBases, isLocalAuthProfile } from "@/lib/config";
 import { getSessionFast, signOut } from "@/lib/auth";
-import { getTenantId, getTenantUserId, setTenant, clearTenant } from "@/lib/tenant";
+import { getTenantId, getTenantUserId, setTenant, clearTenant, isClientWorkspaceProjection } from "@/lib/tenant";
 import { beginTenantSwitch } from "@/lib/api";
 import { disposeTenant } from "@/lib/crmRealtime";
 
@@ -81,7 +81,7 @@ export function SessionGate({ children }: { children: React.ReactNode }) {
           const raw = await res.text();
           let body: any = {};
           try { body = raw ? JSON.parse(raw) : {}; } catch { body = { raw }; }
-          if (res.ok && body.tenant_id) {
+          if (res.ok && isClientWorkspaceProjection(body)) {
             return { base, body };
           }
           const detail = body.detail || body.message || body.error || raw || res.statusText;
@@ -97,7 +97,7 @@ export function SessionGate({ children }: { children: React.ReactNode }) {
           lastError = errors.map((e: any) => e?.message || String(e)).filter(Boolean).join(" | ");
         }
 
-        if (resolved?.body?.tenant_id) {
+        if (resolved?.body && isClientWorkspaceProjection(resolved.body)) {
           const previousTenant = getTenantId();
           if (previousTenant && previousTenant !== resolved.body.tenant_id) {
             disposeTenant(previousTenant);

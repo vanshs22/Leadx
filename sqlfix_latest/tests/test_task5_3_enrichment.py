@@ -401,6 +401,18 @@ async def test_target_runner_persists_discovery_before_enrichment_and_overlaps_l
     async def no_inventory(*_args, **_kwargs):
         return []
 
+    async def authoritative_counts(*_args, **_kwargs):
+        return {
+            "discovered": 2, "enriched": 2, "qualified": 2,
+            "assigned": 2, "reserved": 0, "delivered": 0,
+            "crm_saved": 2, "client_visible": 2,
+            "failed": 0, "delivery_failed": 0, "replaced": 0,
+            "remaining": 0, "shortfall": 0, "target": 2,
+            "target_metric": "assigned", "satisfied": 2,
+            "reconciled": True, "mismatch_reason": None,
+        }
+
+    monkeypatch.setattr(pipeline, "_authoritative_target_counts", authoritative_counts)
     monkeypatch.setattr(pipeline, "discover_leads", discover)
     monkeypatch.setattr(pipeline, "_load_global_inventory_candidates", no_inventory)
     monkeypatch.setattr(pipeline, "_upsert_global_batch", upsert_batch)
@@ -459,3 +471,125 @@ async def test_target_runner_persists_discovery_before_enrichment_and_overlaps_l
     assert {event for event in events if event.startswith("enrich:")} == {
         "enrich:lead-stream-1", "enrich:lead-stream-2",
     }
+
+
+def test_free_mesh_retries_each_adapter_with_a_hard_attempt_bound(monkeypatch):
+    calls = {"scrapling": 0, "crawl4ai": 0}
+
+    async def scrapling(_url):
+        calls["scrapling"] += 1
+        if calls["scrapling"] == 1:
+            return {"ok": False, "error": "temporary"}
+        return {
+            "ok": True,
+            "method": "scrapling",
+            "html": '<a href="mailto:retry@fixture.test">retry</a>',
+            "text": "",
+        }
+
+    async def crawl4ai(_url):
+        calls["crawl4ai"] += 1
+        return {"ok": False, "method": "crawl4ai", "html": "", "text": "", "markdown": ""}
+
+    monkeypatch.setenv("LEADX_ENRICH_RETRIES", "1")
+    monkeypatch.setattr(enrichment_mesh, "assert_public_url", _no_network)
+    monkeypatch.setattr(enrichment_mesh, "fetch_scrapling", scrapling)
+    monkeypatch.setattr(enrichment_mesh, "fetch_crawl4ai", crawl4ai)
+
+    result = asyncio.run(
+        enrichment_mesh.enrich_with_free_mesh({"website": "https://fixture.test"}, use_crawl4ai=True)
+    )
+
+    assert calls == {"scrapling": 2, "crawl4ai": 2}
+    assert result["patch"]["email"] == "retry@fixture.test"
+    assert result["audit"]["free_mesh"]["meta"]["scrapling"]["attempts"] == 2
+    assert result["audit"]["free_mesh"]["meta"]["crawl4ai"]["attempts"] == 2
+
+
+def test_invalid_contact_values_have_field_specific_audit_codes():
+    results = {"patch": {}, "audit": {}}
+    enrichment_mesh._merge_provider_fields(
+        results,
+        {},
+        ["email", "phone"],
+        {"email": "https://instagram.com/example", "phone": "not-a-phone"},
+        "offline_fixture",
+        0.7,
+    )
+
+    assert results["patch"] == {}
+    assert results["audit"]["rejected_fields"] == [
+        {"provider": "offline_fixture", "field": "email", "reason": "invalid_field_value"},
+        {"provider": "offline_fixture", "field": "phone", "reason": "invalid_field_value"},
+    ]
+    assert results["audit"]["rejected_field_reasons"] == [
+        {"provider": "offline_fixture", "field": "email", "reason": "invalid_email"},
+        {"provider": "offline_fixture", "field": "phone", "reason": "invalid_phone"},
+    ]
+
+
+@pytest.mark.asyncio
+async def test_local_mode_preserves_existing_contact_evidence_and_calls_no_provider(monkeypatch):
+    monkeypatch.setenv("LOCAL_VALIDATION_MODE", "true")
+
+    async def forbidden(*_args, **_kwargs):
+        raise AssertionError("provider called in local validation mode")
+
+    monkeypatch.setattr(enrichment_layer, "enrich_intelligent", forbidden)
+    monkeypatch.setattr(enrichment_layer, "enrich_batch", forbidden)
+    monkeypatch.setattr(enrichment_layer, "enrich_with_paid_connectors", forbidden)
+
+    rows = await enrichment_layer.enrich([{
+        "id": "lead-existing",
+        "email": "owner@fixture.test",
+        "email_status": "valid",
+        "field_source": {"email": "existing_fixture"},
+        "source_provenance": {"source": "existing_fixture", "billable": False},
+    }])
+
+    assert rows[0]["email"] == "owner@fixture.test"
+    assert rows[0]["field_source"] == {"email": "existing_fixture"}
+    assert rows[0]["source_provenance"]["source"] == "existing_fixture"
+    assert rows[0]["enrichment_sources"] == ["local_fixture"]
+
+
+@pytest.mark.asyncio
+async def test_pipeline_calls_free_mesh_and_crawl_before_paid_fallback(monkeypatch):
+    events = []
+
+    async def free_mesh(_lead, **_kwargs):
+        events.append("free_mesh")
+        return {"patch": {}, "audit": {"free_mesh": {"status": "ok"}}}
+
+    async def crawl(rows, **_kwargs):
+        events.append("crawl")
+        return rows
+
+    async def paid(_lead, _fields, **_kwargs):
+        events.append("paid")
+        return {
+            "patch": {
+                "email": "paid@fixture.test",
+                "field_source": {"email": "offline_fixture"},
+                "field_observed_at": {"email": "2026-01-01T00:00:00+00:00"},
+            },
+            "providers_attempted": ["offline_fixture"],
+        }
+
+    monkeypatch.setenv("LOCAL_VALIDATION_MODE", "false")
+    monkeypatch.setenv("LEADX_PAID_FALLBACK", "auto")
+    monkeypatch.setenv("LEADX_PAID_ENRICH_FIELDS", "email")
+    monkeypatch.setattr(enrichment_layer, "enrich_intelligent", free_mesh)
+    monkeypatch.setattr(enrichment_layer, "enrich_batch", crawl)
+    monkeypatch.setattr(enrichment_layer, "enrich_with_paid_connectors", paid)
+    monkeypatch.setattr(enrichment_layer, "configured_enrichment_providers", lambda: [SimpleNamespace(name="offline_fixture")])
+    monkeypatch.setattr(enrichment_layer, "_provider_endpoint", lambda _name: "https://fixture.invalid")
+
+    result = (await enrichment_layer.enrich(
+        [{"website": "https://fixture.test"}],
+        execution_context=ProviderExecutionContext(budget_remaining=1),
+    ))[0]
+
+    assert events == ["free_mesh", "crawl", "paid"]
+    assert result["email"] == "paid@fixture.test"
+    assert result["field_source"]["email"] == "offline_fixture"

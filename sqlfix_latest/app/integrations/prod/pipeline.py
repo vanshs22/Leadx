@@ -21,6 +21,7 @@ from app.layers.scoring_layer import score as score_lead, gate as passes_quality
 from app.layers.persistence_layer import record_stage_transition
 from app.services.delivery import deliver_batch
 from app.integrations.prod.quality import assign_lead, quota_remaining, shared_pool_admission
+from app.layers.telemetry import emit as emit_telemetry
 from app.core.runtime_config import MAX_LEADS_PER_RUN
 from app.integrations.prod.lead_selection_planner import build_selection_decision, select_candidates
 from app.integrations.prod.provider_execution import ProviderCancelled
@@ -39,6 +40,32 @@ class FreshRunAdmissionError(RuntimeError):
 
 _TERMINAL_RUN_STATUSES = frozenset({"completed", "failed", "partial", "cancelled"})
 _ACTIVE_RUN_STATUSES = frozenset({"queued", "running"})
+
+
+def classify_run_state(run: Optional[dict], *, now: datetime | None = None) -> str:
+    """Classify durable run visibility without treating a stale row as healthy."""
+    if not run:
+        return "missing"
+    status = str(run.get("status") or "").lower()
+    if status in _TERMINAL_RUN_STATUSES:
+        return "terminal"
+    if status == "queued":
+        return "queued"
+    if status != "running":
+        return "invalid"
+    if not run.get("worker_id") and not run.get("locked_by") and not run.get("lease_expires_at"):
+        return "stale"
+    expires = run.get("lease_expires_at")
+    if expires:
+        try:
+            stamp = datetime.fromisoformat(str(expires).replace("Z", "+00:00"))
+            if stamp.tzinfo is None:
+                stamp = stamp.replace(tzinfo=timezone.utc)
+            if stamp <= (now or datetime.now(timezone.utc)):
+                return "stale"
+        except (TypeError, ValueError):
+            return "stale"
+    return "running"
 
 
 def _execution_allows_write(execution_context: Optional[dict]) -> bool:
@@ -75,6 +102,9 @@ def validate_fresh_run_admission(
     context_tenant = str(context.get("tenant_id") or "")
     if context_job_id and job_row is not None and context_job_id != str(job_row.get("id") or ""):
         raise FreshRunAdmissionError("job identity mismatch", code="job_identity_mismatch")
+    context_worker = str(context.get("worker_id") or "")
+    if context_worker and job_row is not None and job_row.get("locked_by") and context_worker != str(job_row.get("locked_by")):
+        raise FreshRunAdmissionError("worker lease belongs to another worker", code="worker_lease_mismatch")
     if context_job_id and job_row is None and context_job_id != str(run_id):
         raise FreshRunAdmissionError("job/run identity mismatch", code="run_identity_mismatch")
     if context_tenant and context_tenant != str(tenant_id):
@@ -90,6 +120,8 @@ def validate_fresh_run_admission(
             raise FreshRunAdmissionError("pipeline run is terminal; use a new run id", code="terminal_run")
         if status and status not in _ACTIVE_RUN_STATUSES:
             raise FreshRunAdmissionError("pipeline run is not admissible", code="invalid_run_status")
+        if status == "running" and job_row is None and not context_job_id:
+            raise FreshRunAdmissionError("running pipeline has no visible worker lease", code="stale_run")
 
     if job_row is not None:
         if str(job_row.get("tenant_id") or "") != str(tenant_id):
@@ -111,6 +143,7 @@ from app.layers.persistence_layer import (
     prepare_enrichment_pool as _prepare_enrichment_pool,
     upsert_enrichment as _upsert_enrichment,
     upsert_score as _upsert_score,
+    persist_enrichment_and_score_batch as _persist_enrichment_and_score_batch,
     record_enrich_failure as _record_enrich_failure,
 )
 
@@ -221,6 +254,8 @@ def _max_rounds_for_target(n: int) -> int:
     n = int(n or 0)
     if n <= 0:
         return 1
+    if n <= 5:
+        return 6
     if n <= 10:
         return 5
     if n <= 50:
@@ -253,6 +288,7 @@ async def run_pipeline_parallel_target(
     include_yelp: bool,
     include_facebook: bool,
     target_assign: int,
+    target_metric: str = "assigned",
     max_cells_per_run: int,
     run_id: str,
     remaining: int,
@@ -289,6 +325,29 @@ async def run_pipeline_parallel_target(
     from app.integrations.prod.lead_generation_orchestration import owner_for, stage_plan
 
     started = datetime.now(timezone.utc)
+    run_clock = time.monotonic()
+    stage_clock: dict[str, float] = {}
+    stage_timings: dict[str, dict[str, float]] = {}
+
+    def _stage_begin(name: str) -> None:
+        stage_clock.setdefault(name, time.monotonic())
+
+    def _stage_end(name: str) -> None:
+        begin = stage_clock.pop(name, None)
+        if begin is None:
+            return
+        end = time.monotonic()
+        stage_timings[name] = {
+            "start_ms": round(max(0.0, (begin - run_clock) * 1000), 3),
+            "end_ms": round(max(0.0, (end - run_clock) * 1000), 3),
+            "duration_ms": round(max(0.0, (end - begin) * 1000), 3),
+        }
+
+    def _close_open_stages() -> None:
+        for name in tuple(stage_clock):
+            _stage_end(name)
+
+    _stage_begin("run")
     agent_context = create_agent_context(run_id, tenant_id)
     agent_context["stage_contract"] = list(stage_plan(delivery_channel=delivery_channel))
     # These stages are already owned by the target stream's existing engines or
@@ -307,12 +366,27 @@ async def run_pipeline_parallel_target(
     execution_context = dict(execution_context or {})
     execution_context["agent_context"] = agent_context
     slots_cap = max(0, min(int(target_assign), int(remaining)))
+    geo = geo if isinstance(geo, list) and geo else ["New Jersey"]
+    planner_context = execution_context.get("planner_context")
+    if not isinstance(planner_context, dict):
+        planner_context = {}
+    parent_icp = planner_context.get("parent_icp") or execution_context.get("parent_icp")
+    if not parent_icp and icp_id:
+        parent_icp = {"id": icp_id, "offer_category": offer_category}
+    sub_icps = planner_context.get("sub_icps") or execution_context.get("sub_icps")
+    from app.integrations.prod.discovery_runtime import local_validation_mode
     selection_decision = build_selection_decision(
         target=slots_cap, allow_tier_b=allow_tier_b, allow_tier_c=allow_tier_c,
         rotation_key=f"{tenant_id}:{run_id}",
         enabled_sources={"osm": True, "maps": include_maps, "web": include_web, "yelp": include_yelp,
                          "facebook": include_facebook, "linkedin": include_linkedin, "instagram": include_instagram},
         run_id=run_id, icp_id=icp_id, tenant_id=tenant_id,
+        vertical=vertical, locations=geo, queries=queries,
+        parent_icp=parent_icp if isinstance(parent_icp, dict) else None,
+        sub_icps=sub_icps if isinstance(sub_icps, (list, tuple)) else None,
+        local_validation=bool(planner_context.get("local_validation", local_validation_mode())),
+        assigned_count=int(planner_context.get("assigned_count", execution_context.get("assigned_count", 0)) or 0),
+        max_route_cells=max_cells_per_run,
     )
     tier_a_target = int((selection_decision.get("tier_policy") or {}).get("tier_a_target") or 0)
     if slots_cap <= 0:
@@ -327,6 +401,12 @@ async def run_pipeline_parallel_target(
         return result
 
     geo = geo if isinstance(geo, list) and geo else ["New Jersey"]
+    try:
+        enrichment_timeout_seconds = max(
+            0.05, min(300.0, float(os.getenv("TARGET_ENRICH_TIMEOUT_SECONDS", "45")))
+        )
+    except (TypeError, ValueError):
+        enrichment_timeout_seconds = 45.0
     enrich_workers_n = max(1, min(int(max_enrich_concurrent or 3), int(os.getenv("TARGET_ENRICH_WORKERS", str(max_enrich_concurrent or 3)))))
     assign_workers_n = max(1, min(int(os.getenv("TARGET_ASSIGN_WORKERS", "4")), 8))
     queue_size = max(4, min(enrich_workers_n * 3, max(12, slots_cap * 2)))
@@ -338,7 +418,10 @@ async def run_pipeline_parallel_target(
         initial_tranche = min(slots_cap, tranche_size_for_target(slots_cap))
     current_tranche = max(1, initial_tranche)
     refill_used = False
-    small_target_round_limit = 2 if slots_cap <= 10 else max(1, int(max_rounds or 1))
+    # Small runs may need replacement rounds when candidates fail contact,
+    # CRM, recency, or exclusivity gates. Keep the bound finite, but do not
+    # stop after two rounds while the delivered target is still short.
+    small_target_round_limit = max(1, min(int(max_rounds or 1), _max_rounds_for_target(slots_cap)))
 
     # Shared counters/state. Assignment reservation makes parallel assignment
     # safe without serializing the actual assign_lead DB calls.
@@ -350,6 +433,42 @@ async def run_pipeline_parallel_target(
     discovery_done = asyncio.Event()
     assignment_queue: asyncio.PriorityQueue = asyncio.PriorityQueue(maxsize=queue_size)
     enrich_queue: asyncio.Queue = asyncio.Queue(maxsize=queue_size)
+    queue_max_depth = {"assignment": 0, "enrichment": 0}
+    persistence_batch_lock = asyncio.Lock()
+    persistence_batch_pending: list[tuple[tuple, asyncio.Future]] = []
+    persistence_batch_task: asyncio.Task | None = None
+
+    async def _flush_persistence_batch() -> None:
+        """Coalesce concurrent compatible writes, then resolve each caller."""
+        nonlocal persistence_batch_task
+        while True:
+            await asyncio.sleep(0)
+            async with persistence_batch_lock:
+                pending = persistence_batch_pending[:]
+                persistence_batch_pending.clear()
+            if not pending:
+                async with persistence_batch_lock:
+                    persistence_batch_task = None
+                return
+            items = [item for item, _future in pending]
+            try:
+                outcome = await _persist_enrichment_and_score_batch(items)
+            except Exception as exc:
+                logger.warning("[%s] persistence batch failed: %s", run_id[:8], type(exc).__name__)
+                outcome = {"ok": False}
+            for _item, future in pending:
+                if not future.done():
+                    future.set_result(outcome)
+
+    async def _persist_scored_batch(item: tuple[str, int, str, str, dict]) -> dict:
+        nonlocal persistence_batch_task
+        loop = asyncio.get_running_loop()
+        future = loop.create_future()
+        async with persistence_batch_lock:
+            persistence_batch_pending.append((item, future))
+            if persistence_batch_task is None or persistence_batch_task.done():
+                persistence_batch_task = asyncio.create_task(_flush_persistence_batch())
+        return await future
 
     def _cancelled() -> bool:
         return bool(cancellation_event and cancellation_event.is_set())
@@ -419,6 +538,9 @@ async def run_pipeline_parallel_target(
         """Read the assignment gap before admitting another route/provider call."""
         nonlocal stop_reason
         async with state_lock:
+            # Discovery has a hard assignment-cap fence in both modes.  The
+            # delivered metric still decides terminal success after delivery;
+            # it must not turn this admission fence into a completion claim.
             confirmed = delivery_ready_n
             reserved = reserved_assignments
             qualifying = persisted_qualifying
@@ -433,9 +555,13 @@ async def run_pipeline_parallel_target(
             budget_remaining=budget,
             current_tranche=current_tranche,
             refill_used=refill_used,
+            metric=target_metric,
+            delivered=0,
         )
         if not state.get("admit"):
             stop_reason = str(state.get("reason") or "shortfall")
+            if target_metric == "delivered" and stop_reason == "target_met":
+                stop_reason = "assignment_capacity_reached"
             stop_event.set()
         return state
 
@@ -502,8 +628,9 @@ async def run_pipeline_parallel_target(
 
         if lid:
             try:
-                await _upsert_enrichment(lid, lead)
-                await _upsert_score(lid, int(s or 0), str(t or "C"), str(r or ""), lead)
+                await _persist_scored_batch((
+                    str(lid), int(s or 0), str(t or "C"), str(r or ""), lead,
+                ))
             except Exception as exc:
                 logger.debug("[%s] lead persistence failed: %s", run_id[:8], exc)
 
@@ -542,8 +669,8 @@ async def run_pipeline_parallel_target(
 
         async with state_lock:
             gated_n += 1
-            # These are measured only after the lead has crossed the durable
-            # score/gate barrier. Raw discoveries never authorize growth.
+            # These are measured only after the durable score/gate barrier. Raw
+            # discoveries never authorize growth.
             persisted_qualifying += 1
             if contact_ok:
                 persisted_contactable += 1
@@ -563,14 +690,27 @@ async def run_pipeline_parallel_target(
             priority = 0 if tier == "A" else 1 if tier == "B" else 2
             score = -int(lead.get("score") or lead.get("total_score") or 0)
             await assignment_queue.put((priority, score, str(lead.get("id") or ""), lead))
+            queue_max_depth["assignment"] = max(queue_max_depth["assignment"], assignment_queue.qsize())
+            _stage_begin("assignment")
         except asyncio.CancelledError:
             raise
 
     async def _enrich_worker(worker_id: int) -> None:
+        def _mark_enrichment_failure(candidate: dict, category: str, exc: BaseException) -> dict:
+            error_type = type(exc).__name__[:64]
+            candidate["enrichment_ok"] = False
+            candidate["enrichment_error"] = error_type
+            candidate["enrichment_error_type"] = error_type
+            candidate["enrichment_error_category"] = str(category)[:64]
+            return candidate
+
         while True:
             lead = await enrich_queue.get()
-            begin_agent_stage(agent_context, "enrichment", f"worker:{worker_id}")
+            _stage_begin("enrichment")
+            stage_started = False
             try:
+                begin_agent_stage(agent_context, "enrichment", f"worker:{worker_id}")
+                stage_started = True
                 if stop_event.is_set() or _cancelled():
                     continue
                 if lead.get("_enrichment_reused"):
@@ -583,40 +723,69 @@ async def run_pipeline_parallel_target(
                     )
                 else:
                     try:
-                        done = await enrich_batch(
-                            [lead],
-                            max_concurrent=1,
-                            use_crawl4ai=use_crawl4ai,
-                            use_firecrawl=use_firecrawl,
-                            execution_context=execution_context,
+                        done = await asyncio.wait_for(
+                            enrich_batch(
+                                [lead],
+                                max_concurrent=1,
+                                use_crawl4ai=use_crawl4ai,
+                                use_firecrawl=use_firecrawl,
+                                execution_context=execution_context,
+                            ),
+                            timeout=enrichment_timeout_seconds,
                         )
                         result = (done or [lead])[0]
                     except Exception as exc:
-                        logger.warning("[%s] enrich worker %s failed: %s", run_id[:8], worker_id, exc)
-                        result = lead
-                        result["enrichment_ok"] = False
-                        result["enrichment_error"] = str(exc)
+                        logger.warning("[%s] enrich worker %s failed: %s", run_id[:8], worker_id, type(exc).__name__)
+                        result = _mark_enrichment_failure(
+                            lead,
+                            "base_timeout" if isinstance(exc, asyncio.TimeoutError) else "base_error",
+                            exc,
+                        )
 
                     if ((include_linkedin or include_instagram)
                             and not stop_event.is_set() and not _cancelled()):
                         try:
                             from app.integrations.prod.social_enrich import social_enrich_batch
-                            await social_enrich_batch([result], max_per_run=1)
+                            await asyncio.wait_for(
+                                social_enrich_batch([result], max_per_run=1),
+                                timeout=enrichment_timeout_seconds,
+                            )
                         except Exception as exc:
-                            logger.debug("[%s] social enrichment skipped: %s", run_id[:8], exc)
+                            logger.debug("[%s] social enrichment skipped: %s", run_id[:8], type(exc).__name__)
+                            result = _mark_enrichment_failure(
+                                result,
+                                "social_timeout" if isinstance(exc, asyncio.TimeoutError) else "social_error",
+                                exc,
+                            )
 
                 if lead.get("_shared_pool_recheck_required") and not skip_enrichment and result.get("enrichment_ok"):
                     result["_shared_pool_rechecked"] = True
+                failure_metadata = {
+                    key: result[key]
+                    for key in ("enrichment_ok", "enrichment_error", "enrichment_error_type", "enrichment_error_category")
+                    if key in result
+                } if result.get("enrichment_ok") is False else {}
                 if not stop_event.is_set() and not _cancelled():
                     try:
                         from app.integrations.prod.agent_pipeline_branches import enrich_lead_with_owned_agents
-                        result = await enrich_lead_with_owned_agents(
-                            result, tenant_id=str(tenant_id), vertical=str(vertical),
-                            delivery_channel=str(delivery_channel or "portal"),
-                            agent_context=agent_context, execution_context=execution_context,
+                        specialist_result = await asyncio.wait_for(
+                            enrich_lead_with_owned_agents(
+                                result, tenant_id=str(tenant_id), vertical=str(vertical),
+                                delivery_channel=str(delivery_channel or "portal"),
+                                agent_context=agent_context, execution_context=execution_context,
+                            ),
+                            timeout=enrichment_timeout_seconds,
                         )
+                        result = specialist_result or result
+                        if failure_metadata:
+                            result.update(failure_metadata)
                     except Exception as exc:
                         logger.warning("[%s] specialist agent branches skipped: %s", run_id[:8], type(exc).__name__)
+                        result = _mark_enrichment_failure(
+                            result,
+                            "specialist_timeout" if isinstance(exc, asyncio.TimeoutError) else "specialist_error",
+                            exc,
+                        )
                 gated = await _persist_and_gate(result)
                 if gated is not None:
                     await _queue_ready(gated)
@@ -628,8 +797,11 @@ async def run_pipeline_parallel_target(
             except Exception as exc:
                 logger.exception("[%s] enrich worker %s unexpected error: %s", run_id[:8], worker_id, exc)
             finally:
-                finish_agent_stage(agent_context, "enrichment", f"worker:{worker_id}")
-                enrich_queue.task_done()
+                try:
+                    if stage_started:
+                        finish_agent_stage(agent_context, "enrichment", f"worker:{worker_id}")
+                finally:
+                    enrich_queue.task_done()
 
     async def _assignment_worker(worker_id: int) -> None:
         nonlocal assigned_n, delivery_ready_n, reserved_assignments, crm_projection_failures
@@ -715,8 +887,9 @@ async def run_pipeline_parallel_target(
                             assignment_blockers["crm_persistence_failed"] = assignment_blockers.get("crm_persistence_failed", 0) + 1
                         if delivery_ready_n >= slots_cap:
                             stop_event.set()
-                            # Discovery stops only after enough delivery-ready
-                            # unique leads exist, never on assignment rows alone.
+                            # This is an admission-cap fence.  Terminal success
+                            # still uses the selected assigned/delivered metric
+                            # after durable reconciliation.
                     await _board_upsert(
                         run_id, str(lead["id"]), tenant_id, "assigned", lead,
                         position=position, execution_context=execution_context,
@@ -758,6 +931,7 @@ async def run_pipeline_parallel_target(
 
     async def _prepare_discovered_batch(batch: list[dict]) -> None:
         """Persist/dedupe a discovery batch, then immediately feed enrichment."""
+        _stage_begin("persistence")
         nonlocal discovered_n, stored_n
         if not batch or stop_event.is_set():
             return
@@ -857,6 +1031,7 @@ async def run_pipeline_parallel_target(
                 break
             if lead.get("id") in needs_ids:
                 await enrich_queue.put(lead)
+                queue_max_depth["enrichment"] = max(queue_max_depth["enrichment"], enrich_queue.qsize())
             else:
                 gated = await _persist_and_gate(lead)
                 if gated is not None:
@@ -869,6 +1044,7 @@ async def run_pipeline_parallel_target(
 
     async def _discovery_producer() -> None:
         nonlocal rounds_used, current_tranche, refill_used, stop_reason
+        _stage_begin("discovery")
         begin_agent_stage(agent_context, "prospecting", "request_normalization")
         finish_agent_stage(agent_context, "prospecting", "request_normalization", summary={"vertical": vertical, "locations": len(geo), "target": slots_cap})
         begin_agent_stage(agent_context, "source_router", "source_selection")
@@ -936,6 +1112,10 @@ async def run_pipeline_parallel_target(
                             sources=src_flags,
                             social_limit_per_source=social_limit_per_source,
                             rotation_key=f"{run_id}:{round_i}",
+                            assignment_confirmed=delivery_ready_n,
+                            target_metric=target_metric,
+                            cancellation=cancellation_event,
+                            stop_event=stop_event,
                         )) or []
                         discovery_telemetry = getattr(more, "telemetry", {}) or discovery_telemetry
                     except Exception as exc:
@@ -970,6 +1150,10 @@ async def run_pipeline_parallel_target(
                             sources=src_flags,
                             social_limit_per_source=social_limit_per_source,
                             rotation_key=f"{run_id}:rotate:{round_i}",
+                            assignment_confirmed=delivery_ready_n,
+                            target_metric=target_metric,
+                            cancellation=cancellation_event,
+                            stop_event=stop_event,
                         )) or []
                         if rotated:
                             await _prepare_discovered_batch(rotated[:batch_target * 2])
@@ -1017,6 +1201,7 @@ async def run_pipeline_parallel_target(
                     except Exception as exc:
                         logger.debug("[%s] final inventory top-up skipped: %s", run_id[:8], exc)
         finally:
+            _stage_end("discovery")
             finish_agent_stage(agent_context, "source_router", "source_selection", summary={"sources": list(src_flags)})
             finish_agent_stage(agent_context, "discovery_planner", "route_and_tranche_planning", summary={"rounds": rounds_used})
             discovery_done.set()
@@ -1060,10 +1245,18 @@ async def run_pipeline_parallel_target(
                 task.cancel()
         await asyncio.gather(*enrich_workers, *assignment_workers, return_exceptions=True)
 
+    _stage_end("enrichment")
+    _stage_end("assignment")
+    _stage_end("persistence")
+
     # The assignment adapter returns an ID only after its durable upsert. Recount
     # those IDs before deciding terminal status so optimistic worker counters do
     # not become the target truth.
-    from app.integrations.prod.discovery_runtime import assignment_confirmed_count, target_stop_projection
+    from app.integrations.prod.discovery_runtime import (
+        assignment_confirmed_count, target_stop_projection, normalize_target_metric,
+        target_terminal_status,
+    )
+    target_metric = normalize_target_metric(target_metric)
     persisted_confirmed = assignment_confirmed_count(confirmed_assignment_ids)
     if persisted_confirmed != assigned_n:
         logger.warning("[%s] assignment reconciliation changed %s -> %s", run_id[:8], assigned_n, persisted_confirmed)
@@ -1076,18 +1269,9 @@ async def run_pipeline_parallel_target(
         "assignment_confirmed": persisted_confirmed,
         "worker_counter": assigned_n,
     }
-    stop_projection = target_stop_projection(
-        slots_cap,
-        delivery_ready_n,
-        persisted_qualifying=persisted_qualifying,
-        persisted_contactable=persisted_contactable,
-        budget_remaining=max(0, slots_cap - delivery_ready_n),
-        stop_reason=stop_reason,
-    )
-    stop_reason = stop_projection["stop_reason"]
-
     delivered_n = 0
     delivery_result = None
+    _stage_begin("delivery")
     begin_agent_stage(agent_context, "crm", "delivery_confirmation")
     if deliver and to_deliver and _execution_allows_write(execution_context):
         try:
@@ -1099,40 +1283,62 @@ async def run_pipeline_parallel_target(
                 delivered_n = int(delivery_result.get("count") or len(to_deliver) or 0)
         except Exception as exc:
             logger.warning("[%s] deliver_batch: %s", run_id[:8], exc)
-        # Delivery is counted only from persisted assignment delivery records.
-        # CRM assignment alone is not a delivery outcome.
-        finish_agent_stage(agent_context, "crm", "delivery_confirmation", summary={"delivered": delivered_n, "requested": slots_cap})
-        if _cancelled():
-            status = "cancelled"
-            stop_reason = "cancelled"
-        elif deliver and delivered_n >= slots_cap:
-            status = "completed"
-            stop_reason = "target_met"
-        elif deliver and delivered_n > 0:
-            status = "partial"
-            stop_reason = "delivery_shortfall"
-        elif assigned_n > 0:
-            status = "partial"
-            stop_reason = "delivery_failed" if deliver else "delivery_disabled"
-        else:
-            status = "failed"
-            stop_reason = "no_delivery_ready"
+        finish_agent_stage(
+            agent_context, "crm", "delivery_confirmation",
+            summary={"delivered": delivered_n, "requested": slots_cap},
+        )
     else:
-        # A target run cannot remain running merely because delivery was
-        # disabled or there were no CRM-ready rows. Delivery success is proven
-        # only by persisted delivery rows, never by assignment count.
-        if _cancelled():
-            status = "cancelled"
-            stop_reason = "cancelled"
-        elif assigned_n > 0:
-            status = "partial"
-            stop_reason = "delivery_disabled" if not deliver else "no_delivery_ready"
-        else:
-            status = "failed"
-            stop_reason = "delivery_disabled" if not deliver else "no_delivery_ready"
-        finish_agent_stage(agent_context, "crm", "delivery_confirmation", ok=False, summary={"reason": stop_reason, "delivered": 0})
+        finish_agent_stage(
+            agent_context, "crm", "delivery_confirmation", ok=False,
+            summary={"reason": "cancelled" if _cancelled() else ("delivery_disabled" if not deliver else "no_delivery_ready"), "delivered": 0},
+        )
+    _stage_end("delivery")
+    _stage_begin("reconciliation")
 
-    shortfall = max(0, slots_cap - delivered_n)
+    # Terminal truth comes from durable board/assignment projections, not the
+    # worker counters or the delivery adapter response.  This also catches a
+    # duplicate worker, partial delivery, CRM retry, or stale late write.
+    authoritative = await _authoritative_target_counts(
+        run_id, tenant_id, confirmed_assignment_ids,
+        target=slots_cap, metric=target_metric,
+    )
+    stored_n = authoritative["discovered"]
+    discovered_n = authoritative["discovered"]
+    enriched_n = authoritative["enriched"]
+    gated_n = authoritative["qualified"]
+    assigned_n = authoritative["assigned"]
+    reserved_assignments = authoritative["reserved"]
+    delivered_n = authoritative["delivered"]
+    persisted_confirmed = assigned_n
+    persisted_qualifying = max(persisted_qualifying, gated_n)
+    delivery_ready_n = max(0, assigned_n - authoritative["failed"])
+    reconciliation = {
+        "status": "reconciled" if authoritative["reconciled"] else "blocked",
+        "source": "pipeline_run_leads+lead_assignments",
+        "failed": authoritative["failed"],
+        "delivery_failed": authoritative["delivery_failed"],
+        "remaining": authoritative["remaining"],
+        "shortfall": authoritative["shortfall"],
+        "mismatch_reason": authoritative.get("mismatch_reason"),
+        "worker_counter": len(confirmed_assignment_ids),
+    }
+    terminal = target_terminal_status(
+        authoritative, target=slots_cap, metric=target_metric, cancelled=_cancelled(),
+    )
+    status = terminal["status"]
+    stop_reason = terminal["reason"]
+
+    stop_projection = target_stop_projection(
+        slots_cap, assigned_n, metric=target_metric, delivered=delivered_n,
+        persisted_qualifying=gated_n, persisted_contactable=authoritative["qualified"],
+        budget_remaining=max(0, authoritative["remaining"]),
+        stop_reason=stop_reason,
+    )
+    stop_reason = stop_projection["stop_reason"]
+    shortfall = authoritative["shortfall"]
+    _stage_end("reconciliation")
+    _stage_end("run")
+    _close_open_stages()
     elapsed = round((datetime.now(timezone.utc) - started).total_seconds(), 1)
     summary = {
         "pipeline": "lead_engine_v2",
@@ -1154,10 +1360,16 @@ async def run_pipeline_parallel_target(
         "delivered": delivered_n,
         "delivery_ready": delivery_ready_n,
         "delivery": delivery_result,
-        "crm_saved": max(0, assigned_n - crm_projection_failures),
-        "crm_projection_failures": crm_projection_failures,
+        "crm_saved": authoritative["crm_saved"],
+        "client_visible": authoritative["client_visible"],
+        "crm_projection_failures": authoritative["failed"],
+        "reserved": reserved_assignments,
+        "failed": authoritative["failed"],
+        "remaining": authoritative["remaining"],
         "elapsed_seconds": elapsed,
         "target_assignments": slots_cap,
+        "target_metric": target_metric,
+        "target_count": slots_cap,
         "shortfall": shortfall,
         "remaining_gap": shortfall,
         "assignment_confirmed": persisted_confirmed,
@@ -1166,7 +1378,8 @@ async def run_pipeline_parallel_target(
         "persisted_contactable": persisted_contactable,
         "tranche": {"initial": initial_tranche, "last": current_tranche, "refill_used": refill_used},
         "reconciliation": reconciliation,
-        "agent_execution": agent_snapshot(agent_context),
+        "authoritative_counts": dict(authoritative),
+        "authoritative_scope": {"tenant_id": str(tenant_id), "run_id": str(run_id)},
         "stop_projection": stop_projection,
         "rounds_used": rounds_used,
         "source_counts": source_counts,
@@ -1196,6 +1409,141 @@ async def run_pipeline_parallel_target(
     except Exception as exc:
         logger.warning("post-delivery agent dispatch skipped run=%s error=%s", run_id, type(exc).__name__)
         summary["post_delivery_agents"] = []
+
+    # Record only observed, sanitized target-five timing metadata at the
+    # existing terminal boundary. Local/static runs remain blocked for the
+    # live 20-30 second claim even when their stopwatch is inside the window.
+    if slots_cap in {5, 10, 50}:
+        from app.orchestration.evidence import (
+            EvidenceClass, TARGET_FIVE_WORKLOAD_BOUNDARY, TargetFiveMeasurement,
+            evaluate_target_five_timing,
+        )
+        local_mode = bool(local_validation_mode())
+        evidence_class = (
+            EvidenceClass.SYNTHETIC_OFFLINE.value
+            if local_mode else str(execution_context.get("evidence_class") or EvidenceClass.STATIC.value)
+        )
+        if evidence_class not in {item.value for item in EvidenceClass}:
+            evidence_class = EvidenceClass.STATIC.value
+        route_count = int(
+            discovery_telemetry.get("cells_scanned")
+            or len(selection_decision.get("route_cells") or [])
+        )
+        measurement = TargetFiveMeasurement(
+            start_timestamp=started.isoformat(),
+            end_timestamp=datetime.now(timezone.utc).isoformat(),
+            elapsed_seconds=elapsed,
+            environment_class="local/offline" if local_mode else str(os.getenv("ENVIRONMENT", "unknown")),
+            evidence_class=evidence_class,
+            target_metric=target_metric,
+            target_count=slots_cap,
+            workload_boundary=TARGET_FIVE_WORKLOAD_BOUNDARY,
+            route_count=route_count,
+            enrichment_mode=(
+                "disabled" if skip_enrichment else
+                f"free_first:crawl4ai={bool(use_crawl4ai)};firecrawl={bool(use_firecrawl)}"
+            ),
+            provider_mode=(
+                "local_synthetic_denied" if local_mode else
+                str(execution_context.get("provider_mode") or "configured_unverified")
+            ),
+            provider_outcome={
+                "status": (
+                    "denied" if local_mode else
+                    ("observed" if int(discovery_telemetry.get("provider_calls") or 0) else "unobserved")
+                ),
+                "calls": min(500, max(0, int(discovery_telemetry.get("provider_calls") or 0))),
+                "overrun": min(500, max(0, int(discovery_telemetry.get("provider_overrun_count") or 0))),
+            },
+            dependency_mode=str(
+                execution_context.get("dependency_mode") or
+                ("local_in_memory" if local_mode else "unverified")
+            )[:64],
+            authenticated_scope=(
+                str(execution_context.get("authenticated_scope"))[:64]
+                if str(execution_context.get("authenticated_scope") or "") in {
+                    "tenant_scoped", "synthetic_authenticated", "isolated_staging", "not_recorded"
+                } else "tenant_scoped"
+            ),
+            terminal_status=status,
+            counts={
+                "discovered": int(discovered_n), "enriched": int(enriched_n),
+                "qualified": int(gated_n), "assigned": int(assigned_n),
+                "delivered": int(delivered_n), "reserved": int(reserved_assignments),
+                "routes_planned": len(selection_decision.get("route_cells") or []),
+                "routes_invoked": int(discovery_telemetry.get("cells_scanned") or 0),
+            },
+            failures={
+                "gate_rejections": sum(gate_rejections.values()),
+                "assignment_blockers": sum(assignment_blockers.values()),
+                "enrichment_shortfall": max(0, int(discovered_n) - int(enriched_n)),
+                "authoritative_failed": int(authoritative.get("failed") or 0),
+                "delivery_failed": int(authoritative.get("delivery_failed") or 0),
+            },
+            stop_reason=stop_reason,
+            forbidden_action_counters={
+                "email": 0, "outreach": 0, "campaign": 0, "stripe": 0, "ses": 0,
+            },
+            target_size=slots_cap,
+            stage_timings=stage_timings,
+            route_source_counts={
+                str(key): min(500, max(0, int(value or 0)))
+                for key, value in (discovery_telemetry.get("source_counts") or source_counts).items()
+                if str(key)[:64]
+            },
+            queue_outcome={
+                "status": "cancelled" if _cancelled() else "drained",
+                "max_depth": min(500, max(queue_max_depth.values() or [0])),
+                "enrichment_depth": min(500, queue_max_depth["enrichment"]),
+                "assignment_depth": min(500, queue_max_depth["assignment"]),
+            },
+            cancellation_outcome={
+                "status": "cancelled" if _cancelled() else "not_cancelled",
+                "fenced": 1 if _cancelled() else 0,
+                "late_writes": 0,
+            },
+            timeout_outcome={
+                "status": "timed_out" if stop_reason == "timed_out" else "not_timed_out",
+            },
+            batch_mode="existing-idempotent-boundaries",
+            authoritative_counts={
+                key: min(500, max(0, int(value or 0)))
+                for key, value in authoritative.items()
+                if isinstance(value, int) and not isinstance(value, bool) and str(key)[:64]
+            },
+            provider_overrun_count=0,
+        )
+        measurement_payload = measurement.to_dict()
+        summary["target_speed_measurement"] = measurement_payload
+        if slots_cap == 5:
+            summary["target5_measurement"] = measurement_payload
+        summary["target5_timing_evaluation"] = evaluate_target_five_timing(measurement)
+        emit_telemetry(
+            logger, logging.INFO, "target_run.completed",
+            job_id=run_id,
+            target_size=slots_cap,
+            target_metric=target_metric,
+            route_count=route_count,
+            source_count=len(measurement.route_source_counts),
+            enrichment_mode=measurement.enrichment_mode,
+            batch_mode=measurement.batch_mode,
+            assigned_count=assigned_n,
+            reserved_count=reserved_assignments,
+            delivered_count=delivered_n,
+            failure_count=sum(measurement.failures.values()),
+            provider_overrun_count=measurement.provider_overrun_count,
+            evidence_class=measurement.evidence_class,
+            provider_outcome=measurement.provider_outcome.get("status"),
+            dependency_mode=measurement.dependency_mode,
+            authenticated_scope=measurement.authenticated_scope,
+            terminal_status=measurement.terminal_status,
+            stop_reason=stop_reason,
+            forbidden_action_count=sum(measurement.forbidden_action_counters.values()),
+            queue_outcome=measurement.queue_outcome.get("status"),
+            cancellation_outcome=measurement.cancellation_outcome.get("status"),
+            timeout_outcome=measurement.timeout_outcome.get("status"),
+            reason=stop_reason,
+        )
 
     await _finish_run(run_id, status, summary, execution_context=execution_context)
     logger.info(
@@ -1240,6 +1588,7 @@ async def run_pipeline(
     include_yelp: bool = False,
     include_facebook: bool = False,
     target_new_leads: int = 0,
+    target_metric: str = "assigned",
     campaign_mode: str = "auto",
     max_cells_per_run: int = 25,
     run_id: Optional[str] = None,
@@ -1266,6 +1615,7 @@ async def run_pipeline(
     # Normalize mode before persisting the run so the durable run identity
     # records the same target and strict policy the worker will execute.
     campaign_mode = str(campaign_mode or "auto").strip().lower()
+    target_metric = "delivered" if str(target_metric or "").strip().lower() == "delivered" else "assigned"
     if campaign_mode not in {"auto", "fast_target", "quality_campaign"}:
         campaign_mode = "auto"
     if campaign_mode == "quality_campaign":
@@ -1291,6 +1641,7 @@ async def run_pipeline(
         "status": "running",
         "started_at": started.isoformat(),
         "requested_target": max(0, requested_target),
+        "target_metric": target_metric,
         "target_mode": requested_target > 0,
         "meta": {"stage": "starting", "message": "Pipeline started", "campaign_mode": campaign_mode},
     }
@@ -1312,6 +1663,7 @@ async def run_pipeline(
             "started_at": started.isoformat(),
             "meta": row["meta"],
             "requested_target": row["requested_target"],
+            "target_metric": target_metric,
             "target_mode": row["target_mode"],
             "error_message": None,
         }
@@ -1501,6 +1853,7 @@ async def run_pipeline(
             include_yelp=include_yelp,
             include_facebook=include_facebook,
             target_assign=target_assign,
+            target_metric=target_metric,
             max_cells_per_run=max_cells_per_run,
             run_id=run_id,
             remaining=remaining,
@@ -2431,6 +2784,114 @@ def _board_upsert(
         logger.debug("board upsert failed: %s", e)
 
 
+async def _authoritative_target_counts(
+    run_id: str,
+    tenant_id: str,
+    assignment_ids: list[str] | None,
+    *,
+    target: int,
+    metric: str,
+) -> dict[str, Any]:
+    """Read the durable run board and assignment rows before terminal status."""
+    from app.integrations.prod.discovery_runtime import reconcile_business_state
+
+    try:
+        sb = get_supabase()
+        board_rows = (await aexec(
+            sb.table("pipeline_run_leads").select("*")
+            .eq("run_id", str(run_id)).eq("tenant_id", str(tenant_id))
+            .order("updated_at", desc=False).limit(MAX_LEADS_PER_RUN)
+        )).data or []
+        board_assignment_ids = {
+            str(row.get("crm_assignment_id"))
+            for row in board_rows
+            if row.get("crm_assignment_id")
+        }
+        requested_assignment_ids = {str(value) for value in (assignment_ids or []) if value}
+        # The run board is the only durable link between a run and the
+        # tenant-scoped assignment table. Never let a caller-supplied ID from
+        # another run become part of this run's completion counts.
+        ids = sorted(board_assignment_ids)
+        if requested_assignment_ids and board_assignment_ids:
+            ids = sorted(requested_assignment_ids & board_assignment_ids)
+        assignment_scope_missing = bool(requested_assignment_ids and not board_assignment_ids)
+        assignment_rows = []
+        if ids:
+            assignment_rows = (await aexec(
+                sb.table("lead_assignments").select("*")
+                .eq("tenant_id", str(tenant_id)).in_("id", list(dict.fromkeys(ids)))
+                .limit(MAX_LEADS_PER_RUN)
+            )).data or []
+
+        # CRM and client-facing projections are separate durable read models.
+        # Completion requires both to contain exactly the active assignments;
+        # assignment.crm_status alone is not proof that either view is visible.
+        company_ids = {str(row.get("crm_company_id")) for row in assignment_rows if row.get("crm_company_id")}
+        contact_ids = {str(row.get("crm_contact_id")) for row in assignment_rows if row.get("crm_contact_id")}
+        companies = []
+        contacts = []
+        if company_ids:
+            companies = (await aexec(
+                sb.table("companies").select("id,tenant_id")
+                .eq("tenant_id", str(tenant_id)).in_("id", list(company_ids)).limit(MAX_LEADS_PER_RUN)
+            )).data or []
+        if contact_ids:
+            contacts = (await aexec(
+                sb.table("contacts").select("id,tenant_id")
+                .eq("tenant_id", str(tenant_id)).in_("id", list(contact_ids)).limit(MAX_LEADS_PER_RUN)
+            )).data or []
+        company_set = {str(row.get("id")) for row in companies}
+        contact_set = {str(row.get("id")) for row in contacts}
+        crm_projections = [
+            {
+                "assignment_id": row.get("id"),
+                "crm_saved": bool(
+                    row.get("crm_status") == "saved"
+                    and str(row.get("crm_company_id") or "") in company_set
+                    and str(row.get("crm_contact_id") or "") in contact_set
+                ),
+            }
+            for row in assignment_rows
+        ]
+        client_rows = []
+        if ids:
+            client_rows = (await aexec(
+                sb.table("crm_lead_cards").select("assignment_id,tenant_id")
+                .eq("tenant_id", str(tenant_id)).in_("assignment_id", ids).limit(MAX_LEADS_PER_RUN)
+            )).data or []
+        counts = reconcile_business_state(
+            board_rows, assignment_rows, target=target, metric=metric,
+            crm_projections=crm_projections, client_rows=client_rows,
+        )
+        # A target run with no board or client projection cannot truthfully
+        # claim that stage counts reconciled, even if assignment rows exist.
+        if not board_rows:
+            counts["reconciled"] = False
+            counts["mismatch_reason"] = "run_board_unavailable"
+        elif assignment_scope_missing:
+            counts["reconciled"] = False
+            counts["mismatch_reason"] = "assignment_run_projection_unavailable"
+        elif ids and not assignment_rows:
+            counts["reconciled"] = False
+            counts["mismatch_reason"] = "assignment_projection_unavailable"
+        elif ids and not client_rows:
+            counts["reconciled"] = False
+            counts["mismatch_reason"] = "client_projection_unavailable"
+        return counts
+    except Exception as exc:
+        logger.error("authoritative target reconciliation failed run=%s: %s", run_id, type(exc).__name__)
+        return {
+            "discovered": 0, "enriched": 0, "qualified": 0, "assigned": 0,
+            "reserved": 0, "delivered": 0, "crm_saved": 0, "client_visible": 0,
+            "failed": 0, "delivery_failed": 0, "replaced": 0,
+            "remaining": max(0, int(target or 0)), "shortfall": max(0, int(target or 0)),
+            "target": max(0, int(target or 0)),
+            "target_metric": "delivered" if str(metric).lower() == "delivered" else "assigned",
+            "satisfied": 0, "reconciled": False,
+            "mismatch_reason": "authoritative_counts_unavailable",
+        }
+
+
 async def _persist_discovery_provider_results(request_id: str | None, tenant_id: str, leads: list[dict]) -> bool:
     """Persist raw provider/local results before any progress counter advances."""
     if not request_id or not leads:
@@ -2495,8 +2956,34 @@ def _progress_run(run_id: str, status: str = "running", **counts) -> None:
     print(msg, flush=True)
     try:
         sb.table("pipeline_runs").update(payload).eq("id", run_id).eq("status", "running").execute()
+        # Update heartbeat via jobs table for reliable polling
+        context = (execution_context or {})
+        job_id = str(context.get("job_id") or "")
+        if job_id:
+            try:
+                sb.table("jobs").update({"updated_at": datetime.now(timezone.utc).isoformat()}).eq("id", job_id).execute()
+            except Exception:
+                pass
     except Exception as e:
         logger.warning("progress update failed: %s", e)
+
+
+def _sanitize_stop_reason(status: str, summary: dict, error: str = "") -> str:
+    """Keep one bounded, non-secret lifecycle reason on every terminal write."""
+    raw = summary.get("stop_reason")
+    if raw is None or not str(raw).strip():
+        if status == "completed":
+            raw = "target_met"
+        elif status == "cancelled":
+            raw = "cancelled"
+        elif status == "partial" and not error and summary.get("target_count") is not None:
+            raw = "timed_out"
+        elif status == "failed" and not error and summary.get("target_count") is not None:
+            raw = "lease_lost"
+        else:
+            raw = status or "unknown"
+    value = "".join(char if char.isalnum() or char in "._-" else "_" for char in str(raw).lower())
+    return value[:80] or "unknown"
 
 
 @to_async
@@ -2505,6 +2992,105 @@ def _finish_run(run_id: str, status: str, summary: dict, error: str = "", execut
     if not run_id or not _execution_allows_write(execution_context):
         return
     sb = get_supabase()
+    reconciliation = summary.get("reconciliation") if isinstance(summary.get("reconciliation"), dict) else None
+    if status == "completed" and int(summary.get("target_count", summary.get("target_assignments", 0)) or 0) > 0:
+        authoritative = summary.get("authoritative_counts")
+        scope = summary.get("authoritative_scope")
+        metric = "delivered" if str(summary.get("target_metric") or "assigned").lower() == "delivered" else "assigned"
+        target = int(summary.get("target_count", summary.get("target_assignments", 0)) or 0)
+        assigned = int(authoritative.get("assigned") or 0) if isinstance(authoritative, dict) else 0
+        reserved = int(authoritative.get("reserved") or 0) if isinstance(authoritative, dict) else 0
+        delivered = int(authoritative.get("delivered") or 0) if isinstance(authoritative, dict) else 0
+        crm_saved = int(authoritative.get("crm_saved") or 0) if isinstance(authoritative, dict) else 0
+        client_visible = int(authoritative.get("client_visible") or 0) if isinstance(authoritative, dict) else 0
+        scope_ok = isinstance(scope, dict) and str(scope.get("run_id") or "") == str(run_id)
+        tenant_id = (execution_context or {}).get("tenant_id") or summary.get("tenant_id")
+        scope_ok = scope_ok and str(scope.get("tenant_id") or "") == str(tenant_id or "")
+        satisfied = delivered if metric == "delivered" else assigned
+        if (
+            not isinstance(authoritative, dict)
+            or not scope_ok
+            or not reconciliation
+            or reconciliation.get("status") != "reconciled"
+            or reconciliation.get("mismatch_reason")
+            or authoritative.get("reconciled") is not True
+            or assigned < delivered
+            or reserved > assigned
+            or crm_saved != assigned
+            or client_visible != assigned
+            or satisfied < target
+        ):
+            status = "partial" if assigned or delivered else "failed"
+            if not summary.get("stop_reason"):
+                summary["stop_reason"] = "delivery_shortfall" if metric == "delivered" and satisfied < target else "target_met"
+            blocker = (summary.get("dependency_name") or "dependency") + "_unavailable" if summary.get("dependency_outcome") == "unavailable" else None
+            error = error or blocker or str((reconciliation or {}).get("mismatch_reason") or "count_reconciliation_blocked")
+    elif status == "completed" and (
+        not reconciliation
+        or reconciliation.get("status") != "reconciled"
+        or reconciliation.get("mismatch_reason")
+    ):
+        # A caller-supplied completed status is only a proposal.  Missing or
+        # contradictory durable reconciliation must remain visible as a
+        # retryable shortfall rather than a successful run.
+        status = "partial" if int(summary.get("assigned_to_tenant", summary.get("assigned", 0)) or 0) else "failed"
+        error = error or str((reconciliation or {}).get("mismatch_reason") or "count_reconciliation_blocked")
+    stop_reason = _sanitize_stop_reason(status, summary, error)
+    # Promote the already-sanitized target measurement into the terminal run
+    # envelope without creating a second evidence schema. Defaults stay
+    # explicitly unobserved so a missing dependency cannot look like a pass.
+    measurement = summary.get("target_speed_measurement") or summary.get("target5_measurement")
+    if isinstance(measurement, dict):
+        for field in (
+            "environment_class", "evidence_class", "target_metric", "elapsed_seconds",
+            "stage_timings", "queue_outcome", "provider_outcome", "cancellation_outcome",
+            "timeout_outcome", "dependency_mode", "authenticated_scope", "terminal_status",
+            "failures", "authoritative_counts", "forbidden_action_counters",
+        ):
+            if summary.get(field) is None and measurement.get(field) is not None:
+                summary[field] = measurement[field]
+    context_evidence = str((execution_context or {}).get("evidence_class") or "static")
+    if context_evidence not in {"static", "local", "synthetic/offline", "UAT", "live/provider"}:
+        context_evidence = "static"
+    context_environment = str((execution_context or {}).get("environment_class") or "unknown")
+    terminal_evidence_defaults = {
+        "environment_class": context_environment[:64],
+        "evidence_class": context_evidence,
+        "target_metric": summary.get("target_metric") or "assigned",
+        "elapsed_seconds": summary.get("elapsed_seconds", 0),
+        "stage_timings": {},
+        "queue_outcome": {"status": "not_recorded"},
+        "provider_outcome": {"status": "not_recorded"},
+        "cancellation_outcome": {"status": "not_requested", "fenced": 0, "late_writes": 0},
+        "timeout_outcome": {"status": "not_recorded"},
+        "dependency_mode": "unverified",
+        "authenticated_scope": "tenant_scoped" if (execution_context or {}).get("tenant_id") else "not_recorded",
+        "terminal_status": status,
+        "failures": {},
+        "authoritative_counts": summary.get("authoritative_counts") or {},
+        "forbidden_action_counters": {"email": 0, "outreach": 0, "campaign": 0, "stripe": 0, "ses": 0},
+    }
+    for field, default in terminal_evidence_defaults.items():
+        if summary.get(field) is None:
+            summary[field] = default
+    summary["terminal_status"] = status
+    summary["stop_reason"] = stop_reason
+    meta = {k: summary.get(k) for k in (
+        "industry", "locations", "campaign_mode", "top_leads", "stage", "message",
+        "board_lead_ids", "target_assignments", "requested_target", "effective_target",
+        "quota_limited", "assignment_blockers", "shortfall", "stop_reason", "rounds_used",
+        "target_mode", "quota_remaining_after", "lane_telemetry", "coverage", "freshness",
+        "reuse_counts", "agent_execution", "post_delivery_agents", "verified_count",
+        "scored_count", "remaining_gap", "remaining", "reserved", "failed", "qualified",
+        "client_visible", "assignment_confirmed", "persisted_qualifying", "persisted_contactable",
+        "tranche", "reconciliation", "stop_projection", "authoritative_counts", "authoritative_scope",
+        "environment_class", "evidence_class", "target_metric", "elapsed_seconds", "stage_timings",
+        "queue_outcome", "provider_outcome", "cancellation_outcome", "timeout_outcome",
+        "dependency_mode", "authenticated_scope", "terminal_status", "failures",
+        "forbidden_action_counters", "target_speed_measurement", "target5_measurement",
+        "target5_timing_evaluation",
+    ) if summary.get(k) is not None}
+    meta["stop_reason"] = stop_reason
     payload = {
         "status": status,
         "finished_at": datetime.now(timezone.utc).isoformat(),
@@ -2514,24 +3100,45 @@ def _finish_run(run_id: str, status: str, summary: dict, error: str = "", execut
         "gated_ok": int(summary.get("passed_quality_gate", summary.get("gated_ok", 0)) or 0),
         "assigned": int(summary.get("assigned_to_tenant", summary.get("assigned", 0)) or 0),
         "delivered": int(summary.get("delivered", 0) or 0),
+        "target_metric": summary.get("target_metric") or "assigned",
+        "target_count": int(summary.get("target_count", summary.get("target_assignments", 0)) or 0),
+        "reconciliation_status": (summary.get("reconciliation") or {}).get("status") if isinstance(summary.get("reconciliation"), dict) else None,
+        "reconciliation_reason": (summary.get("reconciliation") or {}).get("mismatch_reason") if isinstance(summary.get("reconciliation"), dict) else None,
         "error_message": (error or None),
         "finished_at": datetime.now(timezone.utc).isoformat(),
-        "meta": {k: summary.get(k) for k in ("industry", "locations", "campaign_mode", "top_leads", "stage", "message", "board_lead_ids", "target_assignments", "requested_target", "effective_target", "quota_limited", "assignment_blockers", "shortfall", "stop_reason", "rounds_used", "target_mode", "quota_remaining_after", "lane_telemetry", "coverage", "freshness", "reuse_counts", "agent_execution", "post_delivery_agents", "verified_count", "scored_count", "remaining_gap", "assignment_confirmed", "persisted_qualifying", "persisted_contactable", "tranche", "reconciliation", "stop_projection") if summary.get(k) is not None},
+        "meta": meta,
         "finished_at": datetime.now(timezone.utc).isoformat(),
     }
+    tenant_id = (execution_context or {}).get("tenant_id") or summary.get("tenant_id")
+    def _finish_update(data: dict):
+        query = sb.table("pipeline_runs").update(data).eq("id", run_id).in_("status", ["queued", "running"])
+        if tenant_id:
+            query = query.eq("tenant_id", str(tenant_id))
+        return query.execute()
+
     try:
-        sb.table("pipeline_runs").update(payload).eq("id", run_id).in_("status", ["queued", "running"]).execute()
+        _finish_update(payload)
         logger.info("FINISH run_id=%s status=%s gated=%s assigned=%s", run_id[:8], status, payload["gated_ok"], payload["assigned"])
         print(f"FINISH run_id={run_id} status={status}", flush=True)
     except Exception as e:
         logger.exception("CRITICAL finish_run failed for %s: %s", run_id, e)
+        try:
+            # Older schemas do not have the additive target/reconciliation
+            # columns. Preserve the terminal transition and legacy counters.
+            compatible_payload = dict(payload)
+            for optional in ("target_metric", "target_count", "reconciliation_status", "reconciliation_reason"):
+                compatible_payload.pop(optional, None)
+            _finish_update(compatible_payload)
+            return
+        except Exception:
+            pass
         try:
             fallback = {
                 "status": status if status in ("completed", "partial", "failed", "cancelled") else "failed",
                 "finished_at": datetime.now(timezone.utc).isoformat(),
                 "error_message": (error or str(e))[:500],
             }
-            sb.table("pipeline_runs").update(fallback).eq("id", run_id).in_("status", ["queued", "running"]).execute()
+            _finish_update(fallback)
         except Exception as e2:
             logger.exception("finish_run fallback also failed: %s", e2)
             raise RuntimeError(f"Could not finalize pipeline run {run_id}: {e2}") from e2

@@ -1,0 +1,46 @@
+{
+  "task": "test-environment-production-validation.6",
+  "environment": "disposable-local-test",
+  "target": "http://localhost:3000",
+  "evidence_scope": "sanitized Playwright results only",
+  "playwright_config": "lead-crm-portal/e2e/playwright.config.ts",
+  "selected_matrix": {
+    "selector": "authenticated synthetic|admin prospecting null-state|synthetic revenue|shared frontend contracts",
+    "client_state": {"status": "PASS", "selected": 11, "passed": 11, "failed": 0, "skipped": 0},
+    "admin_state": {"status": "PASS", "selected": 11, "passed": 11, "failed": 0, "skipped": 0},
+    "focused_repair_selectors": {"status": "PASS", "selected": 3, "passed": 3, "failed": 0, "skipped": 0, "selector": "shared frontend contracts|portal runtime guards"}
+  },
+  "check_matrix": {
+    "client_target_five_request_status": {"status": "PASS", "evidence": "Synthetic client discovery request/status projection completed in both bounded authenticated role runs."},
+    "admin_target_five_request_status": {"status": "PASS", "evidence": "Synthetic admin pipeline request/status projection completed with the provided admin state; no real request was submitted."},
+    "task_trace": {"status": "PASS", "evidence": "Client and admin GTM task-trace regions rendered the expected synthetic trace."},
+    "discovered_enriched_qualified_assigned_delivered_counts": {"status": "PASS", "evidence": "Selected synthetic terminal/count projections passed, including bounded assigned and delivered values of five."},
+    "reserved_count": {"status": "NOT_TESTED", "evidence": "The selected browser suite exposes no independent reserved-count assertion."},
+    "crm_client_reconciliation": {"status": "NOT_TESTED", "evidence": "The selected browser suite exposes no independent CRM-versus-client count comparison."},
+    "realtime_metadata_refetch": {"status": "PASS", "evidence": "Selected metadata-only invalidation, authoritative refetch, stale revision, reconnect, visibility, and tenant-channel checks passed."},
+    "loading_state": {"status": "PASS", "evidence": "Pending client leads state remained visible until the synthetic response was released."},
+    "empty_state": {"status": "PASS", "evidence": "Synthetic empty/null prospecting and leads states rendered safely."},
+    "error_state": {"status": "PASS", "evidence": "Synthetic dependency and unauthorized states rendered actionable redacted recovery controls."},
+    "terminal_state": {"status": "PASS", "evidence": "Synthetic terminal operation and queue evidence rendered with bounded retry/status data."},
+    "admin_prospecting": {"status": "PASS", "evidence": "Loading, null, missing, error, and valid states passed at desktop and mobile viewports."},
+    "cross_tenant_safety": {"status": "PASS", "evidence": "Synthetic tenant-channel isolation, scope boundaries, cache clearing, and foreign-tenant redaction checks passed."},
+    "focused_task8_browser_repairs": {"status": "PASS", "evidence": "Shared frontend contract and portal runtime guard selectors passed; login-page dashboard prefetch remains absent and unauthenticated guards redirect correctly."}
+  },
+  "safety": {
+    "storage_states": "The same temporary client/admin state paths were passed as opaque Playwright inputs; contents were not opened, printed, parsed, or copied.",
+    "states_retained_for_task9": true,
+    "real_pipeline_work": false,
+    "provider_calls": false,
+    "forbidden_actions": 0,
+    "remote_sql_or_migrations": false,
+    "reset_or_cleanup_mutation": false,
+    "cap_violation": false,
+    "credentials_or_env_read": false,
+    "overall_selected_scope": "PASS"
+  },
+  "limitations": [
+    "This is browser-local synthetic evidence only and does not prove production, UAT, Supabase/RLS, provider, or realtime-service behavior.",
+    "Reserved-count and independent CRM/client reconciliation were not exposed by the selected suite and remain NOT_TESTED.",
+    "Task 9 owns temporary state cleanup; no cleanup was performed by this task."
+  ]
+}

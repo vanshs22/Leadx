@@ -9,10 +9,20 @@ import { invalidateApiCache } from "./api";
 
 export type CrmRealtimeState = "connecting" | "connected" | "reconnecting" | "offline";
 export const CRM_REALTIME_EVENT = "leadx:crm-change";
-export type CrmChangeDetail = { table?: string; event?: string; tenantId?: string };
+export const PROVIDER_ISOLATED_MODE_LABEL = "provider-isolated (not live)";
+export type CrmChangeDetail = { table?: string; event?: string; tenantId?: string; revision?: number };
+
+const emittedRevisions = new Map<string, number>();
 
 export function emitCrmChange(detail?: CrmChangeDetail, tenantId?: string) {
   if (typeof window === "undefined") return;
+  const resolvedTenant = tenantId || detail?.tenantId || "";
+  const revision = Number(detail?.revision);
+  if (resolvedTenant && Number.isFinite(revision) && revision > 0) {
+    const previous = emittedRevisions.get(resolvedTenant) || 0;
+    if (revision <= previous) return;
+    emittedRevisions.set(resolvedTenant, revision);
+  }
   window.dispatchEvent(new CustomEvent(CRM_REALTIME_EVENT, { detail: { ...(detail || {}), ...(tenantId ? { tenantId } : {}) } }));
 }
 
@@ -27,6 +37,9 @@ type Manager = {
   listeners: Set<() => void>;
   stateListeners: Set<(state: CrmRealtimeState) => void>;
   connecting: boolean;
+  lastRevision: number;
+  pendingRevision: number;
+  pendingDetail?: CrmChangeDetail;
 };
 const managers = new Map<string, Manager>();
 
@@ -38,14 +51,33 @@ function publishState(manager: Manager, state: CrmRealtimeState) {
 
 function scheduleRefresh(manager: Manager, detail?: CrmChangeDetail) {
   if (typeof window === "undefined" || manager.disposed) return;
+  const revision = Number(detail?.revision);
+  if (Number.isFinite(revision) && revision > 0) {
+    if (revision <= manager.lastRevision) return;
+    if (revision >= manager.pendingRevision) {
+      manager.pendingRevision = revision;
+      manager.pendingDetail = detail;
+    }
+  } else if (!manager.pendingDetail) {
+    manager.pendingDetail = detail;
+  }
   if (manager.refreshTimer) window.clearTimeout(manager.refreshTimer);
   manager.refreshTimer = window.setTimeout(() => {
     manager.refreshTimer = undefined;
+    if (manager.disposed) return;
+    const refreshDetail = manager.pendingDetail;
+    manager.pendingDetail = undefined;
+    if (manager.pendingRevision > manager.lastRevision) {
+      manager.lastRevision = manager.pendingRevision;
+      manager.pendingRevision = 0;
+    }
     // A push event invalidates only this tenant's short-lived GET snapshot.
     // Mounted screens then fetch their authoritative data; inflight GET
-    // de-duplication means several widgets still use one request.
+    // de-duplication means several widgets still use one request. Broadcast
+    // payloads never become projection state, so late events cannot overwrite
+    // the newer API result.
     invalidateApiCache(`/crm/${encodeURIComponent(manager.tenantId)}/`, manager.tenantId);
-    emitCrmChange(detail, manager.tenantId);
+    emitCrmChange(refreshDetail, manager.tenantId);
     manager.listeners.forEach((listener) => listener());
   }, 100);
 }
@@ -84,6 +116,7 @@ async function connect(manager: Manager) {
     scheduleRefresh(manager, {
       table: typeof detail.table === "string" ? detail.table : undefined,
       event: typeof detail.event === "string" ? detail.event : undefined,
+      revision: Number.isFinite(Number(detail.revision)) ? Number(detail.revision) : undefined,
     });
   });
 
@@ -117,7 +150,7 @@ async function connect(manager: Manager) {
 function acquireManager(tenantId: string, onChange?: () => void, onState?: (state: CrmRealtimeState) => void) {
   let manager = managers.get(tenantId);
   if (!manager) {
-    manager = { tenantId, channel: null, state: "connecting", retry: 0, disposed: false, listeners: new Set(), stateListeners: new Set(), connecting: false };
+    manager = { tenantId, channel: null, state: "connecting", retry: 0, disposed: false, listeners: new Set(), stateListeners: new Set(), connecting: false, lastRevision: 0, pendingRevision: 0 };
     managers.set(tenantId, manager);
     void connect(manager);
   }
@@ -134,6 +167,7 @@ export function disposeTenant(tenantId: string) {
   manager.listeners.clear();
   manager.stateListeners.clear();
   managers.delete(tenantId);
+  emittedRevisions.delete(tenantId);
   void removeChannel(manager);
 }
 
@@ -147,6 +181,7 @@ function releaseManager(tenantId: string, onChange?: () => void, onState?: (stat
   if (manager.reconnectTimer) window.clearTimeout(manager.reconnectTimer);
   if (manager.refreshTimer) window.clearTimeout(manager.refreshTimer);
   managers.delete(tenantId);
+  emittedRevisions.delete(tenantId);
   void removeChannel(manager);
 }
 

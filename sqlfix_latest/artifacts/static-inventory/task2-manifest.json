@@ -1,0 +1,581 @@
+{
+  "inventory": {
+    "blockers": [],
+    "command_blockers": [],
+    "declared_commands": [
+      {
+        "check_id": "release.consistency",
+        "command": [
+          "python",
+          "scripts/release_audit.py"
+        ],
+        "source_paths": [
+          "scripts/release_audit.py"
+        ]
+      },
+      {
+        "check_id": "reset.fresh_run",
+        "command": [
+          "python",
+          "-m",
+          "pytest",
+          "-q",
+          "tests/test_scoped_reset_contract.py",
+          "tests/test_scoped_work_operation_ledger.py",
+          "tests/test_scoped_work_reconciliation.py",
+          "tests/test_scoped_work_transitions.py",
+          "tests/test_task3_6_fresh_run_admission.py"
+        ],
+        "source_paths": [
+          "tests/test_scoped_reset_contract.py",
+          "tests/test_scoped_work_operation_ledger.py",
+          "tests/test_scoped_work_reconciliation.py",
+          "tests/test_scoped_work_transitions.py",
+          "tests/test_task3_6_fresh_run_admission.py"
+        ]
+      },
+      {
+        "check_id": "agents.execution_paths",
+        "command": [
+          "python",
+          "-m",
+          "pytest",
+          "-q",
+          "tests/test_agent_mission_contracts.py",
+          "tests/test_final_wiring.py"
+        ],
+        "source_paths": [
+          "tests/test_agent_mission_contracts.py",
+          "tests/test_final_wiring.py"
+        ]
+      },
+      {
+        "check_id": "agents.synthetic_execution",
+        "command": [
+          "python",
+          "scripts/synthetic_validation.py"
+        ],
+        "source_paths": [
+          "scripts/synthetic_validation.py"
+        ]
+      },
+      {
+        "check_id": "runtime.worker_state",
+        "command": [
+          "python",
+          "-m",
+          "pytest",
+          "-q",
+          "tests/test_pipeline_run_lifecycle.py",
+          "tests/test_task10_durable_handoff.py"
+        ],
+        "source_paths": [
+          "tests/test_pipeline_run_lifecycle.py",
+          "tests/test_task10_durable_handoff.py"
+        ]
+      },
+      {
+        "check_id": "discovery.quality",
+        "command": [
+          "python",
+          "-m",
+          "pytest",
+          "-q",
+          "tests/test_task3_discovery_runtime.py",
+          "tests/test_contact_quality.py",
+          "tests/test_enrichment_contact_extraction.py"
+        ],
+        "source_paths": [
+          "tests/test_task3_discovery_runtime.py",
+          "tests/test_contact_quality.py",
+          "tests/test_enrichment_contact_extraction.py"
+        ]
+      },
+      {
+        "check_id": "discovery.enrichment.contact",
+        "command": [
+          "python",
+          "-m",
+          "pytest",
+          "-q",
+          "tests/test_task5_discovery_routes.py",
+          "tests/test_task3_discovery_runtime.py",
+          "tests/test_crawler_enrichment.py",
+          "tests/test_enrichment_mesh.py",
+          "tests/test_contact_quality.py"
+        ],
+        "source_paths": [
+          "tests/test_task5_discovery_routes.py",
+          "tests/test_task3_discovery_runtime.py",
+          "tests/test_crawler_enrichment.py",
+          "tests/test_enrichment_mesh.py",
+          "tests/test_contact_quality.py"
+        ]
+      },
+      {
+        "check_id": "qualification.crm.delivery",
+        "command": [
+          "python",
+          "-m",
+          "pytest",
+          "-q",
+          "tests/test_task6_assignment_delivery_reconciliation.py",
+          "tests/test_task7_crm_contracts.py",
+          "tests/test_crm_projection_contract.py",
+          "tests/test_crm_delivery_adapters.py",
+          "tests/test_quality_guarantee.py"
+        ],
+        "source_paths": [
+          "tests/test_task6_assignment_delivery_reconciliation.py",
+          "tests/test_task7_crm_contracts.py",
+          "tests/test_crm_projection_contract.py",
+          "tests/test_crm_delivery_adapters.py",
+          "tests/test_quality_guarantee.py"
+        ]
+      },
+      {
+        "check_id": "assignment.accounting",
+        "command": [
+          "python",
+          "-m",
+          "pytest",
+          "-q",
+          "tests/test_crm_projection_contract.py",
+          "tests/test_crm_delivery_adapters.py"
+        ],
+        "source_paths": [
+          "tests/test_crm_projection_contract.py",
+          "tests/test_crm_delivery_adapters.py"
+        ]
+      },
+      {
+        "check_id": "discovery.provider_coverage",
+        "command": null,
+        "source_paths": []
+      },
+      {
+        "check_id": "auth.tenant.rls",
+        "command": [
+          "python",
+          "-m",
+          "pytest",
+          "-q",
+          "tests/test_task8_local_auth.py",
+          "tests/test_task9_auth_security.py",
+          "tests/test_task5_security_properties.py"
+        ],
+        "source_paths": [
+          "tests/test_task8_local_auth.py",
+          "tests/test_task9_auth_security.py",
+          "tests/test_task5_security_properties.py"
+        ]
+      },
+      {
+        "check_id": "email.ses_sandbox",
+        "command": [
+          "python",
+          "-m",
+          "pytest",
+          "-q",
+          "tests/test_ses_sequences.py",
+          "tests/test_leadx15_9_verification_and_unsubscribe.py",
+          "tests/test_autonomous_campaigns.py"
+        ],
+        "source_paths": [
+          "tests/test_ses_sequences.py",
+          "tests/test_leadx15_9_verification_and_unsubscribe.py",
+          "tests/test_autonomous_campaigns.py"
+        ]
+      },
+      {
+        "check_id": "operations.worker_compose_recovery",
+        "command": [
+          "python",
+          "-m",
+          "pytest",
+          "-q",
+          "tests/test_task9_docker_health.py",
+          "tests/test_task10_restart_recovery.py"
+        ],
+        "source_paths": [
+          "tests/test_task9_docker_health.py",
+          "tests/test_task10_restart_recovery.py",
+          "scripts/restart_recovery.py"
+        ]
+      },
+      {
+        "check_id": "operations.worker_health",
+        "command": [
+          "python",
+          "-m",
+          "pytest",
+          "-q",
+          "tests/test_task9_docker_health.py",
+          "-k",
+          "worker_evidence"
+        ],
+        "source_paths": [
+          "tests/test_task9_docker_health.py",
+          "scripts/check_worker_health.py"
+        ]
+      },
+      {
+        "check_id": "operations.stale_lease_reclaim",
+        "command": [
+          "python",
+          "-m",
+          "pytest",
+          "-q",
+          "tests/test_task13_runtime_safety.py",
+          "tests/test_task10_restart_recovery.py",
+          "-k",
+          "lease or reap or recovery"
+        ],
+        "source_paths": [
+          "tests/test_task13_runtime_safety.py",
+          "tests/test_task10_restart_recovery.py"
+        ]
+      },
+      {
+        "check_id": "operations.restart_compose",
+        "command": [
+          "python",
+          "scripts/restart_recovery.py"
+        ],
+        "source_paths": [
+          "scripts/restart_recovery.py",
+          "tests/test_task9_docker_health.py"
+        ]
+      },
+      {
+        "check_id": "operations.schema_migrations",
+        "command": [
+          "python",
+          "scripts/check_migrations.py"
+        ],
+        "source_paths": [
+          "scripts/check_migrations.py",
+          "tests/test_15_4_production_hardening.py"
+        ]
+      },
+      {
+        "check_id": "operations.runtime_schema",
+        "command": [
+          "python",
+          "scripts/verify_runtime_schema.py"
+        ],
+        "source_paths": [
+          "scripts/verify_runtime_schema.py",
+          "tests/test_runtime_schema_contract.py"
+        ]
+      },
+      {
+        "check_id": "operations.queue_durability",
+        "command": [
+          "python",
+          "scripts/local_durable_smoke.py"
+        ],
+        "source_paths": [
+          "scripts/local_durable_smoke.py"
+        ]
+      },
+      {
+        "check_id": "operations.bounded_timeouts",
+        "command": [
+          "python",
+          "-m",
+          "pytest",
+          "-q",
+          "tests/test_crm_delivery_adapters.py",
+          "tests/test_task13_runtime_safety.py",
+          "-k",
+          "timeout or bounded or finite or cancellation"
+        ],
+        "source_paths": [
+          "tests/test_crm_delivery_adapters.py",
+          "tests/test_task13_runtime_safety.py"
+        ]
+      },
+      {
+        "check_id": "operations.capacity_economics",
+        "command": [
+          "python",
+          "-m",
+          "pytest",
+          "-q",
+          "tests/test_billing_quota_15_2.py",
+          "tests/test_campaign_controls.py",
+          "tests/test_competitive_upgrade.py",
+          "-k",
+          "budget or quota or capacity or lane or provider_limiter or billing"
+        ],
+        "source_paths": [
+          "tests/test_billing_quota_15_2.py",
+          "tests/test_campaign_controls.py",
+          "tests/test_competitive_upgrade.py"
+        ]
+      },
+      {
+        "check_id": "deployment.runtime_contract",
+        "command": [
+          "python",
+          "-m",
+          "pytest",
+          "-q",
+          "tests/test_task9_docker_health.py",
+          "tests/test_runtime_schema_contract.py"
+        ],
+        "source_paths": [
+          "tests/test_task9_docker_health.py",
+          "tests/test_runtime_schema_contract.py"
+        ]
+      },
+      {
+        "check_id": "deployment.live_staging",
+        "command": null,
+        "source_paths": []
+      },
+      {
+        "check_id": "realtime.state",
+        "command": [
+          "python",
+          "-m",
+          "pytest",
+          "-q",
+          "tests/test_task6_realtime.py",
+          "tests/test_task24_realtime_validation.py"
+        ],
+        "source_paths": [
+          "tests/test_task6_realtime.py",
+          "tests/test_task24_realtime_validation.py"
+        ]
+      },
+      {
+        "check_id": "email.readiness",
+        "command": [
+          "python",
+          "-m",
+          "pytest",
+          "-q",
+          "tests/test_ses_sequences.py",
+          "tests/test_autonomous_campaigns.py"
+        ],
+        "source_paths": [
+          "tests/test_ses_sequences.py",
+          "tests/test_autonomous_campaigns.py"
+        ]
+      },
+      {
+        "check_id": "security.rls",
+        "command": [
+          "python",
+          "scripts/security_release_gate.py"
+        ],
+        "source_paths": [
+          "scripts/security_release_gate.py"
+        ]
+      },
+      {
+        "check_id": "economics.quota",
+        "command": [
+          "python",
+          "-m",
+          "pytest",
+          "-q",
+          "tests/test_billing_quota_15_2.py",
+          "tests/test_task13_runtime_safety.py"
+        ],
+        "source_paths": [
+          "tests/test_billing_quota_15_2.py",
+          "tests/test_task13_runtime_safety.py"
+        ]
+      },
+      {
+        "check_id": "recovery.performance",
+        "command": [
+          "python",
+          "scripts/restart_recovery.py"
+        ],
+        "source_paths": [
+          "scripts/restart_recovery.py"
+        ]
+      },
+      {
+        "check_id": "email.provider_delivery",
+        "command": null,
+        "source_paths": [
+          "scripts/test_ses_email.py"
+        ]
+      },
+      {
+        "check_id": "economics.provider_cost",
+        "command": null,
+        "source_paths": [
+          "scripts/engine_benchmark.py"
+        ]
+      },
+      {
+        "check_id": "staging.end_to_end",
+        "command": null,
+        "source_paths": []
+      },
+      {
+        "check_id": "staging.realtime",
+        "command": null,
+        "source_paths": []
+      }
+    ],
+    "empty": [],
+    "environment_class": "static",
+    "identifiers": {
+      "job_names": [
+        "pipeline",
+        "agent_mission",
+        "delivery"
+      ],
+      "plan_keys": [
+        "free",
+        "starter",
+        "growth",
+        "scale"
+      ],
+      "route_names": [
+        "/crm/{tenant_id}/agent-missions",
+        "/billing/status",
+        "/support"
+      ],
+      "stripe_mappings": [
+        "stripe_price_id",
+        "stripe_customer_id",
+        "stripe_subscription_id"
+      ]
+    },
+    "limitations": [
+      "static inspection only",
+      "local, UAT, and live execution are not established by this inventory",
+      "provider behavior, database state, and deployment health remain unverified"
+    ],
+    "manifest_version": "leadx.evidence-manifest.v1",
+    "missing": [],
+    "paths": [
+      {
+        "category": "authorization",
+        "exists": true,
+        "path": "app/middleware/auth.py"
+      },
+      {
+        "category": "authorization",
+        "exists": true,
+        "path": "app/middleware/platform_auth.py"
+      },
+      {
+        "category": "authorization",
+        "exists": true,
+        "path": "app/middleware/service_auth.py"
+      },
+      {
+        "category": "routes",
+        "exists": true,
+        "path": "app/api/prod/agent_missions_api.py"
+      },
+      {
+        "category": "routes",
+        "exists": true,
+        "path": "app/api/prod/billing_api.py"
+      },
+      {
+        "category": "routes",
+        "exists": true,
+        "path": "app/api/prod/support_api.py"
+      },
+      {
+        "category": "jobs",
+        "exists": true,
+        "path": "app/layers/jobs.py"
+      },
+      {
+        "category": "migration",
+        "exists": true,
+        "path": "SUPABASE_FULL_MIGRATION.sql"
+      },
+      {
+        "category": "migration",
+        "exists": true,
+        "path": "MIGRATION_LINEAGE.md"
+      },
+      {
+        "category": "schema_controls",
+        "exists": true,
+        "path": "scripts/check_migrations.py"
+      },
+      {
+        "category": "schema_controls",
+        "exists": true,
+        "path": "scripts/check_rls_coverage.py"
+      },
+      {
+        "category": "build_input",
+        "exists": true,
+        "path": "Dockerfile"
+      },
+      {
+        "category": "build_input",
+        "exists": true,
+        "path": "requirements.lock"
+      },
+      {
+        "category": "build_input",
+        "exists": true,
+        "path": "lead-crm-portal/package-lock.json"
+      },
+      {
+        "category": "plan_catalog",
+        "exists": true,
+        "path": "app/core/plans.py"
+      },
+      {
+        "category": "plan_catalog",
+        "exists": true,
+        "path": "app/api/prod/billing_api.py"
+      },
+      {
+        "category": "support_state",
+        "exists": true,
+        "path": "app/api/prod/support_api.py"
+      },
+      {
+        "category": "evidence_artifact",
+        "exists": true,
+        "path": "artifacts/local-validation"
+      }
+    ],
+    "source_revision": "2f963a3617aef66cfb8bce1c404b3aa5c908adb8"
+  },
+  "manifest": {
+    "artifact_refs": [
+      "scripts/static_inventory.py",
+      "scripts/final_gtm_audit.py"
+    ],
+    "check_id": "static.inventory",
+    "created_at": "2026-10-29T18:09:14.819608Z",
+    "environment_class": "static",
+    "limitations": [
+      "static inspection only",
+      "local, UAT, and live execution are not established by this inventory",
+      "provider behavior, database state, and deployment health remain unverified"
+    ],
+    "manifest_version": "leadx.evidence-manifest.v1",
+    "owner": "release-audit",
+    "redaction_status": {
+      "applied": true,
+      "secrets_detected": false
+    },
+    "result": "PASS",
+    "scope": {
+      "inventory": "declarative",
+      "repository": "LeadX",
+      "source_root": "sqlfix_latest"
+    },
+    "source_revision": "2f963a3617aef66cfb8bce1c404b3aa5c908adb8"
+  }
+}

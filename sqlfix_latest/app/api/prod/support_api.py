@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import logging
 from datetime import datetime, timezone
 from typing import Optional, Callable, Any
 
@@ -15,6 +16,7 @@ from app.memory.supabase_client import get_supabase
 
 client_router = APIRouter(prefix="/support", tags=["support-client"], dependencies=[Depends(require_tenant)])
 admin_router = APIRouter(prefix="/support/admin", tags=["support-admin"], dependencies=[Depends(require_platform_admin)])
+logger = logging.getLogger("lead_engine.support")
 
 
 def _sb():
@@ -35,6 +37,37 @@ class AdminReply(BaseModel):
 
 class StatusIn(BaseModel):
     status: str
+    owner: Optional[str] = Field(default=None, max_length=200)
+    closure_reason: Optional[str] = Field(default=None, max_length=1000)
+    expected_version: Optional[int] = Field(default=None, ge=1)
+
+
+_TICKET_TRANSITIONS = {
+    "open": {"triaged", "in_progress", "resolved"},
+    "triaged": {"in_progress", "waiting", "resolved"},
+    "in_progress": {"waiting", "resolved"},
+    "waiting": {"in_progress", "resolved"},
+    "resolved": {"closed", "in_progress", "open"},
+    "closed": {"open"},
+}
+_LEGACY_TICKET_STATUS = {"human": "in_progress", "escalated": "triaged", "bot": "open"}
+
+
+def validate_ticket_transition(row: dict[str, Any], requested: str, *, owner: str | None = None,
+                               closure_reason: str | None = None, expected_version: int | None = None) -> dict[str, Any]:
+    """Validate a ticket transition without touching storage."""
+    requested = _LEGACY_TICKET_STATUS.get(str(requested or "").strip().lower(), str(requested or "").strip().lower())
+    current = str(row.get("ticket_status") or _LEGACY_TICKET_STATUS.get(str(row.get("status") or ""), row.get("status") or "open")).lower()
+    if requested not in _TICKET_TRANSITIONS or requested not in _TICKET_TRANSITIONS.get(current, set()):
+        raise HTTPException(409, "Invalid support ticket transition")
+    version = int(row.get("ticket_version") or row.get("version") or 1)
+    if expected_version is not None and expected_version != version:
+        raise HTTPException(409, "Support ticket was updated; refresh and retry")
+    effective_owner = str(owner or row.get("ticket_owner") or row.get("assigned_admin") or "").strip()
+    if requested == "closed" and (current != "resolved" or not effective_owner or not str(closure_reason or row.get("closure_reason") or "").strip()):
+        raise HTTPException(409, "A resolved ticket owner and closure reason are required")
+    return {"status": requested, "legacy_status": "human" if requested in {"triaged", "in_progress", "waiting"} else requested,
+            "owner": effective_owner or None, "version": version + 1}
 
 
 @client_router.get("/health")
@@ -167,13 +200,57 @@ async def admin_reply(conversation_id: str, payload: AdminReply):
 
 @admin_router.patch("/conversations/{conversation_id}")
 async def admin_status(conversation_id: str, payload: StatusIn):
-    allowed = {"open", "human", "escalated", "resolved", "closed"}
-    if payload.status not in allowed:
-        raise HTTPException(400, "Invalid status")
-    await _db(lambda: _sb().table("support_conversations")
-        .update({"status": payload.status, "needs_human": payload.status == "escalated"})
-        .eq("id", conversation_id).execute())
-    return {"ok": True}
+    if payload.status.strip().lower() == "closed" and (not payload.owner or not payload.closure_reason):
+        raise HTTPException(409, "A resolved ticket owner and closure reason are required")
+    try:
+        rows = await _db(lambda: _sb().table("support_conversations").select(
+            "id,status,assigned_admin,ticket_status,ticket_owner,ticket_version,closure_reason"
+        ).eq("id", conversation_id).limit(1).execute().data or [])
+    except Exception:
+        # Legacy schema fallback. The transition validator still protects the
+        # old conversation status and close semantics.
+        rows = await _db(lambda: _sb().table("support_conversations").select(
+            "id,status,assigned_admin"
+        ).eq("id", conversation_id).limit(1).execute().data or [])
+    if not rows:
+        raise HTTPException(404, "Conversation not found")
+    transition = validate_ticket_transition(
+        rows[0], payload.status, owner=payload.owner,
+        closure_reason=payload.closure_reason, expected_version=payload.expected_version,
+    )
+    now = datetime.now(timezone.utc).isoformat()
+    update = {
+        "status": transition["legacy_status"],
+        "needs_human": transition["status"] in {"triaged", "in_progress", "waiting"},
+        "updated_at": now,
+        "ticket_status": transition["status"],
+        "ticket_owner": transition["owner"],
+        "ticket_version": transition["version"],
+    }
+    if transition["status"] == "resolved":
+        update["resolved_at"] = now
+    if transition["status"] == "closed":
+        update["closed_at"] = now
+        update["closure_reason"] = str(payload.closure_reason or rows[0].get("closure_reason") or "").strip()[:1000]
+    try:
+        await _db(lambda: _sb().table("support_conversations").update(update).eq("id", conversation_id).execute())
+    except Exception:
+        # Preserve current conversation behavior on pre-ticket schemas.
+        legacy = {"status": transition["legacy_status"], "needs_human": update["needs_human"], "updated_at": now}
+        await _db(lambda: _sb().table("support_conversations").update(legacy).eq("id", conversation_id).execute())
+    try:
+        await _db(lambda: _sb().table("support_ticket_events").insert({
+            "conversation_id": conversation_id, "from_status": str(rows[0].get("ticket_status") or rows[0].get("status") or "open"),
+            "to_status": transition["status"], "owner": transition["owner"],
+            "closure_reason": update.get("closure_reason"), "version": transition["version"],
+            "created_at": now,
+        }).execute())
+    except Exception as exc:
+        logger.debug("support ticket audit projection unavailable: %s", type(exc).__name__)
+    result = {"ok": True}
+    if rows[0].get("ticket_status") is not None or rows[0].get("ticket_version") is not None:
+        result.update({"ticket_status": transition["status"], "ticket_version": transition["version"]})
+    return result
 
 
 @admin_router.get("/faq")

@@ -1,0 +1,67 @@
+{
+  "schema": "leadx.test-environment-production-validation.task8.opaque-preflight.v1",
+  "task": "test-environment-production-validation.8",
+  "decision": "BLOCKED",
+  "execution_performed": false,
+  "evidence_class": "sanitized live-runtime preflight",
+  "scope": {
+    "tenant_id": "5655f9d9-b3c7-48f9-bb95-9f3fe0675854",
+    "icp_id": "377aaa3e-5eae-41fc-a12a-570e791490b3",
+    "requested_target": 5,
+    "hard_cap": 500,
+    "delivery": "portal"
+  },
+  "opaque_auth_state": {
+    "client_state_path": "C:\\Users\\vansh\\AppData\\Local\\Temp\\leadx-task5-ephemeral-auth\\normal-client-current.json",
+    "admin_state_path": "C:\\Users\\vansh\\AppData\\Local\\Temp\\leadx-task5-ephemeral-auth\\normal-admin-authorized.json",
+    "paths_present": true,
+    "contents_inspected": false,
+    "credentials_or_tokens_read_or_printed": false
+  },
+  "read_only_observations": {
+    "client_exact_scope": {
+      "dashboard_http_status": 200,
+      "pipeline_http_status": 200,
+      "scope_observed": true
+    },
+    "admin_route": {
+      "portal_route_http_status": 200,
+      "portal_route_path": "/admin/login",
+      "authenticated_admin_route": false
+    },
+    "target_five_preflight": {
+      "direct_api_http_status": 401,
+      "portal_proxy_http_status": 401,
+      "durable_preflight": "NOT_OBSERVABLE",
+      "bounded_defaults": "NOT_OBSERVABLE",
+      "provider_categories": "NOT_OBSERVABLE",
+      "duplicate_count": "NOT_OBSERVABLE",
+      "active_opaque_statuses_timestamps": "NOT_OBSERVABLE",
+      "no_outbound_policy": "NOT_OBSERVABLE",
+      "side_effect_ceiling": "NOT_OBSERVABLE",
+      "stop_conditions": "NOT_OBSERVABLE",
+      "cleanup_policy": "NOT_OBSERVABLE"
+    }
+  },
+  "run": {
+    "submission_count": 0,
+    "pipeline_request_created": false,
+    "fresh_idempotency_key_created": false,
+    "second_submission": false,
+    "retry_cancel_or_cleanup": false,
+    "provider_calls": false,
+    "email_outreach_campaign_stripe_ses": 0
+  },
+  "safety_boundary": {
+    "env_values_read": false,
+    "storage_state_contents_read": false,
+    "raw_payloads_printed": false,
+    "database_mutation": false,
+    "queue_mutation": false,
+    "migration_or_sql_mutation": false,
+    "reset_or_data_cleanup": false,
+    "cap_violation": false
+  },
+  "stop_reason": "BLOCKED: current opaque admin state did not authenticate to the deployed preflight route; duplicate-active-work status/timestamps and all other admission gates could not be verified safely.",
+  "next_gate": "Refresh or provide an already-authorized opaque admin state path for this runtime. Do not submit, retry, cancel, or clean up until every admission gate is observed and passing."
+}

@@ -1,0 +1,12 @@
+{
+  "version": "v1",
+  "hooks": [{
+    "name": "Index file on save",
+    "trigger": "PostFileSave",
+    "matcher": "\\.py$",
+    "action": {
+      "type": "command",
+      "command": "cd sqlfix_latest && python -m .kiro.project_brain.index"
+    }
+  }]
+}

@@ -2488,3 +2488,96 @@ def admin_update_lead(lead_id: str, body: AdminLeadUpdate):
     return {"ok": True, "lead_id": lead_id, "updated": True}
 
 
+
+@router.get("/admin/runs/{run_id}/progress")
+def get_run_progress(run_id: str):
+    """Reliable run progress endpoint with heartbeat evidence for UI polling."""
+    from app.memory.supabase_client import get_supabase
+    from datetime import datetime, timezone
+    sb = get_supabase()
+
+    try:
+        row = (
+            sb.table("pipeline_runs")
+            .select("id, status, discovered, enriched, assigned, delivered, started_at, finished_at, meta, job_id")
+            .eq("id", run_id)
+            .limit(1)
+            .execute()
+            .data
+        )
+    except Exception:
+        row = None
+
+    if not row:
+        raise HTTPException(404, "run not found")
+
+    run = row[0]
+    meta = run.get("meta") or {}
+    heartbeat = run.get("job_id")
+
+    # Get job heartbeat if available
+    job_updated_at = None
+    if heartbeat:
+        try:
+            job_row = (
+                sb.table("jobs")
+                .select("updated_at")
+                .eq("id", heartbeat)
+                .limit(1)
+                .execute()
+                .data
+            )
+            if job_row:
+                job_updated_at = job_row[0].get("updated_at")
+        except Exception:
+            pass
+
+    # Get board progress
+    board_updated_at = None
+    try:
+        board_row = (
+            sb.table("pipeline_run_leads")
+            .select("updated_at")
+            .eq("run_id", run_id)
+            .order("updated_at", desc=True)
+            .limit(1)
+            .execute()
+            .data
+        )
+        if board_row:
+            board_updated_at = board_row[0].get("updated_at")
+    except Exception:
+        pass
+
+    now = datetime.now(timezone.utc).isoformat()
+    last_progress = meta.get("stage_changed_at") or board_updated_at or job_updated_at or run.get("started_at")
+
+    staleness = 0
+    if last_progress:
+        try:
+            last_dt = datetime.fromisoformat(last_progress.replace("Z", "+00:00"))
+            now_dt = datetime.now(timezone.utc).replace(tzinfo=last_dt.tzinfo)
+            staleness = (now_dt - last_dt).total_seconds()
+        except Exception:
+            pass
+
+    return {
+        "ok": True,
+        "run": {
+            "id": run.get("id"),
+            "status": run.get("status"),
+            "discovered": run.get("discovered", 0),
+            "enriched": run.get("enriched", 0),
+            "assigned": run.get("assigned", 0),
+            "delivered": run.get("delivered", 0),
+            "stage": meta.get("stage", "unknown"),
+            "message": meta.get("message", "No progress"),
+            "last_progress": last_progress,
+            "last_progress_seconds_ago": round(staleness, 1),
+        },
+        "heartbeat": {
+            "job_updated_at": job_updated_at,
+            "board_updated_at": board_updated_at,
+        },
+        "now": now,
+    }

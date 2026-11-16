@@ -1,0 +1,63 @@
+{
+  "benchmark_targets": [
+    5,
+    10,
+    50
+  ],
+  "cap_validation": {
+    "accepted_at_request_boundary": true,
+    "executed": false,
+    "target": 500,
+    "target_501_rejected": true
+  },
+  "cleanup": {
+    "reason": "benchmark_not_started",
+    "status": "not_required"
+  },
+  "dependency_gate": {
+    "eligible": false,
+    "missing": [
+      "task_6",
+      "task_7",
+      "task_8",
+      "task_9",
+      "task_10",
+      "task_11",
+      "task_12"
+    ],
+    "reason": "dependency_chain_not_supplied",
+    "status": "NOT TESTED",
+    "statuses": {}
+  },
+  "dependency_mode": "local_in_memory",
+  "environment_identity": "local-process-synthetic",
+  "evidence_boundary": "local synthetic fixtures only",
+  "evidence_class": "synthetic/offline",
+  "forbidden_action_counters": {
+    "campaign": 0,
+    "email": 0,
+    "outreach": 0,
+    "ses": 0,
+    "stripe": 0
+  },
+  "latency_claim": null,
+  "limitations": [
+    "Synthetic timings do not establish provider, deployed, or production speed.",
+    "The production 20-30 second target remains NOT TESTED without an authorized comparable run.",
+    "Target 500 is validated only at the request boundary and is not benchmarked."
+  ],
+  "outbound_counters": {
+    "campaign": 0,
+    "email": 0,
+    "outreach": 0,
+    "ses": 0,
+    "stripe": 0
+  },
+  "production_latency_status": "NOT TESTED",
+  "production_speed_claim": false,
+  "provider_calls": 0,
+  "result": "NOT TESTED",
+  "runs": [],
+  "schema": "leadx.task13-controlled-latency.v1",
+  "task": "13"
+}

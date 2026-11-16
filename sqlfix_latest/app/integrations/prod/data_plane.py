@@ -156,13 +156,16 @@ def record_delivery_outcome(
     for assignment_id in assignment_ids:
         stable = f"assignment:{assignment_id}:delivery:{normalized_destination}"
         try:
-            rows = (sb.table("delivery_outbox").update({
+            query = sb.table("delivery_outbox").update({
                 "status": "delivered" if ok else "failed",
                 "outbox_state": state,
                 "delivered_at": _now() if ok else None,
                 "safe_error_code": None if ok else "provider_delivery_failed",
                 "safe_error_detail": None if ok else _safe_text(error),
-            }).eq("tenant_id", tenant_id).eq("stable_event_id", stable).execute().data or [])
+            }).eq("tenant_id", tenant_id).eq("stable_event_id", stable)
+            if not ok:
+                query = query.in_("outbox_state", ["pending", "processing", "retryable"])
+            rows = query.execute().data or []
             append_ledger_event(
                 tenant_id=tenant_id,
                 event_key=f"delivery:{stable}:{'ok' if ok else 'failed'}",

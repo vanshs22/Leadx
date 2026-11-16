@@ -1,0 +1,17 @@
+[tool.poetry]
+name = "project-brain"
+version = "0.1.0"
+description = "Local Codebase Intelligence System for LeadX"
+authors = ["LeadX Team"]
+
+[tool.poetry.dependencies]
+python = "^3.10"
+mcp = "^1.1.0"
+tree-sitter = {version = "^0.22.0", optional = true}
+
+[tool.poetry.extras]
+tree-sitter = ["tree-sitter"]
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"

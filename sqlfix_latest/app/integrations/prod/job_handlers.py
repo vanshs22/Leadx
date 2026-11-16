@@ -34,6 +34,20 @@ async def _pipeline_run(payload: dict) -> dict:
     sequence_id = payload.pop("auto_enroll_sequence_id", None)
     schedule_id = payload.pop("schedule_id", None)
 
+    # A worker must reject malformed oversized target payloads before it can
+    # create a run or admit provider work. API validation remains the primary
+    # boundary; this protects direct queue submissions and retries.
+    from app.core.runtime_config import MAX_LEADS_PER_RUN
+    for field in ("target_new_leads", "max_assignments", "requested_target"):
+        if payload.get(field) is None:
+            continue
+        try:
+            value = int(payload[field])
+        except (TypeError, ValueError) as exc:
+            raise ValueError(f"{field} must be an integer") from exc
+        if value < 0 or value > MAX_LEADS_PER_RUN:
+            raise ValueError(f"{field} exceeds the {MAX_LEADS_PER_RUN}-lead run cap")
+
     result = await run_pipeline(**payload)
     if not isinstance(result, dict):
         return {"ok": True}

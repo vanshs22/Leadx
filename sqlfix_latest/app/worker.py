@@ -66,8 +66,16 @@ WEBHOOK_INTERVAL = float(os.getenv("WORKER_WEBHOOK_SECONDS", "30"))
 HEARTBEAT_INTERVAL = float(os.getenv("WORKER_HEARTBEAT_SECONDS", "30"))
 WORKER_HEALTH_FILE = Path(os.getenv("WORKER_HEALTH_FILE", "/tmp/leadx-worker-heartbeat"))
 
+# These handlers require a tenant scope. A global cron tick must not create a
+# malformed job that can only fail repeatedly; tenant-scoped scheduling owns it.
+TENANT_SCOPED_CRON_KINDS = frozenset({"signals.refresh"})
+
 _shutdown = asyncio.Event()
 _queue_degraded = asyncio.Event()
+
+
+def _cron_entry_is_admissible(kind: str, payload: dict) -> bool:
+    return kind not in TENANT_SCOPED_CRON_KINDS or bool(payload.get("tenant_id"))
 
 
 def _queue_failure_policy(policy=None) -> str:
@@ -192,14 +200,22 @@ def _reconcile_pipeline_run_failure(job: dict, error: str) -> None:
     if job.get("kind") != "pipeline.run":
         return
     try:
+        from app.integrations.prod import jobs
         from app.memory.supabase_client import get_supabase
 
+        run_id, tenant_id = jobs.pipeline_run_identity(job)
         query = (get_supabase().table("pipeline_runs").update({
             "status": "failed",
             "error_message": (error or "worker failure")[:500],
             "finished_at": datetime.now(timezone.utc).isoformat(),
-        }).eq("id", str(job.get("id") or "")).in_("status", ["queued", "running"]))
-        tenant_id = str(job.get("tenant_id") or "")
+            "meta": {
+                "stage": "failed",
+                "message": "Worker failed before this run finished.",
+                "recovery_status": "terminal",
+                "stop_reason": "lease_lost",
+                "job_id": str(job.get("id") or ""),
+            },
+        }).eq("id", run_id).in_("status", ["queued", "running"]))
         if tenant_id:
             query = query.eq("tenant_id", tenant_id)
         query.execute()
@@ -395,6 +411,14 @@ async def _housekeeping() -> None:
                 if now - last[kind] < interval:
                     continue
                 last[kind] = now
+                if not _cron_entry_is_admissible(kind, payload):
+                    emit_telemetry(
+                        logger, logging.WARNING, "cron.skipped_missing_scope",
+                        worker_id=_worker_id(), kind=kind,
+                        status="blocked", dependency="durable_queue",
+                        outcome="not_enqueued", reason="tenant_scope_required",
+                    )
+                    continue
                 if jobs.enqueue_unique(kind, payload, created_by="worker_cron"):
                     emit_telemetry(
                         logger, logging.INFO, "cron.enqueued", worker_id=_worker_id(),

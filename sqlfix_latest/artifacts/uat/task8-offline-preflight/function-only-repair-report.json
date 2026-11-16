@@ -1,0 +1,46 @@
+{
+  "schema_version": "leadx.task8.preflight-function-only-repair.v1",
+  "status": "PREPARED_NOT_APPLIED",
+  "user_approved": true,
+  "exact_sql_artifact": "leadx_verify_durable_preflight_function_only_patch.sql",
+  "function_replaced": "public.leadx_verify_durable_preflight()",
+  "changes": {
+    "accept_existing_unique_constraints": [
+      "job_operations_operation_kind_idempotency_key_key",
+      "job_operations_job_id_key"
+    ],
+    "required_independent_index": "idx_job_operations_tenant_created",
+    "resolved_function_identity_for_privilege_check": "to_regprocedure(public.leadx_prepare_job(uuid,text,text,text,text,text,jsonb,integer,boolean,integer,integer,integer,text))",
+    "fail_closed_checks_preserved": [
+      "required tables",
+      "required functions",
+      "job_operations RLS",
+      "service_role table SELECT grant",
+      "service_role leadx_prepare_job EXECUTE grant"
+    ]
+  },
+  "validation": [
+    {
+      "command": "python -m pytest -q tests/test_task8_preflight_repair_artifact.py",
+      "result": "PASS",
+      "summary": "1 passed"
+    },
+    {
+      "command": "python -m pytest -q tests/test_task8_preflight_repair_artifact.py tests/test_task6_migration_preflight.py",
+      "result": "PASS",
+      "summary": "5 passed"
+    }
+  ],
+  "safety": {
+    "sql_applied": false,
+    "migrations_run": false,
+    "remote_sql_mutated": false,
+    "data_jobs_queues_touched": false,
+    "providers_or_outbound_actions_used": false,
+    "env_or_credentials_read": false,
+    "redundant_indexes_added": false,
+    "preflight_bypassed": false
+  },
+  "api_readiness": "UNVERIFIED_UNTIL_APPLIED",
+  "evidence_class": "static/offline"
+}

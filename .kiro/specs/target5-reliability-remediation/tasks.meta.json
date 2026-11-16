@@ -1,0 +1,305 @@
+{
+  "pbtResults": {
+    "2. Write preservation property tests before implementation": {
+      "status": "passed",
+      "lastRunTimestamp": 1794425035173
+    },
+    "4.1 Re-run the exact Property 1 exploration tests and confirm matching replay, conflict rejection, and fresh identity now pass": {
+      "status": "passed",
+      "lastRunTimestamp": 1794425840642
+    }
+  },
+  "executionHistory": {
+    "1. Write the target-five bug-condition exploration tests before implementation": [
+      {
+        "executionId": "8b43eccd-f9bc-4f28-aa1b-f9ab0819d59b",
+        "chatSessionId": "sess_04c0a8cd-f6f5-434b-b17e-8d89acafffcf",
+        "timestamp": 1794424610790
+      },
+      {
+        "executionId": "8b43eccd-f9bc-4f28-aa1b-f9ab0819d59b",
+        "chatSessionId": "sess_04c0a8cd-f6f5-434b-b17e-8d89acafffcf",
+        "timestamp": 1794424623078
+      },
+      {
+        "executionId": "8b43eccd-f9bc-4f28-aa1b-f9ab0819d59b",
+        "chatSessionId": "sess_04c0a8cd-f6f5-434b-b17e-8d89acafffcf",
+        "timestamp": 1794424853952
+      }
+    ],
+    "2. Write preservation property tests before implementation": [
+      {
+        "executionId": "8b43eccd-f9bc-4f28-aa1b-f9ab0819d59b",
+        "chatSessionId": "sess_04c0a8cd-f6f5-434b-b17e-8d89acafffcf",
+        "timestamp": 1794424610878
+      },
+      {
+        "executionId": "8b43eccd-f9bc-4f28-aa1b-f9ab0819d59b",
+        "chatSessionId": "sess_04c0a8cd-f6f5-434b-b17e-8d89acafffcf",
+        "timestamp": 1794424859686
+      },
+      {
+        "executionId": "8b43eccd-f9bc-4f28-aa1b-f9ab0819d59b",
+        "chatSessionId": "sess_04c0a8cd-f6f5-434b-b17e-8d89acafffcf",
+        "timestamp": 1794425053921
+      }
+    ],
+    "3. Diagnose the deployed `23505` and schema boundary without mutation": [
+      {
+        "executionId": "8b43eccd-f9bc-4f28-aa1b-f9ab0819d59b",
+        "chatSessionId": "sess_04c0a8cd-f6f5-434b-b17e-8d89acafffcf",
+        "timestamp": 1794424610996
+      },
+      {
+        "executionId": "8b43eccd-f9bc-4f28-aa1b-f9ab0819d59b",
+        "chatSessionId": "sess_04c0a8cd-f6f5-434b-b17e-8d89acafffcf",
+        "timestamp": 1794425060335
+      },
+      {
+        "executionId": "8b43eccd-f9bc-4f28-aa1b-f9ab0819d59b",
+        "chatSessionId": "sess_04c0a8cd-f6f5-434b-b17e-8d89acafffcf",
+        "timestamp": 1794425219034
+      }
+    ],
+    "4.1 Re-run the exact Property 1 exploration tests and confirm matching replay, conflict rejection, and fresh identity now pass": [
+      {
+        "executionId": "8b43eccd-f9bc-4f28-aa1b-f9ab0819d59b",
+        "chatSessionId": "sess_04c0a8cd-f6f5-434b-b17e-8d89acafffcf",
+        "timestamp": 1794424611046
+      },
+      {
+        "executionId": "8b43eccd-f9bc-4f28-aa1b-f9ab0819d59b",
+        "chatSessionId": "sess_04c0a8cd-f6f5-434b-b17e-8d89acafffcf",
+        "timestamp": 1794425780545
+      },
+      {
+        "executionId": "8b43eccd-f9bc-4f28-aa1b-f9ab0819d59b",
+        "chatSessionId": "sess_04c0a8cd-f6f5-434b-b17e-8d89acafffcf",
+        "timestamp": 1794425860758
+      }
+    ],
+    "4.2 Re-run the exact Property 2 preservation tests": [
+      {
+        "executionId": "8b43eccd-f9bc-4f28-aa1b-f9ab0819d59b",
+        "chatSessionId": "sess_04c0a8cd-f6f5-434b-b17e-8d89acafffcf",
+        "timestamp": 1794424611101
+      },
+      {
+        "executionId": "8b43eccd-f9bc-4f28-aa1b-f9ab0819d59b",
+        "chatSessionId": "sess_04c0a8cd-f6f5-434b-b17e-8d89acafffcf",
+        "timestamp": 1794425780631
+      },
+      {
+        "executionId": "8b43eccd-f9bc-4f28-aa1b-f9ab0819d59b",
+        "chatSessionId": "sess_04c0a8cd-f6f5-434b-b17e-8d89acafffcf",
+        "timestamp": 1794425861052
+      }
+    ],
+    "5.1 Re-run the target-five exploration cases and verify stop, reconciliation, and cap behavior": [
+      {
+        "executionId": "8b43eccd-f9bc-4f28-aa1b-f9ab0819d59b",
+        "chatSessionId": "sess_04c0a8cd-f6f5-434b-b17e-8d89acafffcf",
+        "timestamp": 1794424611160
+      },
+      {
+        "executionId": "8b43eccd-f9bc-4f28-aa1b-f9ab0819d59b",
+        "chatSessionId": "sess_04c0a8cd-f6f5-434b-b17e-8d89acafffcf",
+        "timestamp": 1794426700678
+      }
+    ],
+    "5.2 Re-run healthy lifecycle and target preservation cases": [
+      {
+        "executionId": "8b43eccd-f9bc-4f28-aa1b-f9ab0819d59b",
+        "chatSessionId": "sess_04c0a8cd-f6f5-434b-b17e-8d89acafffcf",
+        "timestamp": 1794424611242
+      },
+      {
+        "executionId": "8b43eccd-f9bc-4f28-aa1b-f9ab0819d59b",
+        "chatSessionId": "sess_04c0a8cd-f6f5-434b-b17e-8d89acafffcf",
+        "timestamp": 1794426700964
+      }
+    ],
+    "6. Make multi-route discovery executable and free/local first": [
+      {
+        "executionId": "8b43eccd-f9bc-4f28-aa1b-f9ab0819d59b",
+        "chatSessionId": "sess_04c0a8cd-f6f5-434b-b17e-8d89acafffcf",
+        "timestamp": 1794424611291
+      },
+      {
+        "executionId": "8b43eccd-f9bc-4f28-aa1b-f9ab0819d59b",
+        "chatSessionId": "sess_04c0a8cd-f6f5-434b-b17e-8d89acafffcf",
+        "timestamp": 1794426707162
+      },
+      {
+        "executionId": "8b43eccd-f9bc-4f28-aa1b-f9ab0819d59b",
+        "chatSessionId": "sess_04c0a8cd-f6f5-434b-b17e-8d89acafffcf",
+        "timestamp": 1794427266164
+      }
+    ],
+    "7. Make enrichment free-first and contact-safe with bounded paid fallback": [
+      {
+        "executionId": "8b43eccd-f9bc-4f28-aa1b-f9ab0819d59b",
+        "chatSessionId": "sess_04c0a8cd-f6f5-434b-b17e-8d89acafffcf",
+        "timestamp": 1794424611339
+      },
+      {
+        "executionId": "8b43eccd-f9bc-4f28-aa1b-f9ab0819d59b",
+        "chatSessionId": "sess_04c0a8cd-f6f5-434b-b17e-8d89acafffcf",
+        "timestamp": 1794427272571
+      },
+      {
+        "executionId": "8b43eccd-f9bc-4f28-aa1b-f9ab0819d59b",
+        "chatSessionId": "sess_04c0a8cd-f6f5-434b-b17e-8d89acafffcf",
+        "timestamp": 1794427714744
+      }
+    ],
+    "8. Verify qualification, assignment, CRM persistence, delivery, reconciliation, and realtime state": [
+      {
+        "executionId": "8b43eccd-f9bc-4f28-aa1b-f9ab0819d59b",
+        "chatSessionId": "sess_04c0a8cd-f6f5-434b-b17e-8d89acafffcf",
+        "timestamp": 1794424611389
+      },
+      {
+        "executionId": "8b43eccd-f9bc-4f28-aa1b-f9ab0819d59b",
+        "chatSessionId": "sess_04c0a8cd-f6f5-434b-b17e-8d89acafffcf",
+        "timestamp": 1794427721146
+      },
+      {
+        "executionId": "8b43eccd-f9bc-4f28-aa1b-f9ab0819d59b",
+        "chatSessionId": "sess_04c0a8cd-f6f5-434b-b17e-8d89acafffcf",
+        "timestamp": 1794428400685
+      }
+    ],
+    "9. Make agent routing, traces, recovery, cancellation, timeouts, and leases truthful": [
+      {
+        "executionId": "8b43eccd-f9bc-4f28-aa1b-f9ab0819d59b",
+        "chatSessionId": "sess_04c0a8cd-f6f5-434b-b17e-8d89acafffcf",
+        "timestamp": 1794424611442
+      },
+      {
+        "executionId": "8b43eccd-f9bc-4f28-aa1b-f9ab0819d59b",
+        "chatSessionId": "sess_04c0a8cd-f6f5-434b-b17e-8d89acafffcf",
+        "timestamp": 1794428407545
+      },
+      {
+        "executionId": "8b43eccd-f9bc-4f28-aa1b-f9ab0819d59b",
+        "chatSessionId": "sess_04c0a8cd-f6f5-434b-b17e-8d89acafffcf",
+        "timestamp": 1794428958107
+      }
+    ],
+    "10. Add measured target-five timing and focused implementation regression suite": [
+      {
+        "executionId": "8b43eccd-f9bc-4f28-aa1b-f9ab0819d59b",
+        "chatSessionId": "sess_04c0a8cd-f6f5-434b-b17e-8d89acafffcf",
+        "timestamp": 1794424611494
+      },
+      {
+        "executionId": "8b43eccd-f9bc-4f28-aa1b-f9ab0819d59b",
+        "chatSessionId": "sess_04c0a8cd-f6f5-434b-b17e-8d89acafffcf",
+        "timestamp": 1794428965459
+      },
+      {
+        "executionId": "8b43eccd-f9bc-4f28-aa1b-f9ab0819d59b",
+        "chatSessionId": "sess_04c0a8cd-f6f5-434b-b17e-8d89acafffcf",
+        "timestamp": 1794429456119
+      }
+    ],
+    "11. Run the complete offline/local remediation checkpoint": [
+      {
+        "executionId": "8b43eccd-f9bc-4f28-aa1b-f9ab0819d59b",
+        "chatSessionId": "sess_04c0a8cd-f6f5-434b-b17e-8d89acafffcf",
+        "timestamp": 1794424611595
+      },
+      {
+        "executionId": "8b43eccd-f9bc-4f28-aa1b-f9ab0819d59b",
+        "chatSessionId": "sess_04c0a8cd-f6f5-434b-b17e-8d89acafffcf",
+        "timestamp": 1794429465274
+      },
+      {
+        "executionId": "35434117-c233-4e91-bc54-b456dba6e548",
+        "chatSessionId": "sess_04c0a8cd-f6f5-434b-b17e-8d89acafffcf",
+        "timestamp": 1794473109835
+      },
+      {
+        "executionId": "35434117-c233-4e91-bc54-b456dba6e548",
+        "chatSessionId": "sess_04c0a8cd-f6f5-434b-b17e-8d89acafffcf",
+        "timestamp": 1794473307904
+      }
+    ],
+    "12. Perform bounded browser validation separately from implementation tests": [
+      {
+        "executionId": "8b43eccd-f9bc-4f28-aa1b-f9ab0819d59b",
+        "chatSessionId": "sess_04c0a8cd-f6f5-434b-b17e-8d89acafffcf",
+        "timestamp": 1794424611647
+      },
+      {
+        "executionId": "35434117-c233-4e91-bc54-b456dba6e548",
+        "chatSessionId": "sess_04c0a8cd-f6f5-434b-b17e-8d89acafffcf",
+        "timestamp": 1794473315024
+      },
+      {
+        "executionId": "35434117-c233-4e91-bc54-b456dba6e548",
+        "chatSessionId": "sess_04c0a8cd-f6f5-434b-b17e-8d89acafffcf",
+        "timestamp": 1794474263170
+      }
+    ],
+    "13. Run exactly one real target-five pipeline validation": [
+      {
+        "executionId": "8b43eccd-f9bc-4f28-aa1b-f9ab0819d59b",
+        "chatSessionId": "sess_04c0a8cd-f6f5-434b-b17e-8d89acafffcf",
+        "timestamp": 1794424611705
+      },
+      {
+        "executionId": "35434117-c233-4e91-bc54-b456dba6e548",
+        "chatSessionId": "sess_04c0a8cd-f6f5-434b-b17e-8d89acafffcf",
+        "timestamp": 1794474271079
+      },
+      {
+        "executionId": "35434117-c233-4e91-bc54-b456dba6e548",
+        "chatSessionId": "sess_04c0a8cd-f6f5-434b-b17e-8d89acafffcf",
+        "timestamp": 1794474390025
+      }
+    ],
+    "14. Final bounded evidence checkpoint and decision": [
+      {
+        "executionId": "8b43eccd-f9bc-4f28-aa1b-f9ab0819d59b",
+        "chatSessionId": "sess_04c0a8cd-f6f5-434b-b17e-8d89acafffcf",
+        "timestamp": 1794424611758
+      },
+      {
+        "executionId": "35434117-c233-4e91-bc54-b456dba6e548",
+        "chatSessionId": "sess_04c0a8cd-f6f5-434b-b17e-8d89acafffcf",
+        "timestamp": 1794474397191
+      },
+      {
+        "executionId": "35434117-c233-4e91-bc54-b456dba6e548",
+        "chatSessionId": "sess_04c0a8cd-f6f5-434b-b17e-8d89acafffcf",
+        "timestamp": 1794474574962
+      }
+    ],
+    "4. Implement durable conflict classification, safe replay, and fresh submission": [
+      {
+        "executionId": "8b43eccd-f9bc-4f28-aa1b-f9ab0819d59b",
+        "chatSessionId": "sess_04c0a8cd-f6f5-434b-b17e-8d89acafffcf",
+        "timestamp": 1794425238135
+      },
+      {
+        "executionId": "8b43eccd-f9bc-4f28-aa1b-f9ab0819d59b",
+        "chatSessionId": "sess_04c0a8cd-f6f5-434b-b17e-8d89acafffcf",
+        "timestamp": 1794425861105
+      }
+    ],
+    "5. Make target-five completion target-aware and count-reconciled": [
+      {
+        "executionId": "8b43eccd-f9bc-4f28-aa1b-f9ab0819d59b",
+        "chatSessionId": "sess_04c0a8cd-f6f5-434b-b17e-8d89acafffcf",
+        "timestamp": 1794425867313
+      },
+      {
+        "executionId": "8b43eccd-f9bc-4f28-aa1b-f9ab0819d59b",
+        "chatSessionId": "sess_04c0a8cd-f6f5-434b-b17e-8d89acafffcf",
+        "timestamp": 1794426701157
+      }
+    ]
+  }
+}

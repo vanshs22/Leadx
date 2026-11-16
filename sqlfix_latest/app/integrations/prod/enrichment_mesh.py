@@ -21,7 +21,10 @@ from app.integrations.prod.enricher import fetch_scrapling, fetch_crawl4ai, _par
 from app.integrations.prod.net_safety import assert_public_url
 from app.integrations.prod.utils import extract_domain, extract_emails, extract_phones, is_valid_email, normalize_phone
 from app.integrations.prod.provider_execution import ProviderCancelled, ProviderExecutionContext, execute_provider
-from app.integrations.prod.waterfall import validate_enrichment_value
+from app.integrations.prod.waterfall import (
+    enrichment_value_reason,
+    validate_enrichment_value,
+)
 
 
 FREE_FIELDS = (
@@ -198,23 +201,37 @@ async def _fetch_free_site(website: str, use_crawl4ai: bool = True) -> tuple[str
     blocked = await assert_public_url(website)
     if blocked:
         return "", {"ok": False, "error": f"blocked:{blocked}"}
-    scrap_task = asyncio.create_task(fetch_scrapling(website))
-    crawl_task = asyncio.create_task(fetch_crawl4ai(website)) if use_crawl4ai else None
 
-    async def bounded(task, timeout_s: float) -> dict[str, Any]:
-        try:
-            return await asyncio.wait_for(task, timeout=timeout_s)
-        except asyncio.CancelledError:
-            raise
-        except Exception as exc:
-            if not task.done():
-                task.cancel()
-            await asyncio.gather(task, return_exceptions=True)
-            return {"ok": False, "error": type(exc).__name__}
+    # Keep retries local to the free adapters. A failed fetch must not skip the
+    # other adapter, and retry admission is bounded so a lead cannot loop.
+    try:
+        retries = min(2, max(0, int(os.getenv("LEADX_ENRICH_RETRIES", "1"))))
+    except (TypeError, ValueError):
+        retries = 1
+
+    async def bounded(fetcher: Callable[[], Awaitable[dict[str, Any]]], timeout_s: float) -> dict[str, Any]:
+        last: dict[str, Any] = {"ok": False, "error": "not_attempted"}
+        for attempt in range(1, retries + 2):
+            task = asyncio.create_task(fetcher())
+            try:
+                result = await asyncio.wait_for(task, timeout=timeout_s)
+                last = dict(result or {})
+            except asyncio.CancelledError:
+                raise
+            except Exception as exc:
+                if not task.done():
+                    task.cancel()
+                await asyncio.gather(task, return_exceptions=True)
+                last = {"ok": False, "error": type(exc).__name__}
+            last["attempts"] = attempt
+            if last.get("ok"):
+                break
+        return last
 
     scrap, crawl = await asyncio.gather(
-        bounded(scrap_task, 25),
-        bounded(crawl_task, 40) if crawl_task else asyncio.sleep(0, result={}),
+        bounded(lambda: fetch_scrapling(website), 25),
+        bounded(lambda: fetch_crawl4ai(website), 40) if use_crawl4ai
+        else asyncio.sleep(0, result={}),
     )
     content = "\n".join(x for x in (
         scrap.get("html"), scrap.get("text"),
@@ -464,6 +481,10 @@ def _merge_provider_fields(
             results.setdefault("audit", {}).setdefault("rejected_fields", []).append({
                 "provider": source, "field": field, "reason": "invalid_field_value",
             })
+            results.setdefault("audit", {}).setdefault("rejected_field_reasons", []).append({
+                "provider": source, "field": field,
+                "reason": enrichment_value_reason(field, value) or "invalid_field_value",
+            })
             continue
         results["patch"][field] = normalized
         work[field] = normalized
@@ -494,6 +515,7 @@ async def enrich_with_free_mesh(lead: dict[str, Any], *, use_crawl4ai: bool = Tr
     facts = _extract_free_facts(content, str(website))
     patch = {}
     rejected_fields = []
+    rejected_field_reasons = []
     for field in FREE_FIELDS:
         val = facts.get(field)
         if val in (None, "", [], {}):
@@ -501,6 +523,7 @@ async def enrich_with_free_mesh(lead: dict[str, Any], *, use_crawl4ai: bool = Tr
         valid, normalized = validate_enrichment_value(field, val)
         if not valid:
             rejected_fields.append({"field": field, "reason": "invalid_field_value"})
+            rejected_field_reasons.append({"field": field, "reason": enrichment_value_reason(field, val) or "invalid_field_value"})
             continue
         # Existing sufficient evidence wins; malformed existing values do not.
         if not _field_missing(lead, field):
@@ -512,6 +535,8 @@ async def enrich_with_free_mesh(lead: dict[str, Any], *, use_crawl4ai: bool = Tr
     audit = {"free_mesh": {"status": "ok", "fields": list(patch), "meta": meta}}
     if rejected_fields:
         audit["free_mesh"]["rejected_fields"] = rejected_fields
+    if rejected_field_reasons:
+        audit["rejected_field_reasons"] = rejected_field_reasons
     return {"patch": patch, "audit": audit, "free": True}
 
 
@@ -635,6 +660,6 @@ async def enrich_intelligent(lead: dict[str, Any], wanted: Optional[list[str]] =
     work["enrichment_sources"] = sources
     work["enrichment_mesh"] = {"mode": "free_then_paid", "audit": audit, "paid_attempted": paid.get("providers_attempted") or []}
     work["enrichment_ok"] = bool(sources)
-    return {"patch": {k: v for k, v in work.items() if k not in lead or lead.get(k) in (None, "", [], {})},
+    return {"patch": {k: v for k, v in work.items() if k not in lead or _field_missing(lead, k)},
             "audit": audit, "providers_attempted": paid.get("providers_attempted") or [],
             "credits_spent": paid.get("credits_spent", 0.0)}

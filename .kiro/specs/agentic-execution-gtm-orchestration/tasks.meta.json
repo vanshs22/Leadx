@@ -1,0 +1,223 @@
+{
+  "pbtResults": {},
+  "executionHistory": {
+    "16. Project pipeline instrumentation into durable task trace": [
+      {
+        "executionId": "0db8d4be-5de4-4a97-853e-f644cfaa9a68",
+        "chatSessionId": "sess_04c0a8cd-f6f5-434b-b17e-8d89acafffcf",
+        "timestamp": 1793356082831
+      }
+    ],
+    "18. Implement asynchronous Learning Agent, outcome events, shadow, canary, and rollback": [
+      {
+        "executionId": "0db8d4be-5de4-4a97-853e-f644cfaa9a68",
+        "chatSessionId": "sess_04c0a8cd-f6f5-434b-b17e-8d89acafffcf",
+        "timestamp": 1793356090994
+      },
+      {
+        "executionId": "0db8d4be-5de4-4a97-853e-f644cfaa9a68",
+        "chatSessionId": "sess_04c0a8cd-f6f5-434b-b17e-8d89acafffcf",
+        "timestamp": 1793356511164
+      }
+    ],
+    "19. Implement benchmark methodology and claims evidence": [
+      {
+        "executionId": "0db8d4be-5de4-4a97-853e-f644cfaa9a68",
+        "chatSessionId": "sess_04c0a8cd-f6f5-434b-b17e-8d89acafffcf",
+        "timestamp": 1793356091093
+      },
+      {
+        "executionId": "0db8d4be-5de4-4a97-853e-f644cfaa9a68",
+        "chatSessionId": "sess_04c0a8cd-f6f5-434b-b17e-8d89acafffcf",
+        "timestamp": 1793356511424
+      }
+    ],
+    "20. Implement task trace projection and UI/API evidence contract": [
+      {
+        "executionId": "0db8d4be-5de4-4a97-853e-f644cfaa9a68",
+        "chatSessionId": "sess_04c0a8cd-f6f5-434b-b17e-8d89acafffcf",
+        "timestamp": 1793356091248
+      },
+      {
+        "executionId": "0db8d4be-5de4-4a97-853e-f644cfaa9a68",
+        "chatSessionId": "sess_04c0a8cd-f6f5-434b-b17e-8d89acafffcf",
+        "timestamp": 1793356511568
+      }
+    ],
+    "21. Re-run the exact exploration and preservation properties after implementation": [
+      {
+        "executionId": "0db8d4be-5de4-4a97-853e-f644cfaa9a68",
+        "chatSessionId": "sess_04c0a8cd-f6f5-434b-b17e-8d89acafffcf",
+        "timestamp": 1793356519531
+      }
+    ],
+    "21.1. Integrate task-first orchestration into legacy mission/API compatibility entrypoints": [
+      {
+        "executionId": "b326d864-150e-468f-9b0c-d3e8a5f7c72e",
+        "chatSessionId": "sess_04c0a8cd-f6f5-434b-b17e-8d89acafffcf",
+        "timestamp": 1793357623477
+      },
+      {
+        "executionId": "b326d864-150e-468f-9b0c-d3e8a5f7c72e",
+        "chatSessionId": "sess_04c0a8cd-f6f5-434b-b17e-8d89acafffcf",
+        "timestamp": 1793358116361
+      }
+    ],
+    "22. Offline/local acceptance checkpoint": [
+      {
+        "executionId": "b326d864-150e-468f-9b0c-d3e8a5f7c72e",
+        "chatSessionId": "sess_04c0a8cd-f6f5-434b-b17e-8d89acafffcf",
+        "timestamp": 1793358126558
+      },
+      {
+        "executionId": "b326d864-150e-468f-9b0c-d3e8a5f7c72e",
+        "chatSessionId": "sess_04c0a8cd-f6f5-434b-b17e-8d89acafffcf",
+        "timestamp": 1793358826067
+      }
+    ],
+    "22.1. Repair combined-process purity assertions without changing application behavior": [
+      {
+        "executionId": "b326d864-150e-468f-9b0c-d3e8a5f7c72e",
+        "chatSessionId": "sess_04c0a8cd-f6f5-434b-b17e-8d89acafffcf",
+        "timestamp": 1793358549144
+      },
+      {
+        "executionId": "b326d864-150e-468f-9b0c-d3e8a5f7c72e",
+        "chatSessionId": "sess_04c0a8cd-f6f5-434b-b17e-8d89acafffcf",
+        "timestamp": 1793358825896
+      }
+    ],
+    "23. UAT validation gate — BLOCKED until explicit prerequisites": [
+      {
+        "executionId": "b326d864-150e-468f-9b0c-d3e8a5f7c72e",
+        "chatSessionId": "sess_04c0a8cd-f6f5-434b-b17e-8d89acafffcf",
+        "timestamp": 1793358833918
+      },
+      {
+        "executionId": "b326d864-150e-468f-9b0c-d3e8a5f7c72e",
+        "chatSessionId": "sess_04c0a8cd-f6f5-434b-b17e-8d89acafffcf",
+        "timestamp": 1793358942109
+      }
+    ],
+    "24. Live/provider/deployment acceptance gate — BLOCKED until explicit prerequisites": [
+      {
+        "executionId": "b326d864-150e-468f-9b0c-d3e8a5f7c72e",
+        "chatSessionId": "sess_04c0a8cd-f6f5-434b-b17e-8d89acafffcf",
+        "timestamp": 1793358949253
+      },
+      {
+        "executionId": "b326d864-150e-468f-9b0c-d3e8a5f7c72e",
+        "chatSessionId": "sess_04c0a8cd-f6f5-434b-b17e-8d89acafffcf",
+        "timestamp": 1793359083044
+      }
+    ],
+    "27. Run bounded production-shaped Playwright browser validation": [
+      {
+        "executionId": "1468810a-b422-47cc-9639-a89e6e264782",
+        "chatSessionId": "sess_04c0a8cd-f6f5-434b-b17e-8d89acafffcf",
+        "timestamp": 1793359716367
+      },
+      {
+        "executionId": "1468810a-b422-47cc-9639-a89e6e264782",
+        "chatSessionId": "sess_04c0a8cd-f6f5-434b-b17e-8d89acafffcf",
+        "timestamp": 1793360219278
+      }
+    ],
+    "28. Full read-only production-shaped dashboard and GTM validation": [
+      {
+        "executionId": "1454da38-fec3-497a-904a-9184cca05abd",
+        "chatSessionId": "sess_04c0a8cd-f6f5-434b-b17e-8d89acafffcf",
+        "timestamp": 1793360744579
+      },
+      {
+        "executionId": "1454da38-fec3-497a-904a-9184cca05abd",
+        "chatSessionId": "sess_04c0a8cd-f6f5-434b-b17e-8d89acafffcf",
+        "timestamp": 1793361533084
+      }
+    ],
+    "29. Diagnose and remediate production-shaped readiness, queue, and dashboard test blockers": [
+      {
+        "executionId": "4d694f36-cf1e-4fff-b7ea-e213c6f5ddb8",
+        "chatSessionId": "sess_04c0a8cd-f6f5-434b-b17e-8d89acafffcf",
+        "timestamp": 1793362764827
+      },
+      {
+        "executionId": "4d694f36-cf1e-4fff-b7ea-e213c6f5ddb8",
+        "chatSessionId": "sess_04c0a8cd-f6f5-434b-b17e-8d89acafffcf",
+        "timestamp": 1793363599224
+      }
+    ],
+    "30. Rebuild and rerun production-shaped readiness and dashboard validation after remediation": [
+      {
+        "executionId": "4d694f36-cf1e-4fff-b7ea-e213c6f5ddb8",
+        "chatSessionId": "sess_04c0a8cd-f6f5-434b-b17e-8d89acafffcf",
+        "timestamp": 1793363751033
+      },
+      {
+        "executionId": "4d694f36-cf1e-4fff-b7ea-e213c6f5ddb8",
+        "chatSessionId": "sess_04c0a8cd-f6f5-434b-b17e-8d89acafffcf",
+        "timestamp": 1793364908642
+      }
+    ],
+    "31. Provision disposable local auth fixtures and run authenticated dashboard/GTM validation": [
+      {
+        "executionId": "898dc613-a04e-4bf5-ba95-412a5567c4cc",
+        "chatSessionId": "sess_04c0a8cd-f6f5-434b-b17e-8d89acafffcf",
+        "timestamp": 1793365114978
+      },
+      {
+        "executionId": "898dc613-a04e-4bf5-ba95-412a5567c4cc",
+        "chatSessionId": "sess_04c0a8cd-f6f5-434b-b17e-8d89acafffcf",
+        "timestamp": 1793366843625
+      }
+    ],
+    "32. Fix admin prospecting null-state crash": [
+      {
+        "executionId": "fe1d8306-1ca3-4a17-ac6e-8c34503fd7a3",
+        "chatSessionId": "sess_04c0a8cd-f6f5-434b-b17e-8d89acafffcf",
+        "timestamp": 1793369185612
+      },
+      {
+        "executionId": "fe1d8306-1ca3-4a17-ac6e-8c34503fd7a3",
+        "chatSessionId": "sess_04c0a8cd-f6f5-434b-b17e-8d89acafffcf",
+        "timestamp": 1793370076948
+      }
+    ],
+    "33. Add authenticated GTM and task-trace runtime view": [
+      {
+        "executionId": "fe1d8306-1ca3-4a17-ac6e-8c34503fd7a3",
+        "chatSessionId": "sess_04c0a8cd-f6f5-434b-b17e-8d89acafffcf",
+        "timestamp": 1793370083935
+      },
+      {
+        "executionId": "fe1d8306-1ca3-4a17-ac6e-8c34503fd7a3",
+        "chatSessionId": "sess_04c0a8cd-f6f5-434b-b17e-8d89acafffcf",
+        "timestamp": 1793371308861
+      }
+    ],
+    "34. Prove client/admin role separation and private realtime/refetch behavior": [
+      {
+        "executionId": "fe1d8306-1ca3-4a17-ac6e-8c34503fd7a3",
+        "chatSessionId": "sess_04c0a8cd-f6f5-434b-b17e-8d89acafffcf",
+        "timestamp": 1793371317376
+      },
+      {
+        "executionId": "fe1d8306-1ca3-4a17-ac6e-8c34503fd7a3",
+        "chatSessionId": "sess_04c0a8cd-f6f5-434b-b17e-8d89acafffcf",
+        "timestamp": 1793371847447
+      }
+    ],
+    "35. Run bounded real lead and CRM validation after authenticated fixes": [
+      {
+        "executionId": "fe1d8306-1ca3-4a17-ac6e-8c34503fd7a3",
+        "chatSessionId": "sess_04c0a8cd-f6f5-434b-b17e-8d89acafffcf",
+        "timestamp": 1793371856410
+      },
+      {
+        "executionId": "fe1d8306-1ca3-4a17-ac6e-8c34503fd7a3",
+        "chatSessionId": "sess_04c0a8cd-f6f5-434b-b17e-8d89acafffcf",
+        "timestamp": 1793372182444
+      }
+    ]
+  }
+}

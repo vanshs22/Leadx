@@ -1,0 +1,139 @@
+{
+  "schema": "leadx.bounded-real-validation.v1",
+  "task": "Bounded real LeadX discovery-to-CRM validation",
+  "decision": "BLOCKED",
+  "evidence_class": "live-runtime-prerequisite-and-read-only-browser",
+  "execution_performed": false,
+  "scope": {
+    "target_maximum": 5,
+    "requested_flow": [
+      "discovery/planning/ICP/prospecting",
+      "enrichment",
+      "qualification",
+      "assignment",
+      "CRM delivery",
+      "database-backed progress",
+      "authenticated dashboard/task trace",
+      "realtime/refetch",
+      "assigned/reserved/delivered reconciliation",
+      "target stop"
+    ],
+    "forbidden_actions": ["email", "outreach", "campaign", "Stripe", "SES", "migration", "deploy", "queue clear", "DB reset", "data deletion"]
+  },
+  "runtime": {
+    "stack": "leadx-real-validation",
+    "services_observed": {
+      "api": "healthy",
+      "worker": "healthy",
+      "portal": "healthy",
+      "redis": "healthy"
+    },
+    "api_health": {
+      "/health/live": 200,
+      "/health/ready": 200,
+      "/health/routes": 200,
+      "portal_/api/health": 200
+    },
+    "protected_crm_probe": {
+      "endpoint": "/crm/me",
+      "status": 401,
+      "request_id": "cf8280d3…5d6170b5",
+      "body_keys": ["ok", "error", "request_id"]
+    }
+  },
+  "blocking_findings": [
+    {
+      "id": "authenticated-fixture-unavailable",
+      "status": "BLOCKED",
+      "safe_root_cause": "The already-running API and worker processes contain no configured UAT client/admin credentials, tenant IDs, default ICP, or default geography variables. No authenticated test session or approved tenant scope could be established without requesting or inspecting secrets.",
+      "evidence": {
+        "credential_presence": {
+          "client_email": false,
+          "client_password": false,
+          "admin_email": false,
+          "admin_password": false
+        },
+        "tenant_or_default_scope_presence": {
+          "tenant_a_id": false,
+          "tenant_b_id": false,
+          "default_icp": false,
+          "default_geo": false
+        },
+        "unauthenticated_api_response": 401
+      }
+    },
+    {
+      "id": "paid-fallback-not-disabled",
+      "status": "BLOCKED",
+      "safe_root_cause": "The running process is configured for automatic paid fallback and provider isolation is disabled. The requested no-paid-fallback boundary is therefore not provable or satisfied.",
+      "evidence": {
+        "paid_fallback_mode": "auto",
+        "provider_isolation": "0",
+        "configured_provider_key_names_only": ["DECODO_API_KEY", "SERPER_API_KEY"]
+      }
+    },
+    {
+      "id": "repository-playwright-harness",
+      "status": "BLOCKED",
+      "safe_root_cause": "The repository Playwright test invocation could not load the root config because @playwright/test is not resolvable from that config context. A direct Playwright Chromium check was used instead for the bounded unauthenticated guard only.",
+      "evidence": {
+        "direct_check": "PASS",
+        "test_paths": {
+          "/dashboard": "/login",
+          "/admin/health": "/admin/login"
+        }
+      }
+    }
+  ],
+  "validation_results": [
+    {"check": "Existing production-shaped stack health", "status": "PASS", "detail": "Already-running API, worker, portal, and Redis containers were healthy; no start, restart, or compose mutation was performed."},
+    {"check": "Authenticated dashboard and task trace", "status": "BLOCKED", "detail": "No process-configured authenticated fixture was available; /crm/me returned 401."},
+    {"check": "Real discovery/planning/ICP/prospecting", "status": "NOT RUN", "detail": "Stopped before request creation because authenticated tenant/default ICP/geography prerequisites were unavailable."},
+    {"check": "Enrichment and qualification", "status": "NOT RUN", "detail": "No real run existed."},
+    {"check": "Assignment, reservation, and CRM delivery", "status": "NOT RUN", "detail": "No state mutation or delivery operation was attempted."},
+    {"check": "Database-backed progress and reconciliation", "status": "NOT TESTED", "detail": "No run/request/lead IDs or authoritative counters were available."},
+    {"check": "Realtime/refetch", "status": "NOT TESTED", "detail": "Requires an authenticated real run projection."},
+    {"check": "Target stop at maximum five", "status": "NOT TESTED", "detail": "No target was submitted."},
+    {"check": "No outreach/email/campaign/Stripe/SES", "status": "PASS", "detail": "No such calls were made."},
+    {"check": "Bounded browser authentication guard", "status": "PASS", "detail": "Direct Chromium confirmed unauthenticated client and admin redirects."}
+  ],
+  "counts": {
+    "requested_target": 5,
+    "discovered": null,
+    "enriched": null,
+    "qualified": null,
+    "assigned": null,
+    "reserved": null,
+    "delivered": null,
+    "target_stop": null
+  },
+  "agent_stage_evidence": {
+    "status": "NOT AVAILABLE",
+    "detail": "No agent/stage execution evidence exists because no real request was created. Static definitions and synthetic fixtures were excluded from evidence."
+  },
+  "commands_and_results": [
+    {"command": "docker ps --format <names/images/status/ports>", "result": "PASS; four leadx-real-validation containers healthy."},
+    {"command": "GET /health/live; GET /health/ready; GET /health/routes; GET portal /api/health", "result": "PASS; all returned HTTP 200."},
+    {"command": "GET /crm/me without credentials", "result": "BLOCKED as expected; HTTP 401; request ID redacted above."},
+    {"command": "direct Playwright Chromium navigation to /dashboard and /admin/health", "result": "PASS; redirected to /login and /admin/login."},
+    {"command": "repository Playwright targeted auth-guard test", "result": "BLOCKED by harness module-resolution/config-context error; no broad retry."}
+  ],
+  "safety_boundary": {
+    "env_file_read": false,
+    "credentials_printed_or_requested": false,
+    "credentials_inspected": false,
+    "provider_calls": false,
+    "database_mutations": false,
+    "pipeline_request_created": false,
+    "queue_cleared_or_restarted": false,
+    "email_outreach_campaign_stripe_ses": false,
+    "migration_or_deploy": false,
+    "data_deleted": false
+  },
+  "remaining_blockers": [
+    "Start or provide an already-running stack with process-injected approved test authentication and tenant/default ICP/geography context, without exposing secrets.",
+    "Run with paid fallback disabled and provider isolation enabled, with a provable no-cost path and explicit request/enrichment budgets.",
+    "Provide a working authenticated Playwright/browser harness or approved auth state through the running stack only."
+  ],
+  "redaction_note": "No .env values, credentials, tenant identifiers, ICP values, geography values, lead data, or provider secrets were written. No synthetic result was represented as live success."
+}

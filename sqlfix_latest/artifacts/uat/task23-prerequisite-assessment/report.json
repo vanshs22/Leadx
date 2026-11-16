@@ -1,0 +1,142 @@
+{
+  "schema": "leadx.task23-uat-prerequisite-assessment.v1",
+  "task": "23",
+  "decision": "BLOCKED",
+  "uat_gate": "BLOCKED",
+  "uat_checks": "NOT_TESTED",
+  "mode": "prerequisite-assessment-only",
+  "evidence_class": "static",
+  "environment": "NOT SUPPLIED",
+  "profile_version": "NOT SELECTED",
+  "test_inputs": [],
+  "outcomes": [],
+  "approval": {
+    "uat_owner": "NOT SUPPLIED",
+    "approval_reference": "NOT SUPPLIED",
+    "status": "NOT SUPPLIED"
+  },
+  "external_contacts": false,
+  "env_file_read": false,
+  "credentials_requested_or_printed": false,
+  "non_chat_secret_injection_used": false,
+  "remote_supabase_contacted": false,
+  "database_test_access_used": false,
+  "live_provider_contacted": false,
+  "provider_test_access_used": false,
+  "deployed_checks_run": false,
+  "uat_execution_started": false,
+  "production_or_uat_data_mutated": false,
+  "source_files_changed": false,
+  "redaction": {
+    "applied": true,
+    "credentials_or_secret_values_present": false,
+    "tenant_or_fixture_identifiers_present": false,
+    "provider_or_database_payloads_present": false
+  },
+  "evidence_inspected": [
+    ".kiro/specs/agentic-execution-gtm-orchestration/.config.kiro",
+    ".kiro/specs/agentic-execution-gtm-orchestration/requirements.md",
+    ".kiro/specs/agentic-execution-gtm-orchestration/design.md",
+    ".kiro/specs/agentic-execution-gtm-orchestration/tasks.md",
+    "sqlfix_latest/docs/UAT.md",
+    "sqlfix_latest/artifacts/uat/prerequisites.example.json",
+    "sqlfix_latest/artifacts/uat/task8-prerequisite-assessment/report.json",
+    "sqlfix_latest/artifacts/uat/task14-prerequisite-assessment/report.json",
+    "sqlfix_latest/artifacts/uat/preflight/report.md",
+    "sqlfix_latest/scripts/uat_prerequisites.py"
+  ],
+  "task_22_dependency": {
+    "tasks_file_status": "MARKED COMPLETE",
+    "uat_revalidation_run": false,
+    "interpretation": "Recorded task status was inspected only; no UAT or external acceptance was inferred."
+  },
+  "blocked_prerequisites": [
+    {
+      "id": "approved-isolated-uat-environment",
+      "requirement": "Approved tenant-safe isolated UAT target with staging markers, deployed HTTPS API/portal, healthy worker, and dedicated Redis namespace",
+      "status": "NOT SUPPLIED"
+    },
+    {
+      "id": "tenant-fixtures",
+      "requirement": "Two isolated UAT tenants, client and platform-admin users, required role mapping, and sanitized lead/test fixture IDs",
+      "status": "NOT SUPPLIED"
+    },
+    {
+      "id": "non-chat-secret-injection",
+      "requirement": "Approved private secret-store or deployment-environment injection for UAT credentials; no secrets supplied through chat or repository files",
+      "status": "NOT SUPPLIED"
+    },
+    {
+      "id": "provider-database-test-access",
+      "requirement": "Authorized separate UAT database/Supabase project with current schema and bounded test-only provider accounts, budgets, timeouts, and fallback policy",
+      "status": "NOT SUPPLIED"
+    },
+    {
+      "id": "rollback-plan",
+      "requirement": "Named rollback and cleanup owners, approved stop condition, retention/cleanup plan, and recovery runbook",
+      "status": "NOT SUPPLIED"
+    },
+    {
+      "id": "uat-owner-approval",
+      "requirement": "Named UAT owner and explicit approval reference authorizing the selected checks and bounded UAT run",
+      "status": "NOT SUPPLIED"
+    }
+  ],
+  "unverified_checks": [
+    {
+      "check_id": "tenant-isolation.rls",
+      "status": "NOT TESTED",
+      "reason": "No approved isolated UAT database or tenant fixtures"
+    },
+    {
+      "check_id": "realtime.convergence",
+      "status": "NOT TESTED",
+      "reason": "No approved UAT services or database access"
+    },
+    {
+      "check_id": "provider.configured-behavior",
+      "status": "NOT TESTED",
+      "reason": "No authorized provider test access or non-chat secret injection"
+    },
+    {
+      "check_id": "crm.outbox.delivery",
+      "status": "NOT TESTED",
+      "reason": "No approved UAT target, fixtures, or delivery test scope"
+    },
+    {
+      "check_id": "approval.compliance",
+      "status": "NOT TESTED",
+      "reason": "No UAT owner approval, tenant fixtures, or authorized test environment"
+    },
+    {
+      "check_id": "task-trace",
+      "status": "NOT TESTED",
+      "reason": "No approved UAT runtime or test inputs"
+    },
+    {
+      "check_id": "recovery.rollback",
+      "status": "NOT TESTED",
+      "reason": "No approved rollback plan or UAT worker/database environment"
+    }
+  ],
+  "limitations": [
+    "This artifact records prerequisites only and is not UAT evidence.",
+    "No UAT command, preflight, provider call, database call, deployed-service check, migration, deployment, or data mutation was performed.",
+    "No local, synthetic, or static evidence is promoted to UAT or live evidence.",
+    "Missing prerequisites remain BLOCKED and must not be simulated as PASS."
+  ],
+  "gate": {
+    "id": "uat_live",
+    "status": "BLOCKED",
+    "check_status": "NOT_TESTED",
+    "reason": "No approved isolated UAT environment, tenant fixtures, non-chat secret injection, provider/database test access, rollback plan, or UAT owner/approval was supplied. No UAT pass may be claimed.",
+    "reopen_with": [
+      "approved isolated UAT environment and target",
+      "isolated tenant and user fixtures",
+      "approved non-chat secret injection",
+      "authorized provider and separate UAT database access",
+      "named cleanup and rollback plan",
+      "named UAT owner and explicit approval"
+    ]
+  }
+}

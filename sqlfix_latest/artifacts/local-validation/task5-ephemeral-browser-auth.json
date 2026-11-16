@@ -1,0 +1,44 @@
+{
+  "task": "test-environment-production-validation.5",
+  "status": "PASS",
+  "evidence_class": "browser-local authenticated validation",
+  "environment_class": "local/test",
+  "e2e_target": "http://localhost:3000",
+  "checks": {
+    "local_target_configuration": "PASS",
+    "headed_browser_auth": "PASS: normal login forms submitted with the approved local synthetic profile; no field values were logged",
+    "client_route": "PASS: final URL path was /dashboard",
+    "admin_route": "PASS: final URL path was /admin after opening /admin/login and submitting the same local synthetic profile",
+    "client_storage_state": "CREATED",
+    "admin_storage_state": "CREATED",
+    "state_contents": "NOT_INSPECTED",
+    "normal_authenticated_tenant_routes": "PASS: reached through normal application routes",
+    "authentication_and_rls": "PRESERVED",
+    "temporary_override": "UNCHANGED during the run; retained until both states were saved",
+    "provider_isolation": "PASS: no provider action invoked",
+    "target_cap_500": "NOT_TESTED by browser-state task",
+    "forbidden_outbound_guards": "PASS: no email, outreach, campaign, Stripe, or SES action invoked",
+    "pipeline_work": "PASS: none created",
+    "remote_sql_mutation": "PASS: none performed"
+  },
+  "route_metadata": [
+    { "role": "client", "login_path": "/login", "final_path": "/dashboard", "state_saved": true },
+    { "role": "admin", "login_path": "/admin/login", "final_path": "/admin", "state_saved": true }
+  ],
+  "sanitized_paths": {
+    "temporary_directory": "C:\\Users\\vansh\\AppData\\Local\\Temp\\leadx-task5-ephemeral-auth",
+    "client_state": "C:\\Users\\vansh\\AppData\\Local\\Temp\\leadx-task5-ephemeral-auth\\client.json",
+    "admin_state": "C:\\Users\\vansh\\AppData\\Local\\Temp\\leadx-task5-ephemeral-auth\\admin.json"
+  },
+  "safety": {
+    "credentials_inspected": false,
+    "credentials_logged": false,
+    "credential_fields_persisted": false,
+    "storage_state_contents_inspected": false,
+    "auth_or_rls_disabled": false,
+    "approved_real_tenant_used": false,
+    "providers_contacted": false,
+    "email_outreach_campaign_stripe_ses_invoked": false,
+    "cap_violation": false
+  }
+}

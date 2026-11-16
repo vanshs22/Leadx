@@ -1,0 +1,50 @@
+{
+  "schema": "leadx.task6.authenticated-playwright-validation.v1",
+  "task": "test-environment-production-validation.6",
+  "overall": "BLOCKED",
+  "evidence_class": "browser-local authenticated validation",
+  "environment_class": "local/test",
+  "dependency": {
+    "task5_status": "BLOCKED",
+    "approved_client_storage_state_present": false,
+    "approved_admin_storage_state_present": false,
+    "approved_e2e_target_present": false,
+    "known_temporary_auth_state_path_present": false,
+    "storage_state_contents_inspected": false,
+    "playwright_started": false
+  },
+  "checks": [
+    {"name": "client target-five request/status view", "status": "NOT_TESTED", "reason": "No approved authenticated state or E2E target was available."},
+    {"name": "admin target-five request/status view", "status": "NOT_TESTED", "reason": "No approved authenticated state or E2E target was available."},
+    {"name": "task trace", "status": "NOT_TESTED", "reason": "No authenticated page was opened."},
+    {"name": "discovered/enriched/qualified counts", "status": "NOT_TESTED", "reason": "No authenticated projection was loaded."},
+    {"name": "assigned/reserved/delivered counts", "status": "NOT_TESTED", "reason": "No authoritative authenticated projection was loaded."},
+    {"name": "CRM/client reconciliation", "status": "NOT_TESTED", "reason": "No client/admin browser projection was loaded."},
+    {"name": "realtime metadata hint and authoritative refetch", "status": "NOT_TESTED", "reason": "No authenticated runtime was available to observe refetch convergence."},
+    {"name": "loading state", "status": "NOT_TESTED", "reason": "No authenticated page was opened."},
+    {"name": "empty state", "status": "NOT_TESTED", "reason": "No authenticated page was opened."},
+    {"name": "error state", "status": "NOT_TESTED", "reason": "No authenticated page was opened."},
+    {"name": "terminal state", "status": "NOT_TESTED", "reason": "No target-five task was created or rendered."},
+    {"name": "cross-tenant safety", "status": "NOT_TESTED", "reason": "No authenticated client/admin state was available for tenant-scoped checks."},
+    {"name": "provider isolation and forbidden-action guards", "status": "NOT_TESTED", "reason": "The task did not reach an authenticated runtime; no provider or forbidden action was invoked."},
+    {"name": "temporary-state cleanup", "status": "PASS", "reason": "No browser context or temporary auth state was created."},
+    {"name": "pipeline/durable work", "status": "PASS", "reason": "No pipeline or durable work was created."}
+  ],
+  "safety": {
+    "credentials_inspected": false,
+    "credentials_printed": false,
+    "credentials_requested": false,
+    "credentials_persisted": false,
+    "storage_state_contents_inspected": false,
+    "bypass_account_created": false,
+    "auth_or_rls_disabled": false,
+    "approved_real_tenant_used": false,
+    "playwright_started": false,
+    "providers_contacted": false,
+    "remote_sql_mutation": false,
+    "email_outreach_campaign_stripe_ses_invoked": false,
+    "pipeline_work_created": false,
+    "cap_violation": false
+  },
+  "conclusion": "Task 6 is BLOCKED/NOT_TESTED because task 5 did not have an approved ephemeral client/admin storage state or local/test E2E target. No authenticated browser or substitute offline authenticated proof was used."
+}

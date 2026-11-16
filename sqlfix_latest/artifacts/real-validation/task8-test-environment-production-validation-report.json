@@ -1,0 +1,94 @@
+{
+  "schema": "leadx.test-environment-production-validation.task8.v2",
+  "task": "test-environment-production-validation.8",
+  "decision": "BLOCKED",
+  "execution_performed": false,
+  "evidence_class": "live-runtime-prerequisite",
+  "scope": {
+    "tenant_id": "5655f9d9-b3c7-48f9-bb95-9f3fe0675854",
+    "icp_id": "377aaa3e-5eae-41fc-a12a-570e791490b3",
+    "vertical": "marketing agency",
+    "geography": ["New Jersey", "New York", "Pennsylvania"],
+    "delivery": "portal",
+    "requested_target": 5,
+    "hard_cap": 500,
+    "scope_match": "PASS from current instruction"
+  },
+  "runtime": {
+    "containers": {"api": "healthy", "worker": "healthy", "portal": "healthy", "redis": "healthy"},
+    "api_live": {"status": 200, "result": "PASS"},
+    "api_ready": {"status": 200, "result": "PASS", "db": true, "redis": true, "worker": true, "queue": true, "reclaim": true, "routes": true},
+    "portal_health": {"status": 200, "result": "PASS"},
+    "runtime_flags": {
+      "environment": "production",
+      "local_validation_mode": "0",
+      "local_authentication_flag": "0",
+      "dev_auth_bypass": "0",
+      "portal_local_auth": "0",
+      "redis_required": "1",
+      "worker_required": "1",
+      "queue_fail_closed": "1"
+    },
+    "durable_preflight": {"result": "PASS", "ok": true, "timeout_seconds": 12},
+    "queue_snapshot": {"queued": 0, "running": 3, "depth": 3, "failed_historical": 8},
+    "opaque_state_presence": {"client": true, "admin": true, "contents_inspected": false}
+  },
+  "authorization": {
+    "admin_state_platform_probe": {"status": 401, "result": "BLOCKED"},
+    "admin_state_scope_probes": {"tenant": 401, "icps": 401, "provider_health": 401, "queue_metrics": 401, "runs": 401},
+    "client_state_tenant_probes": {"dashboard": 403, "discovery_requests": 403},
+    "result": "BLOCKED",
+    "reason_code": "authenticated_scope_unavailable"
+  },
+  "admission_gates": {
+    "fresh_idempotency_identity": "NOT_CREATED",
+    "approved_provider_list_and_budget": "NOT_OBSERVABLE",
+    "monitoring": "runtime health observable; authenticated live monitoring unavailable",
+    "side_effect_ceiling": "NOT_OBSERVABLE at authenticated boundary",
+    "stop_conditions": "NOT_OBSERVABLE at authenticated boundary",
+    "cleanup_ownership": "NOT_OBSERVABLE",
+    "forbidden_action_guard": "PASS by non-execution"
+  },
+  "run": {
+    "submission_count": 0,
+    "pipeline_request_created": false,
+    "fresh_idempotency_key_used": false,
+    "run_id": null,
+    "job_id": null,
+    "terminal_status": null,
+    "stop_reason": "Stopped before submission because opaque authenticated states returned unauthorized responses and live scope/ceilings could not be observed"
+  },
+  "validation_results": {
+    "route_and_provider_invocation": "NOT_TESTED",
+    "free_first_enrichment": "NOT_TESTED",
+    "contact_validation": "NOT_TESTED",
+    "deduplication": "NOT_TESTED",
+    "qualification": "NOT_TESTED",
+    "assignment": "NOT_TESTED",
+    "crm_persistence": "NOT_TESTED",
+    "portal_delivery": "NOT_TESTED",
+    "task_trace": "NOT_TESTED",
+    "realtime_and_count_convergence": "NOT_TESTED",
+    "elapsed_live_run_time": "NOT_TESTED",
+    "assigned_at_least_5": "NOT_TESTED",
+    "delivered_at_least_5": "NOT_TESTED",
+    "completed_status": "NOT_TESTED",
+    "crm_client_reconciliation": "NOT_TESTED"
+  },
+  "safety_boundary": {
+    "env_values_read": false,
+    "credentials_read_printed_requested_or_persisted": false,
+    "storage_state_contents_read": false,
+    "provider_calls": false,
+    "pipeline_request_created": false,
+    "second_submission": false,
+    "retry_or_cancel": false,
+    "queue_cleared": false,
+    "redis_cleared": false,
+    "migrations_or_sql_mutation": false,
+    "reset_or_data_cleanup": false,
+    "email_outreach_campaign_stripe_ses": 0,
+    "cap_violation": false
+  },
+  "next_gate": "Refresh or provide already-authorized opaque client/admin state for this runtime, then independently expose authenticated monitoring and side-effect ceilings. Do not submit until those gates pass."
+}

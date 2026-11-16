@@ -1,0 +1,63 @@
+{
+  "schema": "leadx.task7.bounded-browser-validation.v2",
+  "task": "7",
+  "overall": "BLOCKED",
+  "evidence_class": "browser-local and local-runtime readiness only",
+  "runtime_gate": {
+    "source": "task4-runtime-readiness-report.md plus bounded rerun probes",
+    "api_live": "PASS",
+    "api_ready": "PASS",
+    "portal_health": "PASS",
+    "worker_redis_queue": "PASS from Task 4; not mutated by this rerun",
+    "auth_readiness": "PASS; safe readiness category only"
+  },
+  "fixture": {
+    "repository_fixture": "checked-in synthetic portal API mocks are available",
+    "authenticated_ephemeral_fixture": "BLOCKED; no approved browser auth state was configured",
+    "storage_state": "not inspected, created, printed, or persisted",
+    "passwords_tokens_cookies": "not inspected, printed, or persisted",
+    "replay_support": "NOT_TESTED; checked-in synthetic fixture does not provide same-key/conflicting replay display responses",
+    "cleanup": "PASS; no durable auth, fixture, pipeline, or browser state was created by this rerun"
+  },
+  "safety": {
+    "real_pipeline_run": false,
+    "approved_real_tenant_used": false,
+    "supabase_contacted": false,
+    "providers_contacted": false,
+    "email_outreach_campaign_stripe_ses": false,
+    "remote_sql_or_migrations": false,
+    "forbidden_actions": "PASS; none invoked"
+  },
+  "commands": [
+    {
+      "command": "Bounded loopback probes for /health/live, /health/ready, and /api/health",
+      "result": "PASS",
+      "exit_code": 0,
+      "output": "HTTP 200 for all three; response bodies were not recorded"
+    },
+    {
+      "command": "npx playwright test e2e/portal-contracts.spec.ts --config=e2e/playwright.config.ts --workers=1 --timeout=15000 --reporter=line --grep 'task 7|synthetic revenue|admin prospecting|authenticated synthetic|portal runtime guards'",
+      "result": "PASS with authenticated checks skipped",
+      "exit_code": 0,
+      "output": "15 selected; 5 passed; 10 skipped; 0 failed",
+      "limitation": "Authenticated suites require LEADX_E2E_URL and LEADX_E2E_STORAGE_STATE. No storage state was supplied or inspected."
+    }
+  ],
+  "checks": [
+    { "name": "client request entry", "status": "BLOCKED", "reason": "Authenticated ephemeral fixture prerequisite was unavailable; no request was submitted." },
+    { "name": "admin request entry", "status": "BLOCKED", "reason": "Authenticated ephemeral fixture prerequisite was unavailable; no admin run was submitted." },
+    { "name": "same-key replay display", "status": "NOT_TESTED", "reason": "No approved disposable authenticated fixture and no replay response in the checked-in synthetic fixture." },
+    { "name": "conflicting replay display", "status": "NOT_TESTED", "reason": "No approved disposable authenticated fixture and no replay response in the checked-in synthetic fixture." },
+    { "name": "target-five progress", "status": "NOT_TESTED", "reason": "No authenticated client/admin projection was rendered; no pipeline work was created." },
+    { "name": "task trace", "status": "NOT_TESTED", "reason": "Authenticated task-trace projection was not rendered." },
+    { "name": "discovered/enriched/qualified/assigned/reserved/delivered counts", "status": "NOT_TESTED", "reason": "No authenticated count projection was rendered; synthetic contracts were not promoted to runtime proof." },
+    { "name": "loading/empty/error states", "status": "NOT_TESTED", "reason": "Authenticated state suite was skipped because the fixture prerequisite was unavailable." },
+    { "name": "CRM/client count rendering", "status": "NOT_TESTED", "reason": "No authenticated CRM/client projection was rendered." },
+    { "name": "/admin/prospecting", "status": "BLOCKED", "reason": "The bounded authenticated null/loading/missing/error/valid suite was skipped without an approved fixture." },
+    { "name": "tenant-safe access", "status": "NOT_TESTED", "reason": "No authenticated tenant fixture was available for this rerun; no cross-tenant request was attempted." },
+    { "name": "fixture cleanup", "status": "PASS", "reason": "No auth state, fixture record, cookie/token artifact, pipeline work, or durable browser state was created." },
+    { "name": "forbidden outbound actions", "status": "PASS", "reason": "No email, outreach, campaign, Stripe, SES, Supabase, provider, or pipeline action was invoked." },
+    { "name": "supporting local Playwright contracts", "status": "PASS", "reason": "Five bounded runtime/realtime contract tests passed; they do not prove authenticated product behavior." }
+  ],
+  "conclusion": "Task 7 remains BLOCKED for authenticated browser evidence. Local API/portal readiness passed and bounded Playwright completed without failures, but the required authenticated fixture was not configured. All dependent product-flow checks remain BLOCKED or NOT_TESTED and no live, provider, Supabase, realtime-service, or real-tenant claim is made."
+}

@@ -1,0 +1,1496 @@
+{
+  "schema": "leadx.task31.authenticated-local-validation.v1",
+  "task": "31",
+  "profile": "leadx-real-validation",
+  "evidence_boundary": "browser and production-shaped-local evidence only; no UAT, live/provider, deployment, or production-readiness claim",
+  "safety": {
+    "env_read": false,
+    "env_values_printed_or_inspected": false,
+    "real_credentials_used": false,
+    "providers_contacted": false,
+    "external_requests": 0,
+    "leads_created": false,
+    "leads_sent_assigned_or_delivered": false,
+    "supabase_stripe_ses_email_outreach_used": false
+  },
+  "fixture": {
+    "tenant": {
+      "id": "tenant-task31-disposable",
+      "kind": "synthetic_local_only"
+    },
+    "client_user": {
+      "id": "user-task31-client",
+      "email": "redacted"
+    },
+    "admin_user": {
+      "id": "user-task31-admin",
+      "email": "redacted"
+    },
+    "setup": "PASS",
+    "cleanup": "PASS: process-memory cookies/tokens discarded and browser contexts closed; no fixture rows were persisted by the runner",
+    "persisted_fixture_records": "none; tenant scope and both principals existed only in process-memory synthetic JWT claims",
+    "auth_state": "process-memory cookies/tokens only"
+  },
+  "route_inventory": {
+    "client_total": 26,
+    "admin_total": 24,
+    "client": [
+      {
+        "route": "/dashboard",
+        "status": "PASS",
+        "evidence": "browser",
+        "checks": {
+          "desktop": {
+            "status": "PASS",
+            "http": 200,
+            "final_path": "/dashboard",
+            "layout": "within_viewport",
+            "state_signal": "safe_state_text_observed",
+            "error": null
+          },
+          "mobile": {
+            "status": "PASS",
+            "http": 200,
+            "final_path": "/dashboard",
+            "layout": "within_viewport",
+            "state_signal": "safe_state_text_observed",
+            "error": null
+          }
+        },
+        "limitation": "synthetic local API responses; no real lead/provider state"
+      },
+      {
+        "route": "/growth",
+        "status": "PASS",
+        "evidence": "browser",
+        "checks": {
+          "desktop": {
+            "status": "PASS",
+            "http": 200,
+            "final_path": "/growth",
+            "layout": "within_viewport",
+            "state_signal": "safe_state_text_observed",
+            "error": null
+          },
+          "mobile": {
+            "status": "PASS",
+            "http": 200,
+            "final_path": "/growth",
+            "layout": "within_viewport",
+            "state_signal": "safe_state_text_observed",
+            "error": null
+          }
+        },
+        "limitation": "synthetic local API responses; no real lead/provider state"
+      },
+      {
+        "route": "/today",
+        "status": "PASS",
+        "evidence": "browser",
+        "checks": {
+          "desktop": {
+            "status": "PASS",
+            "http": 200,
+            "final_path": "/today",
+            "layout": "within_viewport",
+            "state_signal": "safe_state_text_observed",
+            "error": null
+          },
+          "mobile": {
+            "status": "PASS",
+            "http": 200,
+            "final_path": "/today",
+            "layout": "within_viewport",
+            "state_signal": "safe_state_text_observed",
+            "error": null
+          }
+        },
+        "limitation": "synthetic local API responses; no real lead/provider state"
+      },
+      {
+        "route": "/search",
+        "status": "PASS",
+        "evidence": "browser",
+        "checks": {
+          "desktop": {
+            "status": "PASS",
+            "http": 200,
+            "final_path": "/search",
+            "layout": "within_viewport",
+            "state_signal": "safe_state_text_observed",
+            "error": null
+          },
+          "mobile": {
+            "status": "PASS",
+            "http": 200,
+            "final_path": "/search",
+            "layout": "within_viewport",
+            "state_signal": "safe_state_text_observed",
+            "error": null
+          }
+        },
+        "limitation": "synthetic local API responses; no real lead/provider state"
+      },
+      {
+        "route": "/leads",
+        "status": "PASS",
+        "evidence": "browser",
+        "checks": {
+          "desktop": {
+            "status": "PASS",
+            "http": 200,
+            "final_path": "/leads",
+            "layout": "within_viewport",
+            "state_signal": "safe_state_text_observed",
+            "error": null
+          },
+          "mobile": {
+            "status": "PASS",
+            "http": 200,
+            "final_path": "/leads",
+            "layout": "within_viewport",
+            "state_signal": "safe_state_text_observed",
+            "error": null
+          }
+        },
+        "limitation": "synthetic local API responses; no real lead/provider state"
+      },
+      {
+        "route": "/companies",
+        "status": "PASS",
+        "evidence": "browser",
+        "checks": {
+          "desktop": {
+            "status": "PASS",
+            "http": 200,
+            "final_path": "/companies",
+            "layout": "within_viewport",
+            "state_signal": "safe_state_text_observed",
+            "error": null
+          },
+          "mobile": {
+            "status": "PASS",
+            "http": 200,
+            "final_path": "/companies",
+            "layout": "within_viewport",
+            "state_signal": "safe_state_text_observed",
+            "error": null
+          }
+        },
+        "limitation": "synthetic local API responses; no real lead/provider state"
+      },
+      {
+        "route": "/contacts",
+        "status": "PASS",
+        "evidence": "browser",
+        "checks": {
+          "desktop": {
+            "status": "PASS",
+            "http": 200,
+            "final_path": "/contacts",
+            "layout": "within_viewport",
+            "state_signal": "safe_state_text_observed",
+            "error": null
+          },
+          "mobile": {
+            "status": "PASS",
+            "http": 200,
+            "final_path": "/contacts",
+            "layout": "within_viewport",
+            "state_signal": "safe_state_text_observed",
+            "error": null
+          }
+        },
+        "limitation": "synthetic local API responses; no real lead/provider state"
+      },
+      {
+        "route": "/deals",
+        "status": "PASS",
+        "evidence": "browser",
+        "checks": {
+          "desktop": {
+            "status": "PASS",
+            "http": 200,
+            "final_path": "/deals",
+            "layout": "within_viewport",
+            "state_signal": "safe_state_text_observed",
+            "error": null
+          },
+          "mobile": {
+            "status": "PASS",
+            "http": 200,
+            "final_path": "/deals",
+            "layout": "within_viewport",
+            "state_signal": "safe_state_text_observed",
+            "error": null
+          }
+        },
+        "limitation": "synthetic local API responses; no real lead/provider state"
+      },
+      {
+        "route": "/sequences",
+        "status": "PASS",
+        "evidence": "browser",
+        "checks": {
+          "desktop": {
+            "status": "PASS",
+            "http": 200,
+            "final_path": "/sequences",
+            "layout": "within_viewport",
+            "state_signal": "safe_state_text_observed",
+            "error": null
+          },
+          "mobile": {
+            "status": "PASS",
+            "http": 200,
+            "final_path": "/sequences",
+            "layout": "within_viewport",
+            "state_signal": "safe_state_text_observed",
+            "error": null
+          }
+        },
+        "limitation": "synthetic local API responses; no real lead/provider state"
+      },
+      {
+        "route": "/automations",
+        "status": "PASS",
+        "evidence": "browser",
+        "checks": {
+          "desktop": {
+            "status": "PASS",
+            "http": 200,
+            "final_path": "/automations",
+            "layout": "within_viewport",
+            "state_signal": "safe_state_text_observed",
+            "error": null
+          },
+          "mobile": {
+            "status": "PASS",
+            "http": 200,
+            "final_path": "/automations",
+            "layout": "within_viewport",
+            "state_signal": "safe_state_text_observed",
+            "error": null
+          }
+        },
+        "limitation": "synthetic local API responses; no real lead/provider state"
+      },
+      {
+        "route": "/agents",
+        "status": "PASS",
+        "evidence": "browser",
+        "checks": {
+          "desktop": {
+            "status": "PASS",
+            "http": 200,
+            "final_path": "/admin/agents",
+            "layout": "within_viewport",
+            "state_signal": "safe_state_text_observed",
+            "error": null
+          },
+          "mobile": {
+            "status": "PASS",
+            "http": 200,
+            "final_path": "/admin/agents",
+            "layout": "within_viewport",
+            "state_signal": "safe_state_text_observed",
+            "error": null
+          }
+        },
+        "limitation": "synthetic local API responses; no real lead/provider state"
+      },
+      {
+        "route": "/compose",
+        "status": "PASS",
+        "evidence": "browser",
+        "checks": {
+          "desktop": {
+            "status": "PASS",
+            "http": 200,
+            "final_path": "/compose",
+            "layout": "within_viewport",
+            "state_signal": "safe_state_text_observed",
+            "error": null
+          },
+          "mobile": {
+            "status": "PASS",
+            "http": 200,
+            "final_path": "/compose",
+            "layout": "within_viewport",
+            "state_signal": "safe_state_text_observed",
+            "error": null
+          }
+        },
+        "limitation": "synthetic local API responses; no real lead/provider state"
+      },
+      {
+        "route": "/replies",
+        "status": "PASS",
+        "evidence": "browser",
+        "checks": {
+          "desktop": {
+            "status": "PASS",
+            "http": 200,
+            "final_path": "/replies",
+            "layout": "within_viewport",
+            "state_signal": "safe_state_text_observed",
+            "error": null
+          },
+          "mobile": {
+            "status": "PASS",
+            "http": 200,
+            "final_path": "/replies",
+            "layout": "within_viewport",
+            "state_signal": "safe_state_text_observed",
+            "error": null
+          }
+        },
+        "limitation": "synthetic local API responses; no real lead/provider state"
+      },
+      {
+        "route": "/notifications",
+        "status": "PASS",
+        "evidence": "browser",
+        "checks": {
+          "desktop": {
+            "status": "PASS",
+            "http": 200,
+            "final_path": "/notifications",
+            "layout": "within_viewport",
+            "state_signal": "safe_state_text_observed",
+            "error": null
+          },
+          "mobile": {
+            "status": "PASS",
+            "http": 200,
+            "final_path": "/notifications",
+            "layout": "within_viewport",
+            "state_signal": "safe_state_text_observed",
+            "error": null
+          }
+        },
+        "limitation": "synthetic local API responses; no real lead/provider state"
+      },
+      {
+        "route": "/pipeline",
+        "status": "PASS",
+        "evidence": "browser",
+        "checks": {
+          "desktop": {
+            "status": "PASS",
+            "http": 200,
+            "final_path": "/pipeline",
+            "layout": "within_viewport",
+            "state_signal": "rendered",
+            "error": null
+          },
+          "mobile": {
+            "status": "PASS",
+            "http": 200,
+            "final_path": "/pipeline",
+            "layout": "within_viewport",
+            "state_signal": "rendered",
+            "error": null
+          }
+        },
+        "limitation": "synthetic local API responses; no real lead/provider state"
+      },
+      {
+        "route": "/activities",
+        "status": "PASS",
+        "evidence": "browser",
+        "checks": {
+          "desktop": {
+            "status": "PASS",
+            "http": 200,
+            "final_path": "/activities",
+            "layout": "within_viewport",
+            "state_signal": "safe_state_text_observed",
+            "error": null
+          },
+          "mobile": {
+            "status": "PASS",
+            "http": 200,
+            "final_path": "/activities",
+            "layout": "within_viewport",
+            "state_signal": "safe_state_text_observed",
+            "error": null
+          }
+        },
+        "limitation": "synthetic local API responses; no real lead/provider state"
+      },
+      {
+        "route": "/reports",
+        "status": "PASS",
+        "evidence": "browser",
+        "checks": {
+          "desktop": {
+            "status": "PASS",
+            "http": 200,
+            "final_path": "/reports",
+            "layout": "within_viewport",
+            "state_signal": "safe_state_text_observed",
+            "error": null
+          },
+          "mobile": {
+            "status": "PASS",
+            "http": 200,
+            "final_path": "/reports",
+            "layout": "within_viewport",
+            "state_signal": "safe_state_text_observed",
+            "error": null
+          }
+        },
+        "limitation": "synthetic local API responses; no real lead/provider state"
+      },
+      {
+        "route": "/revenue",
+        "status": "PASS",
+        "evidence": "browser",
+        "checks": {
+          "desktop": {
+            "status": "PASS",
+            "http": 200,
+            "final_path": "/revenue",
+            "layout": "within_viewport",
+            "state_signal": "rendered",
+            "error": null
+          },
+          "mobile": {
+            "status": "PASS",
+            "http": 200,
+            "final_path": "/revenue",
+            "layout": "within_viewport",
+            "state_signal": "rendered",
+            "error": null
+          }
+        },
+        "limitation": "synthetic local API responses; no real lead/provider state"
+      },
+      {
+        "route": "/import",
+        "status": "PASS",
+        "evidence": "browser",
+        "checks": {
+          "desktop": {
+            "status": "PASS",
+            "http": 200,
+            "final_path": "/import",
+            "layout": "within_viewport",
+            "state_signal": "rendered",
+            "error": null
+          },
+          "mobile": {
+            "status": "PASS",
+            "http": 200,
+            "final_path": "/import",
+            "layout": "within_viewport",
+            "state_signal": "rendered",
+            "error": null
+          }
+        },
+        "limitation": "synthetic local API responses; no real lead/provider state"
+      },
+      {
+        "route": "/team",
+        "status": "PASS",
+        "evidence": "browser",
+        "checks": {
+          "desktop": {
+            "status": "PASS",
+            "http": 200,
+            "final_path": "/team",
+            "layout": "within_viewport",
+            "state_signal": "safe_state_text_observed",
+            "error": null
+          },
+          "mobile": {
+            "status": "PASS",
+            "http": 200,
+            "final_path": "/team",
+            "layout": "within_viewport",
+            "state_signal": "safe_state_text_observed",
+            "error": null
+          }
+        },
+        "limitation": "synthetic local API responses; no real lead/provider state"
+      },
+      {
+        "route": "/docs",
+        "status": "PASS",
+        "evidence": "browser",
+        "checks": {
+          "desktop": {
+            "status": "PASS",
+            "http": 200,
+            "final_path": "/docs",
+            "layout": "within_viewport",
+            "state_signal": "safe_state_text_observed",
+            "error": null
+          },
+          "mobile": {
+            "status": "PASS",
+            "http": 200,
+            "final_path": "/docs",
+            "layout": "within_viewport",
+            "state_signal": "safe_state_text_observed",
+            "error": null
+          }
+        },
+        "limitation": "synthetic local API responses; no real lead/provider state"
+      },
+      {
+        "route": "/settings",
+        "status": "PASS",
+        "evidence": "browser",
+        "checks": {
+          "desktop": {
+            "status": "PASS",
+            "http": 200,
+            "final_path": "/settings",
+            "layout": "within_viewport",
+            "state_signal": "safe_state_text_observed",
+            "error": null
+          },
+          "mobile": {
+            "status": "PASS",
+            "http": 200,
+            "final_path": "/settings",
+            "layout": "within_viewport",
+            "state_signal": "safe_state_text_observed",
+            "error": null
+          }
+        },
+        "limitation": "synthetic local API responses; no real lead/provider state"
+      },
+      {
+        "route": "/logs",
+        "status": "PASS",
+        "evidence": "browser",
+        "checks": {
+          "desktop": {
+            "status": "PASS",
+            "http": 200,
+            "final_path": "/logs",
+            "layout": "within_viewport",
+            "state_signal": "safe_state_text_observed",
+            "error": null
+          },
+          "mobile": {
+            "status": "PASS",
+            "http": 200,
+            "final_path": "/logs",
+            "layout": "within_viewport",
+            "state_signal": "safe_state_text_observed",
+            "error": null
+          }
+        },
+        "limitation": "synthetic local API responses; no real lead/provider state"
+      },
+      {
+        "route": "/intelligence",
+        "status": "PASS",
+        "evidence": "browser",
+        "checks": {
+          "desktop": {
+            "status": "PASS",
+            "http": 200,
+            "final_path": "/intelligence",
+            "layout": "within_viewport",
+            "state_signal": "safe_state_text_observed",
+            "error": null
+          },
+          "mobile": {
+            "status": "PASS",
+            "http": 200,
+            "final_path": "/intelligence",
+            "layout": "within_viewport",
+            "state_signal": "safe_state_text_observed",
+            "error": null
+          }
+        },
+        "limitation": "synthetic local API responses; no real lead/provider state"
+      },
+      {
+        "route": "/approvals",
+        "status": "PASS",
+        "evidence": "browser",
+        "checks": {
+          "desktop": {
+            "status": "PASS",
+            "http": 200,
+            "final_path": "/approvals",
+            "layout": "within_viewport",
+            "state_signal": "safe_state_text_observed",
+            "error": null
+          },
+          "mobile": {
+            "status": "PASS",
+            "http": 200,
+            "final_path": "/approvals",
+            "layout": "within_viewport",
+            "state_signal": "safe_state_text_observed",
+            "error": null
+          }
+        },
+        "limitation": "synthetic local API responses; no real lead/provider state"
+      },
+      {
+        "route": "/onboarding",
+        "status": "PASS",
+        "evidence": "browser",
+        "checks": {
+          "desktop": {
+            "status": "PASS",
+            "http": 200,
+            "final_path": "/onboarding",
+            "layout": "within_viewport",
+            "state_signal": "rendered",
+            "error": null
+          },
+          "mobile": {
+            "status": "PASS",
+            "http": 200,
+            "final_path": "/onboarding",
+            "layout": "within_viewport",
+            "state_signal": "rendered",
+            "error": null
+          }
+        },
+        "limitation": "synthetic local API responses; no real lead/provider state"
+      }
+    ],
+    "admin": [
+      {
+        "route": "/admin",
+        "status": "PASS",
+        "evidence": "browser",
+        "checks": {
+          "desktop": {
+            "status": "PASS",
+            "http": 200,
+            "final_path": "/admin",
+            "layout": "within_viewport",
+            "state_signal": "rendered",
+            "error": null
+          },
+          "mobile": {
+            "status": "PASS",
+            "http": 200,
+            "final_path": "/admin",
+            "layout": "within_viewport",
+            "state_signal": "rendered",
+            "error": null
+          }
+        },
+        "limitation": "synthetic local API responses; no real lead/provider state"
+      },
+      {
+        "route": "/admin/agents",
+        "status": "PASS",
+        "evidence": "browser",
+        "checks": {
+          "desktop": {
+            "status": "PASS",
+            "http": 200,
+            "final_path": "/admin/agents",
+            "layout": "within_viewport",
+            "state_signal": "safe_state_text_observed",
+            "error": null
+          },
+          "mobile": {
+            "status": "PASS",
+            "http": 200,
+            "final_path": "/admin/agents",
+            "layout": "within_viewport",
+            "state_signal": "safe_state_text_observed",
+            "error": null
+          }
+        },
+        "limitation": "synthetic local API responses; no real lead/provider state"
+      },
+      {
+        "route": "/admin/automation",
+        "status": "PASS",
+        "evidence": "browser",
+        "checks": {
+          "desktop": {
+            "status": "PASS",
+            "http": 200,
+            "final_path": "/admin/automation",
+            "layout": "within_viewport",
+            "state_signal": "safe_state_text_observed",
+            "error": null
+          },
+          "mobile": {
+            "status": "PASS",
+            "http": 200,
+            "final_path": "/admin/automation",
+            "layout": "within_viewport",
+            "state_signal": "safe_state_text_observed",
+            "error": null
+          }
+        },
+        "limitation": "synthetic local API responses; no real lead/provider state"
+      },
+      {
+        "route": "/admin/autonomous",
+        "status": "PASS",
+        "evidence": "browser",
+        "checks": {
+          "desktop": {
+            "status": "PASS",
+            "http": 200,
+            "final_path": "/admin/autonomous",
+            "layout": "within_viewport",
+            "state_signal": "safe_state_text_observed",
+            "error": null
+          },
+          "mobile": {
+            "status": "PASS",
+            "http": 200,
+            "final_path": "/admin/autonomous",
+            "layout": "within_viewport",
+            "state_signal": "safe_state_text_observed",
+            "error": null
+          }
+        },
+        "limitation": "synthetic local API responses; no real lead/provider state"
+      },
+      {
+        "route": "/admin/health",
+        "status": "PASS",
+        "evidence": "browser",
+        "checks": {
+          "desktop": {
+            "status": "PASS",
+            "http": 200,
+            "final_path": "/admin/health",
+            "layout": "within_viewport",
+            "state_signal": "rendered",
+            "error": null
+          },
+          "mobile": {
+            "status": "PASS",
+            "http": 200,
+            "final_path": "/admin/health",
+            "layout": "within_viewport",
+            "state_signal": "rendered",
+            "error": null
+          }
+        },
+        "limitation": "synthetic local API responses; no real lead/provider state"
+      },
+      {
+        "route": "/admin/icps",
+        "status": "PASS",
+        "evidence": "browser",
+        "checks": {
+          "desktop": {
+            "status": "PASS",
+            "http": 200,
+            "final_path": "/admin/icps",
+            "layout": "within_viewport",
+            "state_signal": "safe_state_text_observed",
+            "error": null
+          },
+          "mobile": {
+            "status": "PASS",
+            "http": 200,
+            "final_path": "/admin/icps",
+            "layout": "within_viewport",
+            "state_signal": "safe_state_text_observed",
+            "error": null
+          }
+        },
+        "limitation": "synthetic local API responses; no real lead/provider state"
+      },
+      {
+        "route": "/admin/intelligence",
+        "status": "PASS",
+        "evidence": "browser",
+        "checks": {
+          "desktop": {
+            "status": "PASS",
+            "http": 200,
+            "final_path": "/admin/intelligence",
+            "layout": "within_viewport",
+            "state_signal": "safe_state_text_observed",
+            "error": null
+          },
+          "mobile": {
+            "status": "PASS",
+            "http": 200,
+            "final_path": "/admin/intelligence",
+            "layout": "within_viewport",
+            "state_signal": "safe_state_text_observed",
+            "error": null
+          }
+        },
+        "limitation": "synthetic local API responses; no real lead/provider state"
+      },
+      {
+        "route": "/admin/jobs",
+        "status": "PASS",
+        "evidence": "browser",
+        "checks": {
+          "desktop": {
+            "status": "PASS",
+            "http": 200,
+            "final_path": "/admin/jobs",
+            "layout": "within_viewport",
+            "state_signal": "safe_state_text_observed",
+            "error": null
+          },
+          "mobile": {
+            "status": "PASS",
+            "http": 200,
+            "final_path": "/admin/jobs",
+            "layout": "within_viewport",
+            "state_signal": "safe_state_text_observed",
+            "error": null
+          }
+        },
+        "limitation": "synthetic local API responses; no real lead/provider state"
+      },
+      {
+        "route": "/admin/keys",
+        "status": "PASS",
+        "evidence": "browser",
+        "checks": {
+          "desktop": {
+            "status": "PASS",
+            "http": 200,
+            "final_path": "/admin/keys",
+            "layout": "within_viewport",
+            "state_signal": "safe_state_text_observed",
+            "error": null
+          },
+          "mobile": {
+            "status": "PASS",
+            "http": 200,
+            "final_path": "/admin/keys",
+            "layout": "within_viewport",
+            "state_signal": "safe_state_text_observed",
+            "error": null
+          }
+        },
+        "limitation": "synthetic local API responses; no real lead/provider state"
+      },
+      {
+        "route": "/admin/leads",
+        "status": "PASS",
+        "evidence": "browser",
+        "checks": {
+          "desktop": {
+            "status": "PASS",
+            "http": 200,
+            "final_path": "/admin/leads",
+            "layout": "within_viewport",
+            "state_signal": "safe_state_text_observed",
+            "error": null
+          },
+          "mobile": {
+            "status": "PASS",
+            "http": 200,
+            "final_path": "/admin/leads",
+            "layout": "within_viewport",
+            "state_signal": "safe_state_text_observed",
+            "error": null
+          }
+        },
+        "limitation": "synthetic local API responses; no real lead/provider state"
+      },
+      {
+        "route": "/admin/notifications",
+        "status": "PASS",
+        "evidence": "browser",
+        "checks": {
+          "desktop": {
+            "status": "PASS",
+            "http": 200,
+            "final_path": "/admin/notifications",
+            "layout": "within_viewport",
+            "state_signal": "safe_state_text_observed",
+            "error": null
+          },
+          "mobile": {
+            "status": "PASS",
+            "http": 200,
+            "final_path": "/admin/notifications",
+            "layout": "within_viewport",
+            "state_signal": "safe_state_text_observed",
+            "error": null
+          }
+        },
+        "limitation": "synthetic local API responses; no real lead/provider state"
+      },
+      {
+        "route": "/admin/ops",
+        "status": "PASS",
+        "evidence": "browser",
+        "checks": {
+          "desktop": {
+            "status": "PASS",
+            "http": 200,
+            "final_path": "/admin/ops",
+            "layout": "within_viewport",
+            "state_signal": "safe_state_text_observed",
+            "error": null
+          },
+          "mobile": {
+            "status": "PASS",
+            "http": 200,
+            "final_path": "/admin/ops",
+            "layout": "within_viewport",
+            "state_signal": "safe_state_text_observed",
+            "error": null
+          }
+        },
+        "limitation": "synthetic local API responses; no real lead/provider state"
+      },
+      {
+        "route": "/admin/pipeline",
+        "status": "PASS",
+        "evidence": "browser",
+        "checks": {
+          "desktop": {
+            "status": "PASS",
+            "http": 200,
+            "final_path": "/admin/pipeline",
+            "layout": "within_viewport",
+            "state_signal": "safe_state_text_observed",
+            "error": null
+          },
+          "mobile": {
+            "status": "PASS",
+            "http": 200,
+            "final_path": "/admin/pipeline",
+            "layout": "within_viewport",
+            "state_signal": "safe_state_text_observed",
+            "error": null
+          }
+        },
+        "limitation": "synthetic local API responses; no real lead/provider state"
+      },
+      {
+        "route": "/admin/prospecting",
+        "status": "FAIL",
+        "evidence": "browser",
+        "checks": {
+          "desktop": {
+            "status": "FAIL",
+            "http": 200,
+            "final_path": "/admin/prospecting",
+            "layout": "within_viewport",
+            "state_signal": "rendered",
+            "error": null
+          },
+          "mobile": {
+            "status": "FAIL",
+            "http": 200,
+            "final_path": "/admin/prospecting",
+            "layout": "within_viewport",
+            "state_signal": "rendered",
+            "error": null
+          }
+        },
+        "limitation": "synthetic local API responses; no real lead/provider state"
+      },
+      {
+        "route": "/admin/replies",
+        "status": "PASS",
+        "evidence": "browser",
+        "checks": {
+          "desktop": {
+            "status": "PASS",
+            "http": 200,
+            "final_path": "/admin/replies",
+            "layout": "within_viewport",
+            "state_signal": "safe_state_text_observed",
+            "error": null
+          },
+          "mobile": {
+            "status": "PASS",
+            "http": 200,
+            "final_path": "/admin/replies",
+            "layout": "within_viewport",
+            "state_signal": "safe_state_text_observed",
+            "error": null
+          }
+        },
+        "limitation": "synthetic local API responses; no real lead/provider state"
+      },
+      {
+        "route": "/admin/runs",
+        "status": "PASS",
+        "evidence": "browser",
+        "checks": {
+          "desktop": {
+            "status": "PASS",
+            "http": 200,
+            "final_path": "/admin/runs",
+            "layout": "within_viewport",
+            "state_signal": "safe_state_text_observed",
+            "error": null
+          },
+          "mobile": {
+            "status": "PASS",
+            "http": 200,
+            "final_path": "/admin/runs",
+            "layout": "within_viewport",
+            "state_signal": "safe_state_text_observed",
+            "error": null
+          }
+        },
+        "limitation": "synthetic local API responses; no real lead/provider state"
+      },
+      {
+        "route": "/admin/scale",
+        "status": "PASS",
+        "evidence": "browser",
+        "checks": {
+          "desktop": {
+            "status": "PASS",
+            "http": 200,
+            "final_path": "/admin/scale",
+            "layout": "within_viewport",
+            "state_signal": "safe_state_text_observed",
+            "error": null
+          },
+          "mobile": {
+            "status": "PASS",
+            "http": 200,
+            "final_path": "/admin/scale",
+            "layout": "within_viewport",
+            "state_signal": "safe_state_text_observed",
+            "error": null
+          }
+        },
+        "limitation": "synthetic local API responses; no real lead/provider state"
+      },
+      {
+        "route": "/admin/search",
+        "status": "PASS",
+        "evidence": "browser",
+        "checks": {
+          "desktop": {
+            "status": "PASS",
+            "http": 200,
+            "final_path": "/admin/search",
+            "layout": "within_viewport",
+            "state_signal": "safe_state_text_observed",
+            "error": null
+          },
+          "mobile": {
+            "status": "PASS",
+            "http": 200,
+            "final_path": "/admin/search",
+            "layout": "within_viewport",
+            "state_signal": "safe_state_text_observed",
+            "error": null
+          }
+        },
+        "limitation": "synthetic local API responses; no real lead/provider state"
+      },
+      {
+        "route": "/admin/security",
+        "status": "PASS",
+        "evidence": "browser",
+        "checks": {
+          "desktop": {
+            "status": "PASS",
+            "http": 200,
+            "final_path": "/admin/security",
+            "layout": "within_viewport",
+            "state_signal": "safe_state_text_observed",
+            "error": null
+          },
+          "mobile": {
+            "status": "PASS",
+            "http": 200,
+            "final_path": "/admin/security",
+            "layout": "within_viewport",
+            "state_signal": "safe_state_text_observed",
+            "error": null
+          }
+        },
+        "limitation": "synthetic local API responses; no real lead/provider state"
+      },
+      {
+        "route": "/admin/support",
+        "status": "PASS",
+        "evidence": "browser",
+        "checks": {
+          "desktop": {
+            "status": "PASS",
+            "http": 200,
+            "final_path": "/admin/support",
+            "layout": "within_viewport",
+            "state_signal": "safe_state_text_observed",
+            "error": null
+          },
+          "mobile": {
+            "status": "PASS",
+            "http": 200,
+            "final_path": "/admin/support",
+            "layout": "within_viewport",
+            "state_signal": "safe_state_text_observed",
+            "error": null
+          }
+        },
+        "limitation": "synthetic local API responses; no real lead/provider state"
+      },
+      {
+        "route": "/admin/suppression",
+        "status": "PASS",
+        "evidence": "browser",
+        "checks": {
+          "desktop": {
+            "status": "PASS",
+            "http": 200,
+            "final_path": "/admin/suppression",
+            "layout": "within_viewport",
+            "state_signal": "rendered",
+            "error": null
+          },
+          "mobile": {
+            "status": "PASS",
+            "http": 200,
+            "final_path": "/admin/suppression",
+            "layout": "within_viewport",
+            "state_signal": "rendered",
+            "error": null
+          }
+        },
+        "limitation": "synthetic local API responses; no real lead/provider state"
+      },
+      {
+        "route": "/admin/tenants",
+        "status": "PASS",
+        "evidence": "browser",
+        "checks": {
+          "desktop": {
+            "status": "PASS",
+            "http": 200,
+            "final_path": "/admin/tenants",
+            "layout": "within_viewport",
+            "state_signal": "safe_state_text_observed",
+            "error": null
+          },
+          "mobile": {
+            "status": "PASS",
+            "http": 200,
+            "final_path": "/admin/tenants",
+            "layout": "within_viewport",
+            "state_signal": "safe_state_text_observed",
+            "error": null
+          }
+        },
+        "limitation": "synthetic local API responses; no real lead/provider state"
+      },
+      {
+        "route": "/admin/territory",
+        "status": "PASS",
+        "evidence": "browser",
+        "checks": {
+          "desktop": {
+            "status": "PASS",
+            "http": 200,
+            "final_path": "/admin/territory",
+            "layout": "within_viewport",
+            "state_signal": "safe_state_text_observed",
+            "error": null
+          },
+          "mobile": {
+            "status": "PASS",
+            "http": 200,
+            "final_path": "/admin/territory",
+            "layout": "within_viewport",
+            "state_signal": "safe_state_text_observed",
+            "error": null
+          }
+        },
+        "limitation": "synthetic local API responses; no real lead/provider state"
+      },
+      {
+        "route": "/admin/usage",
+        "status": "PASS",
+        "evidence": "browser",
+        "checks": {
+          "desktop": {
+            "status": "PASS",
+            "http": 200,
+            "final_path": "/admin/usage",
+            "layout": "within_viewport",
+            "state_signal": "safe_state_text_observed",
+            "error": null
+          },
+          "mobile": {
+            "status": "PASS",
+            "http": 200,
+            "final_path": "/admin/usage",
+            "layout": "within_viewport",
+            "state_signal": "safe_state_text_observed",
+            "error": null
+          }
+        },
+        "limitation": "synthetic local API responses; no real lead/provider state"
+      }
+    ]
+  },
+  "flows": [
+    {
+      "flow": "client task-first request, bounded pending state, and withdraw control",
+      "status": "PASS",
+      "evidence": "browser",
+      "detail": "empty=true submitted=true withdraw_control=true withdrawn=true; all requests were intercepted synthetic local state and no leads were created",
+      "limitation": "does not prove provider or durable production persistence"
+    },
+    {
+      "flow": "admin bounded task-first run monitor and task/count consistency",
+      "status": "PASS",
+      "evidence": "browser",
+      "detail": "synthetic_run_control=true monitor=true; discovered/enriched/gated/assigned/delivered remained zero",
+      "limitation": "run was intercepted in browser and no leads were created or delivered"
+    },
+    {
+      "flow": "admin stop control on disposable synthetic run",
+      "status": "PASS",
+      "evidence": "browser",
+      "detail": "stop_control=true; synthetic transition only",
+      "limitation": "no real queue/provider work"
+    },
+    {
+      "flow": "authenticated loading/empty/error states",
+      "status": "PASS",
+      "evidence": "browser",
+      "detail": "empty_state=true degraded_error_state=true",
+      "limitation": "synthetic API responses only"
+    },
+    {
+      "flow": "GTM selected-subset/profile/task-trace views",
+      "status": "BLOCKED",
+      "evidence": "unavailable/blocked",
+      "detail": "No dedicated authenticated GTM/profile/task-trace route is exposed by the route inventory; static synthetic contract fixtures exist, but no success was inferred from them."
+    },
+    {
+      "flow": "read-only CRM projections and authoritative counts",
+      "status": "PASS",
+      "evidence": "browser",
+      "detail": "Synthetic dashboard, lead projection, and pipeline responses all reported zero leads and zero assigned/delivered counts; no mutation was sent to the API.",
+      "limitation": "browser-intercepted synthetic projection, not database proof"
+    },
+    {
+      "flow": "private realtime invalidation and authoritative refetch",
+      "status": "BLOCKED",
+      "evidence": "unavailable/blocked",
+      "detail": "Local portal profile disables external realtime; existing repository mock realtime contracts cover invalidation/refetch and tenant isolation, but no private provider channel was contacted."
+    },
+    {
+      "flow": "tenant scoping negative read",
+      "status": "PASS",
+      "evidence": "api_local_stack",
+      "detail": "Client synthetic token was checked against a different local tenant path; local auth boundary returned a denial without exposing protected data."
+    }
+  ],
+  "browser_errors": {
+    "console": [
+      {
+        "bucket": "admin",
+        "message": "TypeError: Cannot read properties of null (reading 'prospects')\n    at d (http://localhost:3000/_next/static/chunks/app/(admin)/admin/prospecting/page-8e13eda64178cc0c.js:1:2030)\n    at rE (http://localhost:3000/_next/static/chunks/fd9d1056"
+      },
+      {
+        "bucket": "admin",
+        "message": "LeadX route error TypeError: Cannot read properties of null (reading 'prospects')\n    at d (http://localhost:3000/_next/static/chunks/app/(admin)/admin/prospecting/page-8e13eda64178cc0c.js:1:2030)\n    at rE (http://localhost:3000/_next/stat"
+      },
+      {
+        "bucket": "admin",
+        "message": "TypeError: Cannot read properties of null (reading 'prospects')\n    at d (http://localhost:3000/_next/static/chunks/app/(admin)/admin/prospecting/page-8e13eda64178cc0c.js:1:2030)\n    at rE (http://localhost:3000/_next/static/chunks/fd9d1056"
+      },
+      {
+        "bucket": "admin",
+        "message": "LeadX route error TypeError: Cannot read properties of null (reading 'prospects')\n    at d (http://localhost:3000/_next/static/chunks/app/(admin)/admin/prospecting/page-8e13eda64178cc0c.js:1:2030)\n    at rE (http://localhost:3000/_next/stat"
+      },
+      {
+        "bucket": "safe-states",
+        "message": "Failed to load resource: the server responded with a status of 503 (Service Unavailable)"
+      },
+      {
+        "bucket": "safe-states",
+        "message": "Failed to load resource: the server responded with a status of 503 (Service Unavailable)"
+      },
+      {
+        "bucket": "safe-states",
+        "message": "Failed to load resource: the server responded with a status of 503 (Service Unavailable)"
+      }
+    ],
+    "console_nonfatal": [
+      {
+        "bucket": "client",
+        "message": "Failed to fetch RSC payload for http://localhost:3000/replies. Falling back to browser navigation. TypeError: network error"
+      },
+      {
+        "bucket": "client",
+        "message": "Failed to fetch RSC payload for http://localhost:3000/replies. Falling back to browser navigation. TypeError: Failed to fetch\n    at f (http://localhost:3000/_next/static/chunks/2117-bbc83312f0642ac0.js:1:45577)\n    at http://localhost:3000"
+      },
+      {
+        "bucket": "client",
+        "message": "Failed to fetch RSC payload for http://localhost:3000/pricing. Falling back to browser navigation. TypeError: Failed to fetch\n    at f (http://localhost:3000/_next/static/chunks/2117-bbc83312f0642ac0.js:1:45577)\n    at http://localhost:3000"
+      },
+      {
+        "bucket": "client",
+        "message": "Failed to fetch RSC payload for http://localhost:3000/deals. Falling back to browser navigation. TypeError: Failed to fetch\n    at f (http://localhost:3000/_next/static/chunks/2117-bbc83312f0642ac0.js:1:45577)\n    at http://localhost:3000/_"
+      },
+      {
+        "bucket": "client",
+        "message": "Failed to fetch RSC payload for http://localhost:3000/companies. Falling back to browser navigation. TypeError: Failed to fetch\n    at f (http://localhost:3000/_next/static/chunks/2117-bbc83312f0642ac0.js:1:45577)\n    at http://localhost:30"
+      },
+      {
+        "bucket": "client",
+        "message": "Failed to fetch RSC payload for http://localhost:3000/contacts. Falling back to browser navigation. TypeError: Failed to fetch\n    at f (http://localhost:3000/_next/static/chunks/2117-bbc83312f0642ac0.js:1:45577)\n    at http://localhost:300"
+      },
+      {
+        "bucket": "client",
+        "message": "Failed to fetch RSC payload for http://localhost:3000/leads. Falling back to browser navigation. TypeError: Failed to fetch\n    at f (http://localhost:3000/_next/static/chunks/2117-bbc83312f0642ac0.js:1:45577)\n    at http://localhost:3000/_"
+      },
+      {
+        "bucket": "client",
+        "message": "Failed to fetch RSC payload for http://localhost:3000/search. Falling back to browser navigation. TypeError: network error"
+      },
+      {
+        "bucket": "client",
+        "message": "Failed to fetch RSC payload for http://localhost:3000/admin/notifications. Falling back to browser navigation. TypeError: network error"
+      },
+      {
+        "bucket": "client",
+        "message": "Failed to fetch RSC payload for http://localhost:3000/pipeline. Falling back to browser navigation. TypeError: Failed to fetch\n    at f (http://localhost:3000/_next/static/chunks/2117-bbc83312f0642ac0.js:1:45577)\n    at http://localhost:300"
+      },
+      {
+        "bucket": "client",
+        "message": "Failed to fetch RSC payload for http://localhost:3000/sequences. Falling back to browser navigation. TypeError: Failed to fetch\n    at f (http://localhost:3000/_next/static/chunks/2117-bbc83312f0642ac0.js:1:45577)\n    at http://localhost:30"
+      },
+      {
+        "bucket": "client",
+        "message": "Failed to fetch RSC payload for http://localhost:3000/deals. Falling back to browser navigation. TypeError: Failed to fetch\n    at f (http://localhost:3000/_next/static/chunks/2117-bbc83312f0642ac0.js:1:45577)\n    at http://localhost:3000/_"
+      },
+      {
+        "bucket": "client",
+        "message": "Failed to fetch RSC payload for http://localhost:3000/automations. Falling back to browser navigation. TypeError: Failed to fetch\n    at f (http://localhost:3000/_next/static/chunks/2117-bbc83312f0642ac0.js:1:45577)\n    at http://localhost:"
+      },
+      {
+        "bucket": "client",
+        "message": "Failed to fetch RSC payload for http://localhost:3000/leads. Falling back to browser navigation. TypeError: network error"
+      },
+      {
+        "bucket": "client",
+        "message": "Failed to fetch RSC payload for http://localhost:3000/admin/support. Falling back to browser navigation. TypeError: network error"
+      },
+      {
+        "bucket": "client",
+        "message": "Failed to fetch RSC payload for http://localhost:3000/pricing. Falling back to browser navigation. TypeError: Failed to fetch\n    at f (http://localhost:3000/_next/static/chunks/2117-bbc83312f0642ac0.js:1:45577)\n    at http://localhost:3000"
+      },
+      {
+        "bucket": "client",
+        "message": "Failed to fetch RSC payload for http://localhost:3000/settings/email. Falling back to browser navigation. TypeError: Failed to fetch\n    at f (http://localhost:3000/_next/static/chunks/2117-bbc83312f0642ac0.js:1:45577)\n    at http://localho"
+      },
+      {
+        "bucket": "client",
+        "message": "Failed to fetch RSC payload for http://localhost:3000/pricing. Falling back to browser navigation. TypeError: Failed to fetch\n    at f (http://localhost:3000/_next/static/chunks/2117-bbc83312f0642ac0.js:1:45577)\n    at http://localhost:3000"
+      },
+      {
+        "bucket": "client",
+        "message": "Failed to fetch RSC payload for http://localhost:3000/pricing. Falling back to browser navigation. TypeError: Failed to fetch\n    at f (http://localhost:3000/_next/static/chunks/2117-bbc83312f0642ac0.js:1:45577)\n    at http://localhost:3000"
+      },
+      {
+        "bucket": "admin",
+        "message": "Failed to fetch RSC payload for http://localhost:3000/admin/ops. Falling back to browser navigation. TypeError: Failed to fetch\n    at f (http://localhost:3000/_next/static/chunks/2117-bbc83312f0642ac0.js:1:45577)\n    at http://localhost:30"
+      },
+      {
+        "bucket": "admin",
+        "message": "Failed to fetch RSC payload for http://localhost:3000/admin/intelligence. Falling back to browser navigation. TypeError: Failed to fetch\n    at f (http://localhost:3000/_next/static/chunks/2117-bbc83312f0642ac0.js:1:45577)\n    at http://loc"
+      },
+      {
+        "bucket": "admin",
+        "message": "Failed to fetch RSC payload for http://localhost:3000/admin/keys. Falling back to browser navigation. TypeError: Failed to fetch\n    at f (http://localhost:3000/_next/static/chunks/2117-bbc83312f0642ac0.js:1:45577)\n    at http://localhost:3"
+      },
+      {
+        "bucket": "admin",
+        "message": "Failed to fetch RSC payload for http://localhost:3000/admin/security. Falling back to browser navigation. TypeError: Failed to fetch\n    at f (http://localhost:3000/_next/static/chunks/2117-bbc83312f0642ac0.js:1:45577)\n    at http://localho"
+      },
+      {
+        "bucket": "admin",
+        "message": "Failed to fetch RSC payload for http://localhost:3000/admin/support. Falling back to browser navigation. TypeError: network error"
+      },
+      {
+        "bucket": "admin",
+        "message": "Failed to fetch RSC payload for http://localhost:3000/admin/leads. Falling back to browser navigation. TypeError: Failed to fetch\n    at f (http://localhost:3000/_next/static/chunks/2117-bbc83312f0642ac0.js:1:45577)\n    at http://localhost:"
+      },
+      {
+        "bucket": "admin",
+        "message": "Failed to fetch RSC payload for http://localhost:3000/admin/runs. Falling back to browser navigation. TypeError: network error"
+      },
+      {
+        "bucket": "admin",
+        "message": "Failed to fetch RSC payload for http://localhost:3000/admin/pipeline. Falling back to browser navigation. TypeError: network error"
+      },
+      {
+        "bucket": "admin",
+        "message": "Failed to fetch RSC payload for http://localhost:3000/admin/search. Falling back to browser navigation. TypeError: network error"
+      },
+      {
+        "bucket": "admin",
+        "message": "Failed to fetch RSC payload for http://localhost:3000/admin/support. Falling back to browser navigation. TypeError: Failed to fetch\n    at f (http://localhost:3000/_next/static/chunks/2117-bbc83312f0642ac0.js:1:45577)\n    at http://localhos"
+      },
+      {
+        "bucket": "admin",
+        "message": "Failed to fetch RSC payload for http://localhost:3000/admin/prospecting. Falling back to browser navigation. TypeError: Failed to fetch\n    at f (http://localhost:3000/_next/static/chunks/2117-bbc83312f0642ac0.js:1:45577)\n    at http://loca"
+      },
+      {
+        "bucket": "admin",
+        "message": "Failed to fetch RSC payload for http://localhost:3000/admin/autonomous. Falling back to browser navigation. TypeError: network error"
+      }
+    ],
+    "page": [],
+    "local_request_failures": [],
+    "external_requests_aborted": 0
+  },
+  "limitations": [
+    "The local auth implementation exposes one configured identity and treats local sessions as owner; this run used two distinct process-memory synthetic JWT principals for client/admin browser contexts, with no persisted user rows.",
+    "GTM profile/task-trace and private realtime provider behavior remain BLOCKED; repository mock contracts are not live provider evidence.",
+    "All API state transitions were browser-intercepted synthetic responses; no real leads were created, assigned, delivered, or sent."
+  ],
+  "route_counts": {
+    "client": {
+      "total": 26,
+      "pass": 26,
+      "fail": 0,
+      "blocked": 0,
+      "not_tested": 0
+    },
+    "admin": {
+      "total": 24,
+      "pass": 23,
+      "fail": 1,
+      "blocked": 0,
+      "not_tested": 0
+    },
+    "total": {
+      "total": 50,
+      "pass": 49,
+      "fail": 1,
+      "blocked": 0,
+      "not_tested": 0
+    }
+  },
+  "summary": {
+    "status": "FAIL",
+    "routes_attempted": 50,
+    "flows_recorded": 8,
+    "console_errors": 7,
+    "nonfatal_rsc_fallbacks": 31,
+    "page_errors": 0,
+    "local_request_failures": 0,
+    "external_requests_aborted": 0
+  }
+}

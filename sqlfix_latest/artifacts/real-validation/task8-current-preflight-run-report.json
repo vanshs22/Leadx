@@ -1,0 +1,94 @@
+{
+  "schema": "leadx.test-environment-production-validation.task8.current-preflight.v3",
+  "task": "test-environment-production-validation.8",
+  "decision": "BLOCKED",
+  "execution_performed": false,
+  "evidence_class": "sanitized live-runtime preflight",
+  "scope": {
+    "tenant_id": "5655f9d9-b3c7-48f9-bb95-9f3fe0675854",
+    "icp_id": "377aaa3e-5eae-41fc-a12a-570e791490b3",
+    "vertical": "marketing agency",
+    "geography": [
+      "New Jersey",
+      "New York",
+      "Pennsylvania"
+    ],
+    "delivery": "portal",
+    "requested_target": 5,
+    "hard_cap": 500
+  },
+  "runtime": {
+    "api_live": "PASS",
+    "api_ready": "PASS",
+    "api_routes": "PASS",
+    "required_components_ok": true,
+    "local_auth_override_disabled": "PASS"
+  },
+  "opaque_auth_state": {
+    "client_state_path_present": true,
+    "admin_state_path_present": true,
+    "contents_inspected": false,
+    "credentials_or_tokens_read_or_printed": false,
+    "client_session": "PASS",
+    "client_exact_tenant_scope": "PASS",
+    "client_scope_statuses": {
+      "me": 200,
+      "dashboard": 200,
+      "pipeline": 200
+    },
+    "admin_session": "PASS",
+    "admin_exact_tenant_scope": "PASS",
+    "admin_exact_icp_scope": "PASS"
+  },
+  "local_test_gate": {
+    "task7_artifact": "PASS",
+    "real_run_started": false
+  },
+  "admission_gates": {
+    "durable_preflight_ok": false,
+    "durable_preflight_status": "unavailable",
+    "durable_preflight_check_count": 0,
+    "bounded_defaults_exact": true,
+    "hard_cap_500": true,
+    "forbidden_actions_all_false": true,
+    "provider_categories_present": true,
+    "provider_category_counts": {
+      "free": 2,
+      "paid_fallback": 89
+    },
+    "duplicate_active_work_observable": true,
+    "duplicate_active_work_clear": false,
+    "duplicate_active_count": 1,
+    "stop_conditions_present": true,
+    "cleanup_policy_safe": true,
+    "monitoring_present": true,
+    "response_sanitized": true,
+    "endpoint_scope_echo_exact": true,
+    "gate_result": "BLOCKED"
+  },
+  "run": {
+    "submission_count": 0,
+    "pipeline_request_created": false,
+    "fresh_idempotency_key_used": false,
+    "second_submission": false,
+    "polling_performed": false
+  },
+  "safety_boundary": {
+    "env_values_read": false,
+    "credentials_read_printed_requested_or_persisted": false,
+    "storage_state_contents_read": false,
+    "raw_payloads_printed": false,
+    "provider_calls": false,
+    "pipeline_request_created": false,
+    "fresh_idempotency_key_created": false,
+    "second_submission": false,
+    "retry_cancel_or_cleanup": false,
+    "database_mutation": false,
+    "queue_mutation": false,
+    "migration_or_sql_mutation": false,
+    "reset_or_data_cleanup": false,
+    "email_outreach_campaign_stripe_ses": 0,
+    "cap_violation": false
+  },
+  "next_gate": "Do not submit; resolve the failed or unavailable preflight gate."
+}

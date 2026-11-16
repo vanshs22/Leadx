@@ -8,12 +8,17 @@ contract without contacting providers or reading configuration.
 from __future__ import annotations
 
 from dataclasses import asdict, dataclass, field, replace
+from datetime import datetime, timezone
 import json
 from pathlib import Path, PurePosixPath
 import re
 from typing import Any, Mapping
 
 SCHEMA_VERSION = "leadx.local-validation.v1"
+MANIFEST_SCHEMA_VERSION = "leadx.evidence-manifest.v1"
+ENVIRONMENT_CLASSES = frozenset({"static", "local", "uat", "live"})
+MANIFEST_RESULTS = frozenset({"PASS", "FAIL", "BLOCKED", "NOT_TESTED", "UNVERIFIED"})
+DEFAULT_MANIFEST_MAX_AGE_SECONDS = 30 * 24 * 60 * 60
 LOCAL_MODES = {"local_static", "local_unit", "local_build", "local_browser", "local_synthetic"}
 REMOTE_MODES = {"remote"}
 EVIDENCE_BOUNDARIES = {
@@ -268,6 +273,161 @@ def _validate_reference(reference: str, field_name: str) -> None:
     safe, detected = _redact_text(value)
     if detected or safe != value:
         raise ValueError(f"evidence_{field_name}_contains_sensitive_value")
+
+
+def _manifest_datetime(value: str) -> datetime:
+    if not isinstance(value, str) or not value.strip():
+        raise ValueError("manifest_created_at_required")
+    try:
+        parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
+    except ValueError as exc:
+        raise ValueError("manifest_created_at_invalid") from exc
+    if parsed.tzinfo is None:
+        raise ValueError("manifest_created_at_timezone_required")
+    return parsed.astimezone(timezone.utc)
+
+
+@dataclass(frozen=True)
+class EvidenceManifest:
+    """Strict, environment-scoped evidence contract for promotion decisions."""
+
+    manifest_version: str
+    environment_class: str
+    source_revision: str
+    created_at: str
+    check_id: str
+    result: str
+    scope: Mapping[str, Any]
+    artifact_refs: list[str]
+    limitations: list[str]
+    owner: str
+    redaction_status: str | Mapping[str, Any]
+
+    def as_dict(self) -> dict[str, Any]:
+        validate_manifest(self)
+        safe_scope, scope_secret = _safe_metadata(self.scope)
+        safe_limitations, limitations_secret = _safe_metadata(self.limitations)
+        safe_owner, owner_secret = _redact_text(self.owner)
+        safe_revision, revision_secret = _redact_text(self.source_revision)
+        redaction = self.redaction_status
+        if isinstance(redaction, Mapping):
+            safe_redaction, redaction_secret = _safe_metadata(redaction)
+        else:
+            safe_redaction, redaction_secret = _redact_text(str(redaction))
+        if scope_secret or limitations_secret or owner_secret or revision_secret or redaction_secret:
+            raise ValueError("manifest_redaction_failed")
+        return {
+            "manifest_version": self.manifest_version,
+            "environment_class": self.environment_class,
+            "source_revision": safe_revision,
+            "created_at": self.created_at,
+            "check_id": self.check_id,
+            "result": self.result,
+            "scope": safe_scope,
+            "artifact_refs": list(self.artifact_refs),
+            "limitations": safe_limitations,
+            "owner": safe_owner,
+            "redaction_status": safe_redaction,
+        }
+
+
+def _coerce_manifest(value: EvidenceManifest | Mapping[str, Any]) -> EvidenceManifest:
+    if isinstance(value, EvidenceManifest):
+        return value
+    if isinstance(value, Mapping):
+        try:
+            return EvidenceManifest(**dict(value))
+        except TypeError as exc:
+            raise ValueError("manifest_required_fields_missing") from exc
+    raise ValueError("manifest_required")
+
+
+def validate_manifest(
+    manifest: EvidenceManifest | Mapping[str, Any],
+    *,
+    expected_environment_class: str | None = None,
+    source_revision: str | None = None,
+    now: datetime | None = None,
+    max_age_seconds: int = DEFAULT_MANIFEST_MAX_AGE_SECONDS,
+) -> None:
+    """Validate one strict manifest without contacting any external system."""
+    manifest = _coerce_manifest(manifest)
+    if manifest.manifest_version != MANIFEST_SCHEMA_VERSION:
+        raise ValueError("manifest_version_mismatch")
+    if manifest.environment_class not in ENVIRONMENT_CLASSES:
+        raise ValueError("manifest_environment_class_invalid")
+    if expected_environment_class and manifest.environment_class != expected_environment_class:
+        raise ValueError("manifest_environment_class_mismatch")
+    if not isinstance(manifest.source_revision, str) or not manifest.source_revision.strip():
+        raise ValueError("manifest_source_revision_required")
+    if source_revision is not None and manifest.source_revision != source_revision:
+        raise ValueError("manifest_source_revision_mismatch")
+    created = _manifest_datetime(manifest.created_at)
+    reference_time = (now or datetime.now(timezone.utc)).astimezone(timezone.utc)
+    age = (reference_time - created).total_seconds()
+    if age < 0:
+        raise ValueError("manifest_created_at_in_future")
+    if max_age_seconds < 0 or age > max_age_seconds:
+        raise ValueError("manifest_stale")
+    if not isinstance(manifest.check_id, str) or not manifest.check_id.strip():
+        raise ValueError("manifest_check_id_required")
+    if manifest.result not in MANIFEST_RESULTS:
+        raise ValueError("manifest_result_invalid")
+    if not isinstance(manifest.scope, Mapping) or not manifest.scope:
+        raise ValueError("manifest_scope_required")
+    _safe_metadata(manifest.scope)
+    if not isinstance(manifest.artifact_refs, (list, tuple)):
+        raise ValueError("manifest_artifact_refs_required")
+    for reference in manifest.artifact_refs:
+        _validate_reference(reference, "manifest_artifact_reference")
+    if manifest.result == "PASS" and not manifest.artifact_refs:
+        raise ValueError("manifest_artifact_refs_empty")
+    if not isinstance(manifest.limitations, (list, tuple)) or not all(isinstance(item, str) and item.strip() for item in manifest.limitations):
+        raise ValueError("manifest_limitations_required")
+    if not isinstance(manifest.owner, str) or not manifest.owner.strip():
+        raise ValueError("manifest_owner_required")
+    if isinstance(manifest.redaction_status, Mapping):
+        if manifest.redaction_status.get("applied") is not True:
+            raise ValueError("manifest_redaction_required")
+        _safe_metadata(manifest.redaction_status)
+    elif str(manifest.redaction_status).lower() not in {"redacted", "applied"}:
+        raise ValueError("manifest_redaction_required")
+
+
+def validate_manifest_set(
+    manifests: list[EvidenceManifest] | tuple[EvidenceManifest, ...],
+    *,
+    required_checks: Mapping[str, str] | None = None,
+    source_revision: str | None = None,
+    now: datetime | None = None,
+    max_age_seconds: int = DEFAULT_MANIFEST_MAX_AGE_SECONDS,
+) -> None:
+    """Fail closed on missing, duplicate, stale, failed, or wrong-class evidence."""
+    if not manifests:
+        raise ValueError("manifest_set_empty")
+    seen: set[str] = set()
+    for manifest in manifests:
+        validate_manifest(manifest, source_revision=source_revision, now=now, max_age_seconds=max_age_seconds)
+        if manifest.check_id in seen:
+            raise ValueError(f"manifest_duplicate_check:{manifest.check_id}")
+        seen.add(manifest.check_id)
+        if manifest.result != "PASS":
+            raise ValueError(f"manifest_result_not_promotable:{manifest.check_id}")
+    if required_checks:
+        missing = sorted(set(required_checks) - seen)
+        if missing:
+            raise ValueError("manifest_required_check_missing:" + ",".join(missing))
+        for check_id, environment_class in required_checks.items():
+            manifest = next(item for item in manifests if item.check_id == check_id)
+            if environment_class not in ENVIRONMENT_CLASSES:
+                raise ValueError("manifest_required_class_invalid")
+            if manifest.environment_class != environment_class:
+                raise ValueError(f"manifest_wrong_environment_class:{check_id}")
+
+
+# Descriptive aliases keep callers independent from the serializer's legacy name.
+validate_evidence_manifest = validate_manifest
+validate_evidence_set = validate_manifest_set
 
 
 @dataclass(frozen=True)

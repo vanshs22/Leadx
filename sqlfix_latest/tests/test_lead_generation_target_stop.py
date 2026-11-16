@@ -67,4 +67,4 @@ def test_pipeline_has_cancellable_target_fence_and_durable_stop_projection():
     assert "assignment_confirmed" in target
     assert "stop_projection" in target
     assert "_await_cancellable" in target
-    assert "small_target_round_limit = 2" in target
+    assert "small_target_round_limit = max(1, min(int(max_rounds or 1), _max_rounds_for_target(slots_cap)))" in target

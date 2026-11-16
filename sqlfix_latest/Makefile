@@ -1,12 +1,19 @@
 PYTHON ?= python
-.PHONY: verify compile ruff pytest migrations rls runtime frontend production-gates local-validation benchmark cross-tenant worker worker-health
+.PHONY: verify compile ruff pytest target5-regression migrations rls runtime frontend production-gates local-validation benchmark cross-tenant worker worker-health release-inputs production-topology
 verify: compile ruff pytest migrations rls runtime frontend
+release-inputs:
+	$(PYTHON) scripts/release_inputs.py
+production-topology:
+	$(PYTHON) scripts/check_production_topology.py
 compile:
 	$(PYTHON) -m compileall -q app services tests
 ruff:
 	ruff check app services tests
 pytest:
 	pytest -q
+
+target5-regression:
+	$(PYTHON) scripts/target5_regression.py
 migrations:
 	$(PYTHON) scripts/check_migrations.py
 rls:

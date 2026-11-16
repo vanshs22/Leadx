@@ -164,6 +164,8 @@ async def idempotency_middleware(request: Request, call_next):
     tenant_id = request.headers.get("x-tenant-id") or request.path_params.get("tenant_id") or None
     acquired, existing = await offload(claim_idempotency, key, operation, tenant_id=tenant_id, scope_hash=scope_hash, request_hash=body_hash)
     if not acquired:
+        if isinstance(existing, dict) and existing.get("idempotency_error"):
+            return JSONResponse(status_code=503, content={"ok": False, "error": "Idempotency service unavailable; request was not started.", "request_id": getattr(request.state, "request_id", None)})
         if isinstance(existing, dict) and existing.get("idempotency_mismatch"):
             return JSONResponse(status_code=409, content={"ok": False, "error": "Idempotency-Key was already used with a different request or session.", "request_id": getattr(request.state, "request_id", None)})
         if isinstance(existing, dict) and "status_code" in existing and "body" in existing:
@@ -640,11 +642,17 @@ def _health_snapshot(request: Request) -> tuple[dict, bool]:
     auth = _check_auth_configuration(policy)
     provider_isolation = _check_provider_isolation(policy)
     worker, queue = _check_worker_queue(required=bool(policy and policy.require_worker_ready))
+    # Reclaim is required only when worker readiness is required AND the worker
+    # reported itself ready. A worker that just started may not have written its
+    # first reclaim heartbeat yet; treat that as a soft warning, not a hard fail.
+    _worker_required = bool(policy and policy.require_worker_ready)
+    _reclaim_ok = worker.get("reclaim_capability") is True and worker.get("ok") is True
+    _reclaim_required = _worker_required and worker.get("ok") is True
     reclaim = _health_component(
-        ok=worker.get("reclaim_capability") is True and worker.get("ok") is True,
-        required=bool(worker.get("required")),
-        status="ready" if worker.get("reclaim_capability") is True and worker.get("ok") is True else worker.get("status", "unavailable"),
-        reason="ok" if worker.get("reclaim_capability") is True and worker.get("ok") is True else (
+        ok=_reclaim_ok or not _reclaim_required,
+        required=_reclaim_required,
+        status="ready" if _reclaim_ok or not _reclaim_required else worker.get("status", "unavailable"),
+        reason="ok" if _reclaim_ok or not _reclaim_required else (
             "reclaim_unavailable" if worker.get("ok") is True else worker.get("reason", "worker_unavailable")
         ),
     )

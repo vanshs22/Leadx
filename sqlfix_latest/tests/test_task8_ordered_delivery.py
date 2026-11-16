@@ -107,3 +107,93 @@ def test_delivery_count_comes_from_persisted_assignment_rows(monkeypatch):
     assert result["ok"] is True
     assert result["count"] == 1
     assert fake.rows("lead_assignments")[0]["delivery_status"] == "sent"
+
+
+def test_business_reconciliation_requires_crm_and_client_projection_identity():
+    from app.integrations.prod.discovery_runtime import reconcile_business_state
+
+    board = [{"lead_id": "lead-1", "stage": "delivery", "stage_status": "accepted"}]
+    assignments = [{
+        "id": "assignment-1", "status": "assigned", "reservation_status": "consumed",
+        "delivery_status": "sent",
+    }]
+    crm = [{"assignment_id": "assignment-1", "crm_saved": True}]
+
+    blocked = reconcile_business_state(
+        board, assignments, target=1, metric="assigned",
+        crm_projections=crm, client_rows=[],
+    )
+    assert blocked["reconciled"] is False
+    assert blocked["mismatch_reason"] == "client_projection_missing"
+    assert blocked["client_visible"] == 0
+
+    converged = reconcile_business_state(
+        board, assignments, target=1, metric="assigned",
+        crm_projections=crm, client_rows=[{"assignment_id": "assignment-1"}],
+    )
+    assert converged["reconciled"] is True
+    assert converged["crm_saved"] == converged["client_visible"] == 1
+
+
+def test_finish_run_downgrades_completion_without_durable_reconciliation(monkeypatch):
+    from app.integrations.prod import pipeline
+
+    fake = FakeSupabase({"pipeline_runs": [{
+        "id": "run-unreconciled", "tenant_id": TENANT, "status": "running",
+    }]})
+    monkeypatch.setattr(pipeline, "get_supabase", lambda: fake)
+    asyncio.run(pipeline._finish_run(
+        "run-unreconciled", "completed",
+        {"assigned": 1, "delivered": 1, "target_metric": "assigned"},
+    ))
+    row = fake.rows("pipeline_runs")[0]
+    assert row["status"] == "partial"
+    assert row["error_message"] == "count_reconciliation_blocked"
+
+
+def test_assignment_stage_barrier_is_persisted_before_crm_ready_state(monkeypatch):
+    from app.integrations.prod import crm_projection, data_plane, lead7_runtime, quality
+
+    fake = _AssignmentDB({
+        "tenants": [{"id": TENANT, "plan": "growth", "leads_per_month_limit": 10}],
+        "leads_global": [_lead("lead-ordered")],
+        "pipeline_stages": [],
+    })
+    monkeypatch.setattr(quality, "get_supabase", lambda: fake)
+
+    async def _crm(*_args, **_kwargs):
+        assert fake.rows("pipeline_run_leads")[0]["stage"] == "assignment"
+        return {"crm_saved": True, "crm_status": "saved", "company_id": "company-1", "contact_id": "contact-1"}
+    async def _noop(*_args, **_kwargs):
+        return {"ok": True}
+
+    monkeypatch.setattr(crm_projection, "project_assignment_to_crm", _crm)
+    monkeypatch.setattr(lead7_runtime, "record_assignment", _noop)
+    monkeypatch.setattr(data_plane, "project_canonical_lead", _noop)
+    monkeypatch.setattr(data_plane, "record_quality_decision", _noop)
+    monkeypatch.setattr(data_plane, "enqueue_delivery_outbox_async", _noop)
+    monkeypatch.setattr(data_plane, "append_ledger_event_async", _noop)
+
+    result = asyncio.run(quality.assign_lead(
+        "lead-ordered", TENANT, None, "gym", ["Newark"], run_id="run-ordered", lead=_lead("lead-ordered"),
+    ))
+    assert result["assigned"] is True
+    assert fake.rows("pipeline_run_leads")[0]["stage"] == "assignment"
+    assert fake.rows("lead_assignments")[0]["crm_status"] == "saved"
+
+
+def test_authoritative_count_failure_preserves_terminal_summary_shape(monkeypatch):
+    from app.integrations.prod import pipeline
+
+    # An unavailable durable read must still return the complete count contract;
+    # terminal summary construction must downgrade reconciliation, not crash.
+    monkeypatch.setattr(pipeline, "get_supabase", lambda: object())
+
+    counts = asyncio.run(pipeline._authoritative_target_counts(
+        "run-unavailable", TENANT, [], target=2, metric="assigned",
+    ))
+
+    assert counts["reconciled"] is False
+    assert counts["mismatch_reason"] == "authoritative_counts_unavailable"
+    assert counts["crm_saved"] == 0
+    assert counts["client_visible"] == 0
