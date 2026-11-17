@@ -673,7 +673,7 @@ async def reap_stale_tasks(lease_seconds: int = MISSION_TASK_LEASE_SECONDS) -> i
     """
     now = datetime.now(timezone.utc)
     try:
-        raw = _sb().rpc("leadx_reap_stale_mission_tasks", {"p_limit": 500}).execute()
+        raw = await aexec(_sb().rpc("leadx_reap_stale_mission_tasks", {"p_limit": 500}))
         data = getattr(raw, "data", raw)
         if isinstance(data, list) and data:
             return len(data)

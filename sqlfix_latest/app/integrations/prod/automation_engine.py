@@ -5,12 +5,13 @@ Workflow graphs are intentionally bounded: conditions + explicit actions only;
 no arbitrary code execution and no unbounded recursion.
 """
 from __future__ import annotations
-import os, socket
+import logging, os, socket
 from datetime import datetime, timezone, timedelta
 from typing import Any
 from app.services.aio import aexec, offload
 from app.memory.supabase_client import get_supabase
 
+logger = logging.getLogger("lead_engine.automation")
 WORKER = f"automation:{socket.gethostname()}:{os.getpid()}"
 ALLOWED_ACTIONS = {"send_email","enroll_sequence","stop_sequence","create_task","notify_owner","create_deal","advance_deal_stage","close_deal","update_lead","escalate_owner","score_reply"}
 

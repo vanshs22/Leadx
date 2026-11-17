@@ -1,4 +1,4 @@
-﻿"""
+"""
 Lead Engine - managed service entrypoint.
   uvicorn app.app_service:app --host 0.0.0.0 --port 8000
 """
@@ -246,6 +246,8 @@ async def request_id_middleware(request: Request, call_next):
             tenant_authorized=bool(getattr(request.state, "tenant", None)),
             error_code=telemetry_error_code(exc), dependency="api",
         )
+        if os.getenv("LEADX_DEBUG_TRACEBACKS") == "1" and os.getenv("ENVIRONMENT", "development").lower() not in {"production", "prod", "staging"}:
+            logger.error("debug traceback request_id=%s", request_id, exc_info=exc)  # never enabled in prod/staging
         response = JSONResponse(
             status_code=500,
             content={"ok": False, "error": "Internal server error", "request_id": request_id},

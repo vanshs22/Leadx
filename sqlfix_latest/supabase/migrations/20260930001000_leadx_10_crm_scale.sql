@@ -33,10 +33,20 @@ END $$;
 
 DO $$ BEGIN
   CREATE INDEX IF NOT EXISTS idx_leads_global_name_trgm ON leads_global USING gin (name gin_trgm_ops);
+EXCEPTION WHEN undefined_object OR undefined_column OR undefined_table OR insufficient_privilege THEN
+  RAISE NOTICE 'trigram index on leads_global skipped';
+END $$;
+
+DO $$ BEGIN
   CREATE INDEX IF NOT EXISTS idx_companies_name_trgm ON companies USING gin (name gin_trgm_ops);
-  CREATE INDEX IF NOT EXISTS idx_contacts_name_trgm ON contacts USING gin (name gin_trgm_ops);
-EXCEPTION WHEN undefined_object OR insufficient_privilege THEN
-  RAISE NOTICE 'trigram indexes skipped';
+EXCEPTION WHEN undefined_object OR undefined_column OR undefined_table OR insufficient_privilege THEN
+  RAISE NOTICE 'trigram index on companies skipped';
+END $$;
+
+DO $$ BEGIN
+  CREATE INDEX IF NOT EXISTS idx_contacts_name_trgm ON contacts USING gin (full_name gin_trgm_ops);
+EXCEPTION WHEN undefined_object OR undefined_column OR undefined_table OR insufficient_privilege THEN
+  RAISE NOTICE 'trigram index on contacts skipped';
 END $$;
 
 -- Prevent workflow capacity counters from becoming unbounded.

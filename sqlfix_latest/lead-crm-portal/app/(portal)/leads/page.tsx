@@ -1,5 +1,6 @@
 "use client";
 
+import { downloadCsv } from "@/lib/csv";
 import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { crm, LeadCard } from "@/lib/api";
@@ -280,17 +281,7 @@ export default function LeadsPage() {
         tier: tier || undefined,
         stage: stage || undefined,
       });
-      const headers = Object.keys(data.rows[0] || {});
-      const csv = [
-        headers.join(","),
-        ...data.rows.map((row: any) =>
-          headers.map((h) => JSON.stringify(row[h] ?? "")).join(",")
-        ),
-      ].join("\n");
-      const a = document.createElement("a");
-      a.href = URL.createObjectURL(new Blob([csv], { type: "text/csv" }));
-      a.download = data.filename || "leads.csv";
-      a.click();
+      downloadCsv(data.rows, data.filename || "leads.csv");
       setMsg("CSV downloaded");
     } catch (e: any) {
       setMsg(e.message);

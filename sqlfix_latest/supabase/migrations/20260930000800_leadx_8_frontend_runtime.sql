@@ -104,7 +104,7 @@ begin
       begin
         execute format('alter table public.%I replica identity full', t);
         execute format('alter publication supabase_realtime add table public.%I', t);
-      exception when duplicate_object then null when undefined_table then null when undefined_object then null;
+      exception when duplicate_object or undefined_table or undefined_object then null;
       end;
     end if;
   end loop;

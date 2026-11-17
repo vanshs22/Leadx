@@ -129,8 +129,8 @@ def upsert_enrichment(lead_id:str,lead:dict)->None:
 @to_async
 def upsert_score(lead_id:str,score:int,tier:str,reasoning:str,lead:Optional[dict]=None)->None:
     sb=get_supabase();lead=lead or {};row={"lead_id":lead_id,"deterministic_score":score,"total_score":score,"tier":tier,"reasoning":reasoning,"scored_at":datetime.now(timezone.utc).isoformat()}
-    for k in ("pitch_line","intent_score","fit_score","opportunity_score","contactability_score","opportunity_score_overall","intelligence_confidence","opportunity_evidence"):
-        if lead.get(k) is not None:row[k]=lead[k]
+    # Intelligence sub-scores are persisted in lead_opportunities (record_opportunity);
+    # public.scores only has the canonical columns, and writing others failed every upsert.
     try:
         sb.table("scores").upsert(row,on_conflict="lead_id").execute()
         from app.integrations.prod.evidence_graph import record_field_evidence
@@ -220,9 +220,6 @@ async def upsert_score_batch(items: list[tuple[str, int, str, str, Optional[dict
             "tier": tier, "reasoning": reasoning,
             "scored_at": datetime.now(timezone.utc).isoformat(),
         }
-        for key in ("pitch_line", "intent_score", "fit_score", "opportunity_score", "contactability_score", "opportunity_score_overall", "intelligence_confidence", "opportunity_evidence"):
-            if lead.get(key) is not None:
-                row[key] = lead[key]
         payloads.append(row)
     try:
         await aexec(get_supabase().table("scores").upsert(payloads, on_conflict="lead_id"))
@@ -291,10 +288,18 @@ def stage_transition_key(run_id: str, lead_id: str, stage: str) -> str:
     return f"{str(run_id)}:{str(lead_id)}:{str(stage).strip().lower()}"
 
 
+# The run board (pipeline_run_leads.stage) is also written with the operator-board vocabulary
+# (discovered/enriched/gated/assigned) by _board_upsert/_reconcile_run_board. Without this mapping the
+# next durable transition saw "discovered" as an unknown stage and rejected every assignment.
+BOARD_STAGE_ALIASES = {"discovered": "verification", "enriched": "scoring", "gated": "gating", "assigned": "assignment"}
+
+
 def validate_stage_transition(current_stage: str | None, next_stage: str) -> dict:
     """Validate the only legal forward stage order without touching storage."""
     current = str(current_stage or "").strip().lower() or None
     target = str(next_stage or "").strip().lower()
+    current = BOARD_STAGE_ALIASES.get(current, current) if current else None
+    target = BOARD_STAGE_ALIASES.get(target, target)
     if target not in STAGE_ORDER:
         return {"ok": False, "reason": "unknown_stage", "from": current, "to": target}
     if current is None:

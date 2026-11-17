@@ -8,7 +8,7 @@
 There are two supported installation paths:
 
 1. **Supabase SQL Editor / one-shot install:** run the single root file `SUPABASE_FULL_MIGRATION.sql` from this release.
-2. **Supabase CLI:** apply the 41 timestamped files under `supabase/migrations/` in order.
+2. **Supabase CLI:** apply the 43 timestamped files under `supabase/migrations/` in order.
 
 Do **not** run the root all-in-one file together with the individual migrations. The archived V7 SQL is retained only for provenance and is not the current install file. After the durable tail is applied, follow `docs/LEADX_16_DATA_PLANE_RUNBOOK.md` and run the service-role migration preflight before provider-bound work.
 

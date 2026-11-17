@@ -1,6 +1,6 @@
 # LeadX migration lineage
 
-The executable database source of truth is `supabase/migrations/`, containing **41 ordered migrations**. `SUPABASE_FULL_MIGRATION.sql` is the clean-install mirror of that same chain. Apply one path only: Supabase CLI migrations or the root mirror, never both.
+The executable database source of truth is `supabase/migrations/`, containing **43 ordered migrations**. `SUPABASE_FULL_MIGRATION.sql` is the clean-install mirror of that same chain. Apply one path only: Supabase CLI migrations or the root mirror, never both.
 
 Legacy SQL patches are retained only as historical/source material and are not a current install path. Existing tables, statuses, rows, and RLS boundaries are preserved by the additive 16.0 data-plane migrations.
 
@@ -24,5 +24,7 @@ The current durable, data-plane, and product-state tail is eighteen ordered migr
 - `20261028000400_leadx_delivery_timestamp_semantics.sql` — delivery timestamp semantics.
 - `20261029000500_leadx_pipeline_run_cancelled_status.sql` — additive cancelled terminal status.
 - `20261030000600_leadx_product_state_authority.sql` — additive versioned billing snapshots, payment-method state, support-ticket lifecycle projection, explicit target metric, and reconciliation visibility.
+- `20261117000100_leadx_tenant_settings.sql` — adds the `tenants.settings` jsonb column that feature flags, exclusive-lead entitlement and client discovery requests already read.
 
 `MIGRATION_POLICY.md`, `SETUP.md`, and `docs/LEADX_16_DATA_PLANE_RUNBOOK.md` describe the same 41-file lineage. No migration renumbering or destructive repair is permitted.
+- `20261117000200_leadx_jobs_singleton_kinds.sql` — narrows the per-tenant single-flight job index to cron/scheduler kinds and `pipeline.run`; other kinds (agent.run, csv.import, email.bulk) may queue concurrently. Rollback: `DROP INDEX jobs_active_singleton_kind_tenant_idx; CREATE UNIQUE INDEX jobs_active_unique_kind_tenant_idx ON jobs(kind, tenant_id) WHERE status IN ('queued','running');` (fails if duplicate active rows exist; cancel them first).

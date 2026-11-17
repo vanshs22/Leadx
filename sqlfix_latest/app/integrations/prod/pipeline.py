@@ -11,7 +11,7 @@ import logging
 import os
 import time
 from datetime import datetime, timezone, timedelta
-from typing import Optional
+from typing import Any, Optional
 from uuid import uuid4
 
 from app.memory.supabase_client import get_supabase
@@ -2963,7 +2963,7 @@ def _progress_run(run_id: str, status: str = "running", **counts) -> None:
             try:
                 sb.table("jobs").update({"updated_at": datetime.now(timezone.utc).isoformat()}).eq("id", job_id).execute()
             except Exception:
-                pass
+                __import__("logging").getLogger(__name__).debug("non-fatal error ignored", exc_info=True)
     except Exception as e:
         logger.warning("progress update failed: %s", e)
 
@@ -3131,7 +3131,7 @@ def _finish_run(run_id: str, status: str, summary: dict, error: str = "", execut
             _finish_update(compatible_payload)
             return
         except Exception:
-            pass
+            __import__("logging").getLogger(__name__).debug("non-fatal error ignored", exc_info=True)
         try:
             fallback = {
                 "status": status if status in ("completed", "partial", "failed", "cancelled") else "failed",

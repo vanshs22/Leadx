@@ -177,8 +177,9 @@ def data_providers(tenant_id: UUID, ctx: TenantContext = Depends(require_tenant)
     assert_tenant_match(ctx, tenant_id)
     from app.integrations.prod.connectors import list_providers
     from app.integrations.prod.waterfall_providers import build_providers
-    providers = {p.get("name") or p.__class__.__name__: p for p in build_providers()}
-    return {"ok": True, "providers": list_providers(), "enrichment": [{"name": k, "adapter": type(v).__name__, "enabled": True} for k, v in providers.items()]}
+    return {"ok": True, "providers": list_providers(), "enrichment": [
+        {"name": p.name, "fields": list(p.fields), "paid": bool(p.paid), "cost": p.cost, "timeout_s": p.timeout_s, "enabled": bool(p.enabled)}
+        for p in build_providers()]}
 
 class WorkflowIn(BaseModel):
     name: str = Field(min_length=2, max_length=160)

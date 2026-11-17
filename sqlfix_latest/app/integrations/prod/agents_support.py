@@ -176,7 +176,7 @@ def authorize_lead_access(
                 "after_state": {"operation": str(operation)[:32], "agent_id": str(agent_id or "")[:80], "authorized": ok, "requested_count": len(requested)},
             }).execute()
         except Exception:
-            pass
+            __import__("logging").getLogger(__name__).debug("non-fatal error ignored", exc_info=True)
         return decision
 
     if len(requested) > 5000:

@@ -199,6 +199,7 @@ async def fetch_crawl4ai(url: str) -> dict:
 async def fetch_firecrawl(url: str) -> dict:
     from app.integrations.prod.discovery_runtime import assert_provider_allowed
     assert_provider_allowed("paid_enrichment")
+    out: dict = {"ok": False, "html": "", "markdown": "", "url": url}
     blocked = await assert_public_url(url)
     if blocked:
         out["error"] = f"blocked:{blocked}"

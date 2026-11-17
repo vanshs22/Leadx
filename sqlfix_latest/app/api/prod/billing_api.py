@@ -166,7 +166,7 @@ async def cancel_subscription(body: CancellationRequest, ctx: TenantContext = De
     provider_status = getattr(result, "status", None) or (result.get("status") if isinstance(result, dict) else "pending")
     updates = {"billing_cancel_at_period_end": not body.immediate, "billing_status": str(provider_status)}
     try:
-        _sb().table("tenants").update(updates).eq("id", ctx.tenant_id).execute()
+        await aexec(_sb().table("tenants").update(updates).eq("id", ctx.tenant_id))
     except Exception:
         # Provider state remains authoritative even when an older local schema
         # cannot persist the additive cancellation projection.

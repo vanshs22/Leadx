@@ -109,22 +109,32 @@ def _clean(v: Any) -> Optional[str]:
     return s or None
 
 
+def _domain(website: Optional[str]) -> Optional[str]:
+    """Hostname of a website/URL/bare domain, lowercased, without www. (None if it is not host-like)."""
+    from app.integrations.prod.utils import extract_domain
+    d = extract_domain(website)
+    return d if d and "." in d and " " not in d else None
+
+
 @to_async
 def _import_companies(tenant_id: str, rows: list[dict], idx: dict[str, str]) -> dict:
+    """Validate, de-duplicate (in-file and against the tenant's existing companies by domain, then name) and insert."""
     sb = get_supabase()
-    imported = skipped = 0
+    imported = skipped = duplicates = 0
     errors: list[str] = []
-    batch: list[dict] = []
+    candidates: list[dict] = []
     for r in rows:
         name = _clean(r.get(idx.get("name", "")))
         if not name:
             skipped += 1
             continue
-        batch.append(
+        website = _clean(r.get(idx.get("website", "")))
+        candidates.append(
             {
                 "tenant_id": tenant_id,
-                "name": name,
-                "website": _clean(r.get(idx.get("website", ""))),
+                "name": name[:300],
+                "website": website,
+                "domain": _domain(website),
                 "phone": _clean(r.get(idx.get("phone", ""))),
                 "industry": _clean(r.get(idx.get("industry", ""))),
                 "city": _clean(r.get(idx.get("city", ""))),
@@ -133,7 +143,31 @@ def _import_companies(tenant_id: str, rows: list[dict], idx: dict[str, str]) -> 
                 "source": "csv_import",
             }
         )
-    # Chunked so one bad row doesn't cost the whole file.
+    # Existing keys for this tenant only (tenant_id filter on every query).
+    known_domains: set[str] = set()
+    known_names: set[str] = set()
+    try:
+        doms = sorted({c["domain"] for c in candidates if c["domain"]})
+        for i in range(0, len(doms), 100):
+            for x in sb.table("companies").select("domain").eq("tenant_id", tenant_id).in_("domain", doms[i:i + 100]).execute().data or []:
+                known_domains.add((x.get("domain") or "").lower())
+        names = sorted({c["name"] for c in candidates})
+        for i in range(0, len(names), 100):
+            for x in sb.table("companies").select("name").eq("tenant_id", tenant_id).in_("name", names[i:i + 100]).execute().data or []:
+                known_names.add(_norm(x.get("name")))
+    except Exception as e:  # lookup failure must not silently create duplicates
+        return {"imported": 0, "skipped": skipped, "duplicates": 0, "errors": [f"duplicate check failed: {str(e)[:150]}"]}
+    batch: list[dict] = []
+    for c in candidates:
+        key_n = _norm(c["name"])
+        if (c["domain"] and c["domain"] in known_domains) or (not c["domain"] and key_n in known_names):
+            duplicates += 1
+            continue
+        if c["domain"]:
+            known_domains.add(c["domain"])
+        known_names.add(key_n)
+        batch.append(c)
+    # PostgREST bulk inserts NULL-fill keys missing from some rows; every row above has identical keys.
     for i in range(0, len(batch), 200):
         chunk = batch[i : i + 200]
         try:
@@ -147,7 +181,7 @@ def _import_companies(tenant_id: str, rows: list[dict], idx: dict[str, str]) -> 
                     imported += 1
                 except Exception:
                     skipped += 1
-    return {"imported": imported, "skipped": skipped, "errors": errors[:5]}
+    return {"imported": imported, "skipped": skipped, "duplicates": duplicates, "errors": errors[:5]}
 
 
 @to_async
@@ -248,7 +282,7 @@ async def import_rows(
             tenant_id=tenant_id,
             kind="import_done",
             title=f"Import finished — {res['imported']} {entity}",
-            body=f"{res['skipped']} row(s) skipped." + (" Some batches errored." if res.get("errors") else ""),
+            body=f"{res['skipped']} row(s) skipped, {res.get('duplicates', 0)} duplicate(s) ignored." + (" Some batches errored." if res.get("errors") else ""),
             link=f"/{entity}",
             severity="warning" if res.get("errors") else "info",
         )

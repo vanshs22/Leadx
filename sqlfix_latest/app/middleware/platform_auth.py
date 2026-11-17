@@ -1,4 +1,4 @@
-﻿"""Platform-admin JWT authentication.
+"""Platform-admin JWT authentication.
 
 Service-key auth remains available for internal workers/backward compatibility,
 but browser-facing admin sessions can use Supabase Auth + platform_admins.

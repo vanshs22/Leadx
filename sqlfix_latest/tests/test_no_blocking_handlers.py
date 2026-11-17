@@ -46,8 +46,9 @@ def test_no_direct_execute_in_async_functions():
     offenders = []
     for p, t in _trees():
         for fn in [n for n in ast.walk(t) if isinstance(n, ast.AsyncFunctionDef)]:
+            awaited = {id(n.value) for n in _own(fn) if isinstance(n, ast.Await)}  # `await x.execute()` is a coroutine, not a blocking call
             for n in _own(fn):
-                if isinstance(n, ast.Call) and isinstance(n.func, ast.Attribute) and n.func.attr == "execute":
+                if isinstance(n, ast.Call) and id(n) not in awaited and isinstance(n.func, ast.Attribute) and n.func.attr == "execute":
                     offenders.append(f"{p}:{n.lineno} in {fn.name}")
     assert not offenders, "blocking .execute() in async def: " + ", ".join(offenders)
 

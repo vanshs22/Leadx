@@ -1233,11 +1233,16 @@ async def export_csv(
 ):
     assert_tenant_match(ctx, tenant_id)
     """Return lead rows as JSON (frontend turns into CSV download)."""
-    data = await list_leads(
-        tenant_id, stage=stage, tier=tier, limit=500, offset=0
-    )
+    # Page through the full result set (500 per page) instead of silently truncating at one page.
+    EXPORT_MAX, leads, offset = 50000, [], 0
+    while len(leads) < EXPORT_MAX:
+        page = (await list_leads(tenant_id, stage=stage, tier=tier, limit=500, offset=offset)).get("leads") or []
+        leads.extend(page)
+        if len(page) < 500:
+            break
+        offset += 500
     rows = []
-    for l in data.get("leads") or []:
+    for l in leads:
         rows.append({
             "company": l.get("company_name"),
             "phone": l.get("phone_e164") or l.get("phone_normalized"),

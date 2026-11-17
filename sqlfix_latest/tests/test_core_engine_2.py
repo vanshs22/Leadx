@@ -54,7 +54,8 @@ def test_all_core_capabilities_present():
 
 
 def test_core_policy_primitives():
-    assert field_fresh("email", "2026-09-29T00:00:00+00:00")
+    from datetime import datetime, timedelta, timezone
+    assert field_fresh("email", (datetime.now(timezone.utc) - timedelta(days=1)).isoformat())
     assert transition("verified", "qualified")["ok"]
     assert not transition("won", "verified")["ok"]
     assert should_replace({"opportunity_score": 20}, "invalid_contact")

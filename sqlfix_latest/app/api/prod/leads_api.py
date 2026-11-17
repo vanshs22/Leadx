@@ -5,7 +5,8 @@ Tenant JWT auth lives on CRM routes; this router is operator-facing.
 from __future__ import annotations
 
 from app.services.aio import aexec, offload, to_async
-from typing import Optional
+import asyncio
+from typing import Literal, Optional
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Request, BackgroundTasks
@@ -62,6 +63,7 @@ class PipelineRequest(BaseModel):
     social_limit_per_source: int = Field(default=15, ge=0, le=50)
     target_new_leads: int = Field(default=0, ge=0, le=MAX_LEADS_PER_RUN, description='Net-new leads target; one run is capped at 500 leads')
     max_cells_per_run: int = Field(default=15, ge=1, le=150)
+    target_metric: Literal["assigned", "delivered"] = "assigned"
     campaign_mode: str = Field(default="auto", description="auto, fast_target, or strict quality_campaign")
     exhaustive_discovery: bool = Field(default=False, description="Explicitly scan all enabled source/query/geo partitions; normal requests use bounded adaptive discovery")
 
@@ -203,6 +205,7 @@ async def run_pipeline(req: PipelineRequest, request: Request, background_tasks:
         campaign_mode=req.campaign_mode,
         max_cells_per_run=req.max_cells_per_run,
         exhaustive_discovery=req.exhaustive_discovery,
+        target_metric=req.target_metric,
     )
 
     if sync:
@@ -882,6 +885,13 @@ async def update_tenant(tenant_id: str, req: UpdateTenantRequest):
     from app.memory.supabase_client import get_supabase
     from app.integrations.prod.crypto_config import store_delivery_config
     payload = {k: v for k, v in req.model_dump().items() if v is not None and k != "delivery_config"}
+    if "plan" in payload:
+        from app.core.plans import PLANS, LEGACY_PLAN_ALIASES
+        plan_key = str(payload["plan"]).strip().lower()
+        plan_key = LEGACY_PLAN_ALIASES.get(plan_key, plan_key)
+        if plan_key not in PLANS:
+            raise HTTPException(400, f"unknown plan; expected one of {sorted(PLANS)}")
+        payload["plan"] = plan_key
     sb = get_supabase()
     if payload:
         (await aexec(sb.table("tenants").update(payload).eq("id", tenant_id)))
@@ -962,20 +972,29 @@ def list_tenant_users_route(tenant_id: str):
 
 
 @router.get("/admin/icps")
-def list_icps(tenant_id: Optional[str] = None, active: Optional[bool] = None):
+def list_icps(tenant_id: Optional[str] = None, active: Optional[bool] = None, icp_id: Optional[str] = None):
     from app.memory.supabase_client import get_supabase
-    q = (
-        get_supabase()
-        .table("icp_profiles")
-        .select("id, tenant_id, name, vertical, geo, keywords, exclusivity, active, created_at")
-        .order("created_at", desc=True)
-        .limit(500)
-    )
-    if tenant_id:
-        q = q.eq("tenant_id", tenant_id)
-    if active is not None:
-        q = q.eq("active", active)
-    return {"icps": q.execute().data or []}
+
+    def _read(columns: str, ordered: bool):
+        q = get_supabase().table("icp_profiles").select(columns)
+        if ordered:
+            q = q.order("created_at", desc=True)
+        q = q.limit(500)
+        # Filters are always applied so a schema fallback can never widen scope.
+        if tenant_id:
+            q = q.eq("tenant_id", tenant_id)
+        if icp_id:
+            q = q.eq("id", icp_id)
+        if active is not None:
+            q = q.eq("active", active)
+        return q.execute().data or []
+
+    cols = "id, tenant_id, name, vertical, geo, keywords, exclusivity, active"
+    try:
+        return {"icps": _read(cols + ", created_at", True)}
+    except Exception:
+        # Older deployments may lack created_at; retry the same scoped read without it.
+        return {"icps": _read(cols, False)}
 
 
 class UpdateICPRequest(BaseModel):
@@ -2081,7 +2100,7 @@ async def op_email_bulk(req: OpEmailBulk, request: Request):
                 tenant_id=req.tenant_id,
                 idempotency_key=key,
                 operation_kind=f"operator.{kind}",
-                actor_scope=request.headers.get("authorization") or kwargs["tenant_id"],
+                actor_scope=request.headers.get("authorization") or req.tenant_id,
                 created_by="admin",
                 provider_required=True,
             )
@@ -2530,7 +2549,7 @@ def get_run_progress(run_id: str):
             if job_row:
                 job_updated_at = job_row[0].get("updated_at")
         except Exception:
-            pass
+            __import__("logging").getLogger(__name__).debug("non-fatal error ignored", exc_info=True)
 
     # Get board progress
     board_updated_at = None
@@ -2547,7 +2566,7 @@ def get_run_progress(run_id: str):
         if board_row:
             board_updated_at = board_row[0].get("updated_at")
     except Exception:
-        pass
+        __import__("logging").getLogger(__name__).debug("non-fatal error ignored", exc_info=True)
 
     now = datetime.now(timezone.utc).isoformat()
     last_progress = meta.get("stage_changed_at") or board_updated_at or job_updated_at or run.get("started_at")
@@ -2559,7 +2578,7 @@ def get_run_progress(run_id: str):
             now_dt = datetime.now(timezone.utc).replace(tzinfo=last_dt.tzinfo)
             staleness = (now_dt - last_dt).total_seconds()
         except Exception:
-            pass
+            __import__("logging").getLogger(__name__).debug("non-fatal error ignored", exc_info=True)
 
     return {
         "ok": True,

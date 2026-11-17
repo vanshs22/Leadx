@@ -9,7 +9,8 @@ FULL = ROOT / "SUPABASE_FULL_MIGRATION.sql"
 def test_15_4_security_migration_precedes_newer_migrations():
     files = sorted(MIG.glob("*.sql"))
     assert "20261001000300_leadx_15_4_security_reliability.sql" in {p.name for p in files}
-    assert files[-1].name == "20261020001700_leadx_5_tenant_scope_hardening.sql"
+    names = [f.name for f in files]
+    assert names.index("20261001000300_leadx_15_4_security_reliability.sql") < names.index("20261020001700_leadx_5_tenant_scope_hardening.sql")
     assert len(files) == len(re.findall(r"-- CANONICAL MIGRATION \d+: [^\n]+", FULL.read_text()))
 
 

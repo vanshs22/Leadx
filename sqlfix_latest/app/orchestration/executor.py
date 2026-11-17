@@ -490,7 +490,7 @@ class TaskExecutor:
             try:
                 await self._tool_call(claimed_row, worker_id, status="failed", now=self.clock(), error=error)
             except Exception:
-                pass
+                __import__("logging").getLogger(__name__).debug("non-fatal error ignored", exc_info=True)
             return await self._failure(claimed_row, worker_id, error)
 
         if await self._is_cancelled(claimed_row):

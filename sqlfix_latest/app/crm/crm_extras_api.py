@@ -557,6 +557,12 @@ def list_webhooks(tenant_id: UUID, ctx: TenantContext = Depends(require_tenant))
 @router.post("/{tenant_id}/integrations/webhooks")
 def create_webhook(tenant_id: UUID, req: WebhookCreate, ctx: TenantContext = Depends(require_admin)):
     assert_tenant_match(ctx, tenant_id)
+    # Static SSRF screen at configuration time (scheme, credentials, internal/private hosts);
+    # DNS-level checks are repeated on every delivery.
+    from app.integrations.prod.net_safety import is_public_url
+    ok_url, reason = is_public_url(req.endpoint_url, resolve=False)
+    if not ok_url:
+        raise HTTPException(400, f"endpoint_url rejected: {reason}")
     row={"tenant_id":str(tenant_id),**req.model_dump()}
     rows=_sb().table("outbound_webhooks").insert(row).execute().data or []
     return {"ok":True,"webhook":rows[0] if rows else row}

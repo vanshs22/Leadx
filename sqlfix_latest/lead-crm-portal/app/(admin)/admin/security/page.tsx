@@ -1,5 +1,6 @@
 "use client";
 
+import { downloadCsv } from "@/lib/csv";
 import { useLiveLoader } from "@/lib/live";
 import { useMemo, useState } from "react";
 import { admin } from "@/lib/admin";
@@ -47,8 +48,7 @@ export default function SecurityPage() {
   function exportAudit() {
     const rows = filteredAudit.map((x) => ({ action: x.action, actor_type: x.actor_type, resource_type: x.resource_type || "", resource_id: x.resource_id || "", reason: x.reason || "", created_at: x.created_at || "" }));
     if (!rows.length) return;
-    const csv = [Object.keys(rows[0]).join(","), ...rows.map((row) => Object.values(row).map((value) => JSON.stringify(value)).join(","))].join("\n");
-    const a = document.createElement("a"); a.href = URL.createObjectURL(new Blob([csv], { type: "text/csv" })); a.download = "leadx-audit-log.csv"; a.click(); URL.revokeObjectURL(a.href);
+    downloadCsv(rows, "leadx-audit-log.csv");
   }
 
   if (loading) return <div className="page"><h1 className="page-title">Audit center</h1><LoadingRows rows={6} cols={4} /></div>;
