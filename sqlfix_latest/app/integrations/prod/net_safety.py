@@ -27,6 +27,7 @@ import hmac
 import ipaddress
 import logging
 import os
+import time
 import re
 import socket
 from typing import Optional
@@ -97,16 +98,27 @@ def is_public_url(url: str, *, resolve: bool = True) -> tuple[bool, str]:
         return True, ""
     try:
         port = parsed.port or (443 if parsed.scheme == "https" else 80)
-        infos = socket.getaddrinfo(host, port, type=socket.SOCK_STREAM)
+        key, now = (host, port), time.monotonic()
+        hit = _DNS_CACHE.get(key)
+        if hit and now - hit[0] < _DNS_TTL_S:  # ~30 fetches per site hit the same host; one lookup is enough
+            addrs = hit[1]
+        else:
+            addrs = {i[4][0] for i in socket.getaddrinfo(host, port, type=socket.SOCK_STREAM)}
+            if len(_DNS_CACHE) > 20_000:
+                _DNS_CACHE.clear()
+            _DNS_CACHE[key] = (now, addrs)
     except (socket.gaierror, UnicodeError, ValueError):
         return False, "dns_failure"
-    addrs = {i[4][0] for i in infos}
     if not addrs:
         return False, "dns_failure"
     for a in addrs:
         if not _ip_is_public(a):
             return False, "private_address"
     return True, ""
+
+
+_DNS_CACHE: dict = {}
+_DNS_TTL_S = 300.0
 
 
 async def assert_public_url(url: str) -> Optional[str]:
@@ -138,34 +150,60 @@ except Exception:  # httpx internals changed: fall back to the stock behaviour
     pass
 
 
+_CLIENTS: dict = {}
+_SHARDS = 16
+
+
+def _shared_client(host: str = ""):
+    """Pooled keep-alive clients per event loop, sharded by host: no per-request client/TLS setup, connections reused per host.
+
+    One big httpcore pool rescans every queued request on each release (quadratic CPU at a few hundred in flight), so the
+    load is spread over small pools. Cookies are disabled: a crawler has no use for them and the jar costs CPU per response.
+    """
+    import asyncio
+    import http.cookiejar
+    import httpx
+    loop_id = id(asyncio.get_running_loop())
+    pools = _CLIENTS.get(loop_id)
+    if pools is None:
+        _CLIENTS.clear()
+        pools = _CLIENTS[loop_id] = {}
+    i = hash(host) % _SHARDS
+    c = pools.get(i)
+    if c is None or c.is_closed:
+        c = pools[i] = httpx.AsyncClient(
+            follow_redirects=False, http2=False,
+            limits=httpx.Limits(max_connections=64, max_keepalive_connections=32, keepalive_expiry=30),
+        )
+        c.cookies.jar.set_policy(http.cookiejar.DefaultCookiePolicy(allowed_domains=[]))
+    return c
+
+
 async def safe_get(url: str, *, timeout: float = 20.0, max_redirects: int = 5,
                    max_bytes: int = 2_500_000, headers: Optional[dict] = None):
     """GET with per-hop SSRF validation and a response size cap.
 
     Returns ``(response, error)``; exactly one is None.
     """
-    import httpx
-
     current = url
-    async with httpx.AsyncClient(timeout=timeout, follow_redirects=False) as client:
-        for _ in range(max_redirects + 1):
-            reason = await assert_public_url(current)
-            if reason:
-                return None, f"blocked:{reason}"
-            try:
-                async with client.stream("GET", current, headers=headers) as r:
-                    if r.status_code in _REDIRECT_CODES and r.headers.get("location"):
-                        current = urljoin(current, r.headers["location"])
-                        continue
-                    body = bytearray()
-                    async for chunk in r.aiter_bytes():
-                        body.extend(chunk)
-                        if len(body) > max_bytes:
-                            break
-                    r._content = bytes(body[:max_bytes])  # noqa: SLF001 - expose .text/.content
-                    return r, None
-            except Exception as e:  # network errors are data, not crashes
-                return None, str(e)[:300]
+    for _ in range(max_redirects + 1):
+        reason = await assert_public_url(current)
+        if reason:
+            return None, f"blocked:{reason}"
+        try:
+            async with _shared_client(urlparse(current).hostname or "").stream("GET", current, headers=headers, timeout=timeout) as r:
+                if r.status_code in _REDIRECT_CODES and r.headers.get("location"):
+                    current = urljoin(current, r.headers["location"])
+                    continue
+                body = bytearray()
+                async for chunk in r.aiter_bytes():
+                    body.extend(chunk)
+                    if len(body) > max_bytes:
+                        break
+                r._content = bytes(body[:max_bytes])  # noqa: SLF001 - expose .text/.content
+                return r, None
+        except Exception as e:  # network errors are data, not crashes
+            return None, str(e)[:300]
     return None, "too_many_redirects"
 
 

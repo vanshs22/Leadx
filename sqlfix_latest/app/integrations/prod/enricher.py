@@ -57,6 +57,8 @@ CONTACT_PATHS = (
     "/our-team", "/meet-the-team", "/services", "/locations", "/book", "/booking",
     "/appointments", "/get-started", "/schedule", "/request-an-appointment",
 )
+SECONDARY_MAX = 6  # linked pages fetched per site; the old crawl fetched ~30 (mostly 404s)
+CONTACT_FIRST = re.compile(r"(contact|about|team|staff)", re.I)
 SECONDARY_HINTS = re.compile(r"(contact|about|team|staff|owner|founder|manager|service|location|book|appointment|career)", re.I)
 
 
@@ -85,16 +87,24 @@ def _extract_social(html: str) -> dict:
 # ---------------------------------------------------------------------------
 # Fetch layers
 # ---------------------------------------------------------------------------
+async def _httpx_fetch(url: str, timeout: int, out: dict) -> dict:
+    """Pooled keep-alive fetch with per-hop SSRF checks (net_safety.safe_get); no HTML tree is built."""
+    r, err = await safe_get(url, timeout=timeout, headers=_FETCH_HEADERS)
+    if r is not None and r.status_code < 400 and r.text:
+        out.update(html=r.text, text=r.text, ok=True, method="httpx", status=r.status_code, error=None)
+    elif r is not None:
+        out.update(status=r.status_code, error=f"http_{r.status_code}")
+    else:
+        out["error"] = err
+    return out
+
+
 async def fetch_scrapling(url: str, timeout: int = 20, light: bool = False) -> dict:
-    """Fast HTTP fetch through Scrapling, with a plain-httpx fallback.
+    """Fast page fetch. Plain pooled httpx first; Scrapling only when the site refuses it (403/429/503/network error).
 
-    SECURITY: every hop (including redirects) is validated as a public URL
-    before it is requested, so a lead website can never make the server call
-    localhost, private ranges or cloud metadata endpoints.
-
-    Important: import from scrapling.fetchers. The package has moved the
-    fetcher exports over time, and importing from the package root can leave
-    the production enricher silently falling back to httpx.
+    SECURITY: every hop (including redirects) is validated as a public URL before it is requested, so a lead
+    website can never make the server call localhost, private ranges or cloud metadata endpoints.
+    light=True (secondary pages) never falls back to Scrapling. LEADX_FETCH_FAST=0 restores Scrapling-first.
     """
     from app.integrations.prod.discovery_runtime import assert_provider_allowed
     assert_provider_allowed("first_party_web")
@@ -103,9 +113,14 @@ async def fetch_scrapling(url: str, timeout: int = 20, light: bool = False) -> d
     if blocked:
         out["error"] = f"blocked:{blocked}"
         return out
+    fast = os.getenv("LEADX_FETCH_FAST", "1") != "0"
+    if light or fast:
+        await _httpx_fetch(url, timeout, out)
+        err = str(out.get("error") or "")
+        if out["ok"] or light or err.startswith("blocked") or out.get("status") in (404, 410, 451):
+            return out
+        out.update(ok=False, html="", text="")
     try:
-        if light:  # html only: skip scrapling's per-response lxml parse (secondary pages are mostly 404s; ~30 fetches per site)
-            raise RuntimeError("light")
         try:
             from scrapling.fetchers import AsyncFetcher
         except ImportError:
@@ -142,20 +157,16 @@ async def fetch_scrapling(url: str, timeout: int = 20, light: bool = False) -> d
                 text = page.get_all_text(separator=" ") or ""
             except Exception:
                 text = ""
-        out.update(html=html, text=text or html, ok=bool(html), status=status)
+        out.update(html=html, text=text or html, ok=bool(html), status=status, error=None)
         if status is not None and int(status) >= 400:
             out["ok"] = False
             out["error"] = f"http_{status}"
     except Exception as e:
-        out["error"] = str(e)
         logger.debug("scrapling fail %s: %s", url, e)
-        r, err = await safe_get(url, timeout=timeout, headers=_FETCH_HEADERS)
-        if r is not None and r.status_code < 400 and r.text:
-            out.update(html=r.text, text=r.text, ok=True, method="httpx", status=r.status_code, error=None)
-        elif r is not None:
-            out.update(status=r.status_code, error=f"http_{r.status_code}")
+        if not fast:
+            await _httpx_fetch(url, timeout, out)
         else:
-            out["error"] = f"{out.get('error')}; httpx={err}"
+            out["error"] = f"{out.get('error')}; scrapling={str(e)[:80]}"
     return out
 
 
@@ -344,30 +355,42 @@ def _same_domain(url: str, base: str) -> bool:
         return False
 
 
-def _secondary_urls(base_url: str, html: str) -> list[str]:
+def _secondary_urls(base_url: str, html: str, guess: bool = True) -> list[str]:
+    """Contact/about-style pages: links the homepage actually has first, guessed paths only after them."""
     found: list[str] = []
     seen: set[str] = set()
-    limit = int(__import__('os').getenv('ENRICH_SECONDARY_PAGES', '12'))
+
     def add(url: str) -> None:
-        if len(found) >= limit or not url.startswith(('http://', 'https://')) or not _same_domain(url, base_url):
+        clean = url.split('#', 1)[0].strip()
+        if not clean.startswith(('http://', 'https://')) or not _same_domain(clean, base_url):
             return
-        clean = url.split('#', 1)[0].rstrip('/')
-        if clean == base_url.rstrip('/') or clean in seen:
+        if clean.rstrip('/') == base_url.rstrip('/') or clean in seen:
             return
         seen.add(clean); found.append(clean)
-    for path in CONTACT_PATHS:
-        add(urljoin(base_url.rstrip('/') + '/', path.lstrip('/')))
     for href in re.findall(r"(?:href|data-href)\s*=\s*[\"']([^\"']+)[\"']", html or '', re.I):
         if SECONDARY_HINTS.search(href):
             add(urljoin(base_url, href))
+    if len(found) > SECONDARY_MAX:
+        found = [u for u in found if CONTACT_FIRST.search(u)] + [u for u in found if not CONTACT_FIRST.search(u)]
+    found = found[:SECONDARY_MAX]
+    if guess:
+        for path in CONTACT_PATHS:
+            add(urljoin(base_url.rstrip('/') + '/', path.lstrip('/')))
     return found
 
 
-async def _fetch_secondary_pages(base_url: str, html: str, use_firecrawl_for_secondary: bool = False) -> tuple[str, list[str]]:
-    urls = _secondary_urls(base_url, html)
+async def _fetch_secondary_pages(base_url: str, html: str, use_firecrawl_for_secondary: bool = False,
+                                 tried: Optional[set] = None, guessed: bool = False) -> tuple[str, list[str]]:
+    """First pass: pages the homepage links to (or 4 guessed paths if it links none). guessed=True: the other guessed paths."""
+    tried = tried if tried is not None else set()
+    if guessed:
+        urls = [u for u in _secondary_urls(base_url, '', guess=True) if u not in tried][:SECONDARY_MAX]
+    else:
+        urls = _secondary_urls(base_url, html, guess=False) or _secondary_urls(base_url, '', guess=True)[:4]
+    tried.update(urls)
     if not urls:
         return '', []
-    sem = asyncio.Semaphore(4)
+    sem = asyncio.Semaphore(SECONDARY_MAX)
     async def one(url: str):
         async with sem:
             page = await fetch_scrapling(url, timeout=12, light=True)
@@ -428,10 +451,10 @@ async def _serper_contact_fallback(name: str, city: Optional[str], domain: Optio
         return {}
 
 
-async def _try_contact_pages(base_url: str, already_emails: list) -> dict:
+async def _try_contact_pages(base_url: str, already_emails: list, tried: Optional[set] = None) -> dict:
     if already_emails:
         return {}
-    combined, used = await _fetch_secondary_pages(base_url, '')
+    combined, used = await _fetch_secondary_pages(base_url, '', tried=tried, guessed=True)
     if not combined:
         return {}
     parsed = _parse_content(combined, base_url)
@@ -519,7 +542,7 @@ async def enrich_one(website: str, use_crawl4ai: bool = True, use_firecrawl: boo
 
     content = "\n".join(x for x in (
         html,
-        text,
+        "" if text == html else text,
         c4.get("html") or "",
         c4.get("text") or "",
         md,
@@ -534,8 +557,9 @@ async def enrich_one(website: str, use_crawl4ai: bool = True, use_firecrawl: boo
 
     # Crawl high-value internal pages (contact/about/team/services/locations) so
     # enrichment is domain-deep instead of homepage-only.
+    tried: set = set()
     try:
-        secondary_html, secondary_urls = await _fetch_secondary_pages(website, html or content, use_firecrawl_for_secondary=use_firecrawl and os.getenv('LEADX_FIRECRAWL_SECONDARY', '0') == '1')
+        secondary_html, secondary_urls = await _fetch_secondary_pages(website, html or content, tried=tried, use_firecrawl_for_secondary=use_firecrawl and os.getenv('LEADX_FIRECRAWL_SECONDARY', '0') == '1')
         if secondary_html:
             secondary = _parse_content(secondary_html, website)
             parsed = _merge_parsed(parsed, secondary)
@@ -545,7 +569,7 @@ async def enrich_one(website: str, use_crawl4ai: bool = True, use_firecrawl: boo
 
     # Contact page follow-up if no email
     if not parsed.get("emails"):
-        extra = await _try_contact_pages(website, parsed.get("emails") or [])
+        extra = await _try_contact_pages(website, parsed.get("emails") or [], tried)
         if extra.get("emails"):
             parsed.update({k: v for k, v in extra.items() if v})
             method_parts.append("contact-pages")
