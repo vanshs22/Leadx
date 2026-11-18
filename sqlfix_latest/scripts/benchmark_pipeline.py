@@ -26,6 +26,7 @@ async def main(loc, industry, n):
                              deliver=True, include_web=False, include_yelp=False, include_facebook=False)
     c = out.get("counts") or out
     print(json.dumps({"wall_s": round(time.monotonic() - t, 1), "stage_timings": out.get("stage_timings"), "stop_reason": out.get("stop_reason"),
+                      "first": {k: (out.get("lane_telemetry") or {}).get(k) for k in ("first_candidate_seconds", "first_enriched_seconds", "first_assigned_seconds")},
                       "counts": {k: c.get(k) for k in ("discovered", "enriched", "gated", "assigned", "delivered")},
                       "authoritative_counts": out.get("authoritative_counts")}, indent=1, default=str))
 

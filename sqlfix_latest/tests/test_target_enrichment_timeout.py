@@ -6,6 +6,7 @@ def test_target_run_timeout_filters_candidate_and_finishes(monkeypatch):
     from app.integrations.prod import agent_pipeline_branches, continuous_discovery, lead6_runtime, pipeline, post_run_agent_dispatch, suppression
 
     monkeypatch.setenv("TARGET_ENRICH_TIMEOUT_SECONDS", "0.05")
+    monkeypatch.setenv("LEADX_FAST_SEED", "0")  # this test fakes discover_leads; keep live free sources out of it
     calls = {"discover": 0}
     finished = []
     rejected = []

@@ -13,9 +13,10 @@ import inspect
 import logging
 import os
 import re
+import time
 from typing import Any, Awaitable, Callable, Optional
 
-from app.integrations.prod.entity_resolution import resolve_entities
+from app.integrations.prod.entity_resolution import entity_keys, resolve_entities
 from app.integrations.prod import exhaustive_discovery
 from app.integrations.prod.exhaustive_discovery import _normalize
 from app.integrations.prod.field_extract import _email_ok, classify_social
@@ -90,20 +91,39 @@ SOURCES: dict[str, Callable[[str, str], Awaitable[list[dict]]]] = {
 }
 
 
+def _shape(name: str, res: list[dict], industry: str, location: str) -> list[dict]:
+    if name == "osm":  # already normalized rows
+        for r in res:
+            r["sources_hit"] = ["osm"]
+        return list(res)
+    return [r for r in (_row(raw, industry, location, name if name != "directories" else f"dir:{raw.get('directory', 'web')}") for raw in res) if r]
+
+
 async def discover_free(industry: str, location: str, *, stats: Optional[dict[str, Any]] = None, budget_seconds: Optional[float] = None,
-                        limit: Optional[int] = None, only: Optional[tuple] = None) -> list[dict]:
+                        limit: Optional[int] = None, only: Optional[tuple] = None,
+                        on_rows: Optional[Callable[[list[dict]], Awaitable[None]]] = None) -> list[dict]:
     """All free sources for one (industry, location), merged. ``stats`` receives per-source counts/errors.
 
     Sources run concurrently under a time budget (LEADX_FREE_DISCOVERY_SECONDS, default 90). Fast sources (open data,
     registries) finish in seconds; slow crawls are cut off at the budget and keep whatever they had found so far.
     ``limit`` keeps the best candidates only (corroborated by several sources, then reachable by email/website/phone), so a small
     target never floods persistence with thousands of rows it will not use. Default LEADX_FREE_DISCOVERY_MAX_ROWS (1500).
+
+    ``on_rows`` streams: it is awaited with the not-yet-emitted merged entities each time a source finishes (and every
+    LEADX_FREE_STREAM_TICK seconds for sources with a sink), so callers can start work before the slowest source ends.
+    Later evidence for an entity already emitted is not re-emitted; the return value is still the full merged list.
     """
     enabled = [s.strip() for s in os.getenv("LEADX_FREE_SOURCES", ",".join(ALL_SOURCES)).split(",") if s.strip() in SOURCES]
     if only:  # e.g. the fast seed asks for the sources that answer in seconds
         enabled = [s for s in enabled if s in only]
     budget = budget_seconds if budget_seconds is not None else float(os.getenv("LEADX_FREE_DISCOVERY_SECONDS", "90"))
+    cap = int(limit or os.getenv("LEADX_FREE_DISCOVERY_MAX_ROWS", "1500"))
+    tick = float(os.getenv("LEADX_FREE_STREAM_TICK", "2"))
     sinks: dict[str, list] = {s: [] for s in enabled}
+    consumed = {s: 0 for s in enabled}  # sink rows already shaped, per source
+    made_by: dict[str, list[dict]] = {s: [] for s in enabled}
+    seen_keys: set[str] = set()
+    emitted = 0
 
     async def _run(name: str):
         fn = SOURCES[name]
@@ -111,34 +131,64 @@ async def discover_free(industry: str, location: str, *, stats: Optional[dict[st
             return await fn(industry, location, sink=sinks[name])
         return await fn(industry, location)
 
+    async def _stream() -> None:
+        nonlocal emitted
+        if on_rows is None or emitted >= cap:
+            return
+        fresh = []
+        for r in resolve_entities([r for v in made_by.values() for r in v]):
+            keys = entity_keys(r)
+            if keys and seen_keys.issuperset(keys):
+                continue
+            seen_keys.update(keys)
+            r["source"] = "osm"
+            fresh.append(r)
+        fresh = fresh[:cap - emitted]
+        if fresh:
+            emitted += len(fresh)
+            await on_rows(fresh)
+
     tasks = {name: asyncio.create_task(_run(name)) for name in enabled}
-    done, pending = await asyncio.wait(tasks.values(), timeout=budget)
-    for t in pending:
-        t.cancel()
-    await asyncio.gather(*pending, return_exceptions=True)
-    rows: list[dict] = []
-    for name, task in tasks.items():
-        timed_out = task in pending
-        if timed_out:
-            res = sinks[name]  # partial results gathered before the budget ran out
-        elif task.exception():
-            logger.warning("free source %s failed: %s", name, type(task.exception()).__name__)
-            if stats is not None:
-                stats[name] = {"error": type(task.exception()).__name__}
-            continue
-        else:
-            res = task.result()
-        if name == "osm":
-            for r in res:
-                r["sources_hit"] = ["osm"]
-            made = list(res)
-        else:
-            made = [r for r in (_row(raw, industry, location, name if name != "directories" else f"dir:{raw.get('directory', 'web')}") for raw in res) if r]
-        rows += made
-        if stats is not None:
-            stats[name] = {"rows": len(made), **({"timed_out": True} if timed_out else {})}
+    timed_out: set[str] = set()
+    errors: dict[str, str] = {}
+    deadline = time.monotonic() + budget
+    waiting = set(tasks.values())
+    by_task = {t: n for n, t in tasks.items()}
+    try:
+        while waiting:
+            left = deadline - time.monotonic()
+            if left <= 0:
+                break
+            done, waiting = await asyncio.wait(waiting, timeout=min(left, tick) if on_rows else left, return_when=asyncio.FIRST_COMPLETED)
+            for t in done:
+                name = by_task[t]
+                if t.exception():
+                    logger.warning("free source %s failed: %s", name, type(t.exception()).__name__)
+                    errors[name] = type(t.exception()).__name__
+                    continue
+                made_by[name] += _shape(name, t.result()[consumed[name]:], industry, location)
+            if on_rows:
+                for t in waiting:  # partial rows from slow sources that expose a sink
+                    name = by_task[t]
+                    new = sinks[name][consumed[name]:]
+                    if new:
+                        consumed[name] += len(new)
+                        made_by[name] += _shape(name, new, industry, location)
+                await _stream()
+    finally:
+        for t in waiting:
+            t.cancel()
+        await asyncio.gather(*waiting, return_exceptions=True)
+    for t in waiting:
+        name = by_task[t]
+        timed_out.add(name)
+        made_by[name] += _shape(name, sinks[name][consumed[name]:], industry, location)  # partial results gathered before the budget ran out
+    await _stream()
+    rows = [r for v in made_by.values() for r in v]
+    if stats is not None:
+        for name in enabled:
+            stats[name] = {"error": errors[name]} if name in errors else {"rows": len(made_by[name]), **({"timed_out": True} if name in timed_out else {})}
     merged = resolve_entities(rows)
-    cap = int(limit or os.getenv("LEADX_FREE_DISCOVERY_MAX_ROWS", "1500"))
     merged.sort(key=lambda r: (len(r.get("sources_hit") or []) >= 3, bool(r.get("email")), bool(r.get("website")), bool(r.get("phone")),
                                int(r.get("discovery_quality") or 0)), reverse=True)
     merged = merged[:cap]

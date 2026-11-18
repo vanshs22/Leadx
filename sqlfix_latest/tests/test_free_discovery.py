@@ -246,3 +246,30 @@ def test_overpass_sends_user_agent_and_skips_dead_mirror(monkeypatch):
     assert [h[0] for h in hits] == ["https://a.example/i", "https://b.example/i", "https://b.example/i"]
     assert all(h[1].startswith("LeadX/") for h in hits)
     ed._dead_mirrors.clear()
+
+
+def test_discover_free_streams_fast_rows_before_slow_source_finishes(monkeypatch):
+    log = []
+
+    async def fast(i, l):
+        return [{"name": "Bright Smile Dental", "phone": "+15125550142", "website": "https://brightsmile.com", "id": "o:1"}]
+
+    async def slow(i, l, sink=None):
+        await asyncio.sleep(0.3)
+        sink.append({"name": "Oak Dental Care", "phone": "+15125550199", "website": "https://oakdental.com", "id": "d:1", "directory": "x"})
+        await asyncio.sleep(0.6)
+        sink.append({"name": "Pine Dental Group", "phone": "+15125550177", "website": "https://pinedental.com", "id": "d:2", "directory": "x"})
+        log.append("slow_done")
+        return list(sink)
+
+    async def on_rows(rows):
+        log.append([r["name"] for r in rows])
+
+    monkeypatch.setattr(fd, "SOURCES", {"overture": fast, "directories": slow})
+    monkeypatch.setenv("LEADX_FREE_SOURCES", "overture,directories")
+    monkeypatch.setenv("LEADX_FREE_STREAM_TICK", "0.1")
+    out = asyncio.run(fd.discover_free("dentist", "Austin, TX", on_rows=on_rows))
+    assert log[0] == ["Bright Smile Dental"]  # fast source reached the consumer first
+    assert log.index("slow_done") > 1  # partial directory rows were delivered before the slow source finished
+    streamed = [n for e in log if isinstance(e, list) for n in e]
+    assert sorted(streamed) == sorted(set(streamed)) == sorted(r["name"] for r in out)  # nothing emitted twice, nothing lost

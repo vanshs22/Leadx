@@ -533,6 +533,11 @@ async def run_pipeline_parallel_target(
     processed_ids: set[str] = set()
     source_counts: dict[str, int] = {}
     discovery_telemetry: dict[str, Any] = {}
+    first_marks: dict[str, float] = {}  # seconds from run start to the first lead reaching each stage
+    seed_tasks: list[asyncio.Task] = []
+
+    def _mark_first(key: str) -> None:
+        first_marks.setdefault(key, round(time.monotonic() - run_clock, 2))
     reuse_counts = {"reused_count": 0, "refreshed_count": 0, "stale_count": 0}
     persisted_qualifying = 0
     persisted_contactable = 0
@@ -663,6 +668,7 @@ async def run_pipeline_parallel_target(
         begin_agent_stage(agent_context, "data_quality", "quality_audit")
         begin_agent_stage(agent_context, "qualification", "quality_gate")
         nonlocal enriched_n, verified_n, scored_n, gated_n, persisted_qualifying, persisted_contactable
+        _mark_first("first_enriched_seconds")
         lid = lead.get("id")
         verification_reason = None
         try:
@@ -979,6 +985,7 @@ async def run_pipeline_parallel_target(
                         reserved_assignments -= 1
                         reservation_taken = False
                         assigned_n += 1
+                        _mark_first("first_assigned_seconds")
                         position = assigned_n
                         crm_saved = result.get("crm_saved", True)
                         confirmed_assignment_ids.append(assignment_id)
@@ -1138,6 +1145,7 @@ async def run_pipeline_parallel_target(
         for lead in current:
             if stop_event.is_set():
                 break
+            _mark_first("first_candidate_seconds")
             if lead.get("id") in needs_ids:
                 await enrich_queue.put(lead)
                 queue_max_depth["enrichment"] = max(queue_max_depth["enrichment"], enrich_queue.qsize())
@@ -1163,23 +1171,30 @@ async def run_pipeline_parallel_target(
         want = min(2000, max(60, slots_cap * int(os.getenv("LEADX_FAST_SEED_MULTIPLIER", "8"))))
         t0 = time.monotonic()
         per_loc = max(40, want // max(1, len(geo)))
-        async def _all():
-            return await asyncio.gather(*[
-                discover_free(vertical, loc, limit=per_loc, budget_seconds=float(os.getenv("LEADX_FAST_SEED_SECONDS", "15")),
-                              only=("overture", "nppes", "companies_house"))
-                for loc in geo[:8]], return_exceptions=True)
-        results = await _await_cancellable(_all()) or []
-        pool: list[dict] = []
-        for r in results:
-            if isinstance(r, list):
-                pool.extend(r)
-        discovery_telemetry["fast_seed"] = {"rows": len(pool), "seconds": round(time.monotonic() - t0, 1)}
         chunk = max(queue_size, slots_cap * candidate_multiplier)
-        while pool and not stop_event.is_set() and not _cancelled():
-            if not (await _target_state()).get("admit"):
-                break
-            await _prepare_discovered_batch(pool[:chunk])
-            pool = pool[chunk:]
+        emitted = 0
+
+        async def _on_rows(rows: list[dict]) -> None:
+            # Each source's rows go straight to enrichment as that source finishes; slow ones keep streaming behind this.
+            nonlocal emitted
+            emitted += len(rows)
+            for i in range(0, len(rows), chunk):
+                if stop_event.is_set() or _cancelled() or not (await _target_state()).get("admit"):
+                    return
+                await _prepare_discovered_batch(rows[i:i + chunk])
+
+        async def _one(loc: str) -> None:
+            try:
+                await discover_free(vertical, loc, limit=per_loc, on_rows=_on_rows)
+            except asyncio.CancelledError:
+                raise
+            except Exception as exc:
+                logger.warning("[%s] streaming free discovery %s: %s", run_id[:8], loc, type(exc).__name__)
+
+        seed_tasks.extend(asyncio.create_task(_one(loc), name="leadx-free-stream") for loc in geo[:8])
+        # Wait only the fast-seed window; directories/OSM keep streaming until discovery ends (see _discovery_producer).
+        await _await_cancellable(asyncio.wait(seed_tasks, timeout=float(os.getenv("LEADX_FAST_SEED_SECONDS", "15"))))
+        discovery_telemetry["fast_seed"] = {"rows": emitted, "seconds": round(time.monotonic() - t0, 1)}
 
     async def _discovery_producer() -> None:
         nonlocal rounds_used, current_tranche, refill_used, stop_reason, discovery_telemetry
@@ -1356,6 +1371,10 @@ async def run_pipeline_parallel_target(
             _stage_end("discovery")
             finish_agent_stage(agent_context, "source_router", "source_selection", summary={"sources": list(src_flags)})
             finish_agent_stage(agent_context, "discovery_planner", "route_and_tranche_planning", summary={"rounds": rounds_used})
+            if stop_event.is_set() or _cancelled() or not (await _target_state()).get("admit"):
+                for t in seed_tasks:
+                    t.cancel()
+            await asyncio.gather(*seed_tasks, return_exceptions=True)  # slow sources still streaming must land before discovery_done
             discovery_done.set()
 
     enrich_workers = [asyncio.create_task(_enrich_worker(i + 1), name=f"leadx-enrich-{i+1}") for i in range(enrich_workers_n)]
@@ -1493,6 +1512,7 @@ async def run_pipeline_parallel_target(
     _stage_end("run")
     _close_open_stages()
     discovery_telemetry["latency_samples"] = _latency_summary()
+    discovery_telemetry.update(first_marks)
     try:
         from app.layers.persistence_layer import flush_stage_history
         await asyncio.to_thread(flush_stage_history)
