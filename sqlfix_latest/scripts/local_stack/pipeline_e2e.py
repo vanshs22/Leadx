@@ -10,7 +10,7 @@ ca, a, b = client(admin["token"]), client(A["token"], A["tenant_id"]), client(B[
 for c, T in ((a, A), (b, B)): c.post(f"/crm/{T['tenant_id']}/setup")
 WANT = int(os.getenv("PIPE_TARGET", "10"))
 def start(T, cities, industry):
-    r = ca.post("/leads/v2/pipeline/run", json={"tenant_id": T["tenant_id"], "industry": industry, "locations": cities, "target_new_leads": WANT, "limit_per_location": 15, "deliver": False, "use_crawl4ai": False, "use_firecrawl": False, "include_maps": True, "include_web": False})
+    r = ca.post("/leads/v2/pipeline/run", json={"tenant_id": T["tenant_id"], "industry": industry, "locations": cities, "target_new_leads": WANT, "limit_per_location": 15, "deliver": False, "use_crawl4ai": False, "use_firecrawl": os.getenv("PIPE_FIRECRAWL") == "1", "include_maps": True, "include_web": False})
     return r.json()
 t0 = time.time()
 with cf.ThreadPoolExecutor(2) as ex:

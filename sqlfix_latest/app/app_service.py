@@ -43,6 +43,10 @@ logging.basicConfig(
     format="%(asctime)s %(levelname)s [%(name)s] %(message)s",
 )
 logger = logging.getLogger("lead_engine.service")
+# httpx logs full request URLs at INFO, which includes PostgREST filters such as key_value=eq.<api key>.
+for _noisy in ("httpx", "httpcore"):
+    logging.getLogger(_noisy).setLevel(logging.WARNING)
+
 
 from app.api.prod import competitive_api
 from app.api.prod import session_api

@@ -48,6 +48,10 @@ logging.basicConfig(
 from app.layers.telemetry import emit as emit_telemetry, error_code as telemetry_error_code, tenant_scope as safe_tenant_scope
 
 logger = logging.getLogger("lead_engine.worker")
+# httpx logs full request URLs at INFO, which includes PostgREST filters such as key_value=eq.<api key>.
+for _noisy in ("httpx", "httpcore"):
+    logging.getLogger(_noisy).setLevel(logging.WARNING)
+
 
 POLL_INTERVAL = float(os.getenv("WORKER_POLL_SECONDS", "3"))
 REAP_INTERVAL = float(os.getenv("WORKER_REAP_SECONDS", "300"))
