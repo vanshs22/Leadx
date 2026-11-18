@@ -138,6 +138,10 @@ async def execute_agent_task(run: dict, expected_agent: str | None = None) -> di
                 )
         elif agent in {"enrichment", "research", "signal", "qualification"}:
             ids = [str(x) for x in (data.get("lead_ids") or ([data.get("lead_id")] if data.get("lead_id") else []))]
+            if not ids and data.get("mission_id"):
+                # Early in a mission the graph reaches lead-oriented stages before any lead exists. That is "nothing to do yet",
+                # not a failure; failing here marked every downstream stage dependency_failed and the mission always ended failed.
+                return {"agent": agent, "skipped": "no_leads_yet", "results": []}
             if not ids: raise ValueError("lead_id_or_lead_ids_required")
             results = []
             for lid in ids[:100]:

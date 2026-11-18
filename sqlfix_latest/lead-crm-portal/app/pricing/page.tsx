@@ -61,7 +61,7 @@ export default function PricingPage() {
     <main className="min-h-screen bg-surface text-ink">
       <header className="border-b border-line bg-surface-2">
         <div className="mx-auto flex max-w-7xl items-center justify-between gap-4 px-5 py-4 sm:px-8">
-          <Link href="/login" className="flex items-center gap-2.5" aria-label="LeadX home">
+          <Link href="/" className="flex items-center gap-2.5" aria-label="LeadX home">
             <span className="brand-mark">LX</span>
             <span className="brand-wordmark">LeadX</span>
           </Link>
@@ -146,7 +146,7 @@ export default function PricingPage() {
       <footer className="border-t border-line px-5 py-6 sm:px-8">
         <div className="mx-auto flex max-w-7xl flex-wrap items-center justify-between gap-3 text-xs text-ink-faint">
           <span>LeadX · agency revenue intelligence</span>
-          <nav className="flex gap-4" aria-label="Legal"><Link href="/privacy" className="hover:text-ink">Privacy</Link><Link href="/terms" className="hover:text-ink">Terms</Link><Link href="/security" className="hover:text-ink">Security</Link></nav>
+          <nav className="flex gap-4" aria-label="Legal"><Link href="/privacy" className="hover:text-ink">Privacy</Link><Link href="/terms" className="hover:text-ink">Terms</Link><Link href="/security" className="hover:text-ink">Security</Link><Link href="/cookies" className="hover:text-ink">Cookies</Link><Link href="/contact" className="hover:text-ink">Contact</Link></nav>
         </div>
       </footer>
     </main>

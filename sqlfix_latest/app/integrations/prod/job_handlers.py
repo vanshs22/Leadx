@@ -339,14 +339,20 @@ async def _agent_run(payload: dict) -> dict:
         from app.integrations.prod import jobs
         mission_task = (await aexec(get_supabase().table("agent_mission_tasks").select("mission_id").eq("agent_run_id", str(run["id"])).eq("tenant_id", tenant_id).limit(1))).data or []
         if mission_task:
-            mission_payload = {"tenant_id": tenant_id, "mission_id": str(mission_task[0]["mission_id"])}
+            # The idempotency key is derived from the payload. Without a per-run component every tick of a mission shared one key,
+            # the second submit was a "replay" of the first, and a mission never progressed past its first task.
+            mission_payload = {"tenant_id": tenant_id, "mission_id": str(mission_task[0]["mission_id"]), "after_run_id": str(run["id"])}
             handoff = jobs.submit(
                 "agent.mission.tick", mission_payload, tenant_id=tenant_id,
                 idempotency_key=jobs.derived_idempotency_key(tenant_id, "agent.mission.tick", mission_payload),
                 operation_kind="agent.mission.tick", priority=1, created_by="gtm-mission",
                 provider_required=True,
             )
-            jobs.accepted_job_id(handoff)
+            try:
+                jobs.accepted_job_id(handoff)
+            except jobs.DurableJobRejected as rejected:
+                if str(rejected.result.get("outcome")) not in {"in_progress", "replay"}:  # a tick for this mission is already queued: fine
+                    raise
     except Exception as exc:
         emit_telemetry(
             logger, logging.WARNING, "job.mission_completion_hook_failed",

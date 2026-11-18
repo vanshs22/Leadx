@@ -6,7 +6,7 @@ Sources read on 2026-11-18 (vendor pages and third-party reviews, paraphrased): 
 [saved searches](https://www.apollo.io/insights/which-software-offers-the-best-saved-search-features) and
 [AI assistants](https://www.apollo.io/insights/how-do-ai-sales-assistants-personalize-outreach-at-scale), HubSpot's
 [prospecting agent](https://knowledge.hubspot.com/prospecting/use-the-prospecting-agent), Instantly's
-[enrichment guide](https://instantly.ai/blog/lead-enrichment/). Salesforce was **not** researched in this pass.
+[enrichment guide](https://instantly.ai/blog/lead-enrichment/). Salesforce was researched in the third pass (see below).
 
 ## What each competitor leads with
 
@@ -33,6 +33,14 @@ Sources read on 2026-11-18 (vendor pages and third-party reviews, paraphrased): 
 Also fixed in this pass: lead list filters (`city`, `state`, `min_score`, `min_rating`, `has_email/phone/website/booking`,
 `delivered_since_days`) so every saved view and the new search use real database filters.
 
+## Salesforce (researched in the third pass)
+
+Sales Cloud Einstein scores leads 1 to 99 from your own conversion history (guidance is that you need on the order of a thousand converted
+leads before it is reliable), Agentforce SDR qualifies leads and books meetings, and Pipeline Inspection plus forecasting sit on top of a heavy CRM.
+Sources: [Salesforce compliance listing](https://compliance.salesforce.com/en/services/agentforce-einstein-platform), [Hexaview overview](https://www.hexaviewtech.com/blog/how-businesses-in-2026-are-using-einstein-and-gpt), [Trailhead](https://trailhead.salesforce.com/content/learn/modules/agentforce-specialist-certification-maintenance-summer-25/learn-whats-new-with-agentforce-and-sales-cloud).
+LeadX answer: scoring works on day one from observable evidence (fit, contactability, signals) with the reasons shown, a GTM mission graph covers
+qualify and hand-off, and the learning loop adapts weights as outcomes arrive. What LeadX does **not** have is Salesforce's forecasting and conversation intelligence.
+
 ## Added in the second pass
 
 | Capability | Where | Why it beats the market |
@@ -44,15 +52,21 @@ Also fixed in this pass: lead list filters (`city`, `state`, `min_score`, `min_r
 | Buying-committee map | `GET /companies/{id}/buying-committee` | Roles, coverage score, missing roles, who to contact first |
 | Signed, testable webhooks | per-webhook secret (shown once), `x-leadx-signature-v2: t=,v1=` HMAC over `t.body`, `POST /webhooks/{id}/test`, `GET /webhooks/{id}/deliveries` | Replay-safe signatures; failed deliveries retry with backoff and stay visible |
 
+## Added in the third pass
+
+Plays builder screen, buying-committee panel on accounts, data-quality / outreach-draft / website-check panel on every lead, evidence-led outreach drafts
+(no AI key needed, nothing is sent), complete legal set (Privacy, Terms, DPA, Security, Cookies, Acceptable use, Subprocessors, Contact), robots/sitemap/security.txt,
+and Stripe verification against a local stand-in. Defects fixed on the way are listed in `E2E_TEST_REPORT.md`.
+
 ## Not built yet
 
-1. Playbook builder UI for plays (the backend trigger and actions exist; only the screen is missing).
-2. A second free website source for businesses whose domain cannot be guessed (paid Serper remains the fallback).
-3. Buying-committee and data-quality panels in the portal (APIs and client methods exist).
-4. Realtime/RLS verification, mobile layouts, and the lead table's right-hand columns at 1360 px width (the "Open" button is clipped; horizontal scroll works).
-5. Salesforce competitor research, AI-written outreach beyond the existing sequence writer (needs an AI key).
+1. A second free website source for businesses whose domain cannot be guessed (paid Serper remains the fallback).
+2. Salesforce-style forecasting and call/conversation intelligence.
+3. Written outreach in your voice from an AI model beyond the sequence writer (needs an AI key; the draft endpoint is deterministic by design).
+4. Supabase Realtime and RLS verification against a real project, and verification of Stripe against real Stripe.
+5. Legal review of the policy text, plus the owner-supplied facts (entity, address, governing law, hosting region).
 
 ## Evidence
 
-`tests/test_competitive_features.py` (10 offline checks), 74 live API checks in `scripts/local_stack/e2e.py`, and the real-browser suites
-`browser_walk.mjs` (every page as client and admin) and `browser_journeys.mjs` (19 user journeys). See `E2E_TEST_REPORT.md`.
+`tests/test_competitive_features.py` (11 offline checks), 80 live API checks (`scripts/local_stack/e2e.py`), and three real-browser suites
+(`browser_public.mjs`, `browser_walk.mjs`, `browser_journeys.mjs`, `browser_responsive.mjs`). See `E2E_TEST_REPORT.md`.

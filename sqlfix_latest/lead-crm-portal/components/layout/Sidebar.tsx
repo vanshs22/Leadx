@@ -12,7 +12,7 @@ import { Icon, type IconName } from "@/components/ui/Icon";
 const GROUPS = [
   { title: "Workspace", items: [["/dashboard", "Overview", "home"], ["/growth", "Growth", "growth"], ["/today", "Today", "clock"], ["/intelligence", "Intelligence", "brain"], ["/approvals", "Approvals", "check"]] },
   { title: "Prospects & CRM", items: [["/search", "Discover", "search"], ["/leads", "Leads", "leads"], ["/companies", "Accounts", "clients"], ["/contacts", "Contacts", "team"], ["/duplicates", "Duplicates", "health"], ["/deals", "Deals", "deal"], ["/pipeline", "Lead lifecycle", "pipeline"]] },
-  { title: "Engage", items: [["/sequences", "Sequences", "sequence"], ["/automations", "Automations", "automation"], ["/compose", "Write email", "compose"], ["/replies", "Replies", "reply"], ["/activities", "Activity", "activity"]] },
+  { title: "Engage", items: [["/sequences", "Sequences", "sequence"], ["/automations", "Automations", "automation"], ["/plays", "Plays", "growth"], ["/compose", "Write email", "compose"], ["/replies", "Replies", "reply"], ["/activities", "Activity", "activity"]] },
   { title: "Measure", items: [["/reports", "Reports", "report"], ["/revenue", "Revenue", "revenue"], ["/reports/deals", "Deal revenue", "deal"], ["/logs", "Logs", "job"]] },
   { title: "Settings", items: [["/team", "Team", "team"], ["/settings/integrations", "Integrations", "integration"], ["/settings/billing", "Billing", "billing"], ["/settings", "Workspace settings", "settings"]] },
 ] as const;

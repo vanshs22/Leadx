@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getServerApiUpstream, isLocalAuthProfile } from "@/lib/config";
 
-const PUBLIC = new Set(["/", "/login", "/signup", "/accept-invite", "/verify-email", "/pricing", "/audit"]);
+// Pages a signed-out visitor must be able to open: marketing, sign-in/up, every legal document, contact, SEO files.
+const PUBLIC = new Set(["/", "/login", "/signup", "/accept-invite", "/verify-email", "/pricing", "/audit", "/sample", "/privacy", "/terms", "/dpa", "/security", "/cookies", "/acceptable-use", "/subprocessors", "/contact", "/robots.txt", "/sitemap.xml"]);
 const PORTAL_PREFIXES = ["/client", "/portal"];
 const PORTAL_ROUTES = new Set(["dashboard","growth","today","search","leads","companies","contacts","deals","sequences","automations","agents","compose","replies","notifications","pipeline","activities","reports","revenue","import","team","docs","settings","login","accept-invite"]);
 
@@ -82,7 +83,7 @@ export async function middleware(req: NextRequest) {
     if (pathname === "/crm" || (pathname.startsWith("/crm/") && PORTAL_ROUTES.has(pathname.slice(5).split("/")[0]))) {
       const url=req.nextUrl.clone(); url.pathname=pathname === "/crm" ? "/dashboard" : pathname.slice(4); res=NextResponse.redirect(url,308); res.headers.set("Content-Security-Policy",policy); return res;
     }
-    const publicPath = [...PUBLIC].some(p => p === pathname || (p === "/audit" && pathname.startsWith("/audit/")));
+    const publicPath = [...PUBLIC].some(p => p === pathname || (p === "/audit" && pathname.startsWith("/audit/"))) || pathname.startsWith("/.well-known/");
     const protectedPath = pathname.startsWith("/admin") || (pathname.startsWith("/") && !publicPath && !pathname.startsWith("/_next/") && !pathname.startsWith("/api/"));
     if (protectedPath && pathname !== "/admin/login") {
       const session = await sessionStatus(req);

@@ -259,6 +259,10 @@ export default function Landing() {
             <Link href="/terms" className="hover:text-white">Terms</Link>
             <Link href="/security" className="hover:text-white">Security</Link>
             <Link href="/dpa" className="hover:text-white">DPA</Link>
+            <Link href="/cookies" className="hover:text-white">Cookies</Link>
+            <Link href="/acceptable-use" className="hover:text-white">Acceptable use</Link>
+            <Link href="/subprocessors" className="hover:text-white">Subprocessors</Link>
+            <Link href="/contact" className="hover:text-white">Contact</Link>
           </nav>
         </div>
       </footer>

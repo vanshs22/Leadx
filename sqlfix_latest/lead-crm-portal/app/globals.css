@@ -356,3 +356,7 @@ tbody tr:hover { background: rgb(var(--brand) / .035); }
   .workspace-rail, .operator-rail, .topbar { display: none !important; }
   .card, .panel { box-shadow: none; }
 }
+
+/* Horizontal scrollers must be the containing block for absolutely positioned descendants (sr-only text, badges). Otherwise those
+   escape the scroller and widen the whole page: the deal board made /deals scroll sideways by up to 1,400px. */
+.overflow-x-auto { position: relative; }

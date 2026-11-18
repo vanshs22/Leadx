@@ -624,7 +624,7 @@ def _consume_oauth_state(payload: dict) -> None:
                   .eq("tenant_id",str(payload["tenant_id"])).eq("user_id",str(payload["user_id"]))
                   .eq("provider",str(payload["provider"])).eq("nonce_hash",nonce_hash)
                   .is_("used_at","null").gt("expires_at",datetime.now(timezone.utc).isoformat())
-                  .select("id").limit(1).execute())
+                  .execute())
     except Exception as exc:
         logger.exception("oauth_state_consume_failed")
         raise HTTPException(503, "OAuth state storage unavailable") from exc

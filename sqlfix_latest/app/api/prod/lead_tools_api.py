@@ -180,7 +180,7 @@ async def refresh_check(tenant_id: UUID, assignment_id: UUID, body: RefreshBody 
             html, lane = r.get("html") or r.get("markdown"), name
             break
     if not html:
-        raise HTTPException(502, "could not fetch the website with the allowed lanes")
+        raise HTTPException(422, "We could not open this website with the free fetchers (it may be offline or blocking automated visits). Check the address, or allow the paid fetcher for this check.")
     tech = detect_tech_stack(html, url)
     new_fp = cd.fingerprint(html, {k: v for k, v in tech.items() if isinstance(v, str)})
     lead_id = card["lead_id"]
@@ -320,3 +320,22 @@ async def webhook_deliveries(tenant_id: UUID, webhook_id: UUID, limit: int = Que
     rows = (await aexec(_sb().table("webhook_deliveries").select("id,event_type,status,response_status,attempts,last_error,created_at,delivered_at")
                         .eq("tenant_id", str(tenant_id)).eq("webhook_id", str(webhook_id)).order("created_at", desc=True).limit(limit))).data or []
     return {"ok": True, "deliveries": rows}
+
+
+# ---------------------------------------------------------------- evidence-led outreach drafts
+class DraftIn(BaseModel):
+    offer: str = Field(default="more qualified local enquiries", max_length=120)
+
+
+@router.post("/{tenant_id}/leads/{assignment_id}/outreach-draft")
+async def outreach_draft(tenant_id: UUID, assignment_id: UUID, body: DraftIn | None = None, ctx: TenantContext = Depends(require_tenant)):
+    assert_tenant_match(ctx, tenant_id)
+    from app.integrations.prod.outreach_draft import build_drafts
+    sb, tid = _sb(), str(tenant_id)
+    cards = (await aexec(sb.table("crm_lead_cards").select("*").eq("tenant_id", tid).eq("assignment_id", str(assignment_id)).limit(1))).data or []
+    if not cards:
+        raise HTTPException(404, "lead not found")
+    sigs = (await aexec(sb.table("lead_signals").select("signal_type,strength,observed_at").eq("tenant_id", tid).eq("lead_id", cards[0]["lead_id"])
+                        .order("observed_at", desc=True).limit(20))).data or []
+    drafts = build_drafts(cards[0], sigs, offer=(body.offer if body else "more qualified local enquiries"))
+    return {"ok": True, "sent": False, "note": "Drafts only. Review, personalise and send through an approved sequence; nothing was sent.", "drafts": drafts}

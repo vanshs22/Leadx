@@ -123,3 +123,15 @@ def test_webhook_v2_signature_matches_documented_scheme(monkeypatch):
     ts = sent["headers"]["x-leadx-timestamp"]
     expect = hmac.new(b"whsec_test", f"{ts}.{sent['body']}".encode(), hashlib.sha256).hexdigest()
     assert sent["headers"]["x-leadx-signature-v2"] == f"t={ts},v1={expect}" and json.loads(sent["body"])["event"] == "ping"
+
+
+def test_outreach_drafts_use_only_facts_on_the_record():
+    from app.integrations.prod.outreach_draft import build_drafts
+    d = build_drafts({"company_name": "Bright Dental", "city": "Austin", "google_rating": 4.7, "review_count": 120, "website": "https://b.test", "has_booking": False,
+                      "owner_name": "pat lee"}, [{"signal_type": "site_redesign"}])
+    angles = {x["angle"] for x in d}
+    assert angles == {"signal", "reputation", "gap"}
+    rep = next(x for x in d if x["angle"] == "reputation")
+    assert "4.7 stars across 120" in rep["body_text"] and rep["body_text"].startswith("Hi Pat,") and "{unsubscribe_link}" in rep["body_text"] and all(len(x["subject"]) <= 60 for x in d)
+    bare = build_drafts({"company_name": "Tiny Shop", "website": "https://t.test", "has_booking": True})
+    assert len(bare) == 1 and bare[0]["angle"] == "intro" and "stars" not in bare[0]["body_text"] and "redesign" not in bare[0]["body_text"]

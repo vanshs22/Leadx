@@ -84,7 +84,7 @@ export default function ClientLoginPage() {
               Admin login
             </a>
           </p>
-        </form>
+        </form><p className="mt-4 text-center text-xs text-ink-faint"><a className="underline" href="/privacy">Privacy</a> · <a className="underline" href="/terms">Terms</a> · <a className="underline" href="/contact">Contact</a></p>
       </div>
     </div>
   );

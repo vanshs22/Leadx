@@ -1,6 +1,6 @@
 # LeadX migration lineage
 
-The executable database source of truth is `supabase/migrations/`, containing **45 ordered migrations**. `SUPABASE_FULL_MIGRATION.sql` is the clean-install mirror of that same chain. Apply one path only: Supabase CLI migrations or the root mirror, never both.
+The executable database source of truth is `supabase/migrations/`, containing **46 ordered migrations**. `SUPABASE_FULL_MIGRATION.sql` is the clean-install mirror of that same chain. Apply one path only: Supabase CLI migrations or the root mirror, never both.
 
 Legacy SQL patches are retained only as historical/source material and are not a current install path. Existing tables, statuses, rows, and RLS boundaries are preserved by the additive 16.0 data-plane migrations.
 
@@ -30,3 +30,4 @@ The current durable, data-plane, and product-state tail is eighteen ordered migr
 - `20261117000200_leadx_jobs_singleton_kinds.sql` — narrows the per-tenant single-flight job index to cron/scheduler kinds and `pipeline.run`; other kinds (agent.run, csv.import, email.bulk) may queue concurrently. Rollback: `DROP INDEX jobs_active_singleton_kind_tenant_idx; CREATE UNIQUE INDEX jobs_active_unique_kind_tenant_idx ON jobs(kind, tenant_id) WHERE status IN ('queued','running');` (fails if duplicate active rows exist; cancel them first).
 - `20261117000300_leadx_webhook_signing_secret.sql` — adds `outbound_webhooks.signing_secret`; new webhooks get a per-webhook secret and timestamped `x-leadx-signature-v2` deliveries.
 - `20261117000400_leadx_workflow_runs_fk.sql` — `workflow_runs.workflow_id` now references `workflow_definitions` (it pointed at legacy `workflow_rules`, so every custom automation failed).
+- `20261117000500_leadx_agent_missions_graph_count.sql` — allows task-first GTM missions (graph size is profile-specific, not always 30).

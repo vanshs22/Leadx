@@ -23,7 +23,7 @@ Run it: `PY=.venv/bin/python scripts/local_stack/stack.sh .venv/bin/python scrip
 
 | Suite | Result |
 |---|---|
-| `scripts/local_stack/e2e.py` (admin, auth, isolation, CRM CRUD, import/export, opportunity requests, webhooks, automations, hardening, pagination, concurrency, plus lead tools: smart search, data quality, change detection, duplicates/merge) | **74 / 74 pass** |
+| `scripts/local_stack/e2e.py` (admin, auth, isolation, CRM CRUD, import/export, opportunity requests, webhooks, automations, hardening, pagination, concurrency, plus lead tools: smart search, data quality, change detection, duplicates/merge) | **80 / 80 pass** |
 | `scripts/local_stack/pipeline_e2e.py` (2 tenants, concurrent real pipelines, CRM sync, stage moves, isolation, job controls) | **36 / 36 pass** |
 | `scripts/local_stack/sweep.py` (every parameterless GET as admin and tenant) | 168 routes, **0 × 5xx** after fixes (1 before) |
 | Backend unit/contract suite (`pytest`, 2751 tests) | **76 fail** (was 85 at baseline). 69 distinct tests (77 cases); 62 of those cases still fail when run alone, so 15 only fail because of test-order interference. |
@@ -132,3 +132,35 @@ Defects the browser pass found and fixed:
 Not verified: Realtime (the badge shows "Reconnecting" because the test stack has no Realtime server), mobile layouts, the missing-glyph boxes seen in headless
 screenshots where an arrow character is used (the sandbox browser has no system fonts, so this is probably an artifact), and light/dark theme parity beyond
 one dark-mode screenshot of the Leads page (it renders correctly). The lead table's right-hand columns are clipped at 1360 px.
+
+## Update: billing, GTM missions, legal pages, layout (2026-11-18, third pass)
+
+Browser suites now: `browser_public.mjs` 26/26 (signed-out visitor: every public and legal page, robots/sitemap/security.txt, 404, 13 internal links, security headers),
+`browser_journeys.mjs` 24/24 (adds plays builder, lead intelligence panel, buying committee, pricing to checkout, live update without Realtime),
+`browser_walk.mjs` 53/54 clean (the one note is a harmless 403 probe on the client Agents page), `browser_responsive.mjs` 210 scans (3 viewports x light/dark x 35 pages).
+
+### Defects found and fixed in this pass
+
+| Defect | Effect | Fix |
+|---|---|---|
+| `stripe_webhook` imported `datetime` locally, so the first line using it raised `UnboundLocalError` | **Every Stripe webhook failed (503). A paying customer's plan could never change.** | Removed the shadowing import. Webhook ledger claim also used a non-existent `.select()` call |
+| Legal and marketing pages (`/privacy`, `/terms`, `/dpa`, `/security`, `/sample`) were not in the middleware's public list | Signed-out visitors were sent to the login page | Public allow-list extended; new pages added |
+| `agent_missions.graph_count` was constrained to exactly 30 | **Creating any GTM mission returned 500** | Migration `20261117000500` |
+| A mission's follow-up tick reused one idempotency key | A mission never ran past its first task | Key includes the triggering run id (two call sites) |
+| Lead-oriented stages (research, enrichment...) raised when a mission had no leads yet | Every mission ended `failed` | No-op "no_leads_yet" result; a mission now completes (17/17 tasks) |
+| Mission default target of 0 and plan-validation errors | 500 on mission create | Default target 25; validation errors map to 422 |
+| `.update(...).select(...)` on four endpoints (mission cancel and task launch, support conversation create, OAuth state consume) | Mission tasks never launched, support chat and OAuth connect failed | Removed the invalid chain |
+| Deal board and `/team` widened the whole page (absolute sr-only text escaped scrollers) | Sideways page scroll up to 1,400 px | `.overflow-x-auto { position: relative }` |
+| Lead table columns summed wider than the content area at 1360 px | "Open" button clipped | Column widths rebalanced |
+| Leads list updated only through Realtime | Stale list when Realtime is down | 20 s polling fallback while the tab is visible |
+| Unreachable lead website returned 502 | UI said "LeadX is temporarily unavailable" | 422 with a specific message |
+| Stripe and billing errors echoed provider exception text | Information leak | Generic messages, details logged |
+
+### GTM mission, observed
+`POST /crm/{t}/agent-missions` with no paid keys: 17 tasks, all done, mission `completed` in about 140 s. The graph prepares ICP and targeting and runs the
+pipeline stage; with only the free OSM lane the number of leads it can deliver is limited by the supply notes above.
+
+### Not verified
+Stripe against real Stripe (stand-in only), Supabase Realtime and RLS, the policy text with a lawyer, and mobile gestures. The responsive scan's "controls off-screen" lines
+on mobile are the closed navigation drawer, not a defect. Arrow characters render as empty boxes in this sandbox's headless browser (no system fonts); they were replaced in the
+sort menu and are otherwise expected to render on real devices.

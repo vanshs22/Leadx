@@ -579,7 +579,7 @@ async def tick_mission(tenant_id: str, mission_id: str) -> dict:
             "lease_expires_at": lease_expires, "lease_renewed_at": _now(),
             "run_after": _now(), "error": None, "error_category": None,
             "dependency_outcome": "ready", "terminal_result": None,
-        }).eq("id",task["id"]).eq("tenant_id",tenant_id).eq("status","queued").select("*").limit(1))).data or []
+        }).eq("id",task["id"]).eq("tenant_id",tenant_id).eq("status","queued"))).data or []
         if not upd:
             continue
         task = upd[0]

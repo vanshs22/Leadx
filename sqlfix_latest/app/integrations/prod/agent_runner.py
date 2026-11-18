@@ -98,14 +98,18 @@ async def _mission_hook(run: dict, status: str, result: dict | None = None, erro
         from app.integrations.prod.agent_missions import complete_task_from_run
         await complete_task_from_run(tenant_id, rid, status, result=result, error=error)
         from app.integrations.prod import jobs
-        payload = {"tenant_id": tenant_id, "mission_id": str(rows[0]["mission_id"])}
+        payload = {"tenant_id": tenant_id, "mission_id": str(rows[0]["mission_id"]), "after_run_id": rid}  # unique key per run, else ticks replay
         handoff = jobs.submit(
             "agent.mission.tick", payload, tenant_id=tenant_id,
             idempotency_key=jobs.derived_idempotency_key(tenant_id, "agent.mission.tick", payload),
             operation_kind="agent.mission.tick", priority=1, created_by="gtm-mission",
             provider_required=True,
         )
-        jobs.accepted_job_id(handoff)
+        try:
+            jobs.accepted_job_id(handoff)
+        except jobs.DurableJobRejected as rejected:
+            if str(rejected.result.get("outcome")) not in {"in_progress", "replay"}:
+                raise
     except Exception:
         # Mission orchestration must never turn a successful core agent run into
         # a failed run because a secondary graph update was unavailable.

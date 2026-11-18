@@ -8,10 +8,11 @@ import { getTenantId, getTenantUserId } from "@/lib/tenant";
 import { useCrmChange } from "@/lib/crmRealtime";
 import { TierBadge, StagePill } from "@/components/leads/TierBadge";
 import { QualityChips } from "@/components/leads/QualityChips";
+import { LeadIntel } from "@/components/leads/LeadIntel";
 import { CopyButton } from "@/components/ui/CopyButton";
 import { SavedViews } from "@/components/leads/SavedViews";
 import { BulkActionBar } from "@/components/BulkActionBar";
-import { useChangedIds } from "@/lib/live";
+import { useChangedIds, useLiveLoader } from "@/lib/live";
 import { VariableVirtualList } from "@/lib/VariableVirtualList";
 import { ErrorState, EmptyState, LoadingRows } from "@/components/ui/States";
 import { EvidenceNote, FreshnessNote } from "@/components/ui/SurfaceMeta";
@@ -29,11 +30,11 @@ function LeadCols() {
       <col />
       <col className="w-[96px]" />
       <col className="w-[120px]" />
-      <col className="w-[230px]" />
+      <col className="w-[200px]" />
       <col className="w-[72px]" />
+      <col className="w-[92px]" />
       <col className="w-[96px]" />
-      <col className="w-[104px]" />
-      <col className="w-[150px]" />
+      <col className="w-[128px]" />
     </colgroup>
   );
 }
@@ -128,6 +129,7 @@ function LeadPreview({ lead }: { lead: any }) {
         { label: "Website", value: lead.website ? <a className="link" href={lead.website} target="_blank" rel="noreferrer" title={lead.website}>{lead.website.replace(/^https?:\/\//, "")}</a> : "—" },
         { label: "Updated", value: <span className="tabular-nums">{leadUpdated(lead) || "—"}</span> },
       ]} />
+      <LeadIntel assignmentId={String(id)} />
       <div>
         <div className="label mb-2">Quality</div>
         <QualityChips tier={lead.tier} score={lead.score ?? lead.total_score} intent={lead.intent_score} opportunity={lead.opportunity_score_overall ?? lead.opportunity_score} fit={lead.fit_score} contactability={lead.contactability_score} sources={lead.sources_hit || lead.source} pitch={lead.pitch_line} talkingPoints={lead.talking_points} />
@@ -199,6 +201,8 @@ export default function LeadsPage() {
   }, [load, search, tier, stage, smart]);
 
 
+  // Polling fallback (only while the tab is visible): without it, a Realtime outage left this list stale until a manual refresh.
+  useLiveLoader(load, 20_000, [load], { runImmediately: false, deadlineMs: 0 });
   useCrmChange(load, { tables: ["lead_assignments", "leads_global", "lead_crm_cards", "lead_state_history", "lead_score_snapshots", "lead_quality_gates", "lead_verification_observations", "lead_outcome_events", "activities", "lead_activities"] });
 
   function toggle(id: string) {
@@ -362,7 +366,7 @@ export default function LeadsPage() {
             ]}
           />
           <select className="select h-9 w-auto min-w-[140px]" value={stage} onChange={(e) => setStage(e.target.value)} aria-label="Filter leads by stage"><option value="">All stages</option><option value="new">New</option><option value="contacted">Contacted</option><option value="qualified">Qualified</option><option value="won">Won</option><option value="lost">Lost</option></select>
-          <select className="select h-9 w-auto min-w-[170px]" value={sort} onChange={(e) => setSort(e.target.value)} aria-label="Sort leads"><option value="score_desc">Score: high → low</option><option value="score_asc">Score: low → high</option><option value="tier_asc">Tier: A → C</option><option value="tier_desc">Tier: C → A</option><option value="name_asc">Name: A → Z</option><option value="name_desc">Name: Z → A</option><option value="city_asc">City: A → Z</option><option value="newest">Newest first</option></select>
+          <select className="select h-9 w-auto min-w-[170px]" value={sort} onChange={(e) => setSort(e.target.value)} aria-label="Sort leads"><option value="score_desc">Score: high to low</option><option value="score_asc">Score: low to high</option><option value="tier_asc">Tier: A → C</option><option value="tier_desc">Tier: C → A</option><option value="name_asc">Name: A → Z</option><option value="name_desc">Name: Z → A</option><option value="city_asc">City: A → Z</option><option value="newest">Newest first</option></select>
         </FilterBar>
         {smart && smartNote.length > 0 && (
           <p className="flex flex-wrap items-center gap-2 text-xs text-ink-faint" aria-live="polite">
@@ -397,14 +401,14 @@ export default function LeadsPage() {
           <EmptyState title="No leads match these filters" hint="Clear a filter or wait for the next delivery batch. LeadX will keep this view current through the CRM stream." />
         ) : sortedLeads.length > 100 ? (
           <div className="overflow-x-auto">
-            <table className="data-table min-w-[1080px] table-fixed">
+            <table className="data-table min-w-[940px] table-fixed">
               <caption className="sr-only">Leads</caption>
               <LeadCols />
               <LeadHead allSelected={allSelected} onToggleAll={toggleAll} />
             </table>
-            <div className="min-w-[1080px]">
+            <div className="min-w-[940px]">
               <VariableVirtualList items={sortedLeads} estimate={72} height={760} getKey={(lead:any)=>leadId(lead)} render={(lead:any) => (
-                <table className="data-table min-w-[1080px] table-fixed border-t border-line/70">
+                <table className="data-table min-w-[940px] table-fixed border-t border-line/70">
                   <LeadCols />
                   <tbody><LeadRow lead={lead} selected={selected} changed={changedLeadIds.has(String(leadId(lead)))} toggle={toggle} onPreview={setPreview} /></tbody>
                 </table>
@@ -413,7 +417,7 @@ export default function LeadsPage() {
           </div>
         ) : (
           <div className="max-h-[calc(100vh-16rem)] min-h-[320px] overflow-auto">
-            <table className="data-table min-w-[1080px] table-fixed">
+            <table className="data-table min-w-[940px] table-fixed">
               <caption className="sr-only">Leads</caption>
               <LeadCols />
               <LeadHead allSelected={allSelected} onToggleAll={toggleAll} />

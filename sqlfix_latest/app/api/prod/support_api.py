@@ -117,7 +117,7 @@ async def create_conversation(ctx: TenantContext = Depends(require_tenant)):
             "subject": "LeadX Support",
             "status": "open",
             "needs_human": False,
-        }).select("*").execute().data or [])
+        }).execute().data or [])
     except Exception as e:
         raise HTTPException(503, f"Could not start support conversation: {str(e)[:180]}")
     if not row:

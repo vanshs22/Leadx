@@ -1231,7 +1231,9 @@ export const crmTools = {
   runSavedSearch: (tenantId: string, id: string) => api<{ new_matches: number; total: number }>(`/crm/${tenantId}/saved-searches/${id}/run`, { method: "POST" }),
   committee: (tenantId: string, companyId: string) =>
     api<{ coverage_score: number; members: { name: string; title?: string; role: string; reachable: boolean }[]; gaps: { role: string; look_for: string }[] }>(`/crm/${tenantId}/companies/${companyId}/buying-committee`),
+  outreachDraft: (tenantId: string, assignmentId: string, offer?: string) =>
+    api<{ note: string; drafts: { angle: string; subject: string; body_text: string; words: number; evidence: string[] }[] }>(`/crm/${tenantId}/leads/${assignmentId}/outreach-draft`, { method: "POST", body: JSON.stringify(offer ? { offer } : {}) }),
   refreshCheck: (tenantId: string, assignmentId: string, allowPaid = false) =>
-    api<{ lane: string; baseline: boolean; changed: boolean; changes: { type: string; detail: unknown }[] }>(
+    api<{ lane: string; free: boolean; baseline: boolean; changed: boolean; changes: { type: string; detail: unknown }[] }>(
       `/crm/${tenantId}/leads/${assignmentId}/refresh-check`, { method: "POST", body: JSON.stringify({ allow_paid: allowPaid }) }),
 };

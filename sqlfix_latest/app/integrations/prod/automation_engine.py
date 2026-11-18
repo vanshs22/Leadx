@@ -46,7 +46,18 @@ def _match(trigger: dict, event: dict) -> bool:
 async def _action(tenant_id: str, action: dict, event: dict) -> dict:
     kind = action.get("type")
     if kind not in ALLOWED_ACTIONS: return {"ok":False,"error":"unsupported_action"}
-    p = {**(event.get("payload") or {}), **(action.get("params") or {})}
+    ev_payload = event.get("payload") or {}
+    p = {**ev_payload, **(action.get("params") or {})}
+    for _k in ("title", "message", "description"):  # "Follow up: {title}" -> filled from the event payload; unknown {names} are left as written
+        _v = (action.get("params") or {}).get(_k)
+        if isinstance(_v, str) and "{" in _v:
+            class _Safe(dict):
+                def __missing__(self, key):
+                    return "{" + key + "}"
+            try:
+                p[_k] = _v.format_map(_Safe({k: v for k, v in ev_payload.items() if isinstance(v, (str, int, float))}))
+            except Exception:
+                p[_k] = _v
     sb = _sb()
     if kind == "score_reply": return {"ok":True,"score":p.get("reply_score",0)}
     if kind == "notify_owner":

@@ -1,5 +1,6 @@
 "use client";
 
+import { LeadIntel } from "@/components/leads/LeadIntel";
 import { useCallback, useEffect, useState, type ReactNode } from "react";
 import { useParams } from "next/navigation";
 import Link from "next/link";
@@ -389,6 +390,9 @@ export default function LeadDetailPage() {
             </div>
           </Panel>
 
+          <Panel title="Intelligence" description="Data quality with a free-first recovery plan, evidence-led outreach drafts, and website change detection." id="lead-intel">
+            <LeadIntel assignmentId={String(id)} />
+          </Panel>
           <Panel title="Activity" description="Calls, notes, emails and state changes on this lead." bodyClassName="p-0" id="lead-activity">
             {activities.length === 0 ? (
               <EmptyState title="No activity yet" hint="Calls, notes and emails you log here appear in this timeline." />

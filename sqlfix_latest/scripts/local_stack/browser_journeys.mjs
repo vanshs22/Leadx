@@ -79,6 +79,36 @@ await step(C, "request new opportunities (discovery request)", async p => {
   await p.getByRole("button", { name: /Request opportunities/ }).first().click(); await p.waitForTimeout(2500);
   const rows = await rest(`discovery_requests?tenant_id=eq.${seed.tenant_id}&select=vertical,status`); if (!rows.some(r => /physio/i.test(r.vertical))) throw new Error("request not stored: " + JSON.stringify(rows));
 });
+await step(C, "plays: create a signal play from the builder and see it listed", async p => {
+  await p.goto(BASE + "/plays"); await settle(p); await p.getByLabel("Name (optional)").fill("Redesign follow-up"); await p.getByRole("button", { name: "Create play" }).click(); await expectText(p, "Play created and active.", 10000);
+  await expectText(p, "Redesign follow-up"); const rows = await rest(`workflow_definitions?tenant_id=eq.${seed.tenant_id}&trigger_type=eq.lead.signal_detected&select=name,enabled`); if (!rows.some(r => r.name === "Redesign follow-up" && r.enabled)) throw new Error("play not stored");
+});
+await step(C, "lead drawer: data quality, outreach drafts and website check all respond", async p => {
+  await p.goto(BASE + "/leads"); await settle(p); await p.getByText("Open", { exact: true }).first().click(); await p.waitForURL(/\/leads\/[0-9a-f-]{36}/, { timeout: 15000 }); await settle(p); await p.getByRole("button", { name: "Data quality" }).click(); await expectText(p, "confidence", 10000);
+  await p.getByRole("button", { name: "Draft outreach" }).click(); await expectText(p, "Drafts only", 10000); const body = await p.locator("body").innerText(); if (!/unsubscribe/i.test(body)) throw new Error("draft is missing the unsubscribe footer");
+  await p.screenshot({ path: `${SHOTS}/client-lead-intel.png` });
+  await p.getByRole("button", { name: "Check website for changes" }).click(); await p.waitForTimeout(6000); const t = await p.locator("body").innerText(); if (/Internal server error|Traceback/i.test(t)) throw new Error("raw server error shown");
+});
+await step(C, "accounts: buying committee shows roles for an account", async p => {
+  const co = (await rest(`companies?tenant_id=eq.${seed.tenant_id}&name=eq.Journey Dental Co&select=id`))[0]; const hdr = { ...SVC, "Content-Type": "application/json" };
+  for (const [n, ti, em] of [["Pat Owner", "Owner", "pat@journeydental.test"], ["Rae Desk", "Front Desk Receptionist", null]]) await fetch(process.env.SUPABASE_URL + "/rest/v1/contacts", { method: "POST", headers: hdr, body: JSON.stringify({ tenant_id: seed.tenant_id, company_id: co.id, full_name: n, title: ti, email: em }) });
+  await p.goto(BASE + "/companies"); await settle(p); await p.getByLabel(/Show activity timeline for Journey Dental Co/).click(); await expectText(p, "Buying committee", 10000); await expectText(p, "Pat Owner"); await p.screenshot({ path: `${SHOTS}/client-committee.png` });
+});
+await step(C, "pricing: choosing a paid plan reaches Stripe checkout (stand-in)", async p => {
+  await p.goto(BASE + "/pricing"); await settle(p);
+  await p.getByRole("button", { name: "Choose Growth" }).click(); await p.waitForURL(/\/checkout/, { timeout: 15000 }); await settle(p);
+  const resp = p.waitForResponse(r => r.url().includes("/create-checkout-session"), { timeout: 20000 });
+  await p.getByRole("button", { name: /Continue to secure payment/ }).click(); const r = await resp;
+  if (r.status() !== 200) throw new Error("checkout session request returned " + r.status());
+  await p.waitForTimeout(1500);
+});
+await step(C, "live update: a lead delivered while the page is open appears without a manual refresh (Realtime server is absent, so this exercises the polling fallback)", async p => {
+  await p.goto(BASE + "/leads"); await settle(p);
+  const hdr = { ...SVC, "Content-Type": "application/json", Prefer: "return=representation" };
+  const g = await (await fetch(process.env.SUPABASE_URL + "/rest/v1/leads_global", { method: "POST", headers: hdr, body: JSON.stringify({ name: "Live Arrival Dental", city: "Austin", state: "TX", category: "dental", fingerprint: "live" + Date.now() }) })).json();
+  await fetch(process.env.SUPABASE_URL + "/rest/v1/lead_assignments", { method: "POST", headers: hdr, body: JSON.stringify({ tenant_id: seed.tenant_id, lead_id: g[0].id, vertical: "dental", status: "new", tier: "B", delivered_at: new Date().toISOString() }) });
+  await p.getByText("Live Arrival Dental").first().waitFor({ timeout: 60000 });
+});
 await step(C, "invite a teammate", async p => { await p.goto(BASE + "/team"); await settle(p); await p.getByPlaceholder("email@company.com").fill("mate@leadx.test"); await p.getByRole("button", { name: "Send invite" }).click(); await expectText(p, "mate@leadx.test", 10000); });
 await step(C, "client cannot open admin pages", async p => { await p.goto(BASE + "/admin/tenants"); await p.waitForTimeout(2500); const body = await p.locator("body").innerText(); if (/Browser Agency/.test(body) && /Tenants|Clients/i.test(body) && p.url().includes("/admin/tenants")) throw new Error("admin tenants page rendered for a client"); });
 await step(C, "sign out ends the session; protected pages bounce to login", async p => {

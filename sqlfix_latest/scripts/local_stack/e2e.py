@@ -336,14 +336,66 @@ def _():
 @check("signal play: automation on lead.signal_detected creates a task when a site change is detected (worker processes the event)")
 def _():
     ok(a.post(f"/crm/{TA}/automations", json={"name": "Contact change play", "trigger_type": "lead.signal_detected", "enabled": True,
-                                               "graph": {"conditions": [{"field": "signal_type", "op": "eq", "value": "contact_change"}], "actions": [{"type": "create_task", "params": {"priority": "high"}}]}}))
+                                               "graph": {"conditions": [{"field": "signal_type", "op": "eq", "value": "contact_change"}], "actions": [{"type": "create_task", "params": {"priority": "high", "title": "Follow up: {title}"}}]}}))
     SITE["html"] = "<title>Bright Dental</title><body>" + " ".join(f"implant{i} whitening care" for i in range(150)) + " hello@brightdental.test (512) 555-0111</body>"
     ok(a.post(f"/crm/{TA}/leads/{L['bright']}/refresh-check"))
     end = time.time() + 150; found = []
     while time.time() < end and not found:
-        found = [x for x in db("GET", f"tasks?tenant_id=eq.{TA}&select=title,priority") if "Contact Change" in (x["title"] or "")]
+        found = [x for x in db("GET", f"tasks?tenant_id=eq.{TA}&select=title,priority") if "Follow up: Contact Change: " in (x["title"] or "")]
         time.sleep(4)
     assert found, "no task created by the play within 150s"
+
+# ---------------- billing (Stripe stand-in; keys are fake test values) ----------------
+def stripe_event(etype, obj, eid=None):
+    body = json.dumps({"id": eid or "evt_" + uuid.uuid4().hex[:10], "object": "event", "type": etype, "created": int(time.time()), "data": {"object": obj}}); ts = str(int(time.time()))
+    return body, f"t={ts},v1=" + _hmac.new(b"whsec_local_fake", f"{ts}.{body}".encode(), hashlib.sha256).hexdigest()
+@check("billing: checkout session is created for a plan; free plan and bad plan handled; tenant-admin only")
+def _():
+    r = ok(a.post("/billing/create-checkout-session", json={"plan": "growth", "interval": "monthly"})); assert r["redirect_url"].startswith("https://checkout.stripe.test/"), r
+    sent = httpx.get("http://127.0.0.1:54360/__log").json()[-1]["form"]; assert sent["line_items[0][price]"] == "price_growth_m" and sent["metadata[tenant_id]"] == TA and sent["mode"] == "subscription", sent
+    assert ok(a.post("/billing/create-checkout-session", json={"plan": "free"}))["free"] is True
+    assert a.post("/billing/create-checkout-session", json={"plan": "platinum"}).status_code == 400
+    assert a.post("/billing/create-checkout-session", json={"plan": "starter", "interval": "annual"}).status_code == 503  # price id not configured -> clear 503, not a crash
+    assert httpx.post(API + "/billing/create-checkout-session", json={"plan": "growth"}).status_code == 401
+@check("billing webhook: bad signature rejected; checkout + subscription events upgrade the plan from the PRICE id; replays are idempotent; cancel downgrades")
+def _():
+    body, _sig = stripe_event("customer.subscription.created", {})
+    assert httpx.post(API + "/billing/webhook", content=body, headers={"stripe-signature": "t=1,v1=deadbeef"}).status_code == 400
+    sub = {"id": "sub_1", "customer": "cus_1", "status": "active", "metadata": {"tenant_id": TB}, "items": {"data": [{"price": {"id": "price_growth_m"}}]}, "current_period_start": int(time.time()), "current_period_end": int(time.time()) + 2592000, "cancel_at_period_end": False}
+    body, sig = stripe_event("customer.subscription.created", sub, "evt_fixed_1")
+    r = httpx.post(API + "/billing/webhook", content=body, headers={"stripe-signature": sig}); assert r.status_code == 200, r.text
+    t = db("GET", f"tenants?id=eq.{TB}&select=plan,billing_status,leads_per_month_limit,stripe_subscription_id")[0]; assert t["plan"] == "growth" and t["billing_status"] == "active" and t["stripe_subscription_id"] == "sub_1", t
+    r2 = httpx.post(API + "/billing/webhook", content=body, headers={"stripe-signature": sig}); assert r2.status_code == 200 and r2.json().get("duplicate") is True, r2.text
+    forged = {**sub, "metadata": {"tenant_id": TB, "plan": "agency"}}  # metadata must not grant a plan: the price decides
+    body, sig = stripe_event("customer.subscription.updated", forged); httpx.post(API + "/billing/webhook", content=body, headers={"stripe-signature": sig})
+    assert db("GET", f"tenants?id=eq.{TB}&select=plan")[0]["plan"] == "growth"
+    body, sig = stripe_event("customer.subscription.deleted", {**sub, "status": "canceled"}); r3 = httpx.post(API + "/billing/webhook", content=body, headers={"stripe-signature": sig}); assert r3.status_code == 200, r3.text
+    assert db("GET", f"tenants?id=eq.{TB}&select=plan")[0]["plan"] in ("free", "starter"), db("GET", f"tenants?id=eq.{TB}&select=plan,billing_status")
+@check("billing: status endpoint and portal session; public plans list")
+def _():
+    s = ok(b.get("/billing/status")); assert s
+    assert ok(httpx.get(API + "/public/plans"))["plans"]
+    db("PATCH", f"tenants?id=eq.{TA}", json={"stripe_customer_id": "cus_portal"}); r = a.post("/billing/create-portal-session", json={}); assert r.status_code == 200 and "billing.stripe.test" in r.text, r.text[:200]
+
+# ---------------- GTM agent missions, support, outreach ----------------
+@check("GTM mission: create (default target), runs on the worker without a paid key, cancel works, other tenant cannot read it")
+def _():
+    r = ok(a.post(f"/crm/{TA}/agent-missions", json={"objective": "Find and qualify dental clinics in Austin", "input_data": {"vertical": "dental", "locations": ["Austin, TX"]}}))
+    mid = r["mission"]["id"]; assert r["graph_count"] >= 5, r
+    assert b.get(f"/crm/{TB}/agent-missions/{mid}").status_code == 404
+    end = time.time() + 90; progressed = False
+    while time.time() < end and not progressed:
+        tasks = db("GET", f"agent_mission_tasks?mission_id=eq.{mid}&select=status"); progressed = any(x["status"] in ("running", "done", "failed", "waiting_approval", "needs_input", "blocked_external") for x in tasks) and any(x["status"] != "blocked" and x["status"] != "queued" for x in tasks); time.sleep(4)
+    assert progressed, "no task left queued/blocked in 90s: " + json.dumps(db("GET", f"agent_mission_tasks?mission_id=eq.{mid}&select=status")[:5])
+    c = ok(a.post(f"/crm/{TA}/agent-missions/{mid}/cancel")); assert c["mission"]["status"] == "cancelled"
+    assert a.post(f"/crm/{TA}/agent-missions", json={"objective": "x"}).status_code in (400, 422)  # too short: validation error, not a 500
+@check("support: client can start a conversation")
+def _(): d = ok(a.post("/support/conversations")); assert d["conversation"]["tenant_id"] == TA
+@check("outreach draft: evidence-led, three angles max, never sent, tenant isolated")
+def _():
+    d = ok(a.post(f"/crm/{TA}/leads/{L['bright']}/outreach-draft", json={})); assert d["sent"] is False and d["drafts"] and all("{unsubscribe_link}" in x["body_text"] for x in d["drafts"]), d
+    assert any("4.6 stars" in x["body_text"] or "booking" in x["body_text"] or "redesign" in x["body_text"] for x in d["drafts"])
+    assert b.post(f"/crm/{TB}/leads/{L['bright']}/outreach-draft", json={}).status_code == 404
 
 out = os.getenv("E2E_OUT", "e2e_results.json"); json.dump(R, open(out, "w"), indent=1)
 from collections import Counter

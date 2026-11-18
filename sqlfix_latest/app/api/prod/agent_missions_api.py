@@ -98,7 +98,9 @@ async def create_mission(tenant_id: str, req: MissionRequest, ctx: TenantContext
     from app.integrations.prod.agent_missions import create_mission
     input_data = dict(req.input_data)
     input_data.setdefault("use_case_id", req.use_case_id)
-    input_data.setdefault("requested_target", req.requested_target)
+    # A target of 0 produced an invalid candidate-volume budget and a 500; fall back to the stated lead target, then to 25.
+    requested = req.requested_target or int(input_data.get("target_new_leads") or 0) or 25
+    input_data["requested_target"] = max(1, min(500, requested))
     input_data.setdefault("target_metric", req.target_metric)
     if req.profile_id is not None:
         input_data.setdefault("profile_id", req.profile_id)
@@ -107,12 +109,17 @@ async def create_mission(tenant_id: str, req: MissionRequest, ctx: TenantContext
     if req.mission_approval:
         input_data["mission_approval"] = True
     task_first = not req.legacy_contract and req.mode != "legacy"
-    mission = create_mission(
-        tenant_id, req.objective, input_data, req.mode, task_first=task_first,
-        profile_id=req.profile_id, selected_specialists=req.selected_specialists or None,
-        use_case_id=req.use_case_id, principal_id=getattr(ctx, "user_id", None),
-        idempotency_key=req.idempotency_key,
-    )
+    try:
+        mission = create_mission(
+            tenant_id, req.objective, input_data, req.mode, task_first=task_first,
+            profile_id=req.profile_id, selected_specialists=req.selected_specialists or None,
+            use_case_id=req.use_case_id, principal_id=getattr(ctx, "user_id", None),
+            idempotency_key=req.idempotency_key,
+        )
+    except Exception as exc:
+        if type(exc).__name__ == "PlanValidationError":  # a bad plan is the caller's problem, not an outage
+            raise HTTPException(422, "The mission plan was rejected: " + ", ".join(str(getattr(i, "code", i)) for i in (getattr(exc, "issues", None) or [])) or str(exc)) from exc
+        raise
     from app.integrations.prod import jobs
     payload = {"tenant_id": tenant_id, "mission_id": str(mission["id"])}
     handoff = jobs.submit(
@@ -135,6 +142,6 @@ async def cancel_mission(tenant_id: str, mission_id: str, ctx: TenantContext = D
     assert_tenant_match(ctx, tenant_id)
     from app.integrations.prod.agent_missions import _sb, _now
     from app.services.aio import aexec
-    out = (await aexec(_sb().table('agent_missions').update({'status':'cancelled','updated_at':_now()}).eq('id',mission_id).eq('tenant_id',tenant_id).select('*').limit(1))).data or []
+    out = (await aexec(_sb().table('agent_missions').update({'status':'cancelled','updated_at':_now()}).eq('id',mission_id).eq('tenant_id',tenant_id))).data or []  # update returns the rows; .select() does not exist on an update builder
     if not out: raise HTTPException(404,'mission_not_found')
     return {"ok":True,"mission":out[0]}
