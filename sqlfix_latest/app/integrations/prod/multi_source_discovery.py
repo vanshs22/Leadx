@@ -73,33 +73,9 @@ DEFAULT_QUERIES = {
 
 
 async def _serper_search(query: str, num: int = 10) -> list[dict]:
-    """Organic Google search via Serper. Skips empty q; clamps num (400 if invalid)."""
-    q = (query or "").strip()
-    if len(q) < 2:
-        return []
-    # Serper accepts 1–100; many plans behave best at ≤10
-    num = max(1, min(int(num or 10), 10))
-
-    async def _call(api_key: str) -> list[dict]:
-        async with httpx.AsyncClient(timeout=25) as client:
-            r = await client.post(
-                SERPER_SEARCH,
-                headers={"X-API-KEY": api_key, "Content-Type": "application/json"},
-                json={"q": q, "num": num},
-            )
-            if r.status_code >= 400:
-                logger.warning(
-                    "serper search HTTP %s q=%r body=%s",
-                    r.status_code, q[:80], (r.text or "")[:200],
-                )
-                r.raise_for_status()
-            return (r.json() or {}).get("organic") or []
-
-    try:
-        return await with_key_rotation("serper", _call)
-    except Exception as e:
-        logger.warning("serper search: %s", e)
-        return []
+    """Organic web search: SearXNG (all pages) first, Serper only as paid fallback."""
+    from app.integrations.prod.web_search import web_search
+    return await web_search(query)
 
 
 async def _decodo_search(query: str, num: int = 10) -> list[dict]:
@@ -720,8 +696,12 @@ async def discover_multi_source(
 
             if source == "osm":
                 try:
-                    from app.integrations.prod.exhaustive_discovery import osm_exhaustive
-                    batch = await osm_exhaustive(industry, location)
+                    if os.getenv("LEADX_FREE_DISCOVERY", "1") == "0":
+                        from app.integrations.prod.exhaustive_discovery import osm_exhaustive
+                        batch = await osm_exhaustive(industry, location)
+                    else:  # open data + registries + directories + OSM, merged
+                        from app.integrations.prod.free_discovery import discover_free
+                        batch = await discover_free(industry, location)
                 except Exception as exc:
                     failure = typed_route_error(exc, fallback_reason="osm_failure")
                     route_events.append(_route_event(cell, event="failed", invoked=True, failure=failure))

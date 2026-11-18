@@ -1,6 +1,6 @@
 # LeadX migration lineage
 
-The executable database source of truth is `supabase/migrations/`, containing **46 ordered migrations**. `SUPABASE_FULL_MIGRATION.sql` is the clean-install mirror of that same chain. Apply one path only: Supabase CLI migrations or the root mirror, never both.
+The executable database source of truth is `supabase/migrations/`, containing **47 ordered migrations**. `SUPABASE_FULL_MIGRATION.sql` is the clean-install mirror of that same chain. Apply one path only: Supabase CLI migrations or the root mirror, never both.
 
 Legacy SQL patches are retained only as historical/source material and are not a current install path. Existing tables, statuses, rows, and RLS boundaries are preserved by the additive 16.0 data-plane migrations.
 
@@ -31,3 +31,4 @@ The current durable, data-plane, and product-state tail is eighteen ordered migr
 - `20261117000300_leadx_webhook_signing_secret.sql` — adds `outbound_webhooks.signing_secret`; new webhooks get a per-webhook secret and timestamped `x-leadx-signature-v2` deliveries.
 - `20261117000400_leadx_workflow_runs_fk.sql` — `workflow_runs.workflow_id` now references `workflow_definitions` (it pointed at legacy `workflow_rules`, so every custom automation failed).
 - `20261117000500_leadx_agent_missions_graph_count.sql` — allows task-first GTM missions (graph size is profile-specific, not always 30).
+- `20261118000100_leadx_email_format_guard.sql` — NOT VALID CHECK constraints so a URL, handle or image filename can never be stored in `email`.

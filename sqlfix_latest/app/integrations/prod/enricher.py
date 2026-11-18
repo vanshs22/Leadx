@@ -286,27 +286,44 @@ def _extract_structured_contacts(content: str) -> tuple[list[str], list[str]]:
     return emails[:20], phones[:5]
 
 
-def _parse_content(content: str) -> dict:
+def _parse_content(content: str, page_url: str = "") -> dict:
+    """Typed extraction (see field_extract). Keeps the legacy keys; adds evidence, full social URLs, people and JSON-LD facts."""
+    from app.integrations.prod.field_extract import extract_all
     normalized = html_lib.unescape(content or "")
-    emails = extract_emails(normalized)
-    structured_emails, structured_phones = _extract_structured_contacts(normalized)
-    emails = list(dict.fromkeys(emails + structured_emails))[:20]
-    phones = extract_phones(normalized)
-    for phone in structured_phones:
-        if normalize_phone(phone) not in {normalize_phone(x) for x in phones}:
+    found = extract_all(normalized, page_url)
+    emails = [e["value"] for e in found["emails"]][:20]
+    phones = [p["value"] for p in found["phones"]]
+    legacy_phones = extract_phones(normalized)  # still consulted for numbers the typed pass could not validate
+    for phone in legacy_phones:
+        if normalize_phone(phone) and normalize_phone(phone) not in {normalize_phone(x) for x in phones}:
             phones.append(phone)
     has_booking, platform = _detect_booking(normalized)
-    social = _extract_social(normalized)
+    legacy_social = _extract_social(normalized)
+    social = {k: v["handle"] for k, v in found["social"].items() if v["platform"] != "whatsapp"}
+    for k, v in legacy_social.items():  # legacy handle keys only fill platforms the typed pass did not classify
+        social.setdefault(k, v)
+    biz = found["business"]
+    owner = next((p["name"] for p in found["people"] if re.search(r"owner|founder|ceo|president|principal|dr\.|dentist|doctor", str(p.get("title") or ""), re.I)), None)
     return {
         "emails": emails,
         "email": emails[0] if emails else None,
         "email_valid": is_valid_email(emails[0]) if emails else None,
         "phone_from_web": phones[0] if phones else None,
+        "phones": phones[:10],
         "has_booking": has_booking,
         "booking_platform": platform,
         "social_links": social,
+        "social_urls": {k: v["url"] for k, v in found["social"].items()},
+        "link_hubs": found["link_hubs"],
         "services": [],
-        "owner_name": None,
+        "owner_name": owner,
+        "people": found["people"],
+        "address_parsed": found["address"],
+        "business_jsonld": biz,
+        "field_evidence": {
+            "emails": found["emails"][:10], "phones": found["phones"][:10],
+            "rejected": found["rejected"],
+        },
     }
 
 
@@ -410,7 +427,7 @@ async def _try_contact_pages(base_url: str, already_emails: list) -> dict:
     combined, used = await _fetch_secondary_pages(base_url, '')
     if not combined:
         return {}
-    parsed = _parse_content(combined)
+    parsed = _parse_content(combined, base_url)
     parsed['secondary_pages'] = used
     return parsed
 
@@ -496,7 +513,7 @@ async def enrich_one(website: str, use_crawl4ai: bool = True, use_firecrawl: boo
     # did not yield contact signals, ask Firecrawl for the full page including
     # footer/navigation. This is exactly where sites like Glow MedSpa expose
     # phone/email/address information.
-    parsed = _parse_content(content) if content else {}
+    parsed = _parse_content(content, website) if content else {}
     contact_missing = not parsed.get("email") or not parsed.get("phone_from_web")
     if use_firecrawl and contact_missing:
         try:
@@ -504,7 +521,7 @@ async def enrich_one(website: str, use_crawl4ai: bool = True, use_firecrawl: boo
             fc_content = "\n".join(x for x in (fc.get("html"), fc.get("markdown")) if x)
             if fc_content:
                 content = "\n".join(x for x in (content, fc_content) if x)
-                fc_parsed = _parse_content(fc_content)
+                fc_parsed = _parse_content(fc_content, website)
                 parsed = _merge_parsed(parsed, fc_parsed)
                 if fc.get("ok"):
                     method_parts.append("firecrawl")
@@ -521,7 +538,7 @@ async def enrich_one(website: str, use_crawl4ai: bool = True, use_firecrawl: boo
     try:
         secondary_html, secondary_urls = await _fetch_secondary_pages(website, html or content, use_firecrawl_for_secondary=use_firecrawl)
         if secondary_html:
-            secondary = _parse_content(secondary_html)
+            secondary = _parse_content(secondary_html, website)
             parsed = _merge_parsed(parsed, secondary)
             parsed['secondary_pages'] = secondary_urls
     except Exception as e:

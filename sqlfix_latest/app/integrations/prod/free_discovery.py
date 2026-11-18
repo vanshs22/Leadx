@@ -1,0 +1,115 @@
+"""Free discovery lane: open data + government registries + web directories + OSM, merged.
+
+Runs inside the existing ``osm`` route lane (the free lane), so planner budgets, paid-fallback gating and
+cost accounting need no change. Sources run concurrently and fail independently. Rows come out shaped by
+``exhaustive_discovery._normalize`` and are merged across sources with ``entity_resolution.resolve_entities``.
+
+Disable one source with LEADX_FREE_SOURCES (comma list, default: overture,nppes,companies_house,directories,osm).
+"""
+from __future__ import annotations
+
+import asyncio
+import logging
+import os
+import re
+from typing import Any, Awaitable, Callable, Optional
+
+from app.integrations.prod.entity_resolution import resolve_entities
+from app.integrations.prod import exhaustive_discovery
+from app.integrations.prod.exhaustive_discovery import _normalize
+from app.integrations.prod.field_extract import _email_ok, classify_social
+from app.integrations.prod.utils import extract_domain
+
+logger = logging.getLogger("lead_engine.free_discovery")
+
+ALL_SOURCES = ("overture", "nppes", "companies_house", "directories", "osm")
+
+
+# placeholder names some open datasets emit for unnamed places, e.g. "Dentist in Austin, TX"
+_JUNK_NAME = re.compile(r"^\s*[\w &-]{3,30}\s+in\s+[\w .-]+,\s*[A-Z]{2}\s*$|^\s*(unnamed|unknown|n/?a|null)\b", re.I)
+
+
+def _row(raw: dict, industry: str, location: str, sub: str) -> Optional[dict]:
+    """Shape one raw business as a lead row. The lane stays 'osm'; the sub-source goes in sources_hit."""
+    if _JUNK_NAME.match(raw.get("name") or ""):
+        return None
+    row = _normalize(raw, industry, location, "osm")
+    if not row:
+        return None
+    row["sources_hit"] = ["osm", sub]
+    row["source_ids"] = {**row.get("source_ids", {}), sub: str(raw.get("id") or raw.get("detail_url") or "")}
+    email = (raw.get("email") or "").strip().lower()
+    if email and _email_ok(email, extract_domain(row.get("website") or "") or "")[0]:
+        row["email"] = email
+        row["email_source"] = sub
+    socials = {}
+    for url in raw.get("socials") or []:
+        info = classify_social(url)
+        if info:
+            socials[info["platform"]] = info["url"]
+    if socials:
+        row["social_links"] = socials
+    for k in ("owner_name", "owner_title", "legal_name"):
+        if raw.get(k):
+            row[k] = raw[k]
+    if raw.get("detail_url"):
+        row["source_url"] = raw["detail_url"]
+    if raw.get("confidence") is not None:
+        row["discovery_quality"] = int(60 + 40 * float(raw["confidence"]))
+    return row
+
+
+async def _directories(industry: str, location: str) -> list[dict]:
+    from app.integrations.prod.directory_discovery import discover_directories
+    return await discover_directories(industry, location)
+
+
+async def _overture(industry: str, location: str) -> list[dict]:
+    from app.integrations.prod.open_data import overture_places
+    return await overture_places(industry, location)
+
+
+async def _nppes(industry: str, location: str) -> list[dict]:
+    from app.integrations.prod.registries import nppes_organizations
+    return await nppes_organizations(industry, location)
+
+
+async def _companies_house(industry: str, location: str) -> list[dict]:
+    from app.integrations.prod.registries import companies_house
+    return await companies_house(industry, location)
+
+
+async def _osm(industry: str, location: str) -> list[dict]:
+    return await exhaustive_discovery.osm_exhaustive(industry, location)  # already normalized rows
+
+
+SOURCES: dict[str, Callable[[str, str], Awaitable[list[dict]]]] = {
+    "overture": _overture, "nppes": _nppes, "companies_house": _companies_house,
+    "directories": _directories, "osm": _osm,
+}
+
+
+async def discover_free(industry: str, location: str, *, stats: Optional[dict[str, Any]] = None) -> list[dict]:
+    """All free sources for one (industry, location), merged. ``stats`` receives per-source counts/errors."""
+    enabled = [s.strip() for s in os.getenv("LEADX_FREE_SOURCES", ",".join(ALL_SOURCES)).split(",") if s.strip() in SOURCES]
+    results = await asyncio.gather(*[SOURCES[s](industry, location) for s in enabled], return_exceptions=True)
+    rows: list[dict] = []
+    for name, res in zip(enabled, results):
+        if isinstance(res, Exception):
+            logger.warning("free source %s failed: %s", name, type(res).__name__)
+            if stats is not None:
+                stats[name] = {"error": type(res).__name__}
+            continue
+        if name == "osm":
+            for r in res:
+                r["sources_hit"] = ["osm"]
+            made = list(res)
+        else:
+            made = [r for r in (_row(raw, industry, location, name if name != "directories" else f"dir:{raw.get('directory', 'web')}") for raw in res) if r]
+        rows += made
+        if stats is not None:
+            stats[name] = {"rows": len(made)}
+    merged = resolve_entities(rows)
+    if stats is not None:
+        stats["raw_rows"], stats["merged_rows"] = len(rows), len(merged)
+    return merged

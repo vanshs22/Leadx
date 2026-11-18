@@ -29,4 +29,7 @@ boto3==1.43.75  # Amazon SES domain + send
 
 anthropic==0.69.0
 # Optional phone parsing dependency; verification falls back to normalized strings when absent.
-# phonenumbers==9.0.13
+phonenumbers==9.0.13
+
+# Free open-data discovery (Overture Maps Places over S3)
+duckdb==2.0.0

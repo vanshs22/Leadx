@@ -1,7 +1,7 @@
 # LeadX 15.8 Production Runbook
 
 ## Database
-Apply the 46 files in `supabase/migrations/` in timestamp order, or use `SUPABASE_FULL_MIGRATION.sql` for a clean install.
+Apply the 47 files in `supabase/migrations/` in timestamp order, or use `SUPABASE_FULL_MIGRATION.sql` for a clean install.
 
 ## Required production controls
 - `ENVIRONMENT=production`

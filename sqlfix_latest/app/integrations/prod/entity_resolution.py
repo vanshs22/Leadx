@@ -28,6 +28,36 @@ def _norm_city(city: Optional[str], address: Optional[str] = None) -> str:
     return re.sub(r"[^a-z0-9]", "", c)[:24]
 
 
+_GENERIC = {"dental", "dentistry", "dentist", "dentists", "orthodontics", "orthodontist", "clinic", "center", "centre", "family", "care", "of", "and",
+            "the", "pa", "pllc", "dds", "dmd", "llc", "inc", "ltd", "co", "pc", "md", "associates", "group", "office", "practice", "services", "service"}
+_PROVENANCE_FIELDS = ("phone", "email", "website", "owner_name", "address")
+
+
+def _name_tokens(name: str) -> set[str]:
+    return {t for t in re.findall(r"[a-z0-9]+", (name or "").lower()) if t not in _GENERIC and len(t) > 1}
+
+
+def names_compatible(a: str, b: str) -> bool:
+    """True when one name's distinctive words are contained in the other's (so 'Access Dental' ~ 'Access Dental of Ed Bluestein')."""
+    ta, tb = _name_tokens(a), _name_tokens(b)
+    if not ta or not tb:
+        return False
+    return ta <= tb or tb <= ta
+
+
+def _addr_key(lead: dict) -> Optional[str]:
+    """street number + first street word + ZIP5: a business location, not an identity on its own."""
+    a = (lead.get("address") or "").lower()
+    m = re.match(r"\s*(\d+)\s+([a-z0-9]+)", a)
+    z = re.search(r"\b(\d{5})(?:-\d{4})?\b", a)
+    return f"{m.group(1)}:{m.group(2)}:{z.group(1)}" if m and z else None
+
+
+def _origin(rec: dict) -> str:
+    hits = rec.get("sources_hit") or []
+    return str(hits[-1] if hits else rec.get("source") or "unknown")
+
+
 def _phone_key(lead: dict) -> Optional[str]:
     p = lead.get("phone_normalized") or lead.get("phone_e164") or lead.get("phone")
     if not p:
@@ -104,13 +134,19 @@ def entity_keys(lead: dict) -> list[str]:
 def _merge_record(a: dict, b: dict) -> dict:
     """Prefer non-empty richer fields; union sources."""
     out = dict(a)
+    prov = dict(a.get("field_sources") or {})
+    for k in _PROVENANCE_FIELDS:
+        if a.get(k) and k not in prov:
+            prov[k] = _origin(a)
     for k, v in b.items():
-        if k in ("sources_hit", "source"):
+        if k in ("sources_hit", "source", "field_sources"):
             continue
         if v is None or v == "" or v == [] or v == {}:
             continue
         if not out.get(k):
             out[k] = v
+            if k in _PROVENANCE_FIELDS:
+                prov[k] = (b.get("field_sources") or {}).get(k) or _origin(b)
         elif k == "discovery_quality":
             out[k] = max(int(out.get(k) or 0), int(v or 0))
         elif k == "review_count":
@@ -155,6 +191,7 @@ def _merge_record(a: dict, b: dict) -> dict:
     out["discovery_quality"] = min(100, base + 12 * extra)
     out["source"] = "+".join(out["sources_hit"][:5])
     out["entity_resolved"] = True
+    out["field_sources"] = prov
     return out
 
 
@@ -191,8 +228,29 @@ def resolve_entities(leads: list[dict]) -> list[dict]:
         # Bare names are never enough. nc: already encodes same normalized city.
         if k.startswith("name:") and not k.startswith("nc:"):
             continue
+        if k.startswith("ph:"):
+            # a shared phone (call centre, chain 1-800) only merges records that look like the same business
+            for x in range(len(group)):
+                for y in range(x + 1, len(group)):
+                    la, lb = leads[int(group[x][1:])], leads[int(group[y][1:])]
+                    ca, cb = _norm_city(la.get("city"), la.get("address")), _norm_city(lb.get("city"), lb.get("address"))
+                    if not ca or not cb or ca == cb or names_compatible(la.get("name") or "", lb.get("name") or ""):
+                        union(group[x], group[y])
+            continue
         for j in range(1, len(group)):
             union(group[0], group[j])
+
+    # Same street address + compatible names = same location even when phone numbers differ.
+    addr_groups: dict[str, list[int]] = {}
+    for i, lead in enumerate(leads):
+        ak = _addr_key(lead)
+        if ak:
+            addr_groups.setdefault(ak, []).append(i)
+    for idxs in addr_groups.values():
+        for x, i in enumerate(idxs):
+            for j in idxs[x + 1:]:
+                if names_compatible(leads[i].get("name") or "", leads[j].get("name") or ""):
+                    union(ids[i], ids[j])
 
     # Website domain is a corroborating key, never a standalone merge key.
     # Merge only when a pair also shares normalized city OR normalized phone.

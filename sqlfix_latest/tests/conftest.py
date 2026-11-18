@@ -26,6 +26,8 @@ if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
 # Deterministic env so importing app modules never reaches for real services.
+# Discovery tests must not reach Overture/NPPES/directories on the live internet; opt in per test.
+os.environ.setdefault("LEADX_FREE_SOURCES", "osm")
 os.environ.setdefault("ENVIRONMENT", "development")
 os.environ.setdefault("SUPABASE_URL", "https://test.supabase.co")
 os.environ.setdefault("SUPABASE_SERVICE_KEY", "test-service-key")

@@ -135,7 +135,6 @@ _PROVIDER_ROWS = [
     ("tavily", "web_research,signals,company,person", "TAVILY_API_KEY"),
     ("exa", "web_research,company,person,signals", "EXA_API_KEY"),
     ("brave_search", "web_research,company,person", "BRAVE_SEARCH_API_KEY"),
-    ("bing_search", "web_research,company,person", "BING_SEARCH_API_KEY"),
     ("firecrawl", "web_research,company,person,technographics", "FIRECRAWL_API_KEY"),
     ("scrapegraph", "web_research,company,person", "SCRAPEGRAPH_API_KEY"),
     ("apify", "web_research,company,person", "APIFY_API_TOKEN"),

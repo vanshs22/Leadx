@@ -37,7 +37,7 @@ def test_secondary_contact_paths_are_discovered():
 
 def test_contact_page_content_is_parsed_when_homepage_is_sparse():
     from app.integrations.prod.enricher import _parse_content
-    html = '<main><h1>Contact</h1><a href="mailto:hello@example.org">hello@example.org</a><a href="tel:+18334569633">Call us</a></main>'
+    html = '<main><h1>Contact</h1><a href="mailto:hello@brightdental.org">hello@brightdental.org</a><a href="tel:+18334569633">Call us</a></main>'
     parsed = _parse_content(html)
-    assert parsed["email"] == "hello@example.org"
+    assert parsed["email"] == "hello@brightdental.org"
     assert parsed["phone_from_web"] is not None
