@@ -619,7 +619,7 @@ def test_fake_local_command_success_and_malformed_failure(tmp_path, exit_code, s
     )
     spec = AuditCheck(
         check_id=f"fake.{exit_code}", claim="fake bounded command", evidence_level="automated",
-        source=command.name, command=("python", str(command)), source_paths=(), timeout_seconds=2,
+        source=command.name, command=("python", str(command)), source_paths=(command.name,), timeout_seconds=2,
     )
     outcome = execute_local_check(spec, tmp_path)
     assert outcome["status"] == expected_status
@@ -633,7 +633,7 @@ def test_fake_local_command_timeout_is_bounded_and_fails(tmp_path):
     command.write_text("import time\nwhile True: time.sleep(0.05)\n", encoding="utf-8")
     spec = AuditCheck(
         check_id="fake.timeout", claim="fake timeout", evidence_level="automated",
-        source=command.name, command=("python", str(command)), timeout_seconds=1,
+        source=command.name, command=("python", str(command)), source_paths=(command.name,), timeout_seconds=1,
     )
     outcome = execute_local_check(spec, tmp_path)
     assert outcome["status"] == "FAIL"
@@ -649,7 +649,7 @@ def test_fake_local_command_secret_output_is_redacted(tmp_path):
     command.write_text(f"print({marker!r})\n", encoding="utf-8")
     spec = AuditCheck(
         check_id="fake.secret", claim="fake secret output", evidence_level="automated",
-        source=command.name, command=("python", str(command)), timeout_seconds=2,
+        source=command.name, command=("python", str(command)), source_paths=(command.name,), timeout_seconds=2,
     )
     outcome = execute_local_check(spec, tmp_path)
     assert outcome["status"] == "PASS—automated"

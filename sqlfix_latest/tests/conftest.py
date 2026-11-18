@@ -20,6 +20,10 @@ sys.modules.setdefault("conftest", sys.modules[__name__])
 
 import pytest
 
+# tests/rig is a script-style harness: importing it patches os.environ, enricher.enrich_one and the Supabase client for the
+# whole process. Run it on its own: `pytest tests/rig --rootdir=. -p no:cacheprovider --override-ini=addopts=` (its own invocation).
+collect_ignore_glob = [] if any("rig" in a for a in sys.argv) else ["rig/*"]
+
 # Import the app package consistently regardless of where pytest is invoked.
 ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:

@@ -102,7 +102,7 @@ async def test_post_delivery_dispatch_queues_learning_through_existing_agent_run
 
 
 @pytest.mark.asyncio
-async def test_portal_personalization_is_explicitly_skipped_without_provider_calls():
+async def test_portal_personalization_is_explicitly_skipped_without_provider_calls(fake_supabase):
     from app.integrations.prod.agent_fabric import execute_specialized
 
     result = await execute_specialized("personalization", {"delivery_channel": "portal", "lead_ids": []})

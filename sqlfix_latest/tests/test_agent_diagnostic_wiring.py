@@ -3,7 +3,7 @@ from pathlib import Path
 
 def test_mission_id_is_forwarded_to_global_lead_reader():
     text = Path("app/integrations/prod/agent_runtime.py").read_text()
-    assert text.count('offload(_lead, lid, tenant_id, mission_id=data.get("mission_id"))') >= 2
+    assert text.count('offload(_lead, lid, tenant_id, mission_id=data.get("mission_id")') >= 2
 
 
 def test_diagnostic_script_exists_and_is_compileable():

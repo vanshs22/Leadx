@@ -31,7 +31,7 @@ def test_client_withdraw_is_tenant_scoped_and_fences_late_finalization():
     assert '/{tenant_id}/discovery-requests/{request_id}/withdraw' in crm
     assert 'in_("status", ["approved", "queued", "running"])' in pipeline
     assert "delivery_ready_n" in pipeline
-    assert 'delivered_n >= slots_cap' in pipeline
+    assert 'delivery_ready_n >= slots_cap' in pipeline
     assert "dispatch_post_delivery_agents" in pipeline
     assert "POST_DELIVERY_AGENTS" in (ROOT / "app/integrations/prod/post_run_agent_dispatch.py").read_text(encoding="utf-8")
     assert '"reason": "crm_persistence_failed"' in (ROOT / "app/integrations/prod/quality.py").read_text(encoding="utf-8")

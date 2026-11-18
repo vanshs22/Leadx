@@ -45,8 +45,8 @@ try:  # scrapling regenerates browserforge headers on every get() (~2 ms CPU eac
     import functools
     import scrapling.engines.static as _sstatic
     _sstatic.generate_headers = functools.lru_cache(maxsize=4)(_sstatic.generate_headers)
-except Exception:
-    pass
+except Exception as _exc:
+    logging.getLogger("lead_engine.enricher").debug("scrapling header cache not installed: %s", _exc)
 
 INSTAGRAM_RE = re.compile(r"instagram\.com/([a-zA-Z0-9._]+)")
 FACEBOOK_RE = re.compile(r"facebook\.com/([a-zA-Z0-9.]+)")
