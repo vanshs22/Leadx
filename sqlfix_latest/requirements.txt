@@ -33,3 +33,7 @@ phonenumbers==9.0.13
 
 # Free open-data discovery (Overture Maps Places over S3)
 duckdb==2.0.0
+
+# First-party site fetch fallback when plain httpx is refused (403/429/503); enricher works without but loses those sites
+scrapling==0.2.9
+browserforge==1.2.4
