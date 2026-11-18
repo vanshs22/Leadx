@@ -45,7 +45,7 @@ def is_valid_email(email: Optional[str]) -> bool:
     # URL paths (including social profile URLs) can contain a valid-looking
     # `@domain.tld` suffix. They are never email addresses for LeadX contact
     # delivery and must be rejected before persistence.
-    if any(marker in value for marker in ("/", "\\\\", "://")):
+    if any(marker in value for marker in ("/", "\\\\", "://", "*")):  # "*" = masked address from a search snippet
         return False
     local, domain = value.rsplit("@", 1)
     local_l, domain_l = local.lower(), domain.lower().rstrip(".")

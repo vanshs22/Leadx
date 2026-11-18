@@ -901,7 +901,7 @@ async def run_pipeline_parallel_target(
                 if str(lead.get("tier") or "C").upper() == "B" and assigned_n < tier_a_target and not discovery_done.is_set():
                     # The hold is a preference for Tier A, bounded in time so a slow discovery tail never starves delivery.
                     held_since = lead.setdefault("_tier_b_hold_since", time.monotonic())
-                    if time.monotonic() - held_since < float(os.getenv("LEADX_TIER_B_HOLD_SECONDS", "45")):
+                    if time.monotonic() - held_since < float(os.getenv("LEADX_TIER_B_HOLD_SECONDS", "5")):
                         await asyncio.sleep(0.05)
                         try:
                             # Never block here: if every worker waits to re-queue into a full queue, nobody is left to take
@@ -1734,7 +1734,7 @@ async def run_pipeline(
     queries: Optional[list[str]] = None,
     limit_per_location: int = 50,
     skip_enrichment: bool = False,
-    allow_tier_b: bool = False,
+    allow_tier_b: bool = True,  # tier B is in every run; exclude with allow_tier_b=False or tenant lead_policy.include_tier_b=false
     max_enrich_concurrent: int = 3,
     deliver: bool = True,
     use_crawl4ai: bool = True,
@@ -1934,6 +1934,12 @@ async def run_pipeline(
                 allow_tier_b = True
     except Exception as e:
         logger.warning("tenant/icp resolve: %s", e)
+    if allow_tier_b:
+        try:
+            from app.integrations.prod.tenant_policy import load_policy as _lp
+            allow_tier_b = bool((await asyncio.to_thread(_lp, tenant_id)).get("include_tier_b", True))
+        except Exception as e:
+            logger.debug("include_tier_b policy read skipped: %s", e)
 
     if not geo:
         geo = ["New Jersey"]

@@ -11,6 +11,7 @@ Env:
 """
 from __future__ import annotations
 
+import asyncio
 import logging
 import os
 from typing import Optional
@@ -66,6 +67,27 @@ async def searxng_search(query: str, max_pages: Optional[int] = None) -> list[di
     return out
 
 
+_serper_state: dict = {}
+
+
+def _serper_gate() -> asyncio.Semaphore:
+    """At most SERPER_CONCURRENCY (default 4) searches in flight per event loop."""
+    loop = asyncio.get_running_loop()
+    if _serper_state.get("loop") is not loop:
+        _serper_state.update(loop=loop, sem=asyncio.Semaphore(int(os.getenv("SERPER_CONCURRENCY", "4"))), client=None)
+    return _serper_state["sem"]
+
+
+def _serper_spacing() -> float:
+    return float(os.getenv("SERPER_SPACING_MS", "120")) / 1000
+
+
+def _serper_client() -> httpx.AsyncClient:
+    if _serper_state.get("client") is None:
+        _serper_state["client"] = httpx.AsyncClient(limits=httpx.Limits(max_connections=16, max_keepalive_connections=8))
+    return _serper_state["client"]
+
+
 async def serper_search(query: str, max_pages: int = 1) -> list[dict]:
     q = (query or "").strip()
     if len(q) < 2:
@@ -74,11 +96,18 @@ async def serper_search(query: str, max_pages: int = 1) -> list[dict]:
     seen: set[str] = set()
     for page in range(1, max(1, max_pages) + 1):
         async def _call(api_key: str, _page: int = page) -> list[dict]:
-            async with httpx.AsyncClient(timeout=25) as client:
-                r = await client.post(SERPER_SEARCH, headers={"X-API-KEY": api_key},
-                                      json={"q": q, "num": 10, "page": _page})
+            # Paced and retried here so a burst of concurrent leads is not read as a quota error (which would cool the key for 30 min).
+            for attempt in range(3):
+                async with _serper_gate():
+                    await asyncio.sleep(_serper_spacing())
+                    r = await _serper_client().post(SERPER_SEARCH, headers={"X-API-KEY": api_key},
+                                                    json={"q": q, "num": 10, "page": _page}, timeout=25)
+                if r.status_code == 429 and attempt < 2:
+                    await asyncio.sleep(1.0 + attempt)
+                    continue
                 r.raise_for_status()
                 return (r.json() or {}).get("organic") or []
+            return []
         try:
             rows = await with_key_rotation("serper", _call)
         except Exception as exc:

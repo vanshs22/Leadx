@@ -450,6 +450,22 @@ async def _fetch_secondary_pages(base_url: str, html: str, use_firecrawl_for_sec
     return '\n'.join(chunks), used
 
 
+_FREE_MAIL = {"gmail.com", "yahoo.com", "outlook.com", "hotmail.com", "aol.com", "icloud.com", "dr.com", "live.com", "msn.com"}
+
+
+def _email_belongs(email: str, site_domain: Optional[str], name: str) -> bool:
+    """Search snippets are full of other businesses' addresses (directories, parent companies). Keep an address only if it is
+    on the lead's own domain, or a free-mail address whose local part carries a word of the business name."""
+    local, dom = email.lower().rsplit("@", 1)
+    if local in {"flast", "firstlast", "first.last", "firstname.lastname", "name", "yourname", "youremail", "email", "user", "username", "jdoe", "johndoe", "john.doe", "janedoe", "jane.doe"}:
+        return False  # template text from a "how to find emails" snippet
+    site = (site_domain or "").lower().removeprefix("www.")
+    if site and (dom == site or dom.endswith("." + site) or site.endswith("." + dom)):
+        return True
+    words = [w for w in re.findall(r"[a-z]{4,}", (name or "").lower()) if w not in {"dental", "dentist", "dentistry", "clinic", "center", "group"}]
+    return dom in _FREE_MAIL and any(w in local for w in words)
+
+
 async def _serper_contact_fallback(name: str, city: Optional[str], domain: Optional[str]) -> dict:
     from app.integrations.prod.discovery_runtime import assert_provider_allowed
     assert_provider_allowed("serper_search")
@@ -464,13 +480,15 @@ async def _serper_contact_fallback(name: str, city: Optional[str], domain: Optio
             queries += [f'site:{domain} (contact OR email OR owner OR founder OR manager)', f'site:{domain} (team OR staff OR about)']
         queries += [f'"{name}"{loc} owner founder manager', f'"{name}"{loc} email contact', f'"{name}"{loc} site:linkedin.com/in']
         emails, owners, social = [], [], {}
-        for q in queries[:5]:
-            from app.integrations.prod.web_search import web_search
-            rows = await web_search(q, max_pages=1)  # SearXNG first, Serper only if SearXNG is unavailable
+        from app.integrations.prod.web_search import web_search
+        # Queries run together (web_search paces Serper itself); SearXNG first, Serper only if SearXNG is unavailable.
+        for rows in await asyncio.gather(*(web_search(q, max_pages=1) for q in queries[:5]), return_exceptions=True):
+            if isinstance(rows, BaseException):
+                continue
             for item in rows:
                 blob = ' '.join(str(item.get(k) or '') for k in ('title','snippet','link'))
                 for email in extract_emails(blob):
-                    if email not in emails: emails.append(email)
+                    if email not in emails and _email_belongs(email, domain, name): emails.append(email)
                 link = item.get('link') or ''
                 if 'linkedin.com/in/' in link and len(owners) < 5:
                     title = item.get('title') or ''

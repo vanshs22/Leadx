@@ -129,6 +129,10 @@ class LocalDurableClient:
             return [{"ok": True, "reclaim_capability": True, "checked_at": checked}]
         if name == "leadx_claim_next_job":
             return self._claim_next(params)
+        if name in {"reserve_tenant_lead_slot", "consume_tenant_discovery_slot", "release_tenant_lead_slot", "release_tenant_discovery_slot"}:
+            return True  # shortcut: local demo plane does not meter the monthly quota; the Postgres RPCs do
+        if name in {"claim_pipeline_run_slot", "release_pipeline_run_slot"}:
+            return self._run_slot(name, params)
         if name in {
             "cleanup_operation_idempotency", "leadx_prepare_job", "leadx_finish_job_operation",
             "leadx_reopen_job_operation", "release_operation_idempotency",
@@ -138,6 +142,22 @@ class LocalDurableClient:
                 return [{"ok": True, "outcome": "accepted", "job_id": job_id, "accounting_status": "not_required"}]
             return [{"ok": True}]
         return []
+
+    def _run_slot(self, name: str, params: dict[str, Any]) -> bool:
+        """Local twin of the Postgres per-run assignment counter: claim returns True while claimed < target."""
+        key = f"{params.get('p_tenant_id')}:{params.get('p_run_id')}"
+        with self._connect() as connection:
+            connection.execute("BEGIN IMMEDIATE")
+            row = connection.execute("SELECT payload FROM local_records WHERE table_name='run_slots' AND record_id=?", (key,)).fetchone()
+            claimed = int(_decode(row["payload"]).get("claimed", 0)) if row else 0
+            if name == "claim_pipeline_run_slot":
+                ok = claimed < int(params.get("p_target") or 0)
+                claimed += 1 if ok else 0
+            else:
+                ok, claimed = True, max(0, claimed - 1)
+            self._write_row(connection, "run_slots", key, {"claimed": claimed})
+            connection.execute("COMMIT")
+        return ok
 
     def _claim_next(self, params: dict[str, Any]) -> list[dict[str, Any]]:
         worker_id = str(params.get("p_worker_id") or "local-worker")
@@ -234,6 +254,8 @@ class LocalQuery:
     def lte(self, column: str, value: Any) -> "LocalQuery": return self._filter("lte", column, value)
     def is_(self, column: str, value: Any) -> "LocalQuery": return self._filter("is", column, value)
 
+    def ilike(self, column: str, pattern: str) -> "LocalQuery": return self._filter("ilike", column, pattern)
+
     def _filter(self, operator: str, column: str, value: Any) -> "LocalQuery":
         self.filters.append((operator, column, value))
         return self
@@ -260,6 +282,9 @@ class LocalQuery:
             if operator == "eq" and actual != expected: return False
             if operator == "neq" and actual == expected: return False
             if operator == "in" and actual not in expected: return False
+            if operator == "ilike":  # PostgREST wildcards: * or %
+                import fnmatch
+                if not fnmatch.fnmatch(str(actual or "").lower(), str(expected).lower().replace("%", "*")): return False
             if operator == "is" and ((expected is None and actual is not None) or (expected is not None and actual is None)): return False
             if operator in {"gt", "gte", "lt", "lte"}:
                 try:

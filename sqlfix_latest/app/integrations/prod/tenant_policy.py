@@ -2,6 +2,7 @@
 
 contact_requirement  which verified contact a lead needs to be delivered: email | phone | either (default)
 verified_email_only  when true an email only counts if it is fully verified, not merely probable
+include_tier_b       tier B leads are part of every run (default true); false excludes them for this tenant
 skip_known_crm       drop discovered leads whose domain/phone/email is already in the tenant CRM (default true)
 run_credit_cap       max paid enrichment credits one pipeline run may spend (0 = no tenant cap)
 """
@@ -16,7 +17,7 @@ from app.integrations.prod.contact_state import email_level, phone_ok
 logger = logging.getLogger("lead_engine.tenant_policy")
 
 REQUIREMENTS = ("email", "phone", "either")
-DEFAULTS: dict[str, Any] = {"contact_requirement": "either", "verified_email_only": False, "run_credit_cap": 0, "skip_known_crm": True}
+DEFAULTS: dict[str, Any] = {"contact_requirement": "either", "verified_email_only": False, "run_credit_cap": 0, "skip_known_crm": True, "include_tier_b": True}
 _TTL = 60.0
 _cache: dict[str, tuple[float, dict]] = {}
 
@@ -34,7 +35,8 @@ def normalize(raw: Optional[dict]) -> dict:
     return {"contact_requirement": req if req in REQUIREMENTS else DEFAULTS["contact_requirement"],
             "verified_email_only": bool(raw.get("verified_email_only", DEFAULTS["verified_email_only"])),
             "run_credit_cap": max(0.0, _num(raw.get("run_credit_cap"))),
-            "skip_known_crm": bool(raw.get("skip_known_crm", DEFAULTS["skip_known_crm"]))}
+            "skip_known_crm": bool(raw.get("skip_known_crm", DEFAULTS["skip_known_crm"])),
+            "include_tier_b": bool(raw.get("include_tier_b", DEFAULTS["include_tier_b"]))}
 
 
 def load_policy(tenant_id: Optional[str], *, fresh: bool = False) -> dict:

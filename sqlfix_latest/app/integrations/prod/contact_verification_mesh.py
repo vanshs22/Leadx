@@ -226,6 +226,28 @@ def _smtp_probe_sync(email: str, mx_hosts: list[str], *, helo: str, mail_from: s
     return {"result": "unknown", "reason": last}
 
 
+_preflight = {"checked": 0.0, "lock": None}
+
+
+async def _egress_preflight() -> None:
+    """One 3 s connect test to a public MX before the first probes: a blocked port 25 trips the breaker at once
+    instead of after several 12 s probe timeouts per worker."""
+    if time.monotonic() - _preflight["checked"] < 600:
+        return
+    _preflight["lock"] = _preflight["lock"] or asyncio.Lock()
+    async with _preflight["lock"]:
+        if time.monotonic() - _preflight["checked"] < 600:
+            return
+        try:
+            _, w = await asyncio.wait_for(asyncio.open_connection("gmail-smtp-in.l.google.com", 25), 3)
+            w.close()
+            _note_connect(True)
+        except Exception:
+            _egress["fails"] = 3
+            _note_connect(False)
+        _preflight["checked"] = time.monotonic()
+
+
 async def local_smtp_probe(email: str) -> dict[str, Any]:
     """Free mailbox check: MX -> RCPT TO (never sends mail) -> catch-all control address.
 
@@ -249,6 +271,7 @@ async def local_smtp_probe(email: str) -> dict[str, Any]:
     obs["mx_found"] = True
     if any(any(t in h.lower() for t in _UNPROBEABLE_MX) for h in hosts[:2]):
         obs["reason"] = "mx_provider_not_probeable"; return obs
+    await _egress_preflight()
     if not _port25_open():
         obs["reason"] = "smtp_egress_blocked"; return obs
     hit = _probe_cache.get(e)
@@ -262,6 +285,8 @@ async def local_smtp_probe(email: str) -> dict[str, Any]:
     mail_from = (os.getenv("LEADX_SMTP_PROBE_FROM") or f"postmaster@{helo}").strip()
     timeout = float(os.getenv("LEADX_SMTP_PROBE_TIMEOUT", "12"))
     async with _probe_global_sem, host_sem:
+        if not _port25_open():  # the breaker may have tripped while this probe waited for a slot: don't burn another timeout
+            obs["reason"] = "smtp_egress_blocked"; return obs
         res = await asyncio.to_thread(_smtp_probe_sync, e, hosts, helo=helo, mail_from=mail_from, timeout=timeout)
     result = res.get("result", "unknown")
     out = {"status": result, "reason": res.get("reason"), "mx": res.get("mx"), "smtp_code": res.get("code")}
