@@ -54,6 +54,7 @@ REAP_INTERVAL = float(os.getenv("WORKER_REAP_SECONDS", "300"))
 # Internal cron: how often to enqueue the recurring kinds.
 SEQUENCE_INTERVAL = float(os.getenv("WORKER_SEQUENCE_SECONDS", "900"))  # 15 min
 ALERTS_INTERVAL = float(os.getenv("WORKER_ALERTS_SECONDS", "3600"))  # hourly
+SUBSCRIPTION_REMINDER_INTERVAL = float(os.getenv("WORKER_SUBSCRIPTION_REMINDER_SECONDS", "21600"))  # 6h
 # Scheduled discovery. The tick only *enqueues* due campaign_schedules rows, so
 # it is cheap; 5 minutes bounds how late a schedule can fire.
 SCHEDULES_INTERVAL = float(os.getenv("WORKER_SCHEDULES_SECONDS", "300"))
@@ -357,6 +358,7 @@ async def _housekeeping() -> None:
         ("automations.process_events", 60, {"limit": 200}),
         ("approvals.expire", 300, {"limit": 100}),
         ("alerts.run", ALERTS_INTERVAL, {}),
+        ("subscriptions.remind", SUBSCRIPTION_REMINDER_INTERVAL, {}),
         ("schedules.tick", SCHEDULES_INTERVAL, {}),
         ("leads.reverify", REVERIFY_INTERVAL, {}),
         ("autonomous.campaign_tick", AUTONOMOUS_CAMPAIGN_INTERVAL, {"limit": 10}),

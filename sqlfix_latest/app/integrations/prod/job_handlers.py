@@ -198,6 +198,13 @@ async def _alerts_run(payload: dict) -> dict:
     return await run_alert_checks()
 
 
+@register("subscriptions.remind")
+async def _subscriptions_remind(payload: dict) -> dict:
+    from app.integrations.prod.subscription_reminders import run_reminders
+
+    return await run_reminders()
+
+
 @register("csv.import")
 async def _csv_import(payload: dict) -> dict:
     from app.integrations.prod.csv_import import import_rows
