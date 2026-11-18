@@ -509,7 +509,9 @@ async def verify_phone(phone: str, country_code: str | None = None, providers: l
                 elif name=="numbers_online":
                     d=(await c.get(os.getenv('NUMBERS_ONLINE_LOOKUP_URL') or 'https://numbers.online/api/lookup',params={'number':p,'api_key':os.getenv('NUMBERS_ONLINE_API_KEY')})).json(); o={'provider':name,'tier':0,'status':'valid' if d.get('valid',True) else 'invalid','line_type':d.get('line_type'),'carrier':d.get('carrier'),'risk':d.get('risk')}
                 elif name=="telnyx":
-                    d=(await c.get('https://api.telnyx.com/v2/number_lookup/'+quote_plus(p),params={'type':'carrier'},headers={'Authorization':f'Bearer {os.getenv("TELNYX_API_KEY")}'})).json().get('data') or {}; cr=d.get('carrier') or {}; o={'provider':name,'tier':2,'status':'valid' if d.get('valid_number',d.get('phone_number')) else 'invalid','line_type':cr.get('type'),'carrier':cr.get('name')}
+                    resp=await c.get('https://api.telnyx.com/v2/number_lookup/'+quote_plus(p),params={'type':'carrier'},headers={'Authorization':f'Bearer {os.getenv("TELNYX_API_KEY")}'})
+                    if resp.status_code!=200: continue  # bad key / rate limit is not evidence the number is invalid
+                    d=resp.json().get('data') or {}; cr=d.get('carrier') or {}; o={'provider':name,'tier':2,'status':'valid' if d.get('valid_number',d.get('phone_number')) else 'invalid','line_type':cr.get('type'),'carrier':cr.get('name')}
                 elif name=="twilio_lookup":
                     auth=(os.getenv('TWILIO_ACCOUNT_SID'),os.getenv('TWILIO_AUTH_TOKEN')); params={'CountryCode':country_code} if country_code else {}; d=(await c.get('https://lookups.twilio.com/v2/PhoneNumbers/'+quote_plus(p),params=params,auth=auth)).json(); li=d.get('line_type_intelligence') or {}; o={'provider':name,'tier':1,'status':'valid' if d.get('valid',True) else 'invalid','line_type':li.get('type'),'carrier':li.get('carrier_name'),'phone_number':d.get('phone_number')}
                 elif name=="veriphone":

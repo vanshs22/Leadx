@@ -84,4 +84,17 @@ def test_ledger_row_per_paid_call(monkeypatch):
     monkeypatch.delenv("LEADX_VERIFY_CREDIT_COST", raising=False)
     lead = {"email": "a@example.com", "website": "example.com", "email_status": "unknown"}
     asyncio.run(l6.final_verify_for_delivery(lead, {}, tenant_id="t", run_id="r"))
-    assert rows == [("millionverifier", m.VERIFY_COST_USD["millionverifier"], True)]
+    assert rows == [("millionverifier", 0.2, True)]  # ledger stays in credits, same unit as other rows
+
+
+def test_telnyx_error_response_is_not_invalid(monkeypatch):
+    import httpx
+    monkeypatch.setenv("TELNYX_API_KEY", "k")
+    real = httpx.AsyncClient.get
+
+    async def bad(self, url, **kw):
+        return httpx.Response(401, json={"errors": []}, request=httpx.Request("GET", url)) if "telnyx" in url else await real(self, url, **kw)
+
+    monkeypatch.setattr(httpx.AsyncClient, "get", bad)
+    r = asyncio.run(m.verify_phone("+14155550123", "US", providers=["telnyx"]))
+    assert not any(o.get("provider") == "telnyx" for o in r["observations"])

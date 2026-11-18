@@ -137,8 +137,8 @@ async def discover_free(industry: str, location: str, *, stats: Optional[dict[st
             return
         fresh = []
         for r in resolve_entities([r for v in made_by.values() for r in v]):
-            keys = entity_keys(r)
-            if keys and seen_keys.issuperset(keys):
+            keys = entity_keys(r) or [f"n:{str(r.get('name') or '').lower()}"]
+            if not seen_keys.isdisjoint(keys):  # any shared key is the same entity, even if later evidence added keys
                 continue
             seen_keys.update(keys)
             r["source"] = "osm"
@@ -166,7 +166,8 @@ async def discover_free(industry: str, location: str, *, stats: Optional[dict[st
                     logger.warning("free source %s failed: %s", name, type(t.exception()).__name__)
                     errors[name] = type(t.exception()).__name__
                     continue
-                made_by[name] += _shape(name, t.result()[consumed[name]:], industry, location)
+                res = t.result()
+                made_by[name] += _shape(name, res[consumed[name]:] if res is sinks[name] else res, industry, location)
             if on_rows:
                 for t in waiting:  # partial rows from slow sources that expose a sink
                     name = by_task[t]

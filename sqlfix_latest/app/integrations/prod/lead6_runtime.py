@@ -203,7 +203,7 @@ async def final_verify_for_delivery(lead: dict[str, Any], policy: dict[str, Any]
     email requirement and is rejected before it consumes a delivery slot.
     """
     from app.integrations.prod.contact_state import email_level
-    from app.integrations.prod.contact_verification_mesh import VERIFY_COST_USD, verify_email
+    from app.integrations.prod.contact_verification_mesh import verify_email
     from app.integrations.prod.tenant_policy import contact_ok
     email = (lead.get("email") or "").strip()
     if email and email_level(lead) != "valid" and os.getenv("LEADX_PAID_VERIFY", "delivery") != "never":
@@ -218,5 +218,5 @@ async def final_verify_for_delivery(lead: dict[str, Any], policy: dict[str, Any]
         for obs in result.get("observations") or []:
             if int(obs.get("tier") or 0) >= 1:  # paid or free-plan verifier
                 await wf.ledger(tenant_id, run_id, lead, str(obs.get("provider")), "email_verify",
-                                float(os.getenv("LEADX_VERIFY_CREDIT_COST") or VERIFY_COST_USD.get(str(obs.get("provider")), 0.01)), obs.get("status") in {"valid", "deliverable"})
+                                float(os.getenv("LEADX_VERIFY_CREDIT_COST", "0.2")), obs.get("status") in {"valid", "deliverable"})
     return (True, "ok") if contact_ok(lead, policy) else (False, "failed_final_verification")

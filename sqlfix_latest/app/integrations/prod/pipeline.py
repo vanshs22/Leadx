@@ -9,6 +9,7 @@ from app.services.aio import aexec, to_async
 import asyncio
 import logging
 import os
+import sys
 import time
 from datetime import datetime, timezone, timedelta
 from typing import Any, Optional
@@ -1197,6 +1198,8 @@ async def run_pipeline_parallel_target(
             except Exception as exc:
                 logger.warning("[%s] streaming free discovery %s: %s", run_id[:8], loc, type(exc).__name__)
 
+        if not geo:
+            return
         seed_tasks.extend(asyncio.create_task(_one(loc), name="leadx-free-stream") for loc in geo[:8])
         # Wait only the fast-seed window; directories/OSM keep streaming until discovery ends (see _discovery_producer).
         await _await_cancellable(asyncio.wait(seed_tasks, timeout=float(os.getenv("LEADX_FAST_SEED_SECONDS", "15"))))
@@ -1377,7 +1380,10 @@ async def run_pipeline_parallel_target(
             _stage_end("discovery")
             finish_agent_stage(agent_context, "source_router", "source_selection", summary={"sources": list(src_flags)})
             finish_agent_stage(agent_context, "discovery_planner", "route_and_tranche_planning", summary={"rounds": rounds_used})
-            if stop_event.is_set() or _cancelled() or not (await _target_state()).get("admit"):
+            if sys.exc_info()[0] is not None or stop_event.is_set() or _cancelled():  # abnormal exit: do not wait out the 90s source budget
+                for t in seed_tasks:
+                    t.cancel()
+            elif not (await _target_state()).get("admit"):
                 for t in seed_tasks:
                     t.cancel()
             await asyncio.gather(*seed_tasks, return_exceptions=True)  # slow sources still streaming must land before discovery_done
