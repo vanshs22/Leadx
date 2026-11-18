@@ -499,7 +499,13 @@ async def run_pipeline_parallel_target(
         waiters = {asyncio.create_task(stop_event.wait())}
         if cancellation_event:
             waiters.add(asyncio.create_task(cancellation_event.wait()))
-        done, _ = await asyncio.wait({task, *waiters}, return_when=asyncio.FIRST_COMPLETED)
+        try:
+            done, _ = await asyncio.wait({task, *waiters}, return_when=asyncio.FIRST_COMPLETED)
+        except asyncio.CancelledError:  # outer wait_for timeout: do not leak the inner task
+            for t in (task, *waiters):
+                t.cancel()
+            await asyncio.gather(task, *waiters, return_exceptions=True)
+            raise
         if task in done:
             for waiter in waiters:
                 waiter.cancel()

@@ -22,11 +22,66 @@ free discovery (osm lane)  Overture | NPPES | Companies House | directories | OS
 | Overture Maps Places | `open_data.py` | global, phone/website/email/socials | DuckDB over public S3 parquet, latest release from the STAC catalog. Treat contact fields as hints. |
 | NPPES | `registries.py` | US healthcare organisations | Phone plus the authorised official (owner name and title). Verticals: dental, wellness. |
 | Companies House | `registries.py` | UK companies | Needs `COMPANIES_HOUSE_API_KEY`. Written and unit-level only; not run against the live API. |
-| Directories | `directory_discovery.py`, `directory_extract.py` | per country | Listing pages are paged until a page adds nothing new. YellowPages, Superpages, Hotfrog parse fully; BBB lists phone/address (profile pages return 403). |
+| Directories | `directory_discovery.py`, `directory_extract.py` | per country | Listing pages are paged until a page adds nothing new. YellowPages, Superpages, Hotfrog parse fully; BBB is blocked by default (403). |
 | Web search | `web_search.py` | any | SearXNG first, every page until no new URL; Serper only if SearXNG returns nothing. Also feeds social profile search and per-lead contact lookup. |
 | OSM | `exhaustive_discovery.py` | global | Overpass, falling back to Nominatim. |
 
-Directory controls: `LEADX_DIRECTORY_SCRAPING=0` kill switch, robots.txt respected by default (`LEADX_DIRECTORY_ROBOTS`, per-domain override in `LEADX_DIRECTORY_POLICY`), per-domain spacing, circuit breaker after 3 block responses, no CAPTCHA solving. Domains that block us (manta, chamberofcommerce, cylex, brownbook, yelp returned 403 or disallow crawling from this sandbox) are skipped, not bypassed.
+### Source tiers
+
+| Tier | Sources | Default | Why |
+|---|---|---|---|
+| Open data | Overture Maps, OSM (Overpass mirrors via `OVERPASS_URLS`, Nominatim fallback) | on | Licensed or open, no scraping. |
+| Registries | NPPES (US healthcare), Companies House (UK) | on | Official public APIs. |
+| Working directories | yellowpages.com, superpages.com, hotfrog.com, dexknows.com (plus merchantcircle, yell, 192, europages and regional ones by country) | on | Return 200 to a polite, robots-respecting client. |
+| Blocked by default | bbb.org, manta.com, brownbook.net, chamberofcommerce.com, cylex.us.com, yelp.com | off | Return 401/403 to automated clients or disallow crawling. They are skipped with zero requests instead of tripping the breaker every run. Re-enable one with `LEADX_DIRECTORY_POLICY='{"bbb.org": {"enabled": true}}'` once you have approved access or your own proxy. |
+| Official API lanes | Yelp Fusion, Foursquare, Google Places | off until a key is set | Licensed APIs give the same businesses without scraping; use these instead of the blocked directories. |
+
+`LEADX_DIRECTORY_PROXY` takes one plain egress proxy URL for your own paid proxy account. There is no rotation, no CAPTCHA solving and no fingerprint evasion; if a domain still refuses through the proxy it stays skipped.
+
+### Streaming flow
+
+`discover_free(..., on_rows=cb)` awaits `cb` with the new merged entities each time a source finishes (and every `LEADX_FREE_STREAM_TICK` seconds for sources that report partial rows). The pipeline's `_fast_seed` passes a callback that queues rows to enrichment immediately, so crawl, verification, scoring, gating and assignment run for early leads while slower sources are still searching. Later evidence for an already emitted entity is not re-emitted. `LEADX_FAST_SEED=0` disables the seed. Run telemetry records `first_candidate_seconds`, `first_enriched_seconds` and `first_assigned_seconds`.
+
+### What verification works here
+
+Output of `python scripts/check_verification.py` from the sandbox (no keys):
+
+| Check | Works | Detail |
+|---|---|---|
+| DNS MX lookup | yes | gmail.com has 5 MX records; a missing domain returns none |
+| Disposable and role mailbox block | yes | mailinator.com and postmaster@ rejected |
+| SMTP mailbox probe | no, needs port 25 | outbound 25 is blocked, result is `unknown`; Microsoft/Yahoo MX cannot be probed from any host |
+| Phone format and region (phonenumbers) | yes | valid and invalid US numbers classified |
+| Phone line is live | no, needs a key | local check proves format only |
+
+Mailbox-level email verification and live phone checks need a verifier key (below) or a host with port 25 open.
+
+### Paid fallbacks and environment variables
+
+All paid lanes are off until a key is set, run cheapest first, and only for leads about to be assigned. Spend is written to `enrichment_spend_ledger`. Set keys in the environment only, never in files.
+
+| Variable | Purpose |
+|---|---|
+| `LEADX_PAID_FALLBACK` | `auto` (default: paid only when free lanes left a gap), `always`, `never` |
+| `LEADX_PAID_VERIFY` | `delivery` (default: paid verify only at final assignment), `never` |
+| `SERPER_API_KEY` | Serper web search, used after SearXNG returns nothing and for owner-domain lookups |
+| `FIRECRAWL_API_KEY` | Firecrawl rendering; with `LEADX_FIRECRAWL_MODE=fallback` it runs only when the page is unrendered and no contact was found |
+| `HUNTER_API_KEY`, `ZEROBOUNCE_API_KEY`, `ABSTRACT_API_KEY` | Email verifiers, free plan or paid (tier 1) |
+| `MILLIONVERIFIER_API_KEY`, `EMAILLISTVERIFY_API_KEY`, `REOON_API_KEY` | Cheap paid email verifiers (tier 2, tried first) |
+| `NEVERBOUNCE_API_KEY`, `BOUNCER_API_KEY`, `KICKBOX_API_KEY` | Other paid email verifiers (tier 2) |
+| `LEADX_EMAIL_VALIDATOR_URL` | Your own validator endpoint |
+| `PHONEVALIDATIONAPI_KEY`, `NUMBERS_ONLINE_API_KEY` | Free-plan phone verifiers (tier 0) |
+| `TWILIO_ACCOUNT_SID` + `TWILIO_AUTH_TOKEN`, `VERIPHONE_API_KEY`, `ABSTRACT_API_KEY`, `NUMVERIFY_API_KEY` | Phone verifiers (tier 1) |
+| `TELNYX_API_KEY`, `IPQS_API_KEY` | Paid phone lookup (tier 2) |
+| `FOURSQUARE_API_KEY` (or `FSQ_API_KEY`) | Foursquare places discovery |
+| `GOOGLE_PLACES_API_KEY` | Google Places discovery |
+| `YELP_API_KEY` | Yelp Fusion discovery |
+| `LEADX_DIRECTORY_PROXY` | One egress proxy URL for directory fetches (your own paid proxy) |
+| `LEADX_DIRECTORY_POLICY` | JSON per domain: `enabled`, `robots`, `min_interval` |
+| `OVERPASS_URLS` | Comma list of Overpass mirrors |
+| `LEADX_HTTP_UA` | User-Agent for open-data and directory requests |
+
+Directory controls: `LEADX_DIRECTORY_SCRAPING=0` kill switch, robots.txt respected by default (`LEADX_DIRECTORY_ROBOTS`, per-domain override in `LEADX_DIRECTORY_POLICY`), per-domain spacing, circuit breaker after 3 block responses, no CAPTCHA solving. Blocked domains are listed under Source tiers; they are skipped, not bypassed.
 
 `bing_search` was removed (the Bing Search API is retired).
 
