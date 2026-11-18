@@ -99,6 +99,36 @@ async def _httpx_fetch(url: str, timeout: int, out: dict) -> dict:
     return out
 
 
+_JS_REDIRECT = re.compile(r"""(?:location(?:\.href)?\s*=\s*|http-equiv=["']refresh["'][^>]*content=["']\d+;\s*(?:url=)?)["']?([^"'\s>;]+)""", re.I)
+
+
+async def _recover_fetch(url: str, timeout: int, out: dict) -> None:
+    """One extra attempt for the common free fixes: JS/meta redirect stubs, homepage path 404, scheme/www flip, 429 backoff.
+    Never touches captcha interstitials (sgcaptcha etc.): those are not bypassed."""
+    p = urlparse(url)
+    alt = None
+    html = out.get("html") or ""
+    if out["ok"] and len(html) < 800:
+        m = _JS_REDIRECT.search(html)
+        if m and "captcha" not in m.group(1).lower():
+            alt = urljoin(url, m.group(1))
+            if not _same_domain(alt, url):
+                alt = None
+    elif out.get("status") == 429:
+        await asyncio.sleep(1.5)
+        alt = url
+    elif out.get("status") in (404, 410) and (p.path.strip("/") or p.query):
+        alt = f"{p.scheme}://{p.netloc}/"
+    elif out.get("status") is None and not str(out.get("error") or "").startswith("blocked"):
+        host = p.netloc[4:] if p.netloc.startswith("www.") else "www." + p.netloc
+        alt = f"{'http' if p.scheme == 'https' else 'https'}://{host}{p.path or '/'}"
+    if alt and not await assert_public_url(alt):
+        again = {"html": "", "text": "", "method": "httpx", "ok": False, "error": None, "status": None}
+        await _httpx_fetch(alt, timeout, again)
+        if again["ok"] and len(again["html"]) > len(html):
+            out.update(again)
+
+
 async def fetch_scrapling(url: str, timeout: int = 20, light: bool = False) -> dict:
     """Fast page fetch. Plain pooled httpx first; Scrapling only when the site refuses it (403/429/503/network error).
 
@@ -116,6 +146,8 @@ async def fetch_scrapling(url: str, timeout: int = 20, light: bool = False) -> d
     fast = os.getenv("LEADX_FETCH_FAST", "1") != "0"
     if light or fast:
         await _httpx_fetch(url, timeout, out)
+        if not light:
+            await _recover_fetch(url, timeout, out)
         err = str(out.get("error") or "")
         if out["ok"] or light or err.startswith("blocked") or out.get("status") in (404, 410, 451):
             return out
