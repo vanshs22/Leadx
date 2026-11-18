@@ -164,8 +164,9 @@ def _(): assert b.post(f"/crm/{TB}/discovery-requests/{S['req']}/withdraw").stat
 def _(): ok(a.post(f"/crm/{TA}/team/invite", json={"email": "teammate@example.test", "role": "member", "send_email": False})); assert "teammate@example.test" in a.get(f"/crm/{TA}/team/members").text
 @check("webhooks: create + list + delete (SSRF-safe URL required)")
 def _():
-    r = a.post(f"/crm/{TA}/integrations/webhooks", json={"name": "hook", "endpoint_url": "http://127.0.0.1:9/x", "events": ["lead.assigned"]})
-    assert r.status_code in (400, 422), f"private URL accepted: {r.status_code} {r.text[:120]}"
+    for bad in ("http://user:pw@hooks.example.com/x", "ftp://hooks.example.com/x", "file:///etc/passwd"):  # private-IP rejection is covered by unit tests; the stack sets ALLOW_PRIVATE_OUTBOUND for change-detection
+        r = a.post(f"/crm/{TA}/integrations/webhooks", json={"name": "hook", "endpoint_url": bad, "events": ["lead.assigned"]})
+        assert r.status_code in (400, 422), f"unsafe URL accepted: {bad} {r.status_code} {r.text[:120]}"
     r = ok(a.post(f"/crm/{TA}/integrations/webhooks", json={"name": "hook", "endpoint_url": "https://hooks.example.com/x", "events": ["lead.assigned"]}))
     wid = (r.get("webhook") or r).get("id"); assert wid, r; ok(a.get(f"/crm/{TA}/integrations/webhooks")); ok(a.delete(f"/crm/{TA}/integrations/webhooks/{wid}"))
 @check("automations: create/list/delete")
@@ -210,6 +211,85 @@ def _():
     with cf.ThreadPoolExecutor(20) as ex: res = list(ex.map(call, range(40)))
     assert all(s == 200 for s, _, _ in res), [s for s, _, _ in res if s != 200]
     assert all("Bulk 0000" not in txt for s, t, txt in res if t == TB)
+
+# ---------------- lead tools: NL search, data quality, duplicates/merge, change detection ----------------
+import threading
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+SITE = {"html": "<title>Bright Dental</title><body>" + " ".join(f"implant{i} whitening care" for i in range(150)) + " info@brightdental.test (512) 555-0111</body>"}
+class _H(BaseHTTPRequestHandler):
+    def log_message(self, *x): pass
+    def do_GET(self):
+        b = SITE["html"].encode(); self.send_response(200); self.send_header("Content-Type", "text/html"); self.send_header("Content-Length", str(len(b))); self.end_headers(); self.wfile.write(b)
+_srv = ThreadingHTTPServer(("127.0.0.1", 54350), _H); threading.Thread(target=_srv.serve_forever, daemon=True).start()
+def seed_lead(T, name, city, cat, tier, score, website=None, email=None, phone=None):
+    g = db("POST", "leads_global", json={"name": name, "city": city, "state": "TX", "category": cat, "website": website, "email": email, "phone_normalized": phone, "phone_e164": ("+1" + phone) if phone else None,
+                                         "fingerprint": uuid.uuid4().hex, "google_rating": 4.6})[0]
+    asg = db("POST", "lead_assignments", json={"tenant_id": T, "lead_id": g["id"], "vertical": cat, "status": "new", "tier": tier, "delivered_at": (__import__("datetime").datetime.now(__import__("datetime").timezone.utc) - __import__("datetime").timedelta(minutes=score)).isoformat()})[0]
+    db("POST", "scores", json={"lead_id": g["id"], "deterministic_score": score, "total_score": score, "tier": tier})
+    if email: db("POST", "enrichment", json={"lead_id": g["id"], "email": email, "email_valid": True, "enrichment_ok": True})  # the CRM view reads email from enrichment
+    return asg["id"], g["id"]
+L = {}
+@check("lead tools: seed leads for tenant A and B")
+def _():
+    L["bright"], L["bright_lead"] = seed_lead(TA, "Austin Bright Dental", "Austin", "dental", "A", 85, "http://127.0.0.1:54350/", "info@brightdental.test", "5125550111")
+    L["dallas"], _x = seed_lead(TA, "Dallas Dental Care", "Dallas", "dental", "B", 60)
+    L["gym"], _x = seed_lead(TA, "Austin Iron Gym", "Austin", "gym", "C", 30, "https://irongym.test")
+    L["b_lead"], _x = seed_lead(TB, "Beta Austin Dental", "Austin", "dental", "A", 90, "https://beta.test", "x@beta.test", "5125550999")
+@check("nl-search: 'hot dental in Austin with email' returns only matching own-tenant lead")
+def _():
+    d = ok(a.post(f"/crm/{TA}/leads/nl-search", json={"query": "hot dental leads in Austin with email"}))
+    names = [x["company_name"] for x in d["leads"]]
+    assert names == ["Austin Bright Dental"], (names, d["interpreted_as"]); assert d["explanation"]
+@check("nl-search: score/phone/negation filters and tenant isolation")
+def _():
+    d = ok(a.post(f"/crm/{TA}/leads/nl-search", json={"query": "dental without email score above 50"})); assert [x["company_name"] for x in d["leads"]] == ["Dallas Dental Care"], ([x["company_name"] for x in d["leads"]], d["interpreted_as"])
+    d = ok(a.post(f"/crm/{TA}/leads/nl-search", json={"query": "dental in Austin"})); assert all("Beta" not in x["company_name"] for x in d["leads"])
+    assert a.post(f"/crm/{TA}/leads/nl-search", json={"query": "?!"}).status_code in (422,)
+@check("nl-search: filter-syntax injection attempt handled without 5xx")
+def _():
+    r = a.post(f"/crm/{TA}/leads/nl-search", json={"query": "x),tenant_id.neq.0,(y in a%b*c"}); assert r.status_code < 500, r.text[:200]
+    if r.status_code == 200: assert all("Beta" not in x["company_name"] for x in r.json()["leads"])
+@check("leads list: cursor pages are not served from the first page's cache")
+def _():
+    p1 = ok(a.get(f"/crm/{TA}/leads", params={"limit": 1})); c = p1.get("next_cursor"); assert c, p1
+    p2 = ok(a.get(f"/crm/{TA}/leads", params={"limit": 1, "cursor": c})); assert p2["leads"] and p2["leads"][0]["assignment_id"] != p1["leads"][0]["assignment_id"]
+@check("data-quality: per-lead + summary, free providers first")
+def _():
+    d = ok(a.get(f"/crm/{TA}/leads/{L['dallas']}/data-quality")); assert "email" in d["missing"] and d["confidence"] < 60, d
+    er = next(r for r in d["recommendations"] if r["field"] == "email"); paid = [p["paid"] for p in er["recovery_order"]]; assert paid == sorted(paid), er
+    s = ok(a.get(f"/crm/{TA}/data-quality/summary")); assert s["sampled"] == 3 and s["most_common_gaps"]
+    assert a.get(f"/crm/{TA}/leads/{L['b_lead']}/data-quality").status_code == 404
+@check("change-detection: baseline, no-change, then redesign + new contact + tenant isolation")
+def _():
+    r1 = ok(a.post(f"/crm/{TA}/leads/{L['bright']}/refresh-check")); assert r1["baseline"] is True and r1["lane"] in ("scrapling", "crawl4ai"), r1
+    r2 = ok(a.post(f"/crm/{TA}/leads/{L['bright']}/refresh-check")); assert r2["changed"] is False, r2
+    SITE["html"] = "<title>Bright Dental</title><body>" + " ".join(f"implant{i} whitening care" for i in range(150)) + " sales@brightdental.test (512) 555-0111</body>"
+    r3 = ok(a.post(f"/crm/{TA}/leads/{L['bright']}/refresh-check")); assert any(c["type"] == "contact_change" for c in r3["changes"]), r3
+    SITE["html"] = "<title>Totally New</title><body>" + " ".join(f"brand new copy word{i}" for i in range(300)) + "</body>"
+    r4 = ok(a.post(f"/crm/{TA}/leads/{L['bright']}/refresh-check")); assert any(c["type"] == "site_redesign" for c in r4["changes"]), r4
+    ch = ok(a.get(f"/crm/{TA}/leads/{L['bright']}/changes"))["changes"]; assert {"contact_change", "site_redesign"} <= {c["signal_type"] for c in ch}, ch
+    assert b.post(f"/crm/{TB}/leads/{L['bright']}/refresh-check").status_code == 404
+    assert a.post(f"/crm/{TA}/leads/{L['gym']}/refresh-check").status_code in (502, 422, 200)  # unreachable .test host must not 5xx-crash
+@check("duplicates: detect + merge companies re-points children; cross-tenant merge refused")
+def _():
+    c1 = ok(a.post(f"/crm/{TA}/companies", json={"name": "Dup Dental", "domain": "dupdental.test", "tags": ["x"]}))["company"]["id"]
+    c2 = db("POST", "companies", json={"tenant_id": TA, "name": "DUP DENTAL LLC", "website": "https://www.dupdental.test/", "phone": "(512) 555-7777", "tags": ["y"], "domain": None})[0]["id"]
+    ct = ok(a.post(f"/crm/{TA}/contacts", json={"company_id": c2, "full_name": "Dee Dup", "email": "dee@dupdental.test"}))["contact"]["id"]
+    dl = ok(a.post(f"/crm/{TA}/deals", json={"title": "Dup deal", "company_id": c2}))["deal"]["id"]
+    g = ok(a.get(f"/crm/{TA}/duplicates", params={"entity": "companies"}))["groups"]
+    grp = next(x for x in g if {r["id"] for r in x["records"]} >= {c1, c2}); keep = grp["suggested_keep"]; other = c2 if keep == c1 else c1
+    assert b.post(f"/crm/{TB}/companies/merge", json={"keep_id": c1, "merge_ids": [c2]}).status_code == 404
+    assert db("GET", f"companies?id=in.({c1},{c2})&select=id").__len__() == 2
+    m = ok(a.post(f"/crm/{TA}/companies/merge", json={"keep_id": keep, "merge_ids": [other]}))
+    assert db("GET", f"companies?id=eq.{other}&select=id") == [] and db("GET", f"contacts?id=eq.{ct}&select=company_id")[0]["company_id"] == keep
+    assert db("GET", f"deals?id=eq.{dl}&select=company_id")[0]["company_id"] == keep
+    kept = db("GET", f"companies?id=eq.{keep}&select=tags,domain,phone")[0]; assert sorted(kept["tags"]) == ["x", "y"] and kept["domain"] == "dupdental.test" and kept["phone"], kept
+    assert a.post(f"/crm/{TA}/companies/merge", json={"keep_id": keep, "merge_ids": [keep]}).status_code == 400
+@check("duplicates: contacts by email")
+def _():
+    ok(a.post(f"/crm/{TA}/contacts", json={"full_name": "Sam One", "email": "sam@dupco.test"})); ok(a.post(f"/crm/{TA}/contacts", json={"full_name": "Samuel One", "email": "SAM@dupco.test"}))
+    g = ok(a.get(f"/crm/{TA}/duplicates", params={"entity": "contacts"}))["groups"]; assert any("email" in x["reasons"] for x in g)
+    assert ok(b.get(f"/crm/{TB}/duplicates", params={"entity": "contacts"}))["groups"] == []
 
 out = os.getenv("E2E_OUT", "e2e_results.json"); json.dump(R, open(out, "w"), indent=1)
 from collections import Counter

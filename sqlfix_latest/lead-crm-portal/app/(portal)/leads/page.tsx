@@ -3,7 +3,7 @@
 import { downloadCsv } from "@/lib/csv";
 import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
-import { crm, LeadCard } from "@/lib/api";
+import { crm, crmTools, LeadCard } from "@/lib/api";
 import { getTenantId, getTenantUserId } from "@/lib/tenant";
 import { useCrmChange } from "@/lib/crmRealtime";
 import { TierBadge, StagePill } from "@/components/leads/TierBadge";
@@ -152,6 +152,8 @@ export default function LeadsPage() {
   const [loadError, setLoadError] = useState<unknown>(null);
   const loadedOnceRef = useRef(false);
   const [search, setSearch] = useState("");
+  const [smart, setSmart] = useState(false);
+  const [smartNote, setSmartNote] = useState<string[]>([]);
   const [tier, setTier] = useState("");
   const [stage, setStage] = useState("");
   const [sort, setSort] = useState("score_desc");
@@ -178,25 +180,23 @@ export default function LeadsPage() {
   const load = useCallback(() => {
     if (!loadedOnceRef.current) setLoading(true);
     setLoadError(null);
-    crm
-      .leads(getTenantId(), {
-        search: search || undefined,
-        tier: tier || undefined,
-        stage: stage || undefined,
-        limit: 50,
-      })
+    const tid = getTenantId();
+    const request = smart && search.trim().length > 1
+      ? crmTools.nlSearch(tid, search.trim()).then((r) => { setSmartNote(r.explanation || []); return r; })
+      : (setSmartNote([]), crm.leads(tid, { search: search || undefined, tier: tier || undefined, stage: stage || undefined, limit: 50 }));
+    request
       .then((r) => {
         setLeads(r.leads || []);
         setTotal(r.total || 0);
       })
       .catch((e) => { setLoadError(e); setMsg(""); })
       .finally(() => { loadedOnceRef.current = true; setLoading(false); });
-  }, [search, tier, stage]);
+  }, [search, tier, stage, smart]);
 
   useEffect(() => {
-    const timer = window.setTimeout(load, search ? 220 : 0);
+    const timer = window.setTimeout(load, search ? (smart ? 600 : 220) : 0);
     return () => window.clearTimeout(timer);
-  }, [load, search, tier, stage]);
+  }, [load, search, tier, stage, smart]);
 
 
   useCrmChange(load, { tables: ["lead_assignments", "leads_global", "lead_crm_cards", "lead_state_history", "lead_score_snapshots", "lead_quality_gates", "lead_verification_observations", "lead_outcome_events", "activities", "lead_activities"] });
@@ -348,8 +348,9 @@ export default function LeadsPage() {
         <FilterBar onClear={() => { setSearch(""); setTier(""); setStage(""); setSort("score_desc"); }}>
           <div className="relative min-w-[220px] flex-1">
             <Icon name="search" size={14} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-ink-faint" />
-            <input className="input h-9 pl-8" type="search" placeholder="Search company, city, phone…" value={search} onChange={(e) => setSearch(e.target.value)} aria-label="Search leads" />
+            <input className="input h-9 pl-8" type="search" placeholder={smart ? "Ask: hot dentists in Austin with email, score above 70" : "Search company, city, phone…"} value={search} onChange={(e) => setSearch(e.target.value)} aria-label="Search leads" />
           </div>
+          <button type="button" className={`btn h-9 ${smart ? "btn-primary" : "btn-secondary"}`} aria-pressed={smart} title="Describe the leads you want in plain English" onClick={() => setSmart((v) => !v)}>Smart search</button>
           <Tabs
             label="Filter leads by tier"
             value={(tier || "all") as "all" | "A" | "B"}
@@ -363,6 +364,9 @@ export default function LeadsPage() {
           <select className="select h-9 w-auto min-w-[140px]" value={stage} onChange={(e) => setStage(e.target.value)} aria-label="Filter leads by stage"><option value="">All stages</option><option value="new">New</option><option value="contacted">Contacted</option><option value="qualified">Qualified</option><option value="won">Won</option><option value="lost">Lost</option></select>
           <select className="select h-9 w-auto min-w-[170px]" value={sort} onChange={(e) => setSort(e.target.value)} aria-label="Sort leads"><option value="score_desc">Score: high → low</option><option value="score_asc">Score: low → high</option><option value="tier_asc">Tier: A → C</option><option value="tier_desc">Tier: C → A</option><option value="name_asc">Name: A → Z</option><option value="name_desc">Name: Z → A</option><option value="city_asc">City: A → Z</option><option value="newest">Newest first</option></select>
         </FilterBar>
+        {smart && smartNote.length > 0 && (
+          <p className="text-xs text-ink-faint" aria-live="polite">Understood as: {smartNote.join(" · ")}</p>
+        )}
         <SavedViews
           current={{ search, tier, stage, sort }}
           onApply={(f) => { setSearch(f.search ?? ""); setTier(f.tier ?? ""); setStage(f.stage ?? ""); setSort(f.sort ?? "score_desc"); }}

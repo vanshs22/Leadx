@@ -1210,3 +1210,22 @@ export const crmMissions = {
   tick: (tenantId: string, missionId: string) => api<any>(`/crm/${tenantId}/agent-missions/${missionId}/tick`, { method: "POST" }),
   cancel: (tenantId: string, missionId: string) => api<any>(`/crm/${tenantId}/agent-missions/${missionId}/cancel`, { method: "POST" }),
 };
+
+/** Lead tools: natural-language search, data quality, duplicates and merge, website change detection. */
+export const crmTools = {
+  nlSearch: (tenantId: string, query: string, limit = 50) =>
+    api<{ interpreted_as: Record<string, unknown>; explanation: string[]; total: number; leads: LeadCard[] }>(
+      `/crm/${tenantId}/leads/nl-search`, { method: "POST", body: JSON.stringify({ query, limit }) }),
+  dataQuality: (tenantId: string, assignmentId: string) =>
+    api<{ completeness: number; confidence: number; grade: string; missing: string[]; recommendations: { field: string; recovery_order: { provider: string; paid: boolean; cost: number }[] }[] }>(
+      `/crm/${tenantId}/leads/${assignmentId}/data-quality`),
+  duplicates: (tenantId: string, entity: "companies" | "contacts") =>
+    api<{ scanned: number; duplicate_records: number; groups: { suggested_keep: string; reasons: string[]; records: Record<string, any>[] }[] }>(
+      `/crm/${tenantId}/duplicates?entity=${entity}`),
+  merge: (tenantId: string, entity: "companies" | "contacts", keepId: string, mergeIds: string[]) =>
+    api<{ kept: string; merged: string[]; re_pointed: Record<string, number> }>(
+      `/crm/${tenantId}/${entity}/merge`, { method: "POST", body: JSON.stringify({ keep_id: keepId, merge_ids: mergeIds }) }),
+  refreshCheck: (tenantId: string, assignmentId: string, allowPaid = false) =>
+    api<{ lane: string; baseline: boolean; changed: boolean; changes: { type: string; detail: unknown }[] }>(
+      `/crm/${tenantId}/leads/${assignmentId}/refresh-check`, { method: "POST", body: JSON.stringify({ allow_paid: allowPaid }) }),
+};

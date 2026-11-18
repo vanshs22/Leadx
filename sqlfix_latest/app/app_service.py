@@ -914,6 +914,8 @@ try:
     app.include_router(upgrade_router)
     app.include_router(upgrade_agency)
     app.include_router(revenue_os_router)
+    from app.api.prod.lead_tools_api import router as lead_tools_router
+    app.include_router(lead_tools_router)
     logger.info("Mounted upgrade API (scoreboard, CRM sync, why-now, waterfall, agency)")
 except Exception as e:
     emit_telemetry(logger, logging.ERROR, "startup.module_mount_failed", status="degraded", dependency="upgrade_api", outcome="module_unavailable", error_code=telemetry_error_code(e))

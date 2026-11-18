@@ -23,7 +23,7 @@ Run it: `PY=.venv/bin/python scripts/local_stack/stack.sh .venv/bin/python scrip
 
 | Suite | Result |
 |---|---|
-| `scripts/local_stack/e2e.py` (admin, auth, isolation, CRM CRUD, import/export, opportunity requests, webhooks, automations, hardening, pagination, concurrency) | **60 / 60 pass** |
+| `scripts/local_stack/e2e.py` (admin, auth, isolation, CRM CRUD, import/export, opportunity requests, webhooks, automations, hardening, pagination, concurrency, plus lead tools: smart search, data quality, change detection, duplicates/merge) | **69 / 69 pass** |
 | `scripts/local_stack/pipeline_e2e.py` (2 tenants, concurrent real pipelines, CRM sync, stage moves, isolation, job controls) | **36 / 36 pass** |
 | `scripts/local_stack/sweep.py` (every parameterless GET as admin and tenant) | 168 routes, **0 × 5xx** after fixes (1 before) |
 | Backend unit/contract suite (`pytest`, 2751 tests) | **76 fail** (was 85 at baseline). 69 distinct tests (77 cases); 62 of those cases still fail when run alone, so 15 only fail because of test-order interference. |
@@ -98,3 +98,9 @@ The brief is a multi-month roadmap. This pass fixed and verified what already ex
 - **Remaining pytest failures (76)**: mostly spec "bug-condition exploration" tests for unfinished recovery/route-planner work, and source-text assertions that drifted from refactors. A few contradict each other (the smart planner test expects only the requested locality while another expects neighbouring localities). They need a product decision, so they were left untouched.
 - **Pipeline target of 10**: not reached in this sandbox (see above).
 - Per-tenant concurrent `pipeline.run` is intentionally still single-flight (documented quota protection); different tenants run in parallel.
+
+## Update 2026-11-18
+
+- Demo Supabase keys supplied by the owner were rejected ("Invalid API key") and Serper reported no credits, so no run against the hosted demo project was possible. Firecrawl worked. A local pipeline run with Firecrawl enabled: tenant A 7 assigned, tenant B 1 assigned, 36/36 checks pass.
+- Worker and API no longer log full httpx URLs; PostgREST filters in those URLs contained provider API keys.
+- New lead tools and fixes are described in `COMPETITIVE_PLAN.md`. No new backend test regressions (76 failures before and after; same set).

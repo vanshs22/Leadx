@@ -16,6 +16,7 @@ from __future__ import annotations
 from app.services.aio import aexec, to_async
 import logging
 import asyncio
+import re
 import time
 from datetime import datetime, timezone, timedelta
 from typing import Any, Optional, Literal
@@ -415,11 +416,24 @@ async def list_leads(
     limit: int = Query(50, ge=1, le=200),
     offset: int = Query(0, ge=0),
     cursor: Optional[str] = None,
+    city: Optional[str] = None,
+    state: Optional[str] = None,
+    term: Optional[str] = None,
+    min_score: Optional[int] = None,
+    min_rating: Optional[float] = None,
+    has_email: Optional[bool] = None,
+    has_phone: Optional[bool] = None,
+    has_website: Optional[bool] = None,
+    has_booking: Optional[bool] = None,
+    delivered_since_days: Optional[int] = None,
 ):
     """Fast paginated lead list with tenant/filter cache and non-blocking DB work."""
     sb = _sb()
     tid = str(tenant_id)
-    cache_key = "|".join([tid, stage or "", tier or "", status or "", search or "", tag or "", assigned_to or "", priority or "", sort, order, str(limit), str(offset)])
+    # The key must contain every filter AND the cursor; before, cursor pages were served the cached first page.
+    cache_key = "|".join(str(x if x is not None else "") for x in (
+        tid, stage, tier, status, search, tag, assigned_to, priority, sort, order, limit, offset, cursor,
+        city, state, term, min_score, min_rating, has_email, has_phone, has_website, has_booking, delivered_since_days))
     cached = _LEADS_CACHE.get(cache_key)
     if cached and cached[0] > time.monotonic():
         return cached[1]
@@ -444,6 +458,31 @@ async def list_leads(
             q = q.contains("tags", [tag])
         if search:
             q = q.ilike("company_name", f"%{search}%")
+        if city:
+            q = q.ilike("city", f"%{city}%")
+        if state:
+            q = q.ilike("state", state)
+        if term:
+            safe = re.sub(r"[^A-Za-z0-9 &'\-]", "", term)[:80]  # strip PostgREST or()/ilike syntax from user text
+            if safe:
+                q = q.or_(f"company_name.ilike.%{safe}%,category.ilike.%{safe}%")
+        if min_score is not None:
+            q = q.gte("total_score", min_score)
+        if min_rating is not None:
+            q = q.gte("google_rating", min_rating)
+        for col, flag in (("email", has_email), ("website", has_website)):
+            if flag is True:
+                q = q.not_.is_(col, "null")
+            elif flag is False:
+                q = q.is_(col, "null")
+        if has_phone is True:
+            q = q.not_.is_("phone_e164", "null")
+        elif has_phone is False:
+            q = q.is_("phone_e164", "null")
+        if has_booking is not None:
+            q = q.eq("has_booking", has_booking)
+        if delivered_since_days:
+            q = q.gte("delivered_at", (datetime.now(timezone.utc) - timedelta(days=min(int(delivered_since_days), 3650))).isoformat())
         desc = order.lower() != "asc"
         sort_field = sort if sort in (
             "delivered_at", "total_score", "company_name", "next_action_at", "priority"
