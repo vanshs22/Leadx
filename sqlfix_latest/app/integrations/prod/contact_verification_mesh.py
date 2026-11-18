@@ -34,6 +34,9 @@ EMAIL_PROVIDERS = (
     {"name":"hunter", "tier":1, "mode":"free_plan_or_paid", "env_key":"HUNTER_API_KEY", "capabilities":["deliverability","score","status"]},
     {"name":"zerobounce", "tier":1, "mode":"free_plan_or_paid", "env_key":"ZEROBOUNCE_API_KEY", "capabilities":["deliverability","disposable","trap","risk","status"]},
     {"name":"abstract", "tier":1, "mode":"free_plan_or_paid", "env_key":"ABSTRACT_API_KEY", "capabilities":["smtp","mx","disposable","catch_all","quality"]},
+    {"name":"millionverifier", "tier":2, "mode":"paid", "env_key":"MILLIONVERIFIER_API_KEY", "capabilities":["deliverability","catch_all","disposable"]},
+    {"name":"emaillistverify", "tier":2, "mode":"paid", "env_key":"EMAILLISTVERIFY_API_KEY", "capabilities":["deliverability","catch_all"]},
+    {"name":"reoon", "tier":2, "mode":"paid", "env_key":"REOON_API_KEY", "capabilities":["deliverability","catch_all","disposable","role"]},
     {"name":"neverbounce", "tier":2, "mode":"paid", "env_key":"NEVERBOUNCE_API_KEY", "capabilities":["deliverability","status"]},
     {"name":"bouncer", "tier":2, "mode":"paid", "env_key":"BOUNCER_API_KEY", "capabilities":["deliverability","risk","status"]},
     {"name":"kickbox", "tier":2, "mode":"paid", "env_key":"KICKBOX_API_KEY", "capabilities":["deliverability","status"]},
@@ -48,8 +51,19 @@ PHONE_PROVIDERS = (
     {"name":"veriphone", "tier":1, "mode":"free_plan_or_paid", "env_key":"VERIPHONE_API_KEY", "capabilities":["validation","carrier","line_type","location"]},
     {"name":"abstract", "tier":1, "mode":"free_plan_or_paid", "env_key":"ABSTRACT_API_KEY", "capabilities":["validation","carrier","line_type","location","risk"]},
     {"name":"numverify", "tier":1, "mode":"free_plan_or_paid", "env_key":"NUMVERIFY_API_KEY", "capabilities":["validation","carrier","line_type","location"]},
+    {"name":"telnyx", "tier":2, "mode":"paid", "env_key":"TELNYX_API_KEY", "capabilities":["validation","carrier","line_type"]},
     {"name":"ipqs", "tier":2, "mode":"paid_or_trial", "env_key":"IPQS_API_KEY", "capabilities":["validation","carrier","line_type","fraud_risk"]},
 )
+
+# Cheapest-first paid email order (loops below follow it) and rough USD per call, used for the spend ledger.
+# Estimates from public list prices at pay-as-you-go volume; override with LEADX_VERIFY_CREDIT_COST.
+EMAIL_PAID_CHEAP = ("millionverifier", "emaillistverify", "reoon", "hunter", "zerobounce", "abstract")
+EMAIL_PAID_PREMIUM = ("neverbounce", "bouncer", "kickbox")
+VERIFY_COST_USD = {"millionverifier": 0.0004, "emaillistverify": 0.0005, "reoon": 0.0005, "hunter": 0.01, "zerobounce": 0.008,
+                   "abstract": 0.006, "neverbounce": 0.008, "bouncer": 0.007, "kickbox": 0.01, "telnyx": 0.003}
+_STATUS_MAP = {"ok": "valid", "good": "valid", "deliverable": "valid", "valid": "valid", "safe": "valid",
+               "catch_all": "accept_all", "ok_for_all": "accept_all", "accept_all": "accept_all",
+               "invalid": "invalid", "fail": "invalid", "disposable": "disposable", "spamtrap": "spamtrap", "role_account": "unknown"}
 
 
 def _env_enabled(name: str) -> bool:
@@ -361,12 +375,18 @@ async def verify_email(email: str, providers: list[str] | None = None, *, allow_
     if not allow_paid and not explicit:
         return _canonical_email(e,observations)
     async with httpx.AsyncClient(timeout=30,follow_redirects=False) as c:
-        for name in ("hunter","zerobounce","abstract"):
+        for name in EMAIL_PAID_CHEAP:
             if name not in requested: continue
             key=next((x["env_key"] for x in EMAIL_PROVIDERS if x["name"]==name),None)
             if key and not os.getenv(key): continue
             try:
-                if name=="hunter":
+                if name=="millionverifier":
+                    d=(await c.get('https://api.millionverifier.com/api/v3/',params={'api':os.getenv('MILLIONVERIFIER_API_KEY'),'email':e})).json(); o={"provider":name,"tier":2,"status":_STATUS_MAP.get(str(d.get('result','')).lower(),'unknown')}
+                elif name=="emaillistverify":
+                    t=(await c.get('https://apps.emaillistverify.com/api/verifyEmail',params={'secret':os.getenv('EMAILLISTVERIFY_API_KEY'),'email':e})).text.strip().lower(); o={"provider":name,"tier":2,"status":_STATUS_MAP.get(t,'unknown')}
+                elif name=="reoon":
+                    d=(await c.get('https://emailverifier.reoon.com/api/v1/verify',params={'email':e,'key':os.getenv('REOON_API_KEY'),'mode':'quick'})).json(); o={"provider":name,"tier":2,"status":_STATUS_MAP.get(str(d.get('status','')).lower(),'unknown')}
+                elif name=="hunter":
                     d=(await c.get('https://api.hunter.io/v2/email-verifier',params={'email':e,'api_key':os.getenv('HUNTER_API_KEY')})).json().get('data',{}); o={"provider":name,"tier":1,"status":str(d.get('status','unknown')).lower(),"score":d.get('score')}
                 elif name=="zerobounce":
                     d=(await c.get('https://api.zerobounce.net/v2/validate',params={'email':e,'api_key':os.getenv('ZEROBOUNCE_API_KEY')})).json(); o={"provider":name,"tier":1,"status":str(d.get('status','unknown')).lower(),"sub_status":d.get('sub_status'),"disposable":d.get('disposable')}
@@ -374,7 +394,7 @@ async def verify_email(email: str, providers: list[str] | None = None, *, allow_
                     d=(await c.get('https://emailvalidation.abstractapi.com/v1/',params={'api_key':os.getenv('ABSTRACT_API_KEY'),'email':e})).json(); o={"provider":name,"tier":1,"status":"valid" if d.get('is_valid_format',{}).get('value') and d.get('is_smtp_valid',{}).get('value') else "unknown","deliverability":d.get('deliverability'),"quality_score":d.get('quality_score')}
                 if await maybe_return(o): return _canonical_email(e,observations)
             except Exception: continue
-        for name in ("neverbounce","bouncer","kickbox"):
+        for name in EMAIL_PAID_PREMIUM:
             if name not in requested: continue
             key=next((x["env_key"] for x in EMAIL_PROVIDERS if x["name"]==name),None)
             if key and not os.getenv(key): continue
@@ -433,7 +453,7 @@ def phone_local_check(phone: str, country_code: str | None = None) -> dict[str, 
         if not phonenumbers.is_valid_number(num):
             out["status"]="invalid"; out["reason"]="not_valid_for_region"; return out
         t=phonenumbers.number_type(num)
-        out["line_type"]=str(t).split(".")[-1].lower()
+        out["line_type"]=phonenumbers.PhoneNumberType.to_string(t).lower()
         if t in (phonenumbers.PhoneNumberType.PREMIUM_RATE, phonenumbers.PhoneNumberType.SHARED_COST, phonenumbers.PhoneNumberType.VOICEMAIL):
             out["status"]="invalid"; out["reason"]="non_dialable_type"; return out
         out["status"]="valid"; out["confidence"]=70
@@ -479,7 +499,7 @@ async def verify_phone(phone: str, country_code: str | None = None, providers: l
         o=await _phone_randomapi(p,country_code)
         if o: observations.append(o)  # possible/valid shape; not reachability proof
     async with httpx.AsyncClient(timeout=25,follow_redirects=False) as c:
-        for name in ("phonevalidationapi","numbers_online","twilio_lookup","veriphone","abstract","numverify"):
+        for name in ("phonevalidationapi","numbers_online","telnyx","twilio_lookup","veriphone","abstract","numverify"):
             if name not in requested: continue
             key=next((x["env_key"] for x in PHONE_PROVIDERS if x["name"]==name),None)
             if key and not os.getenv(key): continue
@@ -488,6 +508,8 @@ async def verify_phone(phone: str, country_code: str | None = None, providers: l
                     d=(await c.post('https://phonevalidationapi.com/api/v1/validate',headers={'Authorization':f'Bearer {os.getenv("PHONEVALIDATIONAPI_KEY")}'},json={'phone':p,'country':country_code})).json(); o={'provider':name,'tier':0,'status':'valid' if d.get('valid') else 'invalid','confidence':d.get('confidence'),'line_type':d.get('line_type'),'carrier':d.get('carrier')}
                 elif name=="numbers_online":
                     d=(await c.get(os.getenv('NUMBERS_ONLINE_LOOKUP_URL') or 'https://numbers.online/api/lookup',params={'number':p,'api_key':os.getenv('NUMBERS_ONLINE_API_KEY')})).json(); o={'provider':name,'tier':0,'status':'valid' if d.get('valid',True) else 'invalid','line_type':d.get('line_type'),'carrier':d.get('carrier'),'risk':d.get('risk')}
+                elif name=="telnyx":
+                    d=(await c.get('https://api.telnyx.com/v2/number_lookup/'+quote_plus(p),params={'type':'carrier'},headers={'Authorization':f'Bearer {os.getenv("TELNYX_API_KEY")}'})).json().get('data') or {}; cr=d.get('carrier') or {}; o={'provider':name,'tier':2,'status':'valid' if d.get('valid_number',d.get('phone_number')) else 'invalid','line_type':cr.get('type'),'carrier':cr.get('name')}
                 elif name=="twilio_lookup":
                     auth=(os.getenv('TWILIO_ACCOUNT_SID'),os.getenv('TWILIO_AUTH_TOKEN')); params={'CountryCode':country_code} if country_code else {}; d=(await c.get('https://lookups.twilio.com/v2/PhoneNumbers/'+quote_plus(p),params=params,auth=auth)).json(); li=d.get('line_type_intelligence') or {}; o={'provider':name,'tier':1,'status':'valid' if d.get('valid',True) else 'invalid','line_type':li.get('type'),'carrier':li.get('carrier_name'),'phone_number':d.get('phone_number')}
                 elif name=="veriphone":

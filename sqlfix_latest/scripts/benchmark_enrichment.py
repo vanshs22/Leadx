@@ -58,7 +58,7 @@ async def main(location: str, industry: str, n: int, conc: int):
     print(json.dumps({
         "sites": len(sites), "concurrency": conc, "wall_s": round(wall, 1), "cpu_s": round(time.process_time() - c0, 1), "sites_per_s": round(len(sites) / wall, 2),
         "latency_p50_s": round(statistics.median(lat), 1), "latency_p90_s": round(lat[int(0.9 * (len(lat) - 1))], 1), "latency_max_s": round(lat[-1], 1),
-        "enriched_ok_pct": round(100 * len(ok) / len(sites)), "email_pct": round(100 * len(with_email) / len(sites)), "email_or_overture_hint_pct": round(100 * len(with_any) / len(sites)), "phone_pct": round(100 * len(with_phone) / len(sites)),
+        "enriched_ok_pct": round(100 * len(ok) / len(sites)), "email_pct": round(100 * len(with_email) / len(sites)), "email_or_overture_hint_pct": round(100 * len(with_any) / len(sites)), "phone_pct": round(100 * len(with_phone) / len(sites)), "owner_name_pct": round(100 * sum(1 for x in out if x[1].get("owner_name")) / len(sites)),
         "errors": dict(errors.most_common(6)),
     }, indent=1))
 
