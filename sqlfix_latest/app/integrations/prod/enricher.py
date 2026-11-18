@@ -11,6 +11,7 @@ import asyncio
 import html as html_lib
 import json
 import logging
+import os
 import re
 from typing import Optional
 from urllib.parse import urljoin, urlparse
@@ -353,7 +354,7 @@ def _secondary_urls(base_url: str, html: str) -> list[str]:
     return found
 
 
-async def _fetch_secondary_pages(base_url: str, html: str, use_firecrawl_for_secondary: bool = True) -> tuple[str, list[str]]:
+async def _fetch_secondary_pages(base_url: str, html: str, use_firecrawl_for_secondary: bool = False) -> tuple[str, list[str]]:
     urls = _secondary_urls(base_url, html)
     if not urls:
         return '', []
@@ -400,11 +401,8 @@ async def _serper_contact_fallback(name: str, city: Optional[str], domain: Optio
         queries += [f'"{name}"{loc} owner founder manager', f'"{name}"{loc} email contact', f'"{name}"{loc} site:linkedin.com/in']
         emails, owners, social = [], [], {}
         for q in queries[:5]:
-            async def call(key: str):
-                async with httpx.AsyncClient(timeout=20) as client:
-                    r = await client.post('https://google.serper.dev/search', headers={'X-API-KEY': key, 'Content-Type': 'application/json'}, json={'q': q, 'num': 10})
-                    r.raise_for_status(); return (r.json() or {}).get('organic') or []
-            rows = await with_key_rotation('serper', call)
+            from app.integrations.prod.web_search import web_search
+            rows = await web_search(q, max_pages=1)  # SearXNG first, Serper only if SearXNG is unavailable
             for item in rows:
                 blob = ' '.join(str(item.get(k) or '') for k in ('title','snippet','link'))
                 for email in extract_emails(blob):
@@ -447,6 +445,15 @@ def _merge_parsed(base: dict, extra: dict) -> dict:
     base["services"] = list(dict.fromkeys((base.get("services") or []) + (extra.get("services") or [])))
     base["owner_name"] = base.get("owner_name") or extra.get("owner_name")
     return base
+
+
+_JS_SHELL = re.compile(r"(enable javascript|<noscript[^>]*>.{0,200}javascript|id=[\"']root[\"']\s*></div>|id=[\"']__next[\"']\s*></div>|window\.__NUXT__|you need to enable)", re.I | re.S)
+
+
+def _needs_rendering(content: str) -> bool:
+    """True when what we fetched looks like an unrendered page, so a paid renderer could add something."""
+    text = re.sub(r"<[^>]+>", " ", re.sub(r"(?is)<(script|style)[^>]*>.*?</\1>", " ", content or ""))
+    return len(re.sub(r"\s+", " ", text).strip()) < 1200 or bool(_JS_SHELL.search(content or ""))
 
 
 async def enrich_one(website: str, use_crawl4ai: bool = True, use_firecrawl: bool = True, company_name: Optional[str] = None, city: Optional[str] = None) -> dict:
@@ -509,25 +516,8 @@ async def enrich_one(website: str, use_crawl4ai: bool = True, use_firecrawl: boo
         md,
     ) if x)
 
-    # Firecrawl is no longer a dead-end 'last resort'. If the page loaded but
-    # did not yield contact signals, ask Firecrawl for the full page including
-    # footer/navigation. This is exactly where sites like Glow MedSpa expose
-    # phone/email/address information.
     parsed = _parse_content(content, website) if content else {}
-    contact_missing = not parsed.get("email") or not parsed.get("phone_from_web")
-    if use_firecrawl and contact_missing:
-        try:
-            fc = await fetch_firecrawl(website)
-            fc_content = "\n".join(x for x in (fc.get("html"), fc.get("markdown")) if x)
-            if fc_content:
-                content = "\n".join(x for x in (content, fc_content) if x)
-                fc_parsed = _parse_content(fc_content, website)
-                parsed = _merge_parsed(parsed, fc_parsed)
-                if fc.get("ok"):
-                    method_parts.append("firecrawl")
-                    md = md or fc.get("markdown") or ""
-        except Exception as e:
-            logger.debug("firecrawl contact augmentation failed: %s", e)
+    firecrawl_calls = 0
 
     if not content:
         empty["error"] = scrap.get("error") or c4.get("error") or "all_fetchers_failed"
@@ -536,7 +526,7 @@ async def enrich_one(website: str, use_crawl4ai: bool = True, use_firecrawl: boo
     # Crawl high-value internal pages (contact/about/team/services/locations) so
     # enrichment is domain-deep instead of homepage-only.
     try:
-        secondary_html, secondary_urls = await _fetch_secondary_pages(website, html or content, use_firecrawl_for_secondary=use_firecrawl)
+        secondary_html, secondary_urls = await _fetch_secondary_pages(website, html or content, use_firecrawl_for_secondary=use_firecrawl and os.getenv('LEADX_FIRECRAWL_SECONDARY', '0') == '1')
         if secondary_html:
             secondary = _parse_content(secondary_html, website)
             parsed = _merge_parsed(parsed, secondary)
@@ -550,6 +540,24 @@ async def enrich_one(website: str, use_crawl4ai: bool = True, use_firecrawl: boo
         if extra.get("emails"):
             parsed.update({k: v for k, v in extra.items() if v})
             method_parts.append("contact-pages")
+
+    # Firecrawl (paid) is the last local-failure fallback: only after the free crawl, the secondary pages and the
+    # contact pages still left no email/phone AND the page looks unrendered (empty, tiny, or a JS shell), or nothing loaded.
+    # LEADX_FIRECRAWL_MODE=always restores the old "whenever a contact is missing" behaviour.
+    contact_missing = not parsed.get("email") or not parsed.get("phone_from_web")
+    if use_firecrawl and contact_missing and (os.getenv("LEADX_FIRECRAWL_MODE", "fallback") == "always" or _needs_rendering(content)):
+        try:
+            fc = await fetch_firecrawl(website)
+            firecrawl_calls += 1
+            fc_content = "\n".join(x for x in (fc.get("html"), fc.get("markdown")) if x)
+            if fc_content:
+                content = "\n".join(x for x in (content, fc_content) if x)
+                parsed = _merge_parsed(parsed, _parse_content(fc_content, website))
+                if fc.get("ok"):
+                    method_parts.append("firecrawl")
+                    md = md or fc.get("markdown") or ""
+        except Exception as e:
+            logger.debug("firecrawl contact augmentation failed: %s", e)
 
     # Public-search waterfall for missing contact/decision-maker fields. Uses only
     # indexed public results and can be disabled to conserve Serper quota.
@@ -616,6 +624,7 @@ async def enrich_one(website: str, use_crawl4ai: bool = True, use_firecrawl: boo
         "raw_extraction": parsed,
         "enrichment_method": "+".join(dict.fromkeys(method_parts)) or "unknown",
         "enrichment_ok": ok,
+        "firecrawl_calls": firecrawl_calls,
         "error": None if ok else "sparse_extraction",
     }
 

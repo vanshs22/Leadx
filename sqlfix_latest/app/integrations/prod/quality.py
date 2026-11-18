@@ -173,6 +173,8 @@ def passes_quality_gate(
     fields = 0
     if has_email:
         fields += 1
+    if has_phone and require_contact != "email":
+        fields += 1  # a verified phone is real evidence when phone is an acceptable contact; do not demand a website crawl as well
     if lead.get("has_booking") or lead.get("has_online_booking") or lead.get("booking_platform"):
         fields += 1
     if lead.get("services"):

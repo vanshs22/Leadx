@@ -103,6 +103,15 @@ def delivery_replay(tenant_id: UUID, outbox_id: UUID, ctx: TenantContext = Depen
     return {"ok": True, "outbox_id": str(outbox_id), "outbox_state": "pending"}
 
 
+def _optional(fn) -> list:
+    """Ledger tables arrive with migration 48; metrics must still answer on a database that has not applied it yet."""
+    try:
+        return fn() or []
+    except Exception as exc:
+        logger.warning("engine metrics: optional table unavailable (%s)", type(exc).__name__)
+        return []
+
+
 def _ts(v) -> Optional[datetime]:
     try:
         return datetime.fromisoformat(str(v).replace("Z", "+00:00")) if v else None
@@ -141,7 +150,7 @@ def compute_metrics(sb, tenant_id: str, days: int = 30) -> dict:
     has_site = sum(1 for a in assigns if glob.get(str(a["lead_id"]), {}).get("website_domain"))
     credits = sb.table("lead_credits").select("assignment_id").eq("tenant_id", tenant_id).gte("created_at", since).limit(5000).execute().data or []
     returned = len({str(c["assignment_id"]) for c in credits if c.get("assignment_id")})
-    ledger = (sb.table("enrichment_spend_ledger").select("provider,field,credits,hit").eq("tenant_id", tenant_id).gte("created_at", since).limit(20000).execute().data or [])
+    ledger = _optional(lambda: sb.table("enrichment_spend_ledger").select("provider,field,credits,hit").eq("tenant_id", tenant_id).gte("created_at", since).limit(20000).execute().data)
     spend = sum(float(r.get("credits") or 0) for r in ledger)
     by_provider: dict[str, dict] = {}
     for r in ledger:
@@ -155,7 +164,7 @@ def compute_metrics(sb, tenant_id: str, days: int = 30) -> dict:
     t_deliver = [(_ts(a["delivered_at"]) - _ts(a["created_at"])).total_seconds() for a in assigns if _ts(a.get("delivered_at")) and _ts(a.get("created_at"))]
     t_found = [(_ts(a["created_at"]) - _ts(glob[str(a["lead_id"])]["created_at"])).total_seconds() for a in assigns
                if str(a.get("lead_id")) in glob and _ts(glob[str(a["lead_id"])].get("created_at")) and _ts(a.get("created_at"))]
-    review = sb.table("lead_review_queue").select("status").eq("tenant_id", tenant_id).gte("created_at", since).limit(5000).execute().data or []
+    review = _optional(lambda: sb.table("lead_review_queue").select("status").eq("tenant_id", tenant_id).gte("created_at", since).limit(5000).execute().data)
     return {
         "window_days": days, "assigned": n,
         "delivered": sum(1 for a in assigns if a.get("delivered_at")),

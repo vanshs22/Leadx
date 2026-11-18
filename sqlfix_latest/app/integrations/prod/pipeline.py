@@ -662,6 +662,7 @@ async def run_pipeline_parallel_target(
             reason = "; ".join(str(item) for item in (why or ["quality_gate_rejected"]))
             lead["_stage_status"] = "rejected"
             lead["_stage_reason"] = reason
+            logger.info("[%s] gate rejected %r tier=%s score=%s: %s", run_id[:8], str(lead.get("name") or "")[:40], lead.get("tier"), lead.get("score"), reason)
             from app.integrations.prod.review_queue import is_recoverable
             if is_recoverable(score_ok=score_ok, legacy_ok=legacy_ok, legacy_reason=str(_reason), intel_ok=intel_ok,
                               intel_reasons=list(intel_gate.get("reasons") or [])):
@@ -746,6 +747,11 @@ async def run_pipeline_parallel_target(
                             timeout=enrichment_timeout_seconds,
                         )
                         result = (done or [lead])[0]
+                        if result.get("firecrawl_calls"):  # paid scrape: count it toward the run budget and cost per lead
+                            from app.integrations.prod import waterfall_runtime as _wf
+                            _wf.charge(str(run_id), float(result["firecrawl_calls"]))
+                            await _wf.ledger(str(tenant_id), str(run_id), result, "firecrawl", "page", float(result["firecrawl_calls"]),
+                                             bool(result.get("email") or result.get("phone_from_web")))
                     except Exception as exc:
                         logger.warning("[%s] enrich worker %s failed: %s", run_id[:8], worker_id, type(exc).__name__)
                         result = _mark_enrichment_failure(
@@ -825,9 +831,12 @@ async def run_pipeline_parallel_target(
                 # candidates; only release Tier B fallback after the A supply is
                 # known to be exhausted. This is a preference, never a gate bypass.
                 if str(lead.get("tier") or "C").upper() == "B" and assigned_n < tier_a_target and not discovery_done.is_set():
-                    await asyncio.sleep(0.05)
-                    await assignment_queue.put((_priority, _score, _lead_key, lead))
-                    continue
+                    # The hold is a preference for Tier A, bounded in time so a slow discovery tail never starves delivery.
+                    held_since = lead.setdefault("_tier_b_hold_since", time.monotonic())
+                    if time.monotonic() - held_since < float(os.getenv("LEADX_TIER_B_HOLD_SECONDS", "45")):
+                        await asyncio.sleep(0.05)
+                        await assignment_queue.put((_priority, _score, _lead_key, lead))
+                        continue
                 if stop_event.is_set() or not lead.get("id") or not _execution_allows_write(execution_context):
                     continue
 
