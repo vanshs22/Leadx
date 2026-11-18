@@ -14,6 +14,7 @@ from html.parser import HTMLParser
 from typing import Any, Optional
 from urllib.parse import parse_qs, urljoin, urlsplit
 
+from app.integrations.prod.utils import normalize_email
 from app.integrations.prod.field_extract import _email_ok, _walk_ld, classify_social
 
 
@@ -242,8 +243,8 @@ def parse_directory_page(html: str, page_url: str) -> dict:
         rec.pop("_ld", None)
         for k in ("phone", "email", "website", "address", "detail_url"):
             rec.setdefault(k, None)
-        if rec.get("email") and not _email_ok(rec["email"], _host(rec.get("website") or ""))[0]:
-            rec["email"] = None
+        email = normalize_email(rec.get("email"))
+        rec["email"] = email if email and _email_ok(email, _host(rec.get("website") or ""))[0] else None
     return {"businesses": out, "next_url": _next_url(root, page_url)}
 
 

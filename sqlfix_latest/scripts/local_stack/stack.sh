@@ -32,6 +32,11 @@ GW_PID=$!
 for i in $(seq 1 40); do curl -sf "http://127.0.0.1:$RESTPORT/" -H "apikey: $SERVICE_JWT" >/dev/null && break; sleep 0.5; done
 export STRIPE_SECRET_KEY=sk_test_local_fake STRIPE_WEBHOOK_SECRET=whsec_local_fake STRIPE_API_BASE=http://127.0.0.1:54360 STRIPE_PRICE_STARTER_MONTHLY=price_starter_m STRIPE_PRICE_GROWTH_MONTHLY=price_growth_m STRIPE_PRICE_GROWTH_ANNUAL=price_growth_a STRIPE_PRICE_AGENCY_MONTHLY=price_agency_m CORS_ORIGINS="http://127.0.0.1:${PORTALPORT:-3000},http://localhost:${PORTALPORT:-3000}" LEADX_EMAIL_VALIDATOR_URL="http://127.0.0.1:54340/" LEADX_SMTP_PROBE=0 ALLOW_PRIVATE_OUTBOUND=1 LEADX_DEBUG_TRACEBACKS=1 ENVIRONMENT=development SUPABASE_URL="http://127.0.0.1:$GWPORT" SUPABASE_SERVICE_KEY="$SERVICE_JWT" SUPABASE_ANON_KEY="$SERVICE_JWT" \
   SUPABASE_JWT_SECRET="$JWT_SECRET" LEAD_ENGINE_SERVICE_KEY="local-engine-service-key-0123456789abcdef" API_URL="http://127.0.0.1:$APIPORT" PGPORT TOOLS PB
+if [ "${WITH_SEARXNG:-0}" = 1 ]; then  # optional self-hosted SearXNG (see README); discovery falls back to Serper when unset
+  ("$TOOLS/sx_run.sh" >"$TOOLS/searxng.out" 2>&1 </dev/null) &
+  export SEARXNG_URL="http://127.0.0.1:${SEARXNG_PORT:-18888}"
+  for i in $(seq 1 60); do curl -sf "$SEARXNG_URL/search?q=ping&format=json" >/dev/null && break; sleep 1; done
+fi
 (cd "$ROOT" && exec "$PY" -m uvicorn app.app_service:app --host 0.0.0.0 --port "$APIPORT" --log-level warning >"$TOOLS/api.log" 2>&1 </dev/null) &
 API_PID=$!
 (cd "$ROOT" && exec "$PY" -m app.worker --concurrency "${WORKER_CONCURRENCY:-4}" >"$TOOLS/worker.log" 2>&1 </dev/null) &

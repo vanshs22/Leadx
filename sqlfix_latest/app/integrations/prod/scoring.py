@@ -67,8 +67,9 @@ def score_lead_v3(
     # Email — full points only when SMTP/provider evidence confirms deliverability.
     email_invalid = lead.get("email_valid") is False
     email_verified = bool(lead.get("email_smtp_verified") or lead.get("email_provider_verified")) and not email_invalid
-    verification_status = str(lead.get("email_verification_status") or "").lower()
-    email_verified = email_verified or verification_status in {"valid", "deliverable"}
+    verification_status = str(lead.get("email_verification_status") or lead.get("email_status") or "").lower()
+    email_invalid = email_invalid or verification_status in {"invalid", "undeliverable", "do_not_mail", "disposable", "spamtrap"}
+    email_verified = (email_verified or verification_status in {"valid", "deliverable"}) and not email_invalid
     catch_all = bool(lead.get("email_catch_all") or str(lead.get("email_risk") or "").lower() == "catch_all")
     if lead.get("email") and email_verified and not catch_all:
         parts["email"] = 22
@@ -165,3 +166,29 @@ def score_lead_v3(
         tier = "C"
 
     return score, tier, "; ".join(reasons), parts
+
+
+_FIT_PARTS = ("services", "reviews", "booking")
+_REACH_PARTS = ("website", "phone", "email", "owner", "social")
+_REACH_MAX = 12 + 16 + 22 + 6 + 4
+_FIT_MAX = 10 + 14 + 14
+_LABELS = {"website": "has a website", "phone": "phone number", "email": "email", "booking": "online booking", "reviews": "review strength",
+           "services": "matches the vertical", "owner": "named owner", "social": "social presence"}
+
+
+def score_breakdown(parts: dict, lead: dict, total: int, mult: float = 1.0) -> dict:
+    """Split the blended score into fit, reachability and timing (each 0-100) plus the top 3 reasons for the score.
+
+    fit          how well the business matches the vertical and looks like a buyer (services, reviews, booking)
+    reachability how easily we can contact it (verified email/phone, website, owner, social)
+    timing       how fresh the evidence is, blended with buying-intent signals when present
+    """
+    fit = round(100 * sum(max(0, parts.get(k, 0)) for k in _FIT_PARTS) / _FIT_MAX)
+    reach = round(100 * sum(max(0, parts.get(k, 0)) for k in _REACH_PARTS) / _REACH_MAX)
+    intent = lead.get("intent_score")
+    timing = round(100 * mult) if intent in (None, "", 0) else round((100 * mult + min(100, int(intent))) / 2)
+    ranked = sorted(((v, k) for k, v in parts.items() if v > 0 and k in _LABELS), reverse=True)[:3]
+    reasons = [f"+{v} {_LABELS[k]}" for v, k in ranked]
+    if mult < 0.9:
+        reasons.append(f"evidence is aging (x{mult:.2f})")
+    return {"fit": min(100, fit), "reachability": min(100, reach), "timing": min(100, timing), "score": total, "top_reasons": reasons[:3]}

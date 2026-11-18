@@ -286,8 +286,11 @@ async def _get_json(url: str, **kwargs) -> dict[str, Any]:
         return {"_error":type(exc).__name__}
 
 
-async def verify_email(email: str, providers: list[str] | None = None) -> dict[str, Any]:
-    """Production free-first cascade: local -> free-plan -> paid fallback."""
+async def verify_email(email: str, providers: list[str] | None = None, *, allow_paid: bool = True) -> dict[str, Any]:
+    """Production free-first cascade: local -> free-plan -> paid fallback.
+
+    ``allow_paid=False`` stops after the local tiers (syntax, MX, validator, SMTP probe); the pipeline uses it before
+    the quality gate so paid verifiers are only paid for leads that are about to be delivered."""
     from app.integrations.prod.discovery_runtime import local_validation_mode
     if local_validation_mode():
         base = email_local_check(email)
@@ -330,6 +333,8 @@ async def verify_email(email: str, providers: list[str] | None = None) -> dict[s
                 if await maybe_return(probe): return _canonical_email(e,observations)
         except Exception as exc:
             logger.warning("local SMTP probe failed for a lead: %s", exc)
+    if not allow_paid and not explicit:
+        return _canonical_email(e,observations)
     async with httpx.AsyncClient(timeout=30,follow_redirects=False) as c:
         for name in ("hunter","zerobounce","abstract"):
             if name not in requested: continue

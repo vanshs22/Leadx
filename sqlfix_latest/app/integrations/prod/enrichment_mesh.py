@@ -541,71 +541,91 @@ async def enrich_with_free_mesh(lead: dict[str, Any], *, use_crawl4ai: bool = Tr
 
 async def enrich_with_paid_connectors(lead: dict[str, Any], wanted: list[str], *, max_providers: int = 20,
                                       execution_context: ProviderExecutionContext | None = None) -> dict[str, Any]:
-    """Paid stage: Serper web research, native Apollo/Hunter, then opt-in connectors."""
+    """Paid stage: Serper web research, native Apollo/Hunter, then opt-in connectors.
+
+    Providers run in learned order (expected hits per credit), skip fields they already missed for this lead
+    (negative cache), stop at the run's credit cap, and every attempt lands in the spend ledger.
+    """
+    from app.integrations.prod import waterfall_runtime as wf
     from app.integrations.prod.discovery_runtime import assert_provider_allowed
     if __import__("app.integrations.prod.discovery_runtime", fromlist=["local_validation_mode"]).local_validation_mode():
         assert_provider_allowed("paid_enrichment")
     results = {"patch": {}, "audit": {}, "credits_spent": 0.0, "providers_attempted": []}
     work = dict(lead)
+    tenant_id = str(getattr(execution_context, "tenant_id", "") or lead.get("tenant_id") or "")
+    run_id = str(getattr(execution_context, "run_id", "") or "")
+    region = str(getattr(execution_context, "region", "") or "global")
+    vertical = str(getattr(execution_context, "vertical", "") or lead.get("industry") or "global")
 
     if execution_context and execution_context.cancelled():
         raise ProviderCancelled()
-    # Paid search is useful for fields that databases may miss, but only after the
-    # free site/crawl mesh has had a chance to fill them.
+
+    # (audit name, provider name, env key or None, prior hit rate, cost, caller)
+    # Priors keep the historical order (serper, apollo, hunter, then the catalog) until real hit rates exist.
+    candidates: list[dict[str, Any]] = []
     if os.getenv("SERPER_API_KEY") and _provider_endpoint("serper"):
-        missing = [f for f in wanted if _field_missing(work, f)]
-        if missing:
-            try:
-                data = await execute_provider(
-                    "serper_enrichment", lambda: _native_serper(work, missing),
-                    context=execution_context, timeout_s=45,
-                )
-                results["providers_attempted"].append("serper_enrichment")
-                results["audit"]["serper_enrichment"] = {"status": "ok", "fields_requested": missing}
-                _merge_provider_fields(results, work, missing, data, "serper_enrichment", 0.64)
-                if data.get("_evidence_urls"):
-                    results["patch"]["enrichment_evidence_urls"] = data["_evidence_urls"][:20]
-            except Exception as exc:
-                results["audit"]["serper_enrichment"] = {"status": "error", "error": type(exc).__name__}
-
-    # Native documented APIs before generic connectors.
-    for name, fn in (("apollo", _native_apollo), ("hunter", _native_hunter)):
+        candidates.append({"name": "serper_enrichment", "prior": 0.40, "cost": 0.3, "conf": 0.64,
+                           "call": lambda m: _native_serper(work, m), "native": True})
+    for name, fn, prior in (("apollo", _native_apollo, 0.38), ("hunter", _native_hunter, 0.36)):
         key = os.getenv("APOLLO_API_KEY" if name == "apollo" else "HUNTER_API_KEY")
-        if not key or not _provider_endpoint(name):
-            continue
-        missing = [f for f in wanted if _field_missing(work, f)]
-        if not missing:
-            break
-        try:
-            if execution_context and execution_context.cancelled():
-                raise ProviderCancelled()
-            data = await execute_provider(
-                name, lambda: fn(work, missing), context=execution_context, timeout_s=45,
-            )
-            results["providers_attempted"].append(name)
-            results["audit"][name] = {"status": "ok", "fields_requested": missing}
-            _merge_provider_fields(results, work, missing, data, name, 0.78)
-        except Exception as exc:
-            results["audit"][name] = {"status": "error", "error": type(exc).__name__}
+        if key and _provider_endpoint(name):
+            candidates.append({"name": name, "prior": prior, "cost": 1.0, "conf": 0.78,
+                               "call": (lambda m, _fn=fn: _fn(work, m)), "native": True})
+    generic = [p for p in configured_enrichment_providers()
+               if _provider_endpoint(p.name) and p.name not in {"apollo", "hunter", "serper"}]
+    for spec in sorted(generic, key=lambda p: (getattr(p, "cost", 1.0), p.name))[:max_providers]:
+        candidates.append({"name": spec.name, "prior": 0.30, "cost": float(getattr(spec, "cost", 1.0) or 1.0), "conf": 0.72,
+                           "call": (lambda m, _s=spec: _generic_connector(_s, work, m, execution_context=execution_context)), "native": False})
 
-    # Finally use explicit generic connector endpoints for the broad catalog.
-    specs = [p for p in configured_enrichment_providers() if _provider_endpoint(p.name) and p.name not in {"apollo", "hunter", "serper"}]
-    specs = sorted(specs, key=lambda p: (p.cost, p.name))[:max_providers]
-    for spec in specs:
+    lead_field = next((f for f in wanted if _field_missing(work, f)), wanted[0] if wanted else "email")
+    for cand in wf.order_providers(candidates, lead_field):
+        name = cand["name"]
         missing = [f for f in wanted if _field_missing(work, f)]
         if not missing:
             break
         if execution_context and execution_context.cancelled():
             raise ProviderCancelled()
-        data = await _generic_connector(spec, work, missing, execution_context=execution_context)
-        results["providers_attempted"].append(spec.name)
-        results["audit"][spec.name] = {"fields_requested": missing, "status": "error" if data.get("_error") else "ok", "error": data.get("_error")}
-        if data.get("_error"):
+        known_miss = await wf.cached_misses(work, name, missing)
+        missing = [f for f in missing if f not in known_miss]
+        if not missing:
+            results["audit"][name] = {"status": "skipped", "reason": "negative_cache"}
             continue
-        _merge_provider_fields(
-            results, work, missing, data, spec.name,
-            float(data.get("_default_confidence") or 0.72),
-        )
+        if not wf.budget_allows(run_id, tenant_id, cand["cost"]):
+            results["audit"][name] = {"status": "skipped", "reason": "run_credit_cap"}
+            continue
+        t0 = time.monotonic()
+        try:
+            data = await (execute_provider(name, lambda m=missing: cand["call"](m), context=execution_context, timeout_s=45)
+                          if cand["native"] else cand["call"](missing))
+        except ProviderCancelled:
+            raise
+        except Exception as exc:
+            if not cand["native"]:
+                raise
+            results["audit"][name] = {"status": "error", "error": type(exc).__name__}
+            wf.record_outcome(name, lead_field, hit=False, cost=0.0, latency_ms=int((time.monotonic() - t0) * 1000), failed=True,
+                              region=region, vertical=vertical)
+            continue
+        latency = int((time.monotonic() - t0) * 1000)
+        results["providers_attempted"].append(name)
+        failed = bool(data.get("_error"))
+        results["audit"][name] = {"fields_requested": missing, "status": "error" if failed else "ok",
+                                  **({"error": data.get("_error")} if failed else {})}
+        if failed:
+            wf.record_outcome(name, lead_field, hit=False, cost=0.0, latency_ms=latency, failed=True, region=region, vertical=vertical)
+            continue
+        before = set(results["patch"])
+        _merge_provider_fields(results, work, missing, data, name, float(data.get("_default_confidence") or cand["conf"]))
+        if name == "serper_enrichment" and data.get("_evidence_urls"):
+            results["patch"]["enrichment_evidence_urls"] = data["_evidence_urls"][:20]
+        cost = cand["cost"]
+        results["credits_spent"] += cost
+        wf.charge(run_id, cost)
+        got = [f for f in missing if f in results["patch"] and f not in before]
+        for f in missing:
+            wf.record_outcome(name, f, hit=f in got, cost=cost / len(missing), latency_ms=latency, region=region, vertical=vertical)
+            await wf.ledger(tenant_id, run_id, work, name, f, cost / len(missing), f in got)
+        await wf.record_misses(work, name, [f for f in missing if f not in got])
     return results
 
 

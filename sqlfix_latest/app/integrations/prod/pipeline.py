@@ -17,7 +17,7 @@ from uuid import uuid4
 from app.memory.supabase_client import get_supabase
 from app.layers.discovery_layer import discover_for_pipeline as discover_leads
 from app.layers.enrichment_layer import enrich_for_pipeline as enrich_batch
-from app.layers.scoring_layer import score as score_lead, gate as passes_quality_gate
+from app.layers.scoring_layer import score as score_lead, score_detailed as score_lead_detailed, gate as passes_quality_gate
 from app.layers.persistence_layer import record_stage_transition
 from app.services.delivery import deliver_batch
 from app.integrations.prod.quality import assign_lead, quota_remaining, shared_pool_admission
@@ -161,7 +161,7 @@ def _load_global_inventory_candidates(tenant_id: str, vertical: str, geo: list, 
         q = sb.table("leads_global").select("*")
         category = (vertical or "").strip().lower()
         if category:
-            q = q.ilike("category", f"%{category}%")
+            q = q.ilike("category", f"*{category}*")
         locations = geo or []
         cities, states = [], []
         for loc in locations:
@@ -337,11 +337,10 @@ async def run_pipeline_parallel_target(
         if begin is None:
             return
         end = time.monotonic()
-        stage_timings[name] = {
-            "start_ms": round(max(0.0, (begin - run_clock) * 1000), 3),
-            "end_ms": round(max(0.0, (end - run_clock) * 1000), 3),
-            "duration_ms": round(max(0.0, (end - begin) * 1000), 3),
-        }
+        start_ms = round(max(0.0, (begin - run_clock) * 1000), 3)
+        end_ms = round(max(0.0, (end - run_clock) * 1000), 3)
+        # duration comes from the rounded bounds: rounding it separately could exceed end-start by more than the validator's tolerance
+        stage_timings[name] = {"start_ms": start_ms, "end_ms": end_ms, "duration_ms": round(end_ms - start_ms, 3)}
 
     def _close_open_stages() -> None:
         for name in tuple(stage_clock):
@@ -524,11 +523,19 @@ async def run_pipeline_parallel_target(
     stop_reason = "in_progress"
     reconciliation = {"status": "pending", "assignment_confirmed": 0, "source": "assignment_ids"}
 
+    from app.integrations.prod.tenant_policy import contact_ok as _policy_contact_ok, gate_arg as _policy_gate_arg, load_policy as _load_policy
+    tenant_pol = await asyncio.to_thread(_load_policy, tenant_id)
+
     def _has_contact(lead: dict) -> bool:
-        from app.integrations.prod.contact_state import email_level, phone_ok
+        from app.integrations.prod.contact_state import email_level
         if require_verified_email:
             return email_level(lead) == "valid"
-        return email_level(lead) is not None or phone_ok(lead)
+        return _policy_contact_ok(lead, tenant_pol)
+
+    async def _send_to_review(lead: dict, reasons: list[str]) -> None:
+        """Park a good-fit lead that failed only on contactability, instead of discarding it."""
+        from app.integrations.prod.review_queue import enqueue
+        await asyncio.to_thread(enqueue, str(tenant_id), lead, str(run_id), reasons)
 
     async def _snapshot() -> tuple[int, int, int, int, int, int, int]:
         async with state_lock:
@@ -618,7 +625,7 @@ async def run_pipeline_parallel_target(
                 supabase=get_supabase(),
             )
         try:
-            s, t, r = score_lead(lead, vertical)
+            s, t, r, lead["score_breakdown"] = score_lead_detailed(lead, vertical)
             lead["score"], lead["tier"], lead["score_reason"] = s, t, r
         except Exception:
             s = int(lead.get("score") or 0)
@@ -642,7 +649,7 @@ async def run_pipeline_parallel_target(
         async with state_lock:
             enriched_n += 1
 
-        legacy_ok, _reason = passes_quality_gate(lead, allow_tier_b=allow_tier_b, allow_tier_c=allow_tier_c)
+        legacy_ok, _reason = passes_quality_gate(lead, allow_tier_b=allow_tier_b, allow_tier_c=allow_tier_c, require_contact=_policy_gate_arg(tenant_pol))
         intel_gate = lead.get("quality_gate") or {}
         intel_ok = bool(intel_gate.get("eligible")) if intel_gate else False
         contact_ok = _has_contact(lead)
@@ -655,6 +662,11 @@ async def run_pipeline_parallel_target(
             reason = "; ".join(str(item) for item in (why or ["quality_gate_rejected"]))
             lead["_stage_status"] = "rejected"
             lead["_stage_reason"] = reason
+            from app.integrations.prod.review_queue import is_recoverable
+            if is_recoverable(score_ok=score_ok, legacy_ok=legacy_ok, legacy_reason=str(_reason), intel_ok=intel_ok,
+                              intel_reasons=list(intel_gate.get("reasons") or [])):
+                lead["_needs_review"] = True
+                await _send_to_review(lead, why or ["no_verified_contact"])
             async with state_lock:
                 for w in (why or ["unknown"]): gate_rejections[str(w)] = gate_rejections.get(str(w), 0) + 1
             if lid:
@@ -831,6 +843,16 @@ async def run_pipeline_parallel_target(
 
                 if not _execution_allows_write(execution_context):
                     continue
+                from app.integrations.prod.lead6_runtime import final_verify_for_delivery
+                final_ok, final_reason = await final_verify_for_delivery(lead, tenant_pol, tenant_id=str(tenant_id), run_id=str(run_id))
+                if not final_ok:
+                    assignment_blockers[final_reason] = assignment_blockers.get(final_reason, 0) + 1
+                    await _send_to_review(lead, [final_reason])
+                    async with state_lock:
+                        if reservation_taken:
+                            reserved_assignments = max(0, reserved_assignments - 1)
+                            reservation_taken = False
+                    continue
                 begin_agent_stage(agent_context, "routing", "assignment_policy")
                 begin_agent_stage(agent_context, "crm", "assignment_projection")
                 result = await assign_lead(
@@ -964,6 +986,11 @@ async def run_pipeline_parallel_target(
             fresh, _, _ = await filter_blocked_leads(tenant_id, fresh)
         except Exception as exc:
             logger.debug("non-fatal fallback exception: %s", exc)
+        if fresh and tenant_pol.get("skip_known_crm", True):
+            from app.integrations.prod.crm_known import filter_known
+            fresh, crm_skipped = await asyncio.to_thread(filter_known, str(tenant_id), fresh)
+            if crm_skipped:
+                gate_rejections["already_in_tenant_crm"] = gate_rejections.get("already_in_tenant_crm", 0) + crm_skipped
         if not fresh or stop_event.is_set():
             return
 
@@ -1043,7 +1070,7 @@ async def run_pipeline_parallel_target(
         await _progress("discover", f"Streaming discovery: {discovered_n} candidates; {assigned_n}/{slots_cap} assigned", force=False)
 
     async def _discovery_producer() -> None:
-        nonlocal rounds_used, current_tranche, refill_used, stop_reason
+        nonlocal rounds_used, current_tranche, refill_used, stop_reason, discovery_telemetry
         _stage_begin("discovery")
         begin_agent_stage(agent_context, "prospecting", "request_normalization")
         finish_agent_stage(agent_context, "prospecting", "request_normalization", summary={"vertical": vertical, "locations": len(geo), "target": slots_cap})
@@ -1067,7 +1094,19 @@ async def run_pipeline_parallel_target(
                 tenant_id, vertical, geo, max(discover_target, queue_size)
             )
             if inventory:
-                await _prepare_discovered_batch(inventory[:discover_target])
+                # Inventory is authoritative when it covers the target with headroom for gate rejections:
+                # admit enough of it, let it drain through enrich/gate/assign, and only then discover for the shortfall.
+                authoritative = os.getenv("LEADX_INVENTORY_FIRST_AUTHORITATIVE", "1") == "1"
+                need = int(slots_cap * float(os.getenv("LEADX_INVENTORY_HEADROOM", "1.5")))
+                covers = authoritative and len(inventory) >= need
+                await _prepare_discovered_batch(inventory[:max(discover_target, need) if authoritative else discover_target])
+                if covers:
+                    try:
+                        await asyncio.wait_for(asyncio.gather(enrich_queue.join(), assignment_queue.join()),
+                                               timeout=float(os.getenv("LEADX_INVENTORY_DRAIN_SECONDS", "300")))
+                    except asyncio.TimeoutError:
+                        logger.warning("[%s] inventory drain timed out; continuing with live discovery", run_id[:8])
+                    discovery_telemetry["inventory_first"] = {"candidates": len(inventory), "covered_target": True}
 
             round_limit = min(max(1, int(max_rounds or 1)), small_target_round_limit)
             for round_i in range(1, round_limit + 1):
@@ -1645,6 +1684,9 @@ async def run_pipeline(
         "target_mode": requested_target > 0,
         "meta": {"stage": "starting", "message": "Pipeline started", "campaign_mode": campaign_mode},
     }
+    from app.integrations.prod.tenant_policy import gate_arg as _gate_arg, load_policy as _load_policy_legacy
+    _legacy_gate_contact = _gate_arg(await asyncio.to_thread(_load_policy_legacy, tenant_id))
+
     async def _pipeline_db(builder):
         last_error = None
         for attempt in range(3):
@@ -2118,7 +2160,7 @@ async def run_pipeline(
             stage0 = "enriched" if lead.get("enrichment_ok") else "discovered"
             await _board_upsert(run_id, lead_id, tenant_id, stage0, lead, position=stored, execution_context=execution_context)
 
-            legacy_ok, reason = passes_quality_gate(lead, allow_tier_b=allow_tier_b, allow_tier_c=allow_tier_c)
+            legacy_ok, reason = passes_quality_gate(lead, allow_tier_b=allow_tier_b, allow_tier_c=allow_tier_c, require_contact=_legacy_gate_contact)
             intel_gate = lead.get("quality_gate") or {}
             intel_ok = bool(intel_gate.get("eligible")) if intel_gate else False
             if not legacy_ok or not intel_ok:
@@ -2356,7 +2398,7 @@ async def run_pipeline(
                         lead = await prepare_lead(lead, tenant_id=tenant_id, industry=vertical, icp={"industries":[vertical]}, reps=[])
                     except Exception as e:
                         logger.warning("LeadX 7.0 fill intelligence stage: %s", e)
-                    legacy_ok, reason = passes_quality_gate(lead, allow_tier_b=allow_tier_b, allow_tier_c=allow_tier_c)
+                    legacy_ok, reason = passes_quality_gate(lead, allow_tier_b=allow_tier_b, allow_tier_c=allow_tier_c, require_contact=_legacy_gate_contact)
                     intel_gate = lead.get("quality_gate") or {}
                     intel_ok = bool(intel_gate.get("eligible")) if intel_gate else False
                     if not legacy_ok or not intel_ok:

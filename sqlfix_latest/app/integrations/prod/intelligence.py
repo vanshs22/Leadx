@@ -102,7 +102,7 @@ def run_saved_search(saved_search_id: str) -> dict:
     filters = s.get("filters") or {}
     q = _sb().table("leads_global").select("id,name,website,city,state,business_status,google_rating,review_count").limit(500)
     if filters.get("vertical"):
-        q = q.ilike("category", f"%{filters['vertical']}%")
+        q = q.ilike("category", f"*{filters['vertical']}*")
     if filters.get("state"):
         q = q.ilike("state", filters["state"])
     if filters.get("city"):

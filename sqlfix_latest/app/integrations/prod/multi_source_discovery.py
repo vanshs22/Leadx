@@ -701,7 +701,8 @@ async def discover_multi_source(
                         batch = await osm_exhaustive(industry, location)
                     else:  # open data + registries + directories + OSM, merged
                         from app.integrations.prod.free_discovery import discover_free
-                        batch = await discover_free(industry, location)
+                        want = int(target or budgets.get("maps", 40) or 40)  # candidates wanted per location; keep ~15x so gates have room to reject
+                        batch = await discover_free(industry, location, limit=max(100, want * 15))
                 except Exception as exc:
                     failure = typed_route_error(exc, fallback_reason="osm_failure")
                     route_events.append(_route_event(cell, event="failed", invoked=True, failure=failure))

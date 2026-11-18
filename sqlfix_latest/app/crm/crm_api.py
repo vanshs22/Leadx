@@ -458,9 +458,9 @@ async def list_leads(
         if tag:
             q = q.contains("tags", [tag])
         if search:
-            q = q.ilike("company_name", f"%{search}%")
+            q = q.ilike("company_name", f"*{search}*")
         if city:
-            q = q.ilike("city", f"%{city}%")
+            q = q.ilike("city", f"*{city}*")
         if state:
             q = q.ilike("state", state)
         if term:

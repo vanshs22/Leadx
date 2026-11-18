@@ -9,6 +9,7 @@ Disable one source with LEADX_FREE_SOURCES (comma list, default: overture,nppes,
 from __future__ import annotations
 
 import asyncio
+import inspect
 import logging
 import os
 import re
@@ -18,7 +19,7 @@ from app.integrations.prod.entity_resolution import resolve_entities
 from app.integrations.prod import exhaustive_discovery
 from app.integrations.prod.exhaustive_discovery import _normalize
 from app.integrations.prod.field_extract import _email_ok, classify_social
-from app.integrations.prod.utils import extract_domain
+from app.integrations.prod.utils import extract_domain, normalize_email
 
 logger = logging.getLogger("lead_engine.free_discovery")
 
@@ -38,7 +39,7 @@ def _row(raw: dict, industry: str, location: str, sub: str) -> Optional[dict]:
         return None
     row["sources_hit"] = ["osm", sub]
     row["source_ids"] = {**row.get("source_ids", {}), sub: str(raw.get("id") or raw.get("detail_url") or "")}
-    email = (raw.get("email") or "").strip().lower()
+    email = normalize_email(raw.get("email"))
     if email and _email_ok(email, extract_domain(row.get("website") or "") or "")[0]:
         row["email"] = email
         row["email_source"] = sub
@@ -59,9 +60,9 @@ def _row(raw: dict, industry: str, location: str, sub: str) -> Optional[dict]:
     return row
 
 
-async def _directories(industry: str, location: str) -> list[dict]:
+async def _directories(industry: str, location: str, sink: Optional[list] = None) -> list[dict]:
     from app.integrations.prod.directory_discovery import discover_directories
-    return await discover_directories(industry, location)
+    return await discover_directories(industry, location, sink=sink)
 
 
 async def _overture(industry: str, location: str) -> list[dict]:
@@ -89,17 +90,42 @@ SOURCES: dict[str, Callable[[str, str], Awaitable[list[dict]]]] = {
 }
 
 
-async def discover_free(industry: str, location: str, *, stats: Optional[dict[str, Any]] = None) -> list[dict]:
-    """All free sources for one (industry, location), merged. ``stats`` receives per-source counts/errors."""
+async def discover_free(industry: str, location: str, *, stats: Optional[dict[str, Any]] = None, budget_seconds: Optional[float] = None,
+                        limit: Optional[int] = None) -> list[dict]:
+    """All free sources for one (industry, location), merged. ``stats`` receives per-source counts/errors.
+
+    Sources run concurrently under a time budget (LEADX_FREE_DISCOVERY_SECONDS, default 90). Fast sources (open data,
+    registries) finish in seconds; slow crawls are cut off at the budget and keep whatever they had found so far.
+    ``limit`` keeps the best candidates only (corroborated by several sources, then reachable by email/website/phone), so a small
+    target never floods persistence with thousands of rows it will not use. Default LEADX_FREE_DISCOVERY_MAX_ROWS (1500).
+    """
     enabled = [s.strip() for s in os.getenv("LEADX_FREE_SOURCES", ",".join(ALL_SOURCES)).split(",") if s.strip() in SOURCES]
-    results = await asyncio.gather(*[SOURCES[s](industry, location) for s in enabled], return_exceptions=True)
+    budget = budget_seconds if budget_seconds is not None else float(os.getenv("LEADX_FREE_DISCOVERY_SECONDS", "90"))
+    sinks: dict[str, list] = {s: [] for s in enabled}
+
+    async def _run(name: str):
+        fn = SOURCES[name]
+        if "sink" in inspect.signature(fn).parameters:
+            return await fn(industry, location, sink=sinks[name])
+        return await fn(industry, location)
+
+    tasks = {name: asyncio.create_task(_run(name)) for name in enabled}
+    done, pending = await asyncio.wait(tasks.values(), timeout=budget)
+    for t in pending:
+        t.cancel()
+    await asyncio.gather(*pending, return_exceptions=True)
     rows: list[dict] = []
-    for name, res in zip(enabled, results):
-        if isinstance(res, Exception):
-            logger.warning("free source %s failed: %s", name, type(res).__name__)
+    for name, task in tasks.items():
+        timed_out = task in pending
+        if timed_out:
+            res = sinks[name]  # partial results gathered before the budget ran out
+        elif task.exception():
+            logger.warning("free source %s failed: %s", name, type(task.exception()).__name__)
             if stats is not None:
-                stats[name] = {"error": type(res).__name__}
+                stats[name] = {"error": type(task.exception()).__name__}
             continue
+        else:
+            res = task.result()
         if name == "osm":
             for r in res:
                 r["sources_hit"] = ["osm"]
@@ -108,8 +134,14 @@ async def discover_free(industry: str, location: str, *, stats: Optional[dict[st
             made = [r for r in (_row(raw, industry, location, name if name != "directories" else f"dir:{raw.get('directory', 'web')}") for raw in res) if r]
         rows += made
         if stats is not None:
-            stats[name] = {"rows": len(made)}
+            stats[name] = {"rows": len(made), **({"timed_out": True} if timed_out else {})}
     merged = resolve_entities(rows)
+    cap = int(limit or os.getenv("LEADX_FREE_DISCOVERY_MAX_ROWS", "1500"))
+    merged.sort(key=lambda r: (len(r.get("sources_hit") or []) >= 3, bool(r.get("email")), bool(r.get("website")), bool(r.get("phone")),
+                               int(r.get("discovery_quality") or 0)), reverse=True)
+    merged = merged[:cap]
+    for r in merged:
+        r["source"] = "osm"  # keep the free lane as the source token; per-source detail lives in sources_hit/source_ids/field_sources
     if stats is not None:
         stats["raw_rows"], stats["merged_rows"] = len(rows), len(merged)
     return merged

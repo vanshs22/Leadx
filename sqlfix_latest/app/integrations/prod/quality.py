@@ -23,6 +23,16 @@ INDUSTRY_KEYWORDS = {
 }
 
 
+def score_lead_detailed(lead: dict, industry: str = "medspa", weights: dict | None = None) -> tuple[int, str, str, dict]:
+    """(score, tier, reasoning, breakdown). breakdown = fit / reachability / timing (0-100) and the top 3 reasons."""
+    from app.integrations.prod.scoring import score_breakdown, score_lead_v3
+    from app.integrations.prod.verify import score_freshness_multiplier
+    s, t, r, parts = score_lead_v3(lead, industry=industry, weights=weights or {})
+    bd = score_breakdown(parts, lead, s, score_freshness_multiplier(lead.get("_scored_at")))
+    summary = f"fit {bd['fit']} / reach {bd['reachability']} / timing {bd['timing']}: " + ", ".join(bd["top_reasons"])
+    return s, t, f"{summary} || {r}", bd
+
+
 def score_lead(lead: dict, industry: str = "medspa", weights: dict | None = None) -> tuple[int, str, str]:
     """Prefer scoring.v3 (MX, weights, freshness); fall back to legacy if import fails."""
     try:
@@ -486,8 +496,8 @@ async def assign_lead(
                     return {"assigned": False, "reason": "freshness_expired"}
             except (TypeError, ValueError):
                 return {"assigned": False, "reason": "freshness_invalid"}
-        from app.integrations.prod.contact_state import has_contact
-        if not has_contact(candidate):
+        from app.integrations.prod.tenant_policy import contact_ok, load_policy
+        if not contact_ok(candidate, load_policy(tenant_id)):
             return {"assigned": False, "reason": "no_verified_contact"}
 
     # 9.0: a run-level atomic slot prevents retries/concurrent workers from

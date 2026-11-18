@@ -55,7 +55,26 @@ async def upsert_global_batch(leads:list[dict])->list[dict]:
     non_batchable = [lead for lead in leads if not lead.get("fingerprint")]
     sb = get_supabase()
     if batchable:
-        payloads=[_global_payload(x) for x in batchable]
+        # A phone number is unique in leads_global. Re-use the stored fingerprint when the phone is already known so the
+        # batch upsert updates that row instead of violating the unique index (which used to force a slow row-by-row fallback).
+        phones = sorted({x["phone_normalized"] for x in batchable if x.get("phone_normalized")})
+        known: dict[str, str] = {}
+        try:
+            for i in range(0, len(phones), 100):
+                for r in (await aexec(sb.table("leads_global").select("fingerprint,phone_normalized").in_("phone_normalized", phones[i:i + 100]))).data or []:
+                    if r.get("fingerprint") and r.get("phone_normalized"):
+                        known[r["phone_normalized"]] = r["fingerprint"]
+        except Exception as exc:
+            logger.debug("phone pre-resolution skipped: %s", type(exc).__name__)
+        for x in batchable:
+            fp_known = known.get(x.get("phone_normalized") or "")
+            if fp_known:
+                x["fingerprint"] = fp_known
+        # One command cannot touch the same conflict key twice, so send one payload per fingerprint.
+        unique: dict[str, dict] = {}
+        for x in batchable:
+            unique.setdefault(x["fingerprint"], _global_payload(x, discovered=True))
+        payloads = list(unique.values())
         try:
             rows=(await aexec(sb.table("leads_global").upsert(payloads,on_conflict="fingerprint"))).data or []
             by={r.get("fingerprint"):r.get("id") for r in rows if r.get("fingerprint")}
@@ -111,9 +130,9 @@ def prepare_enrichment_pool(leads:list[dict],reuse_days:int=14):
 @to_async
 def upsert_enrichment(lead_id:str,lead:dict)->None:
     sb=get_supabase()
-    from app.integrations.prod.utils import is_valid_email
-    email = lead.get("email") if is_valid_email(lead.get("email")) else None
-    emails = [str(value).strip().lower() for value in (lead.get("emails") or []) if is_valid_email(value)]
+    from app.integrations.prod.utils import normalize_email
+    email = normalize_email(lead.get("email"))
+    emails = [e for e in (normalize_email(value) for value in (lead.get("emails") or [])) if e]
     payload={"lead_id":lead_id,"email":email,"email_valid":bool(email) and lead.get("email_valid") is not False,"emails":emails,"phone_from_web":lead.get("phone_from_web"),"has_booking":bool(lead.get("has_booking") or lead.get("booking_platform")),"booking_platform":lead.get("booking_platform"),"services":lead.get("services") or [],"social_links":lead.get("social_links") or {},"owner_name":lead.get("owner_name") or lead.get("decision_maker_name"),"pitch_line":lead.get("pitch_line"),"intent_score":int(lead.get("intent_score") or 0),"markdown_summary":(lead.get("markdown_summary") or "")[:4000] or None,"raw_extraction":lead.get("raw_extraction") or {},"enrichment_method":lead.get("enrichment_method"),"enrichment_ok":bool(lead.get("enrichment_ok")),"error":lead.get("enrichment_error"),"extracted_at":datetime.now(timezone.utc).isoformat()}
     try:
         sb.table("enrichment").upsert(payload,on_conflict="lead_id").execute()
@@ -149,12 +168,12 @@ async def upsert_enrichment_batch(items: list[tuple[str, dict]]) -> list[dict]:
     """
     if not items:
         return []
-    from app.integrations.prod.utils import is_valid_email
+    from app.integrations.prod.utils import normalize_email
 
     payloads: list[dict] = []
     for lead_id, lead in items:
-        email = lead.get("email") if is_valid_email(lead.get("email")) else None
-        emails = [str(value).strip().lower() for value in (lead.get("emails") or []) if is_valid_email(value)]
+        email = normalize_email(lead.get("email"))
+        emails = [e for e in (normalize_email(value) for value in (lead.get("emails") or [])) if e]
         payloads.append({
             "lead_id": str(lead_id), "email": email,
             "email_valid": bool(email) and lead.get("email_valid") is not False,

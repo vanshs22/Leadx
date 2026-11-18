@@ -49,6 +49,7 @@ for _noisy in ("httpx", "httpcore"):
 
 
 from app.api.prod import competitive_api
+from app.api.prod import engine_api
 from app.api.prod import session_api
 from app.api.prod import platform_api
 
@@ -59,6 +60,7 @@ app = FastAPI(
 )
 
 app.include_router(competitive_api.router)
+app.include_router(engine_api.router)
 app.include_router(session_api.router)
 app.include_router(platform_api.router)
 
@@ -1146,7 +1148,7 @@ try:
                     q = sb.table("crm_lead_cards").select("*", count="exact").eq("tenant_id", tid)
                     if stage: q = q.eq("stage_slug", stage)
                     if tier: q = q.eq("tier", tier.upper())
-                    if search: q = q.ilike("company_name", f"%{search}%")
+                    if search: q = q.ilike("company_name", f"*{search}*")
                     r = q.order("delivered_at", desc=True).range(offset, offset + limit - 1).execute()
                     return {"total": r.count if getattr(r, "count", None) is not None else len(r.data or []), "limit": limit, "offset": offset, "leads": r.data or []}
                 except Exception:

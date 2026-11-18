@@ -178,7 +178,7 @@ async def searched_seeds(industry: str, location: str) -> list[str]:
     doms = _domains(location)
     results = await asyncio.gather(*[web_search(f"site:{d} {industry} {location}") for d in doms], return_exceptions=True)
     city = (location or "").split(",")[0].strip().lower()
-    per_domain = int(os.getenv("LEADX_DIRECTORY_SEEDS_PER_DOMAIN", "10"))
+    per_domain = int(os.getenv("LEADX_DIRECTORY_SEEDS_PER_DOMAIN", "6"))
     urls: list[str] = []
     for d, rows in zip(doms, results):
         if isinstance(rows, Exception):
@@ -194,7 +194,7 @@ def _key(rec: dict) -> str:
     return phone or re.sub(r"\W+", "", (rec.get("name") or "").lower())
 
 
-async def crawl_seed(url: str, *, seen: set[str], cap: int) -> list[dict]:
+async def crawl_seed(url: str, *, seen: set[str], cap: int, sink: Optional[list] = None) -> list[dict]:
     """Walk a seed's pagination; stop at no-new-results, no next link, a page cap or the lead cap."""
     out: list[dict] = []
     visited: set[str] = set()
@@ -214,6 +214,8 @@ async def crawl_seed(url: str, *, seen: set[str], cap: int) -> list[dict]:
                 seen.add(k)
                 rec["directory"] = domain
                 out.append(rec)
+                if sink is not None:
+                    sink.append(rec)
                 fresh += 1
         if not fresh:
             break
@@ -222,23 +224,31 @@ async def crawl_seed(url: str, *, seen: set[str], cap: int) -> list[dict]:
 
 
 async def fill_websites(recs: list[dict]) -> None:
-    """Fetch a record's own directory profile when the listing page had no website."""
-    budget: dict[str, int] = {}
-    limit = int(os.getenv("LEADX_DIRECTORY_DETAIL_FETCH", "60"))
+    """Fetch a record's own directory profile when the listing page had no website (domains in parallel, each rate limited)."""
+    limit = int(os.getenv("LEADX_DIRECTORY_DETAIL_FETCH", "30"))
+    todo: dict[str, list[dict]] = {}
     for rec in recs:
-        d, url = rec.get("directory", ""), rec.get("detail_url")
-        if rec.get("website") or not url or budget.get(d, 0) >= limit or not domain_enabled(d):
-            continue
-        budget[d] = budget.get(d, 0) + 1
-        html = await fetch_page(url)
-        if html:
-            detail = parse_detail_page(html, url)
-            for k in ("website", "email", "phone", "address"):
-                rec[k] = rec.get(k) or detail.get(k)
+        d = rec.get("directory", "")
+        if not rec.get("website") and rec.get("detail_url") and len(todo.setdefault(d, [])) < limit:
+            todo[d].append(rec)
+
+    async def _one_domain(items: list[dict]) -> None:
+        for rec in items:
+            if not domain_enabled(rec.get("directory", "")):
+                return
+            html = await fetch_page(rec["detail_url"])
+            if html:
+                detail = parse_detail_page(html, rec["detail_url"])
+                for k in ("website", "email", "phone", "address"):
+                    rec[k] = rec.get(k) or detail.get(k)
+
+    await asyncio.gather(*[_one_domain(v) for v in todo.values()], return_exceptions=True)
 
 
-async def discover_directories(industry: str, location: str) -> list[dict]:
-    """Raw business dicts (name/phone/email/website/address/detail_url/directory)."""
+async def discover_directories(industry: str, location: str, sink: Optional[list] = None) -> list[dict]:
+    """Raw business dicts (name/phone/email/website/address/detail_url/directory).
+
+    Records are also appended to ``sink`` as they are found, so a caller that cancels on a time budget keeps the partial result."""
     if os.getenv("LEADX_DIRECTORY_SCRAPING", "1") == "0":
         return []
     cap = int(os.getenv("LEADX_DIRECTORY_MAX_LEADS", "2000"))
@@ -253,7 +263,7 @@ async def discover_directories(industry: str, location: str) -> list[dict]:
         for u in us:  # one domain at a time keeps its rate limit; domains run concurrently
             if len(got) >= cap:
                 break
-            got += await crawl_seed(u, seen=seen, cap=cap - len(got))
+            got += await crawl_seed(u, seen=seen, cap=cap - len(got), sink=sink)
         return got
 
     runs = await asyncio.gather(*[_domain_run(us) for us in by_domain.values()], return_exceptions=True)

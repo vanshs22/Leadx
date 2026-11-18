@@ -397,6 +397,51 @@ def _():
     assert any("4.6 stars" in x["body_text"] or "booking" in x["body_text"] or "redesign" in x["body_text"] for x in d["drafts"])
     assert b.post(f"/crm/{TB}/leads/{L['bright']}/outreach-draft", json={}).status_code == 404
 
+# ---------------- data engine: policy, review queue, delivery, metrics ----------------
+@check("engine policy: defaults, update by admin, validation, tenant isolation")
+def _():
+    d = ok(a.get(f"/crm/{TA}/engine/policy"))["policy"]; assert d["contact_requirement"] == "either" and d["skip_known_crm"] is True, d
+    d = ok(a.put(f"/crm/{TA}/engine/policy", json={"contact_requirement": "email", "run_credit_cap": 5}))["policy"]; assert d["contact_requirement"] == "email" and d["run_credit_cap"] == 5
+    assert ok(a.get(f"/crm/{TA}/engine/policy"))["policy"]["contact_requirement"] == "email"      # persisted in tenants.settings.lead_policy
+    assert ok(b.get(f"/crm/{TB}/engine/policy"))["policy"]["contact_requirement"] == "either"     # other tenant untouched
+    assert a.put(f"/crm/{TA}/engine/policy", json={"contact_requirement": "fax"}).status_code in (400, 422)
+    assert a.get(f"/crm/{TB}/engine/policy").status_code in (403, 404)
+    ok(a.put(f"/crm/{TA}/engine/policy", json={"contact_requirement": "either", "run_credit_cap": 0}))
+@check("engine review queue: list, resolve, isolation, idempotent enqueue")
+def _():
+    sys.path.insert(0, os.getcwd()); from app.integrations.prod.review_queue import enqueue
+    lead = db("GET", "leads_global?select=id&limit=1")[0]["id"]
+    i1 = enqueue(TA, {"id": lead, "name": "Parked Dental", "score": 70, "tier": "B"}, "run-x", ["no_verified_contact"])
+    i2 = enqueue(TA, {"id": lead, "name": "Parked Dental", "score": 71, "tier": "B"}, "run-y", ["no_verified_contact", "legacy:no_email"])
+    assert i1 and i1 == i2, (i1, i2)
+    items = ok(a.get(f"/crm/{TA}/engine/review"))["items"]; assert [x["id"] for x in items if x["lead_id"] == lead] == [i1] and items[0]["score"] == 71
+    assert ok(b.get(f"/crm/{TB}/engine/review"))["items"] == []
+    assert b.post(f"/crm/{TB}/engine/review/{i1}/resolve", json={"action": "approve"}).status_code == 404
+    assert a.post(f"/crm/{TA}/engine/review/{i1}/resolve", json={"action": "maybe"}).status_code in (400, 422)
+    assert ok(a.post(f"/crm/{TA}/engine/review/{i1}/resolve", json={"action": "approve"}))["item"]["status"] == "approved"
+    assert a.post(f"/crm/{TA}/engine/review/{i1}/resolve", json={"action": "reject"}).status_code == 404   # already resolved
+@check("engine delivery: counts, dead-letter list and replay, isolation")
+def _():
+    asg = db("GET", f"lead_assignments?tenant_id=eq.{TA}&select=id,lead_id&limit=1")[0]
+    row = db("POST", "delivery_outbox", json={"tenant_id": TA, "event_type": "lead.assigned", "aggregate_type": "assignment", "aggregate_id": asg["id"], "payload": {},
+                                              "status": "failed", "outbox_state": "dead-letter", "stable_event_id": "e2e-dl-" + uuid.uuid4().hex, "destination": "webhook", "attempts": 8,
+                                              "safe_error_code": "http_500"})[0]
+    d = ok(a.get(f"/crm/{TA}/engine/delivery")); assert d["counts"].get("dead-letter", 0) >= 1 and any(x["id"] == row["id"] for x in d["dead_letter"])
+    assert b.post(f"/crm/{TB}/engine/delivery/{row['id']}/replay").status_code == 404
+    assert a.post(f"/crm/{TB}/engine/delivery/{row['id']}/replay").status_code in (403, 404)
+    assert ok(a.post(f"/crm/{TA}/engine/delivery/{row['id']}/replay"))["outbox_state"] == "pending"
+    assert a.post(f"/crm/{TA}/engine/delivery/{row['id']}/replay").status_code == 404   # no longer dead-lettered
+@check("engine metrics: coverage, accuracy, cost per lead from the spend ledger, time to delivery")
+def _():
+    db("POST", "enrichment_spend_ledger", json=[{"tenant_id": TA, "run_id": "e2e", "provider": "apollo", "field": "email", "credits": 1.0, "hit": True},
+                                                {"tenant_id": TA, "run_id": "e2e", "provider": "apollo", "field": "email", "credits": 1.0, "hit": False},
+                                                {"tenant_id": TB, "run_id": "e2e", "provider": "hunter", "field": "email", "credits": 9.0, "hit": True}])
+    m = ok(a.get(f"/crm/{TA}/engine/metrics")); assert m["assigned"] >= 3 and m["cost"]["credits_spent"] == 2.0, m          # tenant B's 9.0 never leaks in
+    assert m["cost"]["by_provider"]["apollo"]["hit_rate_pct"] == 50.0 and m["cost"]["credits_per_assigned_lead"] > 0
+    assert m["coverage_pct"]["email"] is not None and m["field_accuracy_pct"] is not None and "assignment_to_delivered" in m["time_to_delivery"]
+    assert ok(b.get(f"/crm/{TB}/engine/metrics"))["cost"]["by_provider"].keys() == {"hunter"}
+    assert a.get(f"/crm/{TB}/engine/metrics").status_code in (403, 404)
+
 out = os.getenv("E2E_OUT", "e2e_results.json"); json.dump(R, open(out, "w"), indent=1)
 from collections import Counter
 print(dict(Counter(r["status"] for r in R)))

@@ -39,7 +39,7 @@ async def test_phone_cascade_uses_free_validation_before_paid(monkeypatch):
 
 @pytest.mark.asyncio
 async def test_prepare_lead_is_real_runtime_bridge(monkeypatch):
-    async def email(_):
+    async def email(_, *a, **kw):
         return {"canonical":{"status":"valid","confidence":95},"observations":[{"provider":"test-email","status":"valid","confidence":95}]}
     async def phone(_p,_c=None):
         return {"canonical":{"status":"valid","confidence":95},"observations":[{"provider":"test-phone","status":"valid","confidence":95}]}

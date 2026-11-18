@@ -31,6 +31,12 @@ def _email_candidate(value: str) -> str:
     return v
 
 
+def normalize_email(email: Optional[str]) -> Optional[str]:
+    """The storable form of an email (scheme/markup stripped, lower-cased) or None when it is not a valid address."""
+    value = _email_candidate(email or "").lower()
+    return value if is_valid_email(value) else None
+
+
 def is_valid_email(email: Optional[str]) -> bool:
     value = _email_candidate(email or "")
     if not EMAIL_RE.fullmatch(value):
