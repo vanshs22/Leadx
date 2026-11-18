@@ -291,6 +291,60 @@ def _():
     g = ok(a.get(f"/crm/{TA}/duplicates", params={"entity": "contacts"}))["groups"]; assert any("email" in x["reasons"] for x in g)
     assert ok(b.get(f"/crm/{TB}/duplicates", params={"entity": "contacts"}))["groups"] == []
 
+# ---------------- saved searches, committee, signed webhooks, signal plays ----------------
+import hashlib, hmac as _hmac
+GOT = []
+class _Recv(BaseHTTPRequestHandler):
+    def log_message(self, *x): pass
+    def do_POST(self):
+        n = int(self.headers.get("Content-Length") or 0); GOT.append({"headers": dict(self.headers), "body": self.rfile.read(n).decode()})
+        self.send_response(200); self.send_header("Content-Length", "2"); self.end_headers(); self.wfile.write(b"ok")
+_srv2 = ThreadingHTTPServer(("127.0.0.1", 54351), _Recv); threading.Thread(target=_srv2.serve_forever, daemon=True).start()
+@check("saved search: create, run (no new), new matching lead appears, alert notification written, isolated per tenant")
+def _():
+    s = ok(a.post(f"/crm/{TA}/saved-searches", json={"name": "Austin dental", "query": "dental in Austin", "alert": True})); vid = (s["saved_search"].get("view") or s["saved_search"]).get("id"); assert vid, s
+    assert "Austin dental" in a.get(f"/crm/{TA}/saved-searches").text and "Austin dental" not in b.get(f"/crm/{TB}/saved-searches").text
+    r0 = ok(a.post(f"/crm/{TA}/saved-searches/{vid}/run")); assert r0["new_matches"] == 0, r0
+    time.sleep(1.1); new_id, _x = seed_lead(TA, "Austin Smile Studio Dental", "Austin", "dental", "B", 55)
+    db("PATCH", f"lead_assignments?id=eq.{new_id}", json={"delivered_at": __import__("datetime").datetime.now(__import__("datetime").timezone.utc).isoformat()})  # delivered just now
+    r1 = ok(a.post(f"/crm/{TA}/saved-searches/{vid}/run")); assert r1["new_matches"] == 1 and r1["new_leads"][0]["company_name"] == "Austin Smile Studio Dental", r1
+    assert ok(a.post(f"/crm/{TA}/saved-searches/{vid}/run"))["new_matches"] == 0
+    assert any("Austin dental" in (n.get("title") or "") for n in db("GET", f"notifications?tenant_id=eq.{TA}&select=title"))
+    assert b.post(f"/crm/{TB}/saved-searches/{vid}/run").status_code == 404
+@check("buying committee: roles, gaps and first-contact recommendation")
+def _():
+    co = ok(a.post(f"/crm/{TA}/companies", json={"name": "Committee Co", "domain": "committee.test"}))["company"]["id"]
+    for n, ti, em in (("Pat Owner", "Owner", "pat@committee.test"), ("Rae Desk", "Front Desk Receptionist", None), ("Lee Mkt", "Marketing Manager", "lee@committee.test")):
+        ok(a.post(f"/crm/{TA}/contacts", json={"company_id": co, "full_name": n, "title": ti, "email": em}))
+    d = ok(a.get(f"/crm/{TA}/companies/{co}/buying-committee")); roles = {m["name"]: m["role"] for m in d["members"]}
+    assert roles == {"Pat Owner": "economic_buyer", "Rae Desk": "gatekeeper", "Lee Mkt": "operational_decider"}, roles
+    assert d["recommended_first_contact"]["name"] == "Pat Owner" and d["coverage_score"] >= 90 and d["multi_threaded"], d
+    assert b.get(f"/crm/{TB}/companies/{co}/buying-committee").status_code == 404
+@check("webhooks: per-webhook secret shown once, test ping is signed v2 and verifiable, delivery log, secret never listed")
+def _():
+    w = ok(a.post(f"/crm/{TA}/integrations/webhooks", json={"name": "recv", "endpoint_url": "http://127.0.0.1:54351/hook", "events": ["lead.assigned"]})); sec = w["signing_secret"]; wid = w["webhook"]["id"]
+    assert sec.startswith("whsec_") and "signing_secret" not in a.get(f"/crm/{TA}/integrations/webhooks").text
+    r = ok(a.post(f"/crm/{TA}/integrations/webhooks/{wid}/test")); assert r["ok"] and r["status"] == "delivered" and r["response_status"] == 200, r
+    h = GOT[-1]["headers"]; ts = h["x-leadx-timestamp"]; exp = _hmac.new(sec.encode(), f"{ts}.{GOT[-1]['body']}".encode(), hashlib.sha256).hexdigest()
+    assert h["x-leadx-signature-v2"] == f"t={ts},v1={exp}" and abs(time.time() - int(ts)) < 60
+    assert ok(a.get(f"/crm/{TA}/integrations/webhooks/{wid}/deliveries"))["deliveries"][0]["status"] == "delivered"
+    assert b.post(f"/crm/{TB}/integrations/webhooks/{wid}/test").status_code == 404
+@check("webhooks: failing receiver is retried with backoff and recorded, not lost")
+def _():
+    w = ok(a.post(f"/crm/{TA}/integrations/webhooks", json={"name": "dead", "endpoint_url": "http://127.0.0.1:9/none", "events": ["lead.assigned"], "retry_limit": 3})); wid = w["webhook"]["id"]
+    r = ok(a.post(f"/crm/{TA}/integrations/webhooks/{wid}/test")); assert r["ok"] is False and r["status"] == "queued" and r["attempts"] == 1 and r["last_error"], r
+@check("signal play: automation on lead.signal_detected creates a task when a site change is detected (worker processes the event)")
+def _():
+    ok(a.post(f"/crm/{TA}/automations", json={"name": "Contact change play", "trigger_type": "lead.signal_detected", "enabled": True,
+                                               "graph": {"conditions": [{"field": "signal_type", "op": "eq", "value": "contact_change"}], "actions": [{"type": "create_task", "params": {"priority": "high"}}]}}))
+    SITE["html"] = "<title>Bright Dental</title><body>" + " ".join(f"implant{i} whitening care" for i in range(150)) + " hello@brightdental.test (512) 555-0111</body>"
+    ok(a.post(f"/crm/{TA}/leads/{L['bright']}/refresh-check"))
+    end = time.time() + 150; found = []
+    while time.time() < end and not found:
+        found = [x for x in db("GET", f"tasks?tenant_id=eq.{TA}&select=title,priority") if "Contact Change" in (x["title"] or "")]
+        time.sleep(4)
+    assert found, "no task created by the play within 150s"
+
 out = os.getenv("E2E_OUT", "e2e_results.json"); json.dump(R, open(out, "w"), indent=1)
 from collections import Counter
 print(dict(Counter(r["status"] for r in R)))

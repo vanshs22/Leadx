@@ -65,3 +65,61 @@ def test_webhook_url_static_screen(monkeypatch):
     for bad in ("http://127.0.0.1:9/x", "http://localhost/x", "http://169.254.169.254/latest", "http://10.0.0.5/x", "ftp://a.com", "http://u:p@a.com"):
         assert is_public_url(bad, resolve=False)[0] is False, bad
     assert is_public_url("https://hooks.example.com/x", resolve=False)[0] is True
+
+
+def test_website_finder_accepts_only_pages_that_prove_identity():
+    import asyncio
+    from app.integrations.prod import website_finder as wf
+    assert "brightdental.com" in wf.candidates("Bright Dental, LLC", "Austin") and "brightdentalaustin.com" in wf.candidates("Bright Dental LLC", "Austin")
+    pages = {"https://brightdental.com": "<title>Bright Dental | Austin TX</title><h1>Bright Dental</h1> call (512) 555-0111 " + "x " * 50,
+             "https://brightdental.net": "<title>brightdental.net</title> This domain is for sale",
+             "https://brightdental.org": "<title>Bright Plumbing</title> pipes in Dallas"}
+
+    async def fetch(url):
+        return {"ok": url in pages, "html": pages.get(url, "")}
+    got = asyncio.run(wf.find_website("Bright Dental LLC", "Austin", "(512) 555-0111", fetch=fetch))
+    assert got and got["website"] == "https://brightdental.com" and got["confidence"] >= 0.9
+    assert asyncio.run(wf.find_website("Zzyzx Qwerty", "Austin", fetch=fetch)) is None
+
+
+def test_buying_committee_roles_and_gaps():
+    from app.integrations.prod.buying_committee import build_committee, classify
+    assert classify("Owner & Founder")["role"] == "economic_buyer" and classify("Front Desk Receptionist")["role"] == "gatekeeper"
+    c = build_committee([{"id": "1", "full_name": "A", "title": "Receptionist", "email": "a@x.co"}, {"id": "2", "full_name": "B", "title": "Practice Manager"}])
+    assert {g["role"] for g in c["gaps"]} >= {"economic_buyer", "reachable_decider"} and c["recommended_first_contact"] is None
+    c2 = build_committee([{"id": "3", "full_name": "C", "title": "CEO", "email": "c@x.co"}, {"id": "4", "full_name": "D", "title": "Marketing Manager", "phone": "5125550101"}])
+    assert c2["coverage_score"] >= 90 and c2["recommended_first_contact"]["id"] == "3" and c2["multi_threaded"]
+
+
+def test_llm_filters_are_allowlisted():
+    from app.integrations.prod.nl_search import sanitize_filters
+    f = sanitize_filters({"tier": "a", "city": "Aus,tin);drop", "state": "tx", "min_score": "70", "min_rating": 9, "has_email": True, "has_phone": "yes", "evil": "1", "term": "dental%*"})
+    assert f == {"tier": "A", "city": "austindrop", "state": "TX", "min_score": 70, "has_email": True, "term": "dental"}
+
+
+def test_webhook_v2_signature_matches_documented_scheme(monkeypatch):
+    import asyncio, hashlib, hmac, json
+    from app.integrations.prod import webhooks
+    sent = {}
+
+    class FakeClient:
+        async def post(self, url, content, headers):
+            sent.update(headers=headers, body=content)
+            return type("R", (), {"status_code": 200, "text": "ok"})()
+
+    class FakeTable:
+        def __getattr__(self, _):
+            return lambda *a, **k: self
+        def execute(self):
+            return type("R", (), {"data": []})()
+    import app.integrations.prod.webhooks as w
+    monkeypatch.setattr(w, "_sb", lambda: FakeTable())
+    async def no_check(url): return None
+    monkeypatch.setattr(w, "assert_public_url", no_check)
+    async def fake_aexec(b): return b.execute()
+    monkeypatch.setattr(w, "aexec", fake_aexec)
+    out = asyncio.run(w._deliver_one(FakeClient(), {"id": "d1", "event_type": "ping", "payload": {"a": 1}}, {"endpoint_url": "https://x.example/h", "signing_secret": "whsec_test"}))
+    assert out == "sent"
+    ts = sent["headers"]["x-leadx-timestamp"]
+    expect = hmac.new(b"whsec_test", f"{ts}.{sent['body']}".encode(), hashlib.sha256).hexdigest()
+    assert sent["headers"]["x-leadx-signature-v2"] == f"t={ts},v1={expect}" and json.loads(sent["body"])["event"] == "ping"

@@ -10,7 +10,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel, Field
 
 from app.middleware.auth import TenantContext, assert_tenant_match, require_admin, require_tenant
-from app.services.aio import aexec
+from app.services.aio import aexec, offload
 
 logger = logging.getLogger("lead_engine.lead_tools")
 router = APIRouter(prefix="/crm", tags=["lead-tools"], dependencies=[Depends(require_tenant)])
@@ -43,6 +43,12 @@ async def nl_search(tenant_id: UUID, body: NLSearch, ctx: TenantContext = Depend
     from app.crm.crm_api import list_leads
     from app.integrations.prod.nl_search import parse_query
     parsed = parse_query(body.query)
+    if not parsed["filters"]:  # rules found nothing: try the LLM (allowlist-validated), only if an AI key is configured
+        from app.integrations.prod.llm_copy import complete
+        from app.integrations.prod.nl_search import parse_with_llm
+        llm = await parse_with_llm(body.query, complete)
+        if llm:
+            parsed = {"query": body.query, "filters": llm, "explanation": ["interpreted by the AI assistant: " + ", ".join(f"{k}={v}" for k, v in llm.items())]}
     if not parsed["filters"]:
         raise HTTPException(422, "Could not understand that search. Try e.g. 'hot dentists in Austin with email'.")
     result = await list_leads(tenant_id, limit=body.limit, offset=body.offset, **parsed["filters"])
@@ -191,6 +197,20 @@ async def refresh_check(tenant_id: UUID, assignment_id: UUID, body: RefreshBody 
             continue  # recorded in the response only; not buying signals
         await aexec(sb.table("lead_signals").insert({"tenant_id": tid, "lead_id": lead_id, "signal_type": ch["type"], "strength": ch["strength"], "confidence": 0.7,
                                                       "source": "change_detection", "evidence": {"detail": ch["detail"], "lane": lane, "url": url}, "status": "active"}))
+    # Signal plays: every buying-relevant change becomes a `lead.signal_detected` event that tenant automations can trigger on
+    # (conditions on signal_type / strength, actions such as create_task or notify_owner).
+    from app.integrations.prod.automation_engine import enqueue_event
+    stamp = raw["site_fingerprint"]["checked_at"]
+    for ch in result["changes"]:
+        if ch["type"] in ("title_change", "content_update"):
+            continue
+        try:
+            await offload(enqueue_event, tid, "lead.signal_detected", "lead", str(lead_id),
+                          {"signal_type": ch["type"], "strength": ch["strength"], "detail": ch["detail"], "company_name": card.get("company_name"),
+                           "assignment_id": str(assignment_id), "lead_id": str(lead_id), "title": f"{ch['type'].replace('_', ' ').title()}: {card.get('company_name')}"},
+                          f"signal:{lead_id}:{ch['type']}:{stamp}")
+        except Exception:
+            logger.warning("could not enqueue lead.signal_detected", exc_info=True)
     return {"ok": True, "lane": lane, "free": lane != "firecrawl", **result}
 
 
@@ -203,3 +223,100 @@ async def lead_changes(tenant_id: UUID, assignment_id: UUID, limit: int = Query(
     rows = (await aexec(_sb().table("lead_signals").select("signal_type,strength,confidence,evidence,observed_at").eq("tenant_id", str(tenant_id))
                         .eq("lead_id", cards[0]["lead_id"]).eq("source", "change_detection").order("observed_at", desc=True).limit(limit))).data or []
     return {"ok": True, "changes": rows}
+
+
+# ---------------------------------------------------------------- saved smart searches with alerts
+class SavedSearchIn(BaseModel):
+    name: str = Field(min_length=2, max_length=120)
+    query: str = Field(min_length=2, max_length=300)
+    alert: bool = True
+
+
+@router.post("/{tenant_id}/saved-searches")
+def create_saved_search(tenant_id: UUID, body: SavedSearchIn, ctx: TenantContext = Depends(require_tenant)):
+    assert_tenant_match(ctx, tenant_id)
+    from app.integrations.prod.crm_reports import create_view
+    from app.integrations.prod.nl_search import parse_query
+    from datetime import datetime, timezone
+    parsed = parse_query(body.query)
+    if not parsed["filters"]:
+        raise HTTPException(422, "Could not understand that search.")
+    filters = {"query": body.query, "parsed": parsed["filters"], "alert": body.alert, "last_run_at": datetime.now(timezone.utc).isoformat()}
+    res = create_view(str(tenant_id), body.name, filters, entity="smart_search", user_id=ctx.user_id, shared=True, is_default=False)
+    return {"ok": True, "saved_search": res, "explanation": parsed["explanation"]}
+
+
+@router.get("/{tenant_id}/saved-searches")
+def list_saved_searches(tenant_id: UUID, ctx: TenantContext = Depends(require_tenant)):
+    assert_tenant_match(ctx, tenant_id)
+    from app.integrations.prod.crm_reports import list_views
+    return {"ok": True, "saved_searches": list_views(str(tenant_id), "smart_search", ctx.user_id)}
+
+
+async def run_saved_search(tenant_id: str, view: dict, *, notify: bool = False) -> dict:
+    """Run one saved search; report only leads delivered since its last run, then advance the watermark."""
+    from datetime import datetime, timezone
+    from app.crm.crm_api import list_leads
+    from app.integrations.prod.crm_reports import update_view
+    f = dict(view.get("filters") or {})
+    since = f.get("last_run_at") or "1970-01-01T00:00:00+00:00"
+    res = await list_leads(UUID(tenant_id), limit=200, offset=0, fresh=True, **(f.get("parsed") or {}))
+    new = [l for l in res.get("leads") or [] if str(l.get("delivered_at") or "") > since]
+    f["last_run_at"] = datetime.now(timezone.utc).isoformat()
+    f["last_new_matches"] = len(new)
+    update_view(tenant_id, view["id"], {"filters": f})
+    if notify and new and f.get("alert"):
+        from app.integrations.prod.notifications import notify_sync
+        notify_sync(scope="tenant", tenant_id=tenant_id, kind="saved_search_match", title=f"{len(new)} new match(es): {view.get('name')}",
+                    body=", ".join(str(l.get("company_name")) for l in new[:5]), link="/leads")
+    return {"new_matches": len(new), "total": res.get("total"), "new_leads": new[:50], "last_run_at": f["last_run_at"]}
+
+
+@router.post("/{tenant_id}/saved-searches/{view_id}/run")
+async def run_saved_search_now(tenant_id: UUID, view_id: str, ctx: TenantContext = Depends(require_tenant)):
+    assert_tenant_match(ctx, tenant_id)
+    from app.integrations.prod.crm_reports import list_views
+    view = next((v for v in list_views(str(tenant_id), "smart_search", ctx.user_id) if str(v.get("id")) == view_id), None)
+    if not view:
+        raise HTTPException(404, "saved search not found")
+    return {"ok": True, **(await run_saved_search(str(tenant_id), view, notify=True))}
+
+
+# ---------------------------------------------------------------- buying committee
+@router.get("/{tenant_id}/companies/{company_id}/buying-committee")
+async def buying_committee(tenant_id: UUID, company_id: UUID, ctx: TenantContext = Depends(require_tenant)):
+    assert_tenant_match(ctx, tenant_id)
+    from app.integrations.prod.buying_committee import build_committee
+    co = (await aexec(_sb().table("companies").select("id,name").eq("tenant_id", str(tenant_id)).eq("id", str(company_id)).limit(1))).data or []
+    if not co:
+        raise HTTPException(404, "company not found")
+    contacts = (await aexec(_sb().table("contacts").select("id,full_name,title,email,phone,mobile,is_decision_maker,do_not_contact")
+                            .eq("tenant_id", str(tenant_id)).eq("company_id", str(company_id)).limit(200))).data or []
+    return {"ok": True, "company": co[0], **build_committee(contacts)}
+
+
+# ---------------------------------------------------------------- webhook test ping + delivery log
+@router.post("/{tenant_id}/integrations/webhooks/{webhook_id}/test")
+async def test_webhook(tenant_id: UUID, webhook_id: UUID, ctx: TenantContext = Depends(require_admin)):
+    """Send one signed `ping` now and return exactly what the receiver answered (SSRF-checked like real deliveries)."""
+    assert_tenant_match(ctx, tenant_id)
+    import httpx
+    from datetime import datetime, timezone
+    from app.integrations.prod.webhooks import _deliver_one
+    rows = (await aexec(_sb().table("outbound_webhooks").select("*").eq("tenant_id", str(tenant_id)).eq("id", str(webhook_id)).limit(1))).data or []
+    if not rows:
+        raise HTTPException(404, "webhook not found")
+    d = (await aexec(_sb().table("webhook_deliveries").insert({"webhook_id": str(webhook_id), "tenant_id": str(tenant_id), "event_type": "ping", "payload": {"message": "LeadX webhook test", "at": datetime.now(timezone.utc).isoformat()},
+                                                            "status": "queued", "next_attempt_at": datetime.now(timezone.utc).isoformat()}))).data[0]
+    async with httpx.AsyncClient(timeout=10, follow_redirects=False) as client:
+        outcome = await _deliver_one(client, d, rows[0])
+    final = (await aexec(_sb().table("webhook_deliveries").select("status,response_status,last_error,attempts").eq("id", d["id"]).limit(1))).data[0]
+    return {"ok": outcome == "sent", **final}
+
+
+@router.get("/{tenant_id}/integrations/webhooks/{webhook_id}/deliveries")
+async def webhook_deliveries(tenant_id: UUID, webhook_id: UUID, limit: int = Query(50, ge=1, le=200), ctx: TenantContext = Depends(require_tenant)):
+    assert_tenant_match(ctx, tenant_id)
+    rows = (await aexec(_sb().table("webhook_deliveries").select("id,event_type,status,response_status,attempts,last_error,created_at,delivered_at")
+                        .eq("tenant_id", str(tenant_id)).eq("webhook_id", str(webhook_id)).order("created_at", desc=True).limit(limit))).data or []
+    return {"ok": True, "deliveries": rows}

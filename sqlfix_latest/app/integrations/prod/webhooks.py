@@ -34,6 +34,10 @@ async def _deliver_one(client, d: dict, h: dict) -> str:
     secret = (os.getenv("WEBHOOK_SIGNING_SECRET") or "").encode()
     if secret:
         headers["x-leadx-signature"] = hmac.new(secret, body.encode(), hashlib.sha256).hexdigest()
+    if h.get("signing_secret"):
+        ts = str(int(_now().timestamp()))
+        headers["x-leadx-timestamp"] = ts
+        headers["x-leadx-signature-v2"] = f"t={ts},v1=" + hmac.new(str(h["signing_secret"]).encode(), f"{ts}.{body}".encode(), hashlib.sha256).hexdigest()
     try:
         unsafe = await assert_public_url(h["endpoint_url"])
         if unsafe:

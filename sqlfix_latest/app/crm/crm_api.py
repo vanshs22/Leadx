@@ -426,6 +426,7 @@ async def list_leads(
     has_website: Optional[bool] = None,
     has_booking: Optional[bool] = None,
     delivered_since_days: Optional[int] = None,
+    fresh: bool = False,
 ):
     """Fast paginated lead list with tenant/filter cache and non-blocking DB work."""
     sb = _sb()
@@ -434,10 +435,10 @@ async def list_leads(
     cache_key = "|".join(str(x if x is not None else "") for x in (
         tid, stage, tier, status, search, tag, assigned_to, priority, sort, order, limit, offset, cursor,
         city, state, term, min_score, min_rating, has_email, has_phone, has_website, has_booking, delivered_since_days))
-    cached = _LEADS_CACHE.get(cache_key)
+    cached = None if fresh else _LEADS_CACHE.get(cache_key)  # fresh=True: alerting/saved-search runs must never see a cached page
     if cached and cached[0] > time.monotonic():
         return cached[1]
-    shared = cache_get(f"crm:v1:{cache_key}:leads")
+    shared = None if fresh else cache_get(f"crm:v1:{cache_key}:leads")
     if shared is not None:
         _LEADS_CACHE[cache_key] = (time.monotonic() + _CRM_LIST_CACHE_SECONDS, shared)
         return shared

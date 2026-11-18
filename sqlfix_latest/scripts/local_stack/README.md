@@ -22,3 +22,10 @@ TOOLS=$TOOLS PY=python scripts/local_stack/stack.sh python scripts/local_stack/e
 | `pipeline_probe.py`, `ai_probe.py`, `q.py` | ad-hoc probes |
 
 The email "verifier" (`test_email_validator.py`) only resolves MX records; nothing is ever sent.
+
+Browser suites (need Chromium: `PLAYWRIGHT_BROWSERS_PATH=... npx playwright install chromium`):
+
+```bash
+WITH_PORTAL=1 scripts/local_stack/stack.sh bash -c 'python scripts/local_stack/seed_browser.py && node scripts/local_stack/browser_walk.mjs && node scripts/local_stack/browser_journeys.mjs'
+```
+`WITH_PORTAL=1` builds and serves the portal (`REBUILD_PORTAL=0` reuses the last build); `authshim.py` provides password login.

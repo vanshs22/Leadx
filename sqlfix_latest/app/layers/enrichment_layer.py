@@ -298,6 +298,15 @@ async def enrich(leads: list[dict], *, max_concurrent: int = 5,
                 row["enrichment_cache_hit"] = True
                 return row
 
+            if not row.get("website") and row.get("name") and os.getenv("LEADX_WEBSITE_FINDER", "1") != "0":
+                try:  # free domain probe first; paid search (Serper) remains the fallback for leads this cannot resolve
+                    from app.integrations.prod.website_finder import find_website
+                    found = await asyncio.wait_for(find_website(str(row.get("name")), str(row.get("city") or ""), str(row.get("phone_e164") or row.get("phone") or "")), timeout=45)
+                    if found:
+                        row.update({"website": found["website"], "website_source": "domain_probe", "website_confidence": found["confidence"]})
+                        row["website_domain"] = found["website"].split("//", 1)[-1].removeprefix("www.")
+                except Exception as exc:
+                    logger.debug("website finder skipped: %s", type(exc).__name__)
             deadline_s = _deadline_seconds(context, row)
             lead_context = context.child(
                 field="enrichment", attempt=1,

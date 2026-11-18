@@ -2,7 +2,7 @@
 
 The **only canonical fresh-install / upgrade path for new deployments** is `supabase/migrations/` using Supabase CLI. It contains strictly ordered timestamped migrations and is checked in CI by `scripts/check_migrations.py`. The root `SUPABASE_FULL_MIGRATION.sql` is a clean-install mirror; do not run it together with the individual files.
 
-Current canonical chain: **43 ordered files**, ending with the recovery, realtime, tenant-scope, scoped-work, delivery-semantics, cancellation-status, and product-state migrations:
+Current canonical chain: **45 ordered files**, ending with the recovery, realtime, tenant-scope, scoped-work, delivery-semantics, cancellation-status, and product-state migrations:
 
 - `20261001000950_leadx_16_durable_task_recovery.sql`
 - `20261001001000_leadx_16_migration_preflight.sql`

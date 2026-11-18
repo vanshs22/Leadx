@@ -563,9 +563,12 @@ def create_webhook(tenant_id: UUID, req: WebhookCreate, ctx: TenantContext = Dep
     ok_url, reason = is_public_url(req.endpoint_url, resolve=False)
     if not ok_url:
         raise HTTPException(400, f"endpoint_url rejected: {reason}")
-    row={"tenant_id":str(tenant_id),**req.model_dump()}
+    secret = "whsec_" + secrets.token_urlsafe(32)
+    row={"tenant_id":str(tenant_id),**req.model_dump(),"signing_secret":secret}
     rows=_sb().table("outbound_webhooks").insert(row).execute().data or []
-    return {"ok":True,"webhook":rows[0] if rows else row}
+    hook = dict(rows[0] if rows else row); hook.pop("signing_secret", None)
+    # The secret is shown exactly once; verify deliveries with HMAC-SHA256 over "<x-leadx-timestamp>.<raw body>".
+    return {"ok":True,"webhook":hook,"signing_secret":secret,"signature":"x-leadx-signature-v2: t=<unix>,v1=<hex hmac-sha256(secret, t + '.' + body)>"}
 
 
 @router.delete("/{tenant_id}/integrations/webhooks/{webhook_id}")

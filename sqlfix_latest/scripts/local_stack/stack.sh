@@ -28,12 +28,22 @@ REST_PID=$!
 VAL_PID=$!
 GW_PID=$!
 for i in $(seq 1 40); do curl -sf "http://127.0.0.1:$RESTPORT/" -H "apikey: $SERVICE_JWT" >/dev/null && break; sleep 0.5; done
-export LEADX_EMAIL_VALIDATOR_URL="http://127.0.0.1:54340/" LEADX_SMTP_PROBE=0 ALLOW_PRIVATE_OUTBOUND=1 LEADX_DEBUG_TRACEBACKS=1 ENVIRONMENT=development SUPABASE_URL="http://127.0.0.1:$GWPORT" SUPABASE_SERVICE_KEY="$SERVICE_JWT" SUPABASE_ANON_KEY="$SERVICE_JWT" \
+export CORS_ORIGINS="http://127.0.0.1:${PORTALPORT:-3000},http://localhost:${PORTALPORT:-3000}" LEADX_EMAIL_VALIDATOR_URL="http://127.0.0.1:54340/" LEADX_SMTP_PROBE=0 ALLOW_PRIVATE_OUTBOUND=1 LEADX_DEBUG_TRACEBACKS=1 ENVIRONMENT=development SUPABASE_URL="http://127.0.0.1:$GWPORT" SUPABASE_SERVICE_KEY="$SERVICE_JWT" SUPABASE_ANON_KEY="$SERVICE_JWT" \
   SUPABASE_JWT_SECRET="$JWT_SECRET" LEAD_ENGINE_SERVICE_KEY="local-engine-service-key-0123456789abcdef" API_URL="http://127.0.0.1:$APIPORT" PGPORT TOOLS PB
-(cd "$ROOT" && exec "$PY" -m uvicorn app.app_service:app --host 127.0.0.1 --port "$APIPORT" --log-level warning >"$TOOLS/api.log" 2>&1 </dev/null) &
+(cd "$ROOT" && exec "$PY" -m uvicorn app.app_service:app --host 0.0.0.0 --port "$APIPORT" --log-level warning >"$TOOLS/api.log" 2>&1 </dev/null) &
 API_PID=$!
 (cd "$ROOT" && exec "$PY" -m app.worker --concurrency "${WORKER_CONCURRENCY:-4}" >"$TOOLS/worker.log" 2>&1 </dev/null) &
 WORKER_PID=$!
+if [ "${WITH_PORTAL:-0}" = 1 ]; then
+  ANON_JWT="$("$PY" "$HERE/mkjwt.py" "$JWT_SECRET" role=anon iss=supabase)"
+  PORTAL="$ROOT/lead-crm-portal"; export PORTAL_URL="http://127.0.0.1:${PORTALPORT:-3000}"
+  if [ "${REBUILD_PORTAL:-1}" = 1 ]; then  # NEXT_PUBLIC_* values are inlined at build time
+    (cd "$PORTAL" && NEXT_PUBLIC_SUPABASE_URL="$SUPABASE_URL" NEXT_PUBLIC_SUPABASE_ANON_KEY="$ANON_JWT" API_UPSTREAM="http://127.0.0.2:$APIPORT" NEXT_TELEMETRY_DISABLED=1 npx next build >"$TOOLS/portal-build.log" 2>&1) || { echo "portal build failed"; tail -20 "$TOOLS/portal-build.log"; exit 1; }
+  fi
+  (cd "$PORTAL" && NEXT_PUBLIC_SUPABASE_URL="$SUPABASE_URL" NEXT_PUBLIC_SUPABASE_ANON_KEY="$ANON_JWT" API_UPSTREAM="http://127.0.0.2:$APIPORT" exec npx next start -p "${PORTALPORT:-3000}" >"$TOOLS/portal.log" 2>&1 </dev/null) &
+  PORTAL_PID=$!
+  for i in $(seq 1 60); do curl -sf "$PORTAL_URL/login" >/dev/null && break; sleep 0.5; done
+fi
 for i in $(seq 1 60); do curl -sf "$API_URL/health" >/dev/null && break; sleep 0.5; done
 cd "$ROOT" && "$@"; RC=$?
 echo "--- api.log (tail)"; tail -n 15 "$TOOLS/api.log" | cut -c1-240

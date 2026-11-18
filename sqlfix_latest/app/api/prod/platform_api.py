@@ -1,4 +1,5 @@
 from __future__ import annotations
+from uuid import UUID
 from datetime import date, datetime, timezone
 from hashlib import sha256
 
@@ -382,12 +383,19 @@ def security_events(limit:int=100, admin:PlatformAdmin=Depends(require_platform_
 
 
 @router.get('/agent-missions')
-def agent_missions(tenant_id: str = Query(..., min_length=1), limit: int = Query(20, ge=1, le=100), admin: PlatformAdmin = Depends(require_platform_admin)):
+def agent_missions(tenant_id: UUID = Query(...), limit: int = Query(20, ge=1, le=100), admin: PlatformAdmin = Depends(require_platform_admin)):
     """Read-only, tenant-scoped mission index for the operator trace view."""
     from app.memory.supabase_client import get_supabase
-    rows = get_supabase().table('agent_missions').select(
-        'id,tenant_id,objective,status,profile_id,graph_version,graph_count,updated_at,created_at,terminal_reason'
-    ).eq('tenant_id', tenant_id).order('created_at', desc=True).limit(limit).execute().data or []
+    # select("*") + projection: profile_id/graph_version/graph_count are not columns in every deployment (the old explicit
+    # column list returned 500 for every call); they live in the mission's request/plan JSON.
+    raw = get_supabase().table('agent_missions').select('*').eq('tenant_id', str(tenant_id)).order('created_at', desc=True).limit(limit).execute().data or []
+    keep = ('id', 'tenant_id', 'objective', 'status', 'updated_at', 'created_at', 'terminal_reason')
+    rows = []
+    for m in raw:
+        req = m.get('request') if isinstance(m.get('request'), dict) else {}
+        plan = m.get('plan') if isinstance(m.get('plan'), dict) else {}
+        rows.append({**{k: m.get(k) for k in keep}, 'profile_id': m.get('profile_id') or req.get('profile_id'),
+                     'graph_version': m.get('graph_version') or plan.get('graph_version'), 'graph_count': m.get('graph_count') or plan.get('graph_count')})
     return {'ok': True, 'missions': rows}
 
 

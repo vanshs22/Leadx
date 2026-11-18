@@ -133,6 +133,17 @@ async def csrf_middleware(request: Request, call_next):
     return await call_next(request)
 
 
+def _strip_nul(value):
+    """PostgreSQL text/jsonb cannot hold U+0000; drop it from anything we persist."""
+    if isinstance(value, str):
+        return value.replace("\x00", "")
+    if isinstance(value, dict):
+        return {_strip_nul(k): _strip_nul(v) for k, v in value.items()}
+    if isinstance(value, list):
+        return [_strip_nul(v) for v in value]
+    return value
+
+
 @app.middleware("http")
 async def idempotency_middleware(request: Request, call_next):
     """Durable idempotency for mutating JSON requests.
@@ -192,7 +203,16 @@ async def idempotency_middleware(request: Request, call_next):
             except Exception:
                 parsed = {"ok": True, "raw": body_out.decode("utf-8", "replace")[:2000]}
             stored = {"status_code": response.status_code, "body": parsed}
-            await offload(finish_idempotency, key, operation, stored, "completed", scope_hash=scope_hash, request_hash=body_hash)
+            try:
+                await offload(finish_idempotency, key, operation, _strip_nul(stored), "completed", scope_hash=scope_hash, request_hash=body_hash)
+            except Exception as exc:
+                # The mutation already succeeded. Failing to store the replay record must not turn it into a 500
+                # (the client would retry and repeat the side effect); release the claim and return the real result.
+                emit_telemetry(logger, logging.WARNING, "idempotency.finish_failed", status="degraded", dependency="database", outcome="replay_not_stored", error_code=telemetry_error_code(exc))
+                try:
+                    await offload(release_idempotency, key, operation, scope_hash=scope_hash)
+                except Exception:
+                    logger.debug("idempotency release after failed finish also failed", exc_info=True)
             return Response(content=body_out, status_code=response.status_code, headers=dict(response.headers), media_type=response.media_type)
 
         await offload(release_idempotency, key, operation, scope_hash=scope_hash)

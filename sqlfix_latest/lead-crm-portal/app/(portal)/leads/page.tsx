@@ -365,7 +365,14 @@ export default function LeadsPage() {
           <select className="select h-9 w-auto min-w-[170px]" value={sort} onChange={(e) => setSort(e.target.value)} aria-label="Sort leads"><option value="score_desc">Score: high → low</option><option value="score_asc">Score: low → high</option><option value="tier_asc">Tier: A → C</option><option value="tier_desc">Tier: C → A</option><option value="name_asc">Name: A → Z</option><option value="name_desc">Name: Z → A</option><option value="city_asc">City: A → Z</option><option value="newest">Newest first</option></select>
         </FilterBar>
         {smart && smartNote.length > 0 && (
-          <p className="text-xs text-ink-faint" aria-live="polite">Understood as: {smartNote.join(" · ")}</p>
+          <p className="flex flex-wrap items-center gap-2 text-xs text-ink-faint" aria-live="polite">
+            <span>Understood as: {smartNote.join(" · ")}</span>
+            <button type="button" className="btn btn-secondary h-7 px-2 text-xs" onClick={() => {
+              crmTools.saveSearch(getTenantId(), search.trim().slice(0, 60), search.trim(), true)
+                .then(() => setMsg("Saved. You'll get a notification when new leads match this search."))
+                .catch((e) => setMsg(e instanceof Error ? e.message : "Could not save this search."));
+            }}>Alert me about new matches</button>
+          </p>
         )}
         <SavedViews
           current={{ search, tier, stage, sort }}

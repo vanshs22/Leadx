@@ -367,6 +367,7 @@ async def _housekeeping() -> None:
         ("webhooks.deliver", WEBHOOK_INTERVAL, {"limit": 100}),
         ("agent.goals.tick", 300, {"limit": 20}),
         ("signals.refresh", 900, {"limit": 100}),
+        ("searches.alerts", 900, {"limit": 200}),
     ]
     started_at = time.monotonic()
     last: dict[str, float] = {kind: started_at for kind, _, _ in cron}

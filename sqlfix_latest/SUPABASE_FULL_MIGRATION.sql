@@ -12223,7 +12223,39 @@ CREATE UNIQUE INDEX IF NOT EXISTS jobs_active_singleton_kind_tenant_idx
   WHERE status IN ('queued','running')
     AND kind IN ('pipeline.run','sequences.process_due','automations.process_events','approvals.expire','alerts.run',
                  'schedules.tick','leads.reverify','autonomous.campaign_tick','autonomous.campaign_run',
-                 'webhooks.deliver','agent.goals.tick','signals.refresh');
+                 'webhooks.deliver','agent.goals.tick','signals.refresh','searches.alerts');
+
+NOTIFY pgrst, 'reload schema';
+
+-- ============================================================================
+-- CANONICAL MIGRATION 44: 20261117000300_leadx_webhook_signing_secret.sql
+-- ============================================================================
+
+-- Per-webhook signing secret. Deliveries were signed only with one global WEBHOOK_SIGNING_SECRET, and were unsigned when it was unset.
+-- Existing rows get NULL and keep the legacy behaviour until the webhook is re-created; new webhooks always receive a secret.
+ALTER TABLE IF EXISTS public.outbound_webhooks ADD COLUMN IF NOT EXISTS signing_secret text;
+
+NOTIFY pgrst, 'reload schema';
+
+-- ============================================================================
+-- CANONICAL MIGRATION 45: 20261117000400_leadx_workflow_runs_fk.sql
+-- ============================================================================
+
+-- workflow_runs.workflow_id referenced the legacy workflow_rules table, but runs are created for workflow_definitions rows
+-- (the CRM Automations feature). Every custom automation therefore failed with a foreign-key error and never executed.
+-- Re-point the key at workflow_definitions. NOT VALID keeps any pre-existing legacy run rows untouched; new rows are checked.
+-- Rollback: drop workflow_runs_workflow_definition_fkey and re-add the old constraint referencing workflow_rules(id) NOT VALID.
+DO $$
+BEGIN
+  IF to_regclass('public.workflow_runs') IS NOT NULL AND to_regclass('public.workflow_definitions') IS NOT NULL THEN
+    ALTER TABLE public.workflow_runs DROP CONSTRAINT IF EXISTS workflow_runs_workflow_id_fkey;
+    IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'workflow_runs_workflow_definition_fkey') THEN
+      ALTER TABLE public.workflow_runs
+        ADD CONSTRAINT workflow_runs_workflow_definition_fkey
+        FOREIGN KEY (workflow_id) REFERENCES public.workflow_definitions(id) ON DELETE CASCADE NOT VALID;
+    END IF;
+  END IF;
+END $$;
 
 NOTIFY pgrst, 'reload schema';
 

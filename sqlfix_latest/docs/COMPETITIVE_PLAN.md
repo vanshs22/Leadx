@@ -33,17 +33,26 @@ Sources read on 2026-11-18 (vendor pages and third-party reviews, paraphrased): 
 Also fixed in this pass: lead list filters (`city`, `state`, `min_score`, `min_rating`, `has_email/phone/website/booking`,
 `delivered_since_days`) so every saved view and the new search use real database filters.
 
-## Not built yet (ordered by value for effort)
+## Added in the second pass
 
-1. **Saved smart searches with alerts** (Apollo's strongest 2026 theme): store the parsed filters as a view, run on the schedule worker, notify on new matches.
-2. **Signal "plays"** (HubSpot): a play = filters + signal + action; the automation engine and `lead_signals` already exist, only the builder UI and trigger wiring are missing.
-3. **Free website finder for leads that have only a name and city** (the main reason OSM-only runs fall short of target). Needs a legal free source; a paid search key (Serper) remains the fallback.
-4. **LLM-assisted parsing** for queries the rules cannot read, behind the existing AI key check.
-5. **Account-level buying committee map** from the contact roles table.
-6. Per-tenant RLS and Realtime verification, theme redesign, and browser tests (see `E2E_TEST_REPORT.md`).
+| Capability | Where | Why it beats the market |
+|---|---|---|
+| Saved smart searches with alerts | `POST /saved-searches`, `/saved-searches/{id}/run`, worker job `searches.alerts` (every 15 min), "Alert me about new matches" on the Leads page | Apollo-style alerts without credits; only leads delivered since the last run are reported |
+| Signal plays | `lead.signal_detected` automation trigger, emitted by website change detection; conditions on `signal_type`/`strength`; actions `create_task`, `notify_owner`, `create_deal`... | HubSpot-style plays driven by free signals. Required fixing a defect: **every custom automation failed** on a foreign key (migration `20261117000400`) |
+| Free website finder | `website_finder.py`; waterfall provider `website_guess`; runs first in enrichment for leads with no website | Probes likely domains and accepts one only if the page proves it is the same business (name, city, phone). Zero credits; Serper stays the fallback |
+| LLM-assisted search parsing | `nl_search.parse_with_llm`, used only when the rules find nothing and an AI key exists | Output is validated against an allowlist before it reaches a query |
+| Buying-committee map | `GET /companies/{id}/buying-committee` | Roles, coverage score, missing roles, who to contact first |
+| Signed, testable webhooks | per-webhook secret (shown once), `x-leadx-signature-v2: t=,v1=` HMAC over `t.body`, `POST /webhooks/{id}/test`, `GET /webhooks/{id}/deliveries` | Replay-safe signatures; failed deliveries retry with backoff and stay visible |
+
+## Not built yet
+
+1. Playbook builder UI for plays (the backend trigger and actions exist; only the screen is missing).
+2. A second free website source for businesses whose domain cannot be guessed (paid Serper remains the fallback).
+3. Buying-committee and data-quality panels in the portal (APIs and client methods exist).
+4. Realtime/RLS verification, mobile layouts, and the lead table's right-hand columns at 1360 px width (the "Open" button is clipped; horizontal scroll works).
+5. Salesforce competitor research, AI-written outreach beyond the existing sequence writer (needs an AI key).
 
 ## Evidence
 
-`tests/test_competitive_features.py` (6 offline checks) and 9 new live checks in `scripts/local_stack/e2e.py`
-(search, tenant isolation, injection attempt, data quality, change detection against a local test page, merge re-pointing,
-cross-tenant merge refusal). Run results: see `E2E_TEST_REPORT.md`.
+`tests/test_competitive_features.py` (10 offline checks), 74 live API checks in `scripts/local_stack/e2e.py`, and the real-browser suites
+`browser_walk.mjs` (every page as client and admin) and `browser_journeys.mjs` (19 user journeys). See `E2E_TEST_REPORT.md`.

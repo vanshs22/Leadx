@@ -416,3 +416,23 @@ async def _approvals_expire(payload: dict) -> dict:
     from app.integrations.prod.discovery_requests import expire_pending_requests
     from app.memory.supabase_client import get_supabase
     return expire_pending_requests(sb=get_supabase(), limit=int(payload.get("limit") or 100))
+
+
+@register("searches.alerts")
+async def _saved_search_alerts(payload: dict) -> dict:
+    """Run every alerting saved smart search once and notify tenants about leads delivered since the last run."""
+    from app.api.prod.lead_tools_api import run_saved_search
+    from app.services.aio import aexec
+    from app.memory.supabase_client import get_supabase
+    views = (await aexec(get_supabase().table("saved_views").select("*").eq("entity", "smart_search").limit(int(payload.get("limit") or 200)))).data or []
+    ran = notified = 0
+    for v in views:
+        if not (v.get("filters") or {}).get("alert"):
+            continue
+        try:
+            res = await run_saved_search(str(v["tenant_id"]), v, notify=True)
+            ran += 1
+            notified += 1 if res["new_matches"] else 0
+        except Exception:
+            logger.warning("saved search %s failed", v.get("id"), exc_info=True)
+    return {"ran": ran, "notified": notified}

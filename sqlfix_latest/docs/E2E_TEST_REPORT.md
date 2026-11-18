@@ -23,7 +23,7 @@ Run it: `PY=.venv/bin/python scripts/local_stack/stack.sh .venv/bin/python scrip
 
 | Suite | Result |
 |---|---|
-| `scripts/local_stack/e2e.py` (admin, auth, isolation, CRM CRUD, import/export, opportunity requests, webhooks, automations, hardening, pagination, concurrency, plus lead tools: smart search, data quality, change detection, duplicates/merge) | **69 / 69 pass** |
+| `scripts/local_stack/e2e.py` (admin, auth, isolation, CRM CRUD, import/export, opportunity requests, webhooks, automations, hardening, pagination, concurrency, plus lead tools: smart search, data quality, change detection, duplicates/merge) | **74 / 74 pass** |
 | `scripts/local_stack/pipeline_e2e.py` (2 tenants, concurrent real pipelines, CRM sync, stage moves, isolation, job controls) | **36 / 36 pass** |
 | `scripts/local_stack/sweep.py` (every parameterless GET as admin and tenant) | 168 routes, **0 × 5xx** after fixes (1 before) |
 | Backend unit/contract suite (`pytest`, 2751 tests) | **76 fail** (was 85 at baseline). 69 distinct tests (77 cases); 62 of those cases still fail when run alone, so 15 only fail because of test-order interference. |
@@ -104,3 +104,31 @@ The brief is a multi-month roadmap. This pass fixed and verified what already ex
 - Demo Supabase keys supplied by the owner were rejected ("Invalid API key") and Serper reported no credits, so no run against the hosted demo project was possible. Firecrawl worked. A local pipeline run with Firecrawl enabled: tenant A 7 assigned, tenant B 1 assigned, 36/36 checks pass.
 - Worker and API no longer log full httpx URLs; PostgREST filters in those URLs contained provider API keys.
 - New lead tools and fixes are described in `COMPETITIVE_PLAN.md`. No new backend test regressions (76 failures before and after; same set).
+
+## Update: real-browser testing as a client and as a platform admin (2026-11-18)
+
+Run with `scripts/local_stack/stack.sh` and `WITH_PORTAL=1`: the production Next.js build is served and tested with Chromium (Playwright).
+Login goes through the real forms against a local GoTrue-compatible auth shim (`authshim.py`; test stack only, passwords are bcrypt in `auth.users`).
+
+| Suite | Result |
+|---|---|
+| `browser_walk.mjs`: visits 54 pages (29 client, 24 admin, plus a client-into-admin check), records console errors, 4xx/5xx and error text | 53 clean. 1 note: the client `/agents` page probes `/platform/me`, which answers 403 (harmless console noise) |
+| `browser_journeys.mjs`: 19 user steps | **19 / 19 pass** |
+
+Journeys covered: wrong-password rejection, login, leads list, smart search plus "Alert me" (saved search stored), dragging a lead card between lifecycle stages
+(stage persisted), creating a company and a deal through the forms, duplicate detection and merge, CSV import (preview, run, rows in the CRM),
+requesting opportunities, inviting a teammate, client blocked from admin, sign out; admin: wrong password, login, Tenants list, approving the client's
+opportunity request (which queues a pipeline run), Jobs/Runs/Scale/Usage/Health/Security pages, sign out.
+
+Defects the browser pass found and fixed:
+
+| Defect | Visible effect | Fix |
+|---|---|---|
+| Failure while storing the idempotency replay record turned a successful POST into a 500 | **"LeadX is temporarily unavailable"** after Smart search and after requesting opportunities, and the request was created anyway | Replay storage is best-effort and NUL-safe; the real result is returned |
+| `GET /platform/agent-missions` selected columns that do not exist | Admin "Agent operations" page 500 | Schema-tolerant projection; `tenant_id` validated as UUID |
+| `workflow_runs` foreign key pointed at a legacy table | Every custom automation failed silently | Migration `20261117000400` |
+| `jobs` unique index, `tenants.settings`, stage vocabulary (earlier pass) | Pipelines delivered nothing; opportunity requests 500 | See above |
+
+Not verified: Realtime (the badge shows "Reconnecting" because the test stack has no Realtime server), mobile layouts, the missing-glyph boxes seen in headless
+screenshots where an arrow character is used (the sandbox browser has no system fonts, so this is probably an artifact), and light/dark theme parity beyond
+one dark-mode screenshot of the Leads page (it renders correctly). The lead table's right-hand columns are clipped at 1360 px.

@@ -189,7 +189,7 @@ class WorkflowIn(BaseModel):
     description: str = Field(default="", max_length=1000)
 
 
-ALLOWED_AUTOMATION_EVENTS = {"lead.assigned", "email.reply_received", "deal.stage_changed", "lead.score_changed", "lead.quality_gate_passed"}
+ALLOWED_AUTOMATION_EVENTS = {"lead.assigned", "email.reply_received", "deal.stage_changed", "lead.score_changed", "lead.quality_gate_passed", "lead.signal_detected"}
 ALLOWED_AUTOMATION_ACTIONS = {"send_email", "enroll_sequence", "stop_sequence", "create_task", "notify_owner", "create_deal", "update_lead", "escalate_owner", "score_reply"}
 
 

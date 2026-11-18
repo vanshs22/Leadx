@@ -58,3 +58,55 @@ def parse_query(text: str) -> dict[str, Any]:
     if term:
         f["term"] = term; why.append(f'text/industry contains "{term}"')
     return {"query": text, "filters": f, "explanation": why}
+
+
+_BOOL = ("has_email", "has_phone", "has_website", "has_booking")
+
+
+def sanitize_filters(obj: Any) -> dict[str, Any]:
+    """Allowlist + type-check anything that came from a language model; unknown keys and bad values are dropped."""
+    if not isinstance(obj, dict):
+        return {}
+    out: dict[str, Any] = {}
+    if str(obj.get("tier", "")).upper() in ("A", "B", "C"):
+        out["tier"] = str(obj["tier"]).upper()
+    for key in ("city", "term", "stage"):
+        v = _clean_term(str(obj.get(key) or ""))[:60]
+        if v:
+            out[key] = v
+    if re.fullmatch(r"[A-Za-z]{2}", str(obj.get("state") or "")):
+        out["state"] = str(obj["state"]).upper()
+    for key, lo, hi in (("min_score", 0, 100), ("delivered_since_days", 1, 3650)):
+        try:
+            v = int(obj[key])
+            if lo <= v <= hi:
+                out[key] = v
+        except (KeyError, TypeError, ValueError):
+            pass
+    try:
+        if 0 <= float(obj["min_rating"]) <= 5:
+            out["min_rating"] = float(obj["min_rating"])
+    except (KeyError, TypeError, ValueError):
+        pass
+    for key in _BOOL:
+        if isinstance(obj.get(key), bool):
+            out[key] = obj[key]
+    return out
+
+
+LLM_PROMPT = ("Convert the sales-lead search request into JSON with only these optional keys: tier (A|B|C), city, state (2 letters), term "
+              "(industry or business words), stage, min_score (0-100), min_rating (0-5), has_email, has_phone, has_website, has_booking (booleans), "
+              "delivered_since_days (integer). Output JSON only.\nRequest: ")
+
+
+async def parse_with_llm(text: str, complete) -> dict[str, Any]:
+    """Used only when the rule parser found nothing. `complete` is llm_copy.complete (needs an AI key); returns {} on any failure."""
+    try:
+        res = await complete(LLM_PROMPT + text[:300])
+        if not res.get("ok"):
+            return {}
+        import json
+        m = re.search(r"\{.*\}", str(res.get("text") or ""), re.S)
+        return sanitize_filters(json.loads(m.group(0))) if m else {}
+    except Exception:
+        return {}

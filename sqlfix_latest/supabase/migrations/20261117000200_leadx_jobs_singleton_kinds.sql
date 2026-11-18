@@ -9,6 +9,6 @@ CREATE UNIQUE INDEX IF NOT EXISTS jobs_active_singleton_kind_tenant_idx
   WHERE status IN ('queued','running')
     AND kind IN ('pipeline.run','sequences.process_due','automations.process_events','approvals.expire','alerts.run',
                  'schedules.tick','leads.reverify','autonomous.campaign_tick','autonomous.campaign_run',
-                 'webhooks.deliver','agent.goals.tick','signals.refresh');
+                 'webhooks.deliver','agent.goals.tick','signals.refresh','searches.alerts');
 
 NOTIFY pgrst, 'reload schema';

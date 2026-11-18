@@ -1225,6 +1225,12 @@ export const crmTools = {
   merge: (tenantId: string, entity: "companies" | "contacts", keepId: string, mergeIds: string[]) =>
     api<{ kept: string; merged: string[]; re_pointed: Record<string, number> }>(
       `/crm/${tenantId}/${entity}/merge`, { method: "POST", body: JSON.stringify({ keep_id: keepId, merge_ids: mergeIds }) }),
+  saveSearch: (tenantId: string, name: string, query: string, alert = true) =>
+    api<{ explanation: string[] }>(`/crm/${tenantId}/saved-searches`, { method: "POST", body: JSON.stringify({ name, query, alert }) }),
+  savedSearches: (tenantId: string) => api<{ saved_searches: { id: string; name: string; filters: { query?: string; alert?: boolean; last_new_matches?: number } }[] }>(`/crm/${tenantId}/saved-searches`),
+  runSavedSearch: (tenantId: string, id: string) => api<{ new_matches: number; total: number }>(`/crm/${tenantId}/saved-searches/${id}/run`, { method: "POST" }),
+  committee: (tenantId: string, companyId: string) =>
+    api<{ coverage_score: number; members: { name: string; title?: string; role: string; reachable: boolean }[]; gaps: { role: string; look_for: string }[] }>(`/crm/${tenantId}/companies/${companyId}/buying-committee`),
   refreshCheck: (tenantId: string, assignmentId: string, allowPaid = false) =>
     api<{ lane: string; baseline: boolean; changed: boolean; changes: { type: string; detail: unknown }[] }>(
       `/crm/${tenantId}/leads/${assignmentId}/refresh-check`, { method: "POST", body: JSON.stringify({ allow_paid: allowPaid }) }),

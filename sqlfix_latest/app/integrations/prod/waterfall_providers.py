@@ -42,6 +42,15 @@ def _scrape_factory():
     return website_scrape
 
 
+async def website_guess(lead: dict, fld: str) -> Optional[dict]:
+    """Free: probe likely domains for a business that has no website; accept only if the page proves identity."""
+    if fld != "website" or lead.get("website"):
+        return None
+    from app.integrations.prod.website_finder import find_website
+    got = await find_website(str(lead.get("name") or ""), str(lead.get("city") or ""), str(lead.get("phone") or lead.get("phone_e164") or ""))
+    return {"value": got["website"], "confidence": got["confidence"], "source_url": got["website"]} if got else None
+
+
 async def linkedin_lookup(lead: dict, fld: str) -> Optional[dict]:
     from app.integrations.prod.linkedin_lookup import enrich_lead_linkedin
     got = await enrich_lead_linkedin(dict(lead))
@@ -71,6 +80,7 @@ async def email_pattern_guess(lead: dict, fld: str) -> Optional[dict]:
 
 def build_providers() -> list[Provider]:
     return default_providers([
+        Provider("website_guess", website_guess, ("website",), cost=0.2, timeout_s=40, prior_hit_rate=0.3),
         Provider("website_scrape", _scrape_factory(), ("email", "phone", "owner_name", "linkedin_url"), cost=1.0, timeout_s=25, prior_hit_rate=0.45),
         Provider("linkedin_lookup", linkedin_lookup, ("linkedin_url", "owner_name"), cost=2.0, timeout_s=25, prior_hit_rate=0.25),
         Provider("email_pattern_guess", email_pattern_guess, ("email",), cost=0.5, timeout_s=10, prior_hit_rate=0.2),
