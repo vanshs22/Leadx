@@ -3,6 +3,7 @@ Shared production helpers: phone, domain, fingerprint, email validation, logging
 """
 from __future__ import annotations
 
+from functools import lru_cache
 import html as _html
 import hashlib
 import logging
@@ -118,6 +119,7 @@ def _fallback_phone(phone: Optional[str], default_country: str = "1") -> Optiona
     return str(default_country).lstrip("+") + digits
 
 
+@lru_cache(maxsize=50_000)  # pure; the same numbers recur across pages and pipeline stages
 def normalize_phone(phone: Optional[str]) -> Optional[str]:
     """Return validated E.164 digits without '+'. Defaults to US for bare numbers."""
     parsed, lib = _parse_phone(phone, "US")

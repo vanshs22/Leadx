@@ -119,6 +119,25 @@ async def assert_public_url(url: str) -> Optional[str]:
     return None
 
 
+# httpx rebuilds (and re-reads the CA bundle for) a fresh SSL context for every client: ~5 ms CPU each on the shared event loop.
+# Reuse one verified context for the default-verify case. shortcut: ignores per-client cert files, drop if mTLS is ever needed.
+try:
+    import httpx._config as _hc
+    _orig_verify = _hc.SSLConfig.load_ssl_context_verify
+    _ctx_cache: list = []
+
+    def _cached_verify(self):
+        if self.verify is not True or getattr(self, "cert", None):
+            return _orig_verify(self)
+        if not _ctx_cache:
+            _ctx_cache.append(_orig_verify(self))
+        return _ctx_cache[0]
+
+    _hc.SSLConfig.load_ssl_context_verify = _cached_verify
+except Exception:  # httpx internals changed: fall back to the stock behaviour
+    pass
+
+
 async def safe_get(url: str, *, timeout: float = 20.0, max_redirects: int = 5,
                    max_bytes: int = 2_500_000, headers: Optional[dict] = None):
     """GET with per-hop SSRF validation and a response size cap.

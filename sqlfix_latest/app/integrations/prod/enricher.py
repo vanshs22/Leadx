@@ -34,6 +34,20 @@ BOOKING_PLATFORMS = [
     ("simplybook", "SimplyBook"), ("styleseat", "StyleSeat"), ("treatwell", "Treatwell"),
 ]
 
+# stealthy_headers=True runs browserforge's header generator per request (~10% of crawl CPU); a fixed browser UA is enough here.
+_FETCH_HEADERS = {
+    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/131 Safari/537.36",
+    "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+    "Accept-Language": "en-US,en;q=0.9",
+}
+
+try:  # scrapling regenerates browserforge headers on every get() (~2 ms CPU each); one set is enough for the process
+    import functools
+    import scrapling.engines.static as _sstatic
+    _sstatic.generate_headers = functools.lru_cache(maxsize=4)(_sstatic.generate_headers)
+except Exception:
+    pass
+
 INSTAGRAM_RE = re.compile(r"instagram\.com/([a-zA-Z0-9._]+)")
 FACEBOOK_RE = re.compile(r"facebook\.com/([a-zA-Z0-9.]+)")
 LINKEDIN_RE = re.compile(r"linkedin\.com/company/([a-zA-Z0-9\-]+)")
@@ -71,7 +85,7 @@ def _extract_social(html: str) -> dict:
 # ---------------------------------------------------------------------------
 # Fetch layers
 # ---------------------------------------------------------------------------
-async def fetch_scrapling(url: str, timeout: int = 20) -> dict:
+async def fetch_scrapling(url: str, timeout: int = 20, light: bool = False) -> dict:
     """Fast HTTP fetch through Scrapling, with a plain-httpx fallback.
 
     SECURITY: every hop (including redirects) is validated as a public URL
@@ -90,6 +104,8 @@ async def fetch_scrapling(url: str, timeout: int = 20) -> dict:
         out["error"] = f"blocked:{blocked}"
         return out
     try:
+        if light:  # html only: skip scrapling's per-response lxml parse (secondary pages are mostly 404s; ~30 fetches per site)
+            raise RuntimeError("light")
         try:
             from scrapling.fetchers import AsyncFetcher
         except ImportError:
@@ -99,7 +115,7 @@ async def fetch_scrapling(url: str, timeout: int = 20) -> dict:
         page = None
         for _hop in range(6):
             page = await fetcher.get(
-                current, timeout=timeout, follow_redirects=False, stealthy_headers=True
+                current, timeout=timeout, follow_redirects=False, stealthy_headers=False, headers=_FETCH_HEADERS
             )
             code = getattr(page, "status", None)
             loc = None
@@ -133,14 +149,7 @@ async def fetch_scrapling(url: str, timeout: int = 20) -> dict:
     except Exception as e:
         out["error"] = str(e)
         logger.debug("scrapling fail %s: %s", url, e)
-        r, err = await safe_get(
-            url,
-            timeout=timeout,
-            headers={
-                "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/131 Safari/537.36",
-                "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
-            },
-        )
+        r, err = await safe_get(url, timeout=timeout, headers=_FETCH_HEADERS)
         if r is not None and r.status_code < 400 and r.text:
             out.update(html=r.text, text=r.text, ok=True, method="httpx", status=r.status_code, error=None)
         elif r is not None:
@@ -361,7 +370,7 @@ async def _fetch_secondary_pages(base_url: str, html: str, use_firecrawl_for_sec
     sem = asyncio.Semaphore(4)
     async def one(url: str):
         async with sem:
-            page = await fetch_scrapling(url, timeout=12)
+            page = await fetch_scrapling(url, timeout=12, light=True)
             content = (page.get('html') or page.get('text') or '') if page.get('ok') else ''
             # Contact pages are often where the actual phone/email lives. If
             # the primary fetcher is blocked by the site, give Firecrawl one
