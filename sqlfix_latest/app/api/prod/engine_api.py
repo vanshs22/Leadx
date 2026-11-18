@@ -22,6 +22,18 @@ logger = logging.getLogger("lead_engine.engine_api")
 router = APIRouter(prefix="/crm", tags=["engine"], dependencies=[Depends(require_tenant)])
 
 
+def require_writer(ctx: TenantContext = Depends(require_tenant)) -> TenantContext:
+    """Members and above may act on review items and deliveries; read-only viewers may not."""
+    if ctx.role not in ("owner", "admin", "member"):
+        raise HTTPException(403, "Read-only role")
+    return ctx
+
+
+def _limit(ctx: TenantContext, action: str, limit: int, window: int) -> None:
+    from app.middleware.rate_limit import check_rate_limit
+    check_rate_limit(ctx.tenant_id, f"engine_{action}", limit, window)
+
+
 def _sb():
     from app.memory.supabase_client import get_supabase
     return get_supabase()
@@ -61,7 +73,7 @@ class ResolveBody(BaseModel):
 
 
 @router.post("/{tenant_id}/engine/review/{item_id}/resolve")
-def review_resolve(tenant_id: UUID, item_id: UUID, body: ResolveBody, ctx: TenantContext = Depends(require_tenant)):
+def review_resolve(tenant_id: UUID, item_id: UUID, body: ResolveBody, ctx: TenantContext = Depends(require_writer)):
     assert_tenant_match(ctx, tenant_id)
     from app.integrations.prod.review_queue import resolve
     row = resolve(str(tenant_id), str(item_id), body.action, ctx.email or ctx.user_id)
@@ -71,8 +83,9 @@ def review_resolve(tenant_id: UUID, item_id: UUID, body: ResolveBody, ctx: Tenan
 
 
 @router.post("/{tenant_id}/engine/review/{item_id}/recover")
-async def review_recover(tenant_id: UUID, item_id: UUID, ctx: TenantContext = Depends(require_tenant)):
+async def review_recover(tenant_id: UUID, item_id: UUID, ctx: TenantContext = Depends(require_writer)):
     assert_tenant_match(ctx, tenant_id)
+    _limit(ctx, "recover", 60, 3600)  # each call crawls a website
     from app.integrations.prod.review_queue import recover
     out = await recover(str(tenant_id), str(item_id))
     if not out.get("ok"):
@@ -92,7 +105,7 @@ def delivery_status(tenant_id: UUID, ctx: TenantContext = Depends(require_tenant
 
 
 @router.post("/{tenant_id}/engine/delivery/{outbox_id}/replay")
-def delivery_replay(tenant_id: UUID, outbox_id: UUID, ctx: TenantContext = Depends(require_tenant)):
+def delivery_replay(tenant_id: UUID, outbox_id: UUID, ctx: TenantContext = Depends(require_writer)):
     """Put a dead-lettered delivery back in the queue. The stable event id keeps the provider write idempotent."""
     assert_tenant_match(ctx, tenant_id)
     now = datetime.now(timezone.utc).isoformat()

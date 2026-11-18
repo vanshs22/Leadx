@@ -4,7 +4,7 @@ Passwords live in auth.users.encrypted_password (bcrypt via pgcrypto). Signup au
 Test stack only: it signs tokens with the local test JWT secret."""
 import json, os, time, uuid
 import psycopg2
-from jose import jwt
+import jwt  # PyJWT
 
 SECRET = os.environ["JWT_SECRET"]
 DSN = f"host=127.0.0.1 port={os.environ.get('PGPORT', '54329')} user=postgres dbname=leadx_e2e"

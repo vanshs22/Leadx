@@ -147,7 +147,7 @@ def extract_domain(url: Optional[str]) -> Optional[str]:
 
 def fingerprint(name: str, phone: Optional[str], website: Optional[str]) -> str:
     raw = f"{(name or '').lower().strip()}|{normalize_phone(phone) or ''}|{extract_domain(website) or ''}"
-    return hashlib.md5(raw.encode()).hexdigest()
+    return hashlib.md5(raw.encode(), usedforsecurity=False).hexdigest()
 
 
 def extract_phones(html: str) -> list[str]:

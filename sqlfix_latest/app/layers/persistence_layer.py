@@ -330,6 +330,46 @@ def validate_stage_transition(current_stage: str | None, next_stage: str) -> dic
     return {"ok": True, "reason": "same_stage" if current == target else "forward", "from": current, "to": target}
 
 
+_STAGE_STATE: "dict[tuple[str, str], dict]" = {}   # last stage written per (run, lead) by this process, so most transitions need no read
+_HISTORY: list = []
+_HISTORY_LOCK = __import__("threading").Lock()
+_HISTORY_THREAD = None
+
+
+def _flush_history() -> None:
+    """Insert buffered lead_state_history rows in one request. Additive audit data: a failure is logged, never raised."""
+    with _HISTORY_LOCK:
+        rows, _HISTORY[:] = list(_HISTORY), []
+    if not rows:
+        return
+    try:
+        get_supabase().table("lead_state_history").insert(rows).execute()
+    except Exception as exc:
+        logger.debug("stage history projection unavailable: %s", type(exc).__name__)
+
+
+def flush_stage_history() -> None:
+    _flush_history()
+
+
+def _queue_history(row: dict) -> None:
+    global _HISTORY_THREAD
+    with _HISTORY_LOCK:
+        _HISTORY.append(row)
+        big = len(_HISTORY) >= 100
+    if big:
+        _flush_history()
+    elif _HISTORY_THREAD is None or not _HISTORY_THREAD.is_alive():
+        import threading, time as _t
+
+        def _loop():
+            while True:
+                _t.sleep(0.5)
+                _flush_history()
+        _HISTORY_THREAD = threading.Thread(target=_loop, name="leadx-stage-history", daemon=True)
+        _HISTORY_THREAD.start()
+
+
 @to_async
 def record_stage_transition(
     tenant_id: str,
@@ -342,12 +382,19 @@ def record_stage_transition(
     metadata: Optional[dict] = None,
     assignment_id: str | None = None,
     supabase=None,
+    extra: Optional[dict] = None,
+    assume_new: bool = False,
+    fast: bool = False,
 ) -> dict:
     """Persist one ordered, tenant-scoped lead stage transition.
 
     ``pipeline_run_leads`` is deliberately the first write.  A duplicate key
     returns the prior outcome and does not append another history event, so a
     retry cannot advance counters or bill twice.
+
+    ``extra`` carries the display columns of the run-board card so the card and the transition are one write.
+    ``fast`` (used by the streaming pipeline) reuses this process's last-written stage instead of reading it and batches history
+    rows; ``assume_new`` skips the read for a lead this run has just discovered.
     """
     tenant_id, run_id, lead_id = str(tenant_id or ""), str(run_id or ""), str(lead_id or "")
     stage = str(stage or "").strip().lower()
@@ -359,10 +406,12 @@ def record_stage_transition(
     key = stage_transition_key(run_id, lead_id, stage)
     sb = supabase or get_supabase()
     try:
-        current_rows = (sb.table("pipeline_run_leads")
-                        .select("stage,stage_status,stage_reason,stage_idempotency_key,tenant_id")
-                        .eq("run_id", run_id).eq("lead_id", lead_id).limit(1).execute().data or [])
-        current = current_rows[0] if current_rows else None
+        current = _STAGE_STATE.get((run_id, lead_id)) if fast else None
+        if current is None and not (fast and assume_new):
+            current_rows = (sb.table("pipeline_run_leads")
+                            .select("stage,stage_status,stage_reason,stage_idempotency_key,tenant_id")
+                            .eq("run_id", run_id).eq("lead_id", lead_id).limit(1).execute().data or [])
+            current = current_rows[0] if current_rows else None
         if current and current.get("tenant_id") not in (None, tenant_id):
             return {"ok": False, "reason": "tenant_scope_denied"}
         if current and current.get("stage_idempotency_key") == key:
@@ -381,23 +430,31 @@ def record_stage_transition(
             "stage": stage, "stage_status": status, "stage_reason": (reason or None),
             "stage_idempotency_key": key, "included": status == "accepted",
             "updated_at": now,
+            **(extra or {}),  # the board's own stage name wins over the durable one, as the old second write did
         }
         if assignment_id:
             row["crm_assignment_id"] = str(assignment_id)
         sb.table("pipeline_run_leads").upsert(row, on_conflict="run_id,lead_id").execute()
-        # The history table is additive and may be absent on old compatibility
-        # deployments. The run-board write above remains the required barrier.
-        try:
-            sb.table("lead_state_history").insert({
-                "lead_id": lead_id, "tenant_id": tenant_id,
-                "from_state": current.get("stage") if current else None,
-                "to_state": stage, "event": f"stage.{status}",
-                "reason": (reason or None),
-                "metadata": {**(metadata or {}), "run_id": run_id, "idempotency_key": key},
-                "created_at": now,
-            }).execute()
-        except Exception as exc:
-            logger.debug("stage history projection unavailable: %s", type(exc).__name__)
+        if fast:
+            _STAGE_STATE[(run_id, lead_id)] = {"stage": stage, "stage_status": status, "stage_reason": reason, "stage_idempotency_key": key, "tenant_id": tenant_id}
+            if len(_STAGE_STATE) > 50000:
+                _STAGE_STATE.clear()
+        # The history table is additive and may be absent on old compatibility deployments.
+        history_row = ({
+            "lead_id": lead_id, "tenant_id": tenant_id,
+            "from_state": current.get("stage") if current else None,
+            "to_state": stage, "event": f"stage.{status}",
+            "reason": (reason or None),
+            "metadata": {**(metadata or {}), "run_id": run_id, "idempotency_key": key},
+            "created_at": now,
+        })
+        if fast:
+            _queue_history(history_row)
+        else:
+            try:
+                sb.table("lead_state_history").insert(history_row).execute()
+            except Exception as exc:
+                logger.debug("stage history projection unavailable: %s", type(exc).__name__)
         return {"ok": True, "replayed": False, "stage": stage, "status": status, "idempotency_key": key}
     except Exception as exc:
         logger.warning("stage transition persistence failed: %s", type(exc).__name__)

@@ -308,13 +308,13 @@ async def _verify_supabase_jwt(token: str) -> dict:
     if local_validation_mode():
         return verify_local_token(token)
 
-    from jose import jwt as jose_jwt, JWTError
+    import jwt as pyjwt  # PyJWT: python-jose is unmaintained and has open advisories
     jwt_secret = os.getenv("SUPABASE_JWT_SECRET") or os.getenv("JWT_SECRET")
     if jwt_secret:
         try:
-            return jose_jwt.decode(
+            return pyjwt.decode(
                 token, jwt_secret, algorithms=["HS256"],
-                audience="authenticated", options={"verify_aud": True},
+                audience="authenticated", options={"verify_aud": True, "require": ["exp", "sub"]},
             )
         except Exception as e:
             logger.debug("HS256 JWT verification failed: %s", e)
@@ -322,7 +322,7 @@ async def _verify_supabase_jwt(token: str) -> dict:
     # Modern Supabase projects may use asymmetric signing keys. Cache JWKS so
     # the first request pays the network cost and subsequent logins verify locally.
     try:
-        header = jose_jwt.get_unverified_header(token)
+        header = pyjwt.get_unverified_header(token)
         kid = header.get("kid")
         alg = header.get("alg")
         allowed_algs = {"RS256", "ES256"}
@@ -330,9 +330,9 @@ async def _verify_supabase_jwt(token: str) -> dict:
             jwks = await _get_jwks()
             key_data = next((k for k in jwks.get("keys", []) if k.get("kid") == kid), None)
             if key_data:
-                return jose_jwt.decode(
-                    token, key_data, algorithms=[alg],
-                    audience="authenticated", options={"verify_aud": True},
+                return pyjwt.decode(
+                    token, pyjwt.PyJWK(key_data).key, algorithms=[alg],
+                    audience="authenticated", options={"verify_aud": True, "require": ["exp", "sub"]},
                 )
     except Exception as e:
         logger.debug("JWKS JWT verification unavailable, using Auth API fallback: %s", e)

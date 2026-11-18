@@ -91,7 +91,7 @@ SOURCES: dict[str, Callable[[str, str], Awaitable[list[dict]]]] = {
 
 
 async def discover_free(industry: str, location: str, *, stats: Optional[dict[str, Any]] = None, budget_seconds: Optional[float] = None,
-                        limit: Optional[int] = None) -> list[dict]:
+                        limit: Optional[int] = None, only: Optional[tuple] = None) -> list[dict]:
     """All free sources for one (industry, location), merged. ``stats`` receives per-source counts/errors.
 
     Sources run concurrently under a time budget (LEADX_FREE_DISCOVERY_SECONDS, default 90). Fast sources (open data,
@@ -100,6 +100,8 @@ async def discover_free(industry: str, location: str, *, stats: Optional[dict[st
     target never floods persistence with thousands of rows it will not use. Default LEADX_FREE_DISCOVERY_MAX_ROWS (1500).
     """
     enabled = [s.strip() for s in os.getenv("LEADX_FREE_SOURCES", ",".join(ALL_SOURCES)).split(",") if s.strip() in SOURCES]
+    if only:  # e.g. the fast seed asks for the sources that answer in seconds
+        enabled = [s for s in enabled if s in only]
     budget = budget_seconds if budget_seconds is not None else float(os.getenv("LEADX_FREE_DISCOVERY_SECONDS", "90"))
     sinks: dict[str, list] = {s: [] for s in enabled}
 

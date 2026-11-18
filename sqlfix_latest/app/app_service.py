@@ -53,10 +53,18 @@ from app.api.prod import engine_api
 from app.api.prod import session_api
 from app.api.prod import platform_api
 
+from app.services.http_tuning import install as _install_http_tuning
+_install_http_tuning()
+
+# Interactive docs and the schema list every route; keep them out of production and staging.
+_PUBLIC_DOCS = os.getenv("ENVIRONMENT", "development").lower() not in {"production", "prod", "staging"} or os.getenv("LEADX_PUBLIC_API_DOCS") == "1"
 app = FastAPI(
     title="Automiqo Lead Service",
     version="15.8.1",
     description="Managed lead generation - operator API + client CRM",
+    docs_url="/docs" if _PUBLIC_DOCS else None,
+    redoc_url="/redoc" if _PUBLIC_DOCS else None,
+    openapi_url="/openapi.json" if _PUBLIC_DOCS else None,
 )
 
 app.include_router(competitive_api.router)

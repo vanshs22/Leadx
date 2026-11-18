@@ -1,6 +1,6 @@
 """Mint a HS256 JWT for the LOCAL test stack:  mkjwt.py <secret> key=value ...  (values with '=' split once)."""
 import sys, time
-from jose import jwt
+import jwt  # PyJWT
 secret, claims = sys.argv[1], {}
 for kv in sys.argv[2:]:
     k, v = kv.split("=", 1)

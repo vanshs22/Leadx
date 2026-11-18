@@ -132,15 +132,20 @@ def main():
         run_id = r.json().get("run_id")
         check("pipeline run accepted", bool(run_id), r.text[:200])
         row = {}
+        dumped = False
         while time.time() - started < a.timeout:
             row = (rest("GET", f"pipeline_runs?id=eq.{run_id}&select=status,discovered,enriched,assigned,error_message,meta") or [{}])[0]
             if str(row.get("status")) in TERMINAL:
                 break
+            if os.environ.get("DUMP_AFTER") and not dumped and time.time() - started > int(os.environ["DUMP_AFTER"]) and not (row.get("assigned") or 0):
+                dumped = True  # nothing assigned yet: capture every thread's stack of the worker for diagnosis
+                subprocess.run([os.path.join(os.path.dirname(sys.executable), "py-spy"), "dump", "--pid", str(procs[1].pid)], stdout=open(os.path.join(LOGS, "worker_dump.txt"), "w"), stderr=subprocess.STDOUT)
             time.sleep(8)
         elapsed = round(time.time() - started)
         print(f"run {row.get('status')} discovered={row.get('discovered')} enriched={row.get('enriched')} assigned={row.get('assigned')} in {elapsed}s err={row.get('error_message')}")
         m0 = row.get("meta") or {}
-        print("run meta:", json.dumps({k: m0.get(k) for k in ("stop_reason", "terminal_status", "assignment_blockers", "gate_rejections", "failures", "remaining_gap", "rounds_used")}, default=str)[:600])
+        print("latency:", json.dumps((m0.get("lane_telemetry") or {}).get("latency_samples")), "seed:", json.dumps((m0.get("lane_telemetry") or {}).get("fast_seed")))
+        print("run meta:", json.dumps({k: m0.get(k) for k in ("stop_reason", "terminal_status", "assignment_blockers", "remaining_gap")}, default=str)[:600])
         check("run reached a terminal state", str(row.get("status")) in TERMINAL, row.get("status"))
         asg = rest("GET", f"lead_assignments?tenant_id=eq.{tid}&select=id,lead_id,status,crm_status,tier,created_at")
         check(f"{a.target} leads assigned", len(asg) >= a.target, f"{len(asg)} assigned")

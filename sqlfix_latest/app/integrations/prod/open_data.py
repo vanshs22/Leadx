@@ -14,6 +14,7 @@ import logging
 import os
 import re
 import tempfile
+import time
 from typing import Any, Optional
 
 import httpx
@@ -38,6 +39,7 @@ _ALIASES = {"dentist": "dental", "dentists": "dental", "dental clinic": "dental"
             "attorney": "lawyer", "hvac contractor": "hvac", "software": "saas"}
 
 _release_cache: dict[str, str] = {}
+_query_cache: dict[tuple, tuple[float, list[dict]]] = {}  # same city asked again within an hour is instant
 
 
 def taxonomy_terms(industry: str) -> list[str]:
@@ -67,6 +69,8 @@ def _query(release: str, bbox: tuple[float, float, float, float], terms: list[st
     import duckdb
     home = os.getenv("LEADX_DUCKDB_HOME") or os.path.join(tempfile.gettempdir(), "leadx_duckdb")
     os.makedirs(home, exist_ok=True)
+    if not re.fullmatch(r"\d{4}-\d{2}-\d{2}\.\d+", release):  # interpolated into the S3 path below
+        raise ValueError("invalid Overture release")
     con = duckdb.connect(config={"home_directory": home, "extension_directory": home})
     try:
         con.execute("INSTALL httpfs; LOAD httpfs; SET s3_region='us-west-2';")
@@ -101,6 +105,10 @@ async def overture_places(industry: str, location: str, *, bbox: Optional[tuple]
         return []
     release = await latest_release()
     limit = int(os.getenv("OVERTURE_MAX_ROWS", "5000"))
+    ckey = (release, tuple(round(x, 3) for x in bbox), tuple(terms))
+    hit = _query_cache.get(ckey)
+    if hit and time.time() - hit[0] < float(os.getenv("OVERTURE_CACHE_SECONDS", "3600")):
+        return [dict(r) for r in hit[1]]
     min_conf = float(os.getenv("OVERTURE_MIN_CONFIDENCE", "0.5"))
     rows = await asyncio.to_thread(_query, release, bbox, terms, limit, min_conf)
     out: list[dict[str, Any]] = []
@@ -111,4 +119,5 @@ async def overture_places(industry: str, location: str, *, bbox: Optional[tuple]
         out.append({"name": r["name"], "phone": r.get("phone"), "website": r.get("website"), "address": address,
                     "id": f"overture:{r['id']}", "email": r.get("email"), "socials": list(r.get("socials") or []),
                     "confidence": r.get("confidence"), "category": r.get("category"), "overture_release": release})
+    _query_cache[ckey] = (time.time(), [dict(r) for r in out])
     return out

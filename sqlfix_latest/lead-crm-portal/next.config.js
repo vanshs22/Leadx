@@ -106,6 +106,9 @@ const nextConfig = {
   poweredByHeader: false,
   compress: true,
   experimental: { optimizePackageImports: ["recharts", "@supabase/supabase-js"] },
+  // The portal does not use next/image. Turning the optimizer off removes the image-optimization API, which carries the
+  // open Next 14 advisories (SVG/AVIF handling, cache growth). Remove this only after upgrading to a patched Next major.
+  images: { unoptimized: true, remotePatterns: [] },
   // Force-embed only public Supabase values into the browser bundle.
   env: {
     NEXT_PUBLIC_SUPABASE_URL: SUPA_URL,
@@ -122,6 +125,7 @@ const nextConfig = {
           { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
           { key: "Permissions-Policy", value: "camera=(), microphone=(), geolocation=()" },
           { key: "Cross-Origin-Opener-Policy", value: "same-origin" },
+          ...(isHardenedPortalProfile() ? [{ key: "Strict-Transport-Security", value: "max-age=31536000; includeSubDomains" }] : []),
         ],
       },
     ];

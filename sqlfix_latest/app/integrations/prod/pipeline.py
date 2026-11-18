@@ -68,6 +68,9 @@ def classify_run_state(run: Optional[dict], *, now: datetime | None = None) -> s
     return "running"
 
 
+_FENCE_CACHE: dict[tuple[str, str], tuple[float, bool]] = {}
+
+
 def _execution_allows_write(execution_context: Optional[dict]) -> bool:
     """Fence handler writes after cancellation, lease loss, or reset."""
     context = execution_context or {}
@@ -77,12 +80,23 @@ def _execution_allows_write(execution_context: Optional[dict]) -> bool:
     job_id = str(context.get("job_id") or "")
     if not job_id:
         return True
+    # The fence is read on every write (hundreds per run). It only changes on cancel/lease loss, so a one-second cache
+    # keeps the guarantee within a second while removing most of the reads. A False answer is final for the job.
+    key = (job_id, str(context.get("worker_id") or ""))
+    now = time.monotonic()
+    hit = _FENCE_CACHE.get(key)
+    if hit and (not hit[1] or now < hit[0]):
+        return hit[1]
     try:
         from app.integrations.prod import jobs
-        return jobs.execution_fence(job_id, worker_id=context.get("worker_id"), tenant_id=context.get("tenant_id"))
+        allowed = bool(jobs.execution_fence(job_id, worker_id=context.get("worker_id"), tenant_id=context.get("tenant_id")))
     except Exception:
         # A fence read failure must fail closed for a durable worker.
         return False
+    _FENCE_CACHE[key] = (now + float(os.getenv("LEADX_FENCE_TTL_SECONDS", "1.0")), allowed)
+    if len(_FENCE_CACHE) > 2000:
+        _FENCE_CACHE.clear()
+    return allowed
 
 
 
@@ -402,14 +416,16 @@ async def run_pipeline_parallel_target(
     geo = geo if isinstance(geo, list) and geo else ["New Jersey"]
     try:
         enrichment_timeout_seconds = max(
-            0.05, min(300.0, float(os.getenv("TARGET_ENRICH_TIMEOUT_SECONDS", "45")))
+            0.05, min(300.0, float(os.getenv("TARGET_ENRICH_TIMEOUT_SECONDS", "20")))
         )
     except (TypeError, ValueError):
-        enrichment_timeout_seconds = 45.0
-    enrich_workers_n = max(1, min(int(max_enrich_concurrent or 3), int(os.getenv("TARGET_ENRICH_WORKERS", str(max_enrich_concurrent or 3)))))
-    assign_workers_n = max(1, min(int(os.getenv("TARGET_ASSIGN_WORKERS", "4")), 8))
+        enrichment_timeout_seconds = 20.0
+    # Enrichment is network-bound, so workers scale with the target instead of the old fixed 3.
+    # TARGET_ENRICH_WORKERS pins the number; max_enrich_concurrent from the caller is only a floor.
+    enrich_workers_n = max(1, min(64, int(os.getenv("TARGET_ENRICH_WORKERS") or max(int(max_enrich_concurrent or 3), min(48, max(12, slots_cap // 2))))))
+    assign_workers_n = max(1, min(int(os.getenv("TARGET_ASSIGN_WORKERS") or max(4, min(16, slots_cap // 8))), 16))
     queue_size = max(4, min(enrich_workers_n * 3, max(12, slots_cap * 2)))
-    candidate_multiplier = max(2, min(int(os.getenv("TARGET_DISCOVERY_MULTIPLIER", "2")), 4))
+    candidate_multiplier = max(2, min(int(os.getenv("TARGET_DISCOVERY_MULTIPLIER", "4")), 8))
     from app.integrations.prod.lead_selection_planner import adaptive_tranche_decision
     initial_tranche = min(slots_cap, max(1, int(selection_decision.get("normalized_plan", {}).get("tranche_size") or 0)))
     if not initial_tranche:
@@ -536,6 +552,47 @@ async def run_pipeline_parallel_target(
         """Park a good-fit lead that failed only on contactability, instead of discarding it."""
         from app.integrations.prod.review_queue import enqueue
         await asyncio.to_thread(enqueue, str(tenant_id), lead, str(run_id), reasons)
+
+    latency_samples: dict[str, list[float]] = {}
+    inflight_writes: set = set()
+
+    async def _tracked(awaitable):
+        """Run a durable write so that cancelling the worker cannot orphan it, and remember it for the final reconciliation."""
+        task = asyncio.ensure_future(awaitable)
+        inflight_writes.add(task)
+        task.add_done_callback(inflight_writes.discard)
+        return await asyncio.shield(task)
+
+    async def _drain_writes() -> None:
+        if inflight_writes:
+            await asyncio.gather(*list(inflight_writes), return_exceptions=True)
+
+    async def _timed(name: str, awaitable):
+        """Await and record how long a stage took per lead; the p50/p90 land in the run's lane telemetry."""
+        t0 = time.monotonic()
+        try:
+            return await awaitable
+        finally:
+            latency_samples.setdefault(name, []).append(time.monotonic() - t0)
+
+    def _latency_summary() -> dict:
+        out = {}
+        for name, v in latency_samples.items():
+            v = sorted(v)
+            out[name] = {"n": len(v), "p50_s": round(v[len(v) // 2], 2), "p90_s": round(v[min(len(v) - 1, int(0.9 * len(v)))], 2), "total_s": round(sum(v), 1)}
+        return out
+
+    def _corroborated(lead: dict) -> bool:
+        """>=2 independent discovery sources (not counting the free lane token), a website, and the contact the tenant needs."""
+        if os.getenv("LEADX_FAST_DELIVER", "1") != "1":
+            return False
+        independent = {h for h in (lead.get("sources_hit") or []) if h not in ("osm", "osm_nominatim", "unknown")}
+        if len(independent) < 2 or not lead.get("website"):
+            return False
+        req = tenant_pol.get("contact_requirement", "either")
+        has_phone = bool(lead.get("phone_normalized") or lead.get("phone_e164"))
+        has_email = bool(lead.get("email"))
+        return has_email if req == "email" else has_phone if req == "phone" else (has_phone or has_email)
 
     async def _snapshot() -> tuple[int, int, int, int, int, int, int]:
         async with state_lock:
@@ -728,6 +785,12 @@ async def run_pipeline_parallel_target(
                     continue
                 if lead.get("_enrichment_reused"):
                     result = lead
+                elif _corroborated(lead):
+                    # Several independent sources agree on a reachable business: skip the slow site crawl and deliver now.
+                    result = lead
+                    result["enrichment_ok"] = True
+                    result["enrichment_method"] = "multi_source_corroborated"
+                    result["enrichment_deferred"] = True
                 elif skip_enrichment:
                     result = lead
                     result["enrichment_ok"] = bool(
@@ -736,16 +799,19 @@ async def run_pipeline_parallel_target(
                     )
                 else:
                     try:
+                        # Raced against stop/cancel: once the target is met, in-flight crawls are dropped instead of awaited.
                         done = await asyncio.wait_for(
-                            enrich_batch(
+                            _timed("enrich_site", _await_cancellable(enrich_batch(
                                 [lead],
                                 max_concurrent=1,
                                 use_crawl4ai=use_crawl4ai,
                                 use_firecrawl=use_firecrawl,
                                 execution_context=execution_context,
-                            ),
+                            ))),
                             timeout=enrichment_timeout_seconds,
                         )
+                        if done is None:
+                            continue
                         result = (done or [lead])[0]
                         if result.get("firecrawl_calls"):  # paid scrape: count it toward the run budget and cost per lead
                             from app.integrations.prod import waterfall_runtime as _wf
@@ -783,7 +849,9 @@ async def run_pipeline_parallel_target(
                     for key in ("enrichment_ok", "enrichment_error", "enrichment_error_type", "enrichment_error_category")
                     if key in result
                 } if result.get("enrichment_ok") is False else {}
-                if not stop_event.is_set() and not _cancelled():
+                # The ten-agent specialist stage (research, social, deliverability, ...) is minutes of work per lead.
+                # It runs after delivery by default; LEADX_SPECIALIST_AGENTS=inline puts it back on the critical path.
+                if not stop_event.is_set() and not _cancelled() and os.getenv("LEADX_SPECIALIST_AGENTS", "deferred") == "inline":
                     try:
                         from app.integrations.prod.agent_pipeline_branches import enrich_lead_with_owned_agents
                         specialist_result = await asyncio.wait_for(
@@ -804,7 +872,7 @@ async def run_pipeline_parallel_target(
                             "specialist_timeout" if isinstance(exc, asyncio.TimeoutError) else "specialist_error",
                             exc,
                         )
-                gated = await _persist_and_gate(result)
+                gated = await _timed("persist_and_gate", _persist_and_gate(result))
                 if gated is not None:
                     await _queue_ready(gated)
                 await _progress("enrich", f"Lead enriched and {'gated' if gated else 'filtered'}", force=False)
@@ -835,8 +903,13 @@ async def run_pipeline_parallel_target(
                     held_since = lead.setdefault("_tier_b_hold_since", time.monotonic())
                     if time.monotonic() - held_since < float(os.getenv("LEADX_TIER_B_HOLD_SECONDS", "45")):
                         await asyncio.sleep(0.05)
-                        await assignment_queue.put((_priority, _score, _lead_key, lead))
-                        continue
+                        try:
+                            # Never block here: if every worker waits to re-queue into a full queue, nobody is left to take
+                            # work off it and the run deadlocks. A full queue means there is plenty of supply, so stop holding.
+                            assignment_queue.put_nowait((_priority, _score, _lead_key, lead))
+                            continue
+                        except asyncio.QueueFull:
+                            pass
                 if stop_event.is_set() or not lead.get("id") or not _execution_allows_write(execution_context):
                     continue
 
@@ -864,7 +937,7 @@ async def run_pipeline_parallel_target(
                     continue
                 begin_agent_stage(agent_context, "routing", "assignment_policy")
                 begin_agent_stage(agent_context, "crm", "assignment_projection")
-                result = await assign_lead(
+                result = await _timed("assign_lead", _tracked(assign_lead(
                     lead_id=str(lead["id"]),
                     tenant_id=tenant_id,
                     icp_id=icp_id,
@@ -876,7 +949,7 @@ async def run_pipeline_parallel_target(
                     discovery_request_id=discovery_request_id,
                     run_id=run_id,
                     lead=lead,
-                )
+                )))
 
                 if not _execution_allows_write(execution_context):
                     # The assignment adapter may have returned after cancellation;
@@ -921,17 +994,17 @@ async def run_pipeline_parallel_target(
                             # This is an admission-cap fence.  Terminal success
                             # still uses the selected assigned/delivered metric
                             # after durable reconciliation.
-                    await _board_upsert(
+                    await _tracked(_board_upsert(
                         run_id, str(lead["id"]), tenant_id, "assigned", lead,
                         position=position, execution_context=execution_context,
                         assignment_id=assignment_id,
-                    )
+                    ))
                     if crm_saved:
-                        await _board_upsert(
+                        await _tracked(_board_upsert(
                             run_id, str(lead["id"]), tenant_id, "crm", lead,
                             position=position, execution_context=execution_context,
                             assignment_id=assignment_id,
-                        )
+                        ))
                     else:
                         await record_stage_transition(
                             str(tenant_id), str(run_id), str(lead["id"]), "crm", "retryable",
@@ -1022,7 +1095,7 @@ async def run_pipeline_parallel_target(
         # gated -> assigned. This makes the operator board a live funnel rather
         # than a board containing only the final assigned leads.
         await asyncio.gather(
-            *(_board_upsert(run_id, str(lead["id"]), tenant_id, "discovered", lead, position=i, execution_context=execution_context)
+            *(_board_upsert(run_id, str(lead["id"]), tenant_id, "discovered", lead, position=i, execution_context=execution_context, assume_new=True)
               for i, lead in enumerate(fresh)),
             return_exceptions=True,
         )
@@ -1078,6 +1151,36 @@ async def run_pipeline_parallel_target(
             stored_n += len(current)
         await _progress("discover", f"Streaming discovery: {discovered_n} candidates; {assigned_n}/{slots_cap} assigned", force=False)
 
+    async def _fast_seed() -> None:
+        """Seed the run from the free sources that answer in seconds (open data, registries, OSM).
+
+        One call per location, all locations in parallel, then the pool is fed to enrichment in chunks sized to what
+        the target can still use. Slower sources (directories, search) are left to the normal discovery rounds.
+        """
+        if os.getenv("LEADX_FAST_SEED", "1") != "1" or os.getenv("LEADX_FREE_DISCOVERY", "1") == "0" or stop_event.is_set() or _cancelled():
+            return
+        from app.integrations.prod.free_discovery import discover_free
+        want = min(2000, max(60, slots_cap * int(os.getenv("LEADX_FAST_SEED_MULTIPLIER", "8"))))
+        t0 = time.monotonic()
+        per_loc = max(40, want // max(1, len(geo)))
+        async def _all():
+            return await asyncio.gather(*[
+                discover_free(vertical, loc, limit=per_loc, budget_seconds=float(os.getenv("LEADX_FAST_SEED_SECONDS", "15")),
+                              only=("overture", "nppes", "companies_house"))
+                for loc in geo[:8]], return_exceptions=True)
+        results = await _await_cancellable(_all()) or []
+        pool: list[dict] = []
+        for r in results:
+            if isinstance(r, list):
+                pool.extend(r)
+        discovery_telemetry["fast_seed"] = {"rows": len(pool), "seconds": round(time.monotonic() - t0, 1)}
+        chunk = max(queue_size, slots_cap * candidate_multiplier)
+        while pool and not stop_event.is_set() and not _cancelled():
+            if not (await _target_state()).get("admit"):
+                break
+            await _prepare_discovered_batch(pool[:chunk])
+            pool = pool[chunk:]
+
     async def _discovery_producer() -> None:
         nonlocal rounds_used, current_tranche, refill_used, stop_reason, discovery_telemetry
         _stage_begin("discovery")
@@ -1117,6 +1220,7 @@ async def run_pipeline_parallel_target(
                         logger.warning("[%s] inventory drain timed out; continuing with live discovery", run_id[:8])
                     discovery_telemetry["inventory_first"] = {"candidates": len(inventory), "covered_target": True}
 
+            await _fast_seed()
             round_limit = min(max(1, int(max_rounds or 1)), small_target_round_limit)
             for round_i in range(1, round_limit + 1):
                 state = await _target_state()
@@ -1292,6 +1396,7 @@ async def run_pipeline_parallel_target(
             if not task.done():
                 task.cancel()
         await asyncio.gather(*enrich_workers, *assignment_workers, return_exceptions=True)
+        await _drain_writes()  # assignments and board cards already in flight must land before counts are read
 
     _stage_end("enrichment")
     _stage_end("assignment")
@@ -1387,6 +1492,12 @@ async def run_pipeline_parallel_target(
     _stage_end("reconciliation")
     _stage_end("run")
     _close_open_stages()
+    discovery_telemetry["latency_samples"] = _latency_summary()
+    try:
+        from app.layers.persistence_layer import flush_stage_history
+        await asyncio.to_thread(flush_stage_history)
+    except Exception as exc:
+        logger.debug("stage history flush skipped: %s", type(exc).__name__)
     elapsed = round((datetime.now(timezone.utc) - started).total_seconds(), 1)
     summary = {
         "pipeline": "lead_engine_v2",
@@ -2787,6 +2898,7 @@ def _board_upsert(
     stage_status: str = "accepted",
     stage_reason: Optional[str] = None,
     assignment_id: Optional[str] = None,
+    assume_new: bool = False,
 ) -> None:
     """Write a compatibility card only after its durable stage barrier."""
     if not run_id or not lead_id or not _execution_allows_write(execution_context):
@@ -2799,21 +2911,8 @@ def _board_upsert(
         "discovered": "verification", "enriched": "scoring", "gated": "gating",
         "assigned": "assignment", "crm": "crm", "delivery": "delivery",
     }.get(str(stage).lower(), str(stage).lower())
-    transition = record_stage_transition.__sync__(
-        str(tenant_id or ""), str(run_id), str(lead_id), durable_stage,
-        stage_status, reason=stage_reason, assignment_id=assignment_id,
-        metadata={"board_stage": stage}, supabase=sb,
-    )
-    if not transition.get("ok"):
-        logger.warning("run board stage rejected run=%s lead=%s reason=%s", run_id, lead_id, transition.get("reason"))
-        return
     row = {
-        "run_id": run_id,
-        "lead_id": lead_id,
-        "tenant_id": tenant_id,
-        "stage": stage,
         "tier": (lead.get("tier") or None),
-        "included": stage_status == "accepted",
         "score": int(lead.get("score") or 0) if lead.get("score") is not None else None,
         "source": lead.get("source") or (lead.get("sources") or [None])[0] if isinstance(lead.get("sources"), list) else lead.get("source"),
         "name": lead.get("name") or lead.get("company_name"),
@@ -2821,18 +2920,18 @@ def _board_upsert(
         "website": lead.get("website"),
         "city": lead.get("city"),
         "position": position,
-        "updated_at": datetime.now(timezone.utc).isoformat(),
+        "stage": stage,
     }
-    if stage_reason:
-        row["stage_reason"] = str(stage_reason)[:500]
-    if assignment_id:
-        row["crm_assignment_id"] = str(assignment_id)
     if isinstance(row.get("source"), list):
         row["source"] = row["source"][0] if row["source"] else None
-    try:
-        sb.table("pipeline_run_leads").upsert(row, on_conflict="run_id,lead_id").execute()
-    except Exception as e:
-        logger.debug("board upsert failed: %s", e)
+    # One write: the transition and the board card's display columns go in the same upsert.
+    transition = record_stage_transition.__sync__(
+        str(tenant_id or ""), str(run_id), str(lead_id), durable_stage,
+        stage_status, reason=stage_reason, assignment_id=assignment_id,
+        metadata={"board_stage": stage}, supabase=sb, extra=row, assume_new=assume_new, fast=os.getenv("LEADX_STAGE_FAST", "1") == "1",
+    )
+    if not transition.get("ok"):
+        logger.warning("run board stage rejected run=%s lead=%s reason=%s", run_id, lead_id, transition.get("reason"))
 
 
 async def _authoritative_target_counts(
@@ -2848,11 +2947,18 @@ async def _authoritative_target_counts(
 
     try:
         sb = get_supabase()
-        board_rows = (await aexec(
-            sb.table("pipeline_run_leads").select("*")
-            .eq("run_id", str(run_id)).eq("tenant_id", str(tenant_id))
-            .order("updated_at", desc=False).limit(MAX_LEADS_PER_RUN)
-        )).data or []
+        # A run keeps one board card per candidate, which can exceed MAX_LEADS_PER_RUN (candidates are over-admitted). A single
+        # capped read dropped the newest cards, i.e. the assignments, and made finished runs look short. Page through all of them.
+        board_rows: list[dict] = []
+        for offset in range(0, MAX_LEADS_PER_RUN * 20, 1000):
+            page = (await aexec(
+                sb.table("pipeline_run_leads").select("*")
+                .eq("run_id", str(run_id)).eq("tenant_id", str(tenant_id))
+                .order("updated_at", desc=False).order("lead_id", desc=False).range(offset, offset + 999)
+            )).data or []
+            board_rows += page
+            if len(page) < 1000:
+                break
         board_assignment_ids = {
             str(row.get("crm_assignment_id"))
             for row in board_rows

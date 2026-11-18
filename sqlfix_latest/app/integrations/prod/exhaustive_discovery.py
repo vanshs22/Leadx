@@ -329,7 +329,20 @@ async def serper_web_exhaustive(industry: str, location: str, queries: list[str]
                                       "exhausted": not route_events}, route_events=route_events)
 
 
+_GEOCODE_CACHE: dict[str, Optional[tuple[float, float, float, float]]] = {}  # Nominatim allows ~1 request/s; a place's bbox does not change
+
+
 async def _geocode(location: str) -> Optional[tuple[float, float, float, float]]:
+    key = (location or "").strip().lower()
+    if key in _GEOCODE_CACHE:
+        return _GEOCODE_CACHE[key]
+    box = await _geocode_uncached(location)
+    if box:
+        _GEOCODE_CACHE[key] = box
+    return box
+
+
+async def _geocode_uncached(location: str) -> Optional[tuple[float, float, float, float]]:
     from app.integrations.prod.discovery_runtime import assert_provider_allowed
     assert_provider_allowed("maps")
     try:

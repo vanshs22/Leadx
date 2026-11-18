@@ -21,6 +21,9 @@ failure mode that has already bitten this project once.
 """
 from __future__ import annotations
 
+from app.services.http_tuning import install as _install_http_tuning
+_install_http_tuning()
+
 import argparse
 import asyncio
 import json

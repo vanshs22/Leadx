@@ -19,7 +19,7 @@ def visible_text(html: str) -> str:
 def fingerprint(html: str, tech: dict | None = None) -> dict[str, Any]:
     text = visible_text(html)
     words = text.split()
-    shingles = {int(hashlib.md5(" ".join(words[i:i + 3]).encode()).hexdigest()[:12], 16) for i in range(max(0, len(words) - 2))}
+    shingles = {int(hashlib.md5(" ".join(words[i:i + 3]).encode(), usedforsecurity=False).hexdigest()[:12], 16) for i in range(max(0, len(words) - 2))}
     m = re.search(r"(?is)<title[^>]*>(.*?)</title>", html or "")
     return {"title": re.sub(r"\s+", " ", m.group(1)).strip()[:200] if m else "",
             "sketch": sorted(shingles)[:K],  # bottom-k sketch: estimates text similarity without storing the page

@@ -80,3 +80,43 @@ Verified this pass: unit tests (`tests/test_free_discovery.py`, `test_waterfall_
 Not verified: the real project's schema is behind this repository (no `tenants.settings`, no migration 48 tables), so the 10-lead run and the new engine tables on Supabase wait for the schema reset. HubSpot and Salesforce delivery against developer accounts (no credentials). Companies House live. Email deliverability beyond MX (port 25 is blocked, no paid verifier key). Phone liveness (no provider key). Serper (account has no credits).
 
 Extraction benchmark (Austin dentists, 40 sites, homepage plus two contact pages): the site lists the same phone as Overture for 70% of businesses and the same email for 36%. The misses inspected were sites listing a different number (other location, tracking number) or JavaScript-only pages, so this is a disagreement rate against a source that can itself be stale, not an accuracy figure.
+
+## Speed
+
+Measured on the local stack (Postgres about 2.5 ms per call, which is what an API co-located with its database sees), Austin/Houston dentists, free sources only, no paid calls:
+
+| Target | First lead assigned | All assigned | Run finished |
+|---|---|---|---|
+| 10 | 6 s | 7 s | 7 s |
+| 100 | 6 s | 24 s | 25 s |
+| 500 (Houston) | 11 s | 90 s | 101 s |
+
+Against the real Supabase project from this sandbox (237 ms per call to Tokyo) the same 10-lead run takes about 100 s, because the pipeline makes roughly 50 sequential database calls per lead. Run the API and worker in the database's region; the numbers above are what to expect there. `scripts/local_stack/speed_probe.py` reproduces them (`SPEED_TARGET`, `SPEED_LOCATION`).
+
+What changed:
+- **Fast seed.** Before the normal discovery rounds, the run pulls Overture, NPPES and Companies House for every location in parallel (about 3 s), merges them, and feeds the pool to enrichment in chunks. Slower sources (directories, search) stay in the later rounds.
+- **Corroborated leads skip the site crawl.** A lead with two independent sources, a website and the contact the tenant needs goes straight to verification (`LEADX_FAST_DELIVER=0` disables). Its `enrichment_method` is `multi_source_corroborated` and `enrichment_deferred` is set.
+- **Enrichment concurrency** scales with the target (12 to 48 workers, was 3), the per-lead timeout is 20 s (was 45), in-flight crawls are dropped when the target is met, and over-admission is 4x (was 2x).
+- **The ten-agent specialist stage no longer runs inline** (`LEADX_SPECIALIST_AGENTS=inline` restores it). It crawled up to 12 pages per lead, used Firecrawl, and read the whole `lead_assignments` table on the event loop for every call.
+- **Event loop and database chatter.** Cached SSL contexts (building one per request took about 40 ms on the loop), a one-second cache for the job fence check, cached tenant weights, one write instead of two for each run-board card, batched stage history, and no more read before write for newly discovered leads. Database transactions per 100-lead run fell from about 18,000 to about 9,000.
+- **Pipeline bugs that only show at speed:** the assignment queue deadlocked when Tier B leads were re-queued into a full queue; a run board over 500 cards was read with a 500-row cap that dropped the newest rows, so finished runs were reported short; the final counts could be read before in-flight assignment writes landed.
+- `latency_samples` (p50/p90 per stage) are recorded in the run's `lane_telemetry`.
+
+Not done: the remaining per-lead cost is Python database work in one process (about 0.18 s of CPU per lead). More throughput than the 500-in-90-seconds above needs sharding a run across worker processes.
+
+## Security review (this pass)
+
+Checked and fine: JWT verification (HS256 or JWKS, audience enforced, tokens now must carry `exp` and `sub`), tenant isolation on every new endpoint, RLS on all 219 public tables (`scripts/check_rls_coverage.py`), anon and authenticated roles have no table grants on the real project, Realtime private channels refuse non-members, SSRF guard on every outbound fetch (directory pages included), no secrets in the repository, CSRF and security headers.
+
+Fixed:
+- `python-jose` (open advisories, no patched release) replaced by PyJWT; `cryptography` 42 to 50, `python-dotenv`, `dnspython` upgraded. `pip-audit` on `requirements.txt` now reports no known vulnerabilities.
+- `/docs`, `/redoc` and `/openapi.json` are disabled in production and staging (`LEADX_PUBLIC_API_DOCS=1` re-enables).
+- Review resolve, recover and delivery replay need a member role or above (viewers are read-only); `recover` is rate limited because it crawls a website.
+- Overture release string validated before it reaches the S3 path; MD5 fingerprints marked non-security.
+- The portal's image optimizer is turned off (the portal does not use `next/image`) and HSTS is sent in hardened profiles. SearXNG runs on the internal compose network only, with a required `SEARXNG_SECRET`.
+
+Open:
+- **Next.js 14.2.35 has published advisories, some critical** (the SVG/AVIF image-optimization RCE, Server Actions DoS). Patched releases exist only in Next 16, which also needs React 19. The portal uses neither the image optimizer nor Server Actions, which is what the listed critical issues need, so this is mitigated but not closed. Plan the Next 16 upgrade and run the 50 browser checks against it.
+- `scripts/check_migrations.py` still reports BLOCKED. It is the upgrade gate for a populated production database and needs operator-written recovery notes per risky migration; it does not apply to a fresh install such as the one just done.
+- No global API rate limiter for authenticated routes; only sensitive endpoints are limited. Put a limit at the gateway.
+- Email deliverability beyond MX and phone liveness are unverified without provider keys.

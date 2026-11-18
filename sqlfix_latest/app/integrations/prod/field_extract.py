@@ -6,6 +6,7 @@ Cloudflare-encoded) before visible text. Pure functions, no I/O, no provider cal
 from __future__ import annotations
 
 import html as _html
+import functools
 import json
 import re
 from html.parser import HTMLParser
@@ -111,6 +112,7 @@ def _cf_decode(hexstr: str) -> str | None:
         return None
 
 
+@functools.lru_cache(maxsize=8192)
 def _host(url: str) -> str:
     try:
         return (urlparse(url if "//" in url else "//" + url).hostname or "").lower().removeprefix("www.")

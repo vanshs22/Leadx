@@ -4,6 +4,8 @@ These agents are bounded specialists. They delegate to the existing LeadX
 engines; they do not create parallel discovery/enrichment/CRM implementations.
 """
 from __future__ import annotations
+
+import asyncio
 from typing import Any
 from app.integrations.prod.agents_support import authorize_lead_access
 from app.integrations.prod.discovery_planner import build_plan
@@ -93,7 +95,8 @@ async def execute_specialized(agent: str, data: dict[str, Any]) -> dict[str, Any
     inline = data.get("lead")
     if not requested and isinstance(inline, dict) and inline.get("id"):
         requested = [str(inline["id"])]
-    authorization = authorize_lead_access(
+    authorization = await asyncio.to_thread(  # sync DB reads: keep them off the event loop
+        authorize_lead_access,
         data.get("principal"), str(data.get("tenant_id") or ""), data.get("mission_id"),
         agent, requested, "read", capability=data.get("capability"),
     )
@@ -234,7 +237,6 @@ async def execute_specialized(agent: str, data: dict[str, Any]) -> dict[str, Any
         return {"agent":agent,"ranked":sorted(ranked,key=lambda x:(x.get("cost_rank",1),x.get("name",""))),"policy":"minimize expected cost per verified field subject to quality gates"}
     if agent == "campaign_optimizer":
         from app.integrations.prod.revenue_ops import daily_brief
-        import asyncio
         return {"agent":agent,"brief":await asyncio.to_thread(daily_brief,str(data.get("tenant_id") or ""),int(data.get("days") or 30))}
     if agent == "experiment":
         return {"agent":agent,"status":"planned","experiment":data.get("experiment") or {"hypothesis":"Compare provider ordering","metric":"verified_field_rate"}}
