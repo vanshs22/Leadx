@@ -190,3 +190,59 @@ def test_entity_resolution_address_name_merge_phone_guard_and_provenance():
     assert len(out) == 4 and "Carousel Dentistry" in names and {"Chain North", "Chain South"} <= set(names)
     access = next(r for r in out if r["name"].startswith("Access Dental"))
     assert access["field_sources"] == {"phone": "overture", "website": "overture", "address": "overture", "owner_name": "nppes"}
+
+
+def test_default_blocked_domains_make_no_requests_unless_enabled(monkeypatch):
+    dd.reset_state()
+    calls = []
+
+    async def fake(url, timeout=20):
+        calls.append(url)
+        return {"html": "<html></html>", "ok": True, "status": 200}
+    monkeypatch.setattr("app.integrations.prod.enricher.fetch_scrapling", fake)
+    monkeypatch.setenv("LEADX_DIRECTORY_ROBOTS", "ignore")
+    monkeypatch.setenv("LEADX_DIRECTORY_MIN_INTERVAL", "0")
+    monkeypatch.delenv("LEADX_DIRECTORY_POLICY", raising=False)
+    for d in ("bbb.org", "manta.com", "brownbook.net"):
+        assert asyncio.run(dd.fetch_page(f"https://www.{d}/x")) is None
+    assert calls == []
+    monkeypatch.setenv("LEADX_DIRECTORY_POLICY", '{"bbb.org": {"enabled": true}}')
+    assert asyncio.run(dd.fetch_page("https://www.bbb.org/x")) is not None and len(calls) == 1
+    urls = dd.seeds("dentist", "Houston, TX")
+    assert not any("bbb.org" in u for u in urls) and "https://www.dexknows.com/houston-tx/dentist" in urls
+
+
+def test_directory_proxy_is_used_when_set(monkeypatch):
+    dd.reset_state()
+    seen = {}
+
+    async def fake_proxy(url, proxy):
+        seen["proxy"] = proxy
+        return {"html": "<html></html>", "ok": True, "status": 200}
+    monkeypatch.setattr(dd, "_proxy_fetch", fake_proxy)
+    monkeypatch.setenv("LEADX_DIRECTORY_ROBOTS", "ignore")
+    monkeypatch.setenv("LEADX_DIRECTORY_MIN_INTERVAL", "0")
+    monkeypatch.setenv("LEADX_DIRECTORY_PROXY", "http://user:pw@proxy.example:8000")
+    assert asyncio.run(dd.fetch_page("https://www.yellowpages.com/x")) is not None
+    assert seen["proxy"] == "http://user:pw@proxy.example:8000"
+
+
+def test_overpass_sends_user_agent_and_skips_dead_mirror(monkeypatch):
+    import httpx
+    from app.integrations.prod import exhaustive_discovery as ed
+    hits = []
+
+    def handler(req):
+        hits.append((str(req.url), req.headers.get("user-agent")))
+        return httpx.Response(502) if "a.example" in str(req.url) else httpx.Response(200, json={"elements": [1]})
+    monkeypatch.setattr(ed, "OVERPASS_URLS", ["https://a.example/i", "https://b.example/i"])
+    ed._dead_mirrors.clear()
+
+    async def go():
+        async with httpx.AsyncClient(transport=httpx.MockTransport(handler), headers=ed.HTTP_HEADERS) as c:
+            await ed._overpass_post(c, "q")
+            return await ed._overpass_post(c, "q")
+    assert asyncio.run(go()) == {"elements": [1]}
+    assert [h[0] for h in hits] == ["https://a.example/i", "https://b.example/i", "https://b.example/i"]
+    assert all(h[1].startswith("LeadX/") for h in hits)
+    ed._dead_mirrors.clear()

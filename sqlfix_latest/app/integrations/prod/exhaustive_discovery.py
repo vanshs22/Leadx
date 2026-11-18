@@ -33,6 +33,24 @@ logger = logging.getLogger("lead_engine.exhaustive_discovery")
 SERPER_MAPS = "https://google.serper.dev/maps"
 SERPER_SEARCH = "https://google.serper.dev/search"
 OVERPASS_URL = os.getenv("OVERPASS_URL", "https://overpass-api.de/api/interpreter")
+# Mirrors tried in order; Overpass answers 406 to clients with no User-Agent, so every call sends HTTP_HEADERS.
+OVERPASS_URLS = [u.strip() for u in os.getenv("OVERPASS_URLS", f"{OVERPASS_URL},https://overpass.kumi.systems/api/interpreter,https://overpass.private.coffee/api/interpreter").split(",") if u.strip()]
+HTTP_HEADERS = {"User-Agent": os.getenv("LEADX_HTTP_UA", "LeadX/1.0 (+contact)"), "Accept": "application/json"}
+_dead_mirrors: set[str] = set()
+
+
+async def _overpass_post(client: httpx.AsyncClient, query: str) -> dict:
+    """POST to the first live mirror; a mirror that fails is skipped for the rest of the process."""
+    err: Exception = RuntimeError("no overpass mirror")
+    for url in [u for u in OVERPASS_URLS if u not in _dead_mirrors] or OVERPASS_URLS:
+        try:
+            r = await client.post(url, data=query)
+            r.raise_for_status()
+            return r.json() or {}
+        except Exception as e:
+            _dead_mirrors.add(url)
+            err = e
+    raise err
 NOMINATIM_URL = os.getenv("NOMINATIM_URL", "https://nominatim.openstreetmap.org/search")
 GOOGLE_PLACES_URL = "https://places.googleapis.com/v1/places:searchText"
 FSQ_SEARCH_URL = "https://places-api.foursquare.com/places/search"
@@ -62,8 +80,8 @@ async def _public_city_expansion(location: str) -> list[str]:
     south,west,north,east=bbox
     q=f'[out:json][timeout:120];(node["place"~"^(city|town|village|municipality)$"]["name"]({south},{west},{north},{east});way["place"~"^(city|town|village|municipality)$"]["name"]({south},{west},{north},{east}););out center tags;'
     try:
-        async with httpx.AsyncClient(timeout=140, headers={"User-Agent":"LeadX/1.0 geography-coverage"}) as client:
-            r=await client.post(OVERPASS_URL,data=q); r.raise_for_status(); els=(r.json() or {}).get("elements") or []
+        async with httpx.AsyncClient(timeout=140, headers=HTTP_HEADERS) as client:
+            els=(await _overpass_post(client,q)).get("elements") or []
         names=[]; seen=set()
         for el in els:
             name=((el.get("tags") or {}).get("name") or "").strip()
@@ -346,7 +364,7 @@ async def _geocode_uncached(location: str) -> Optional[tuple[float, float, float
     from app.integrations.prod.discovery_runtime import assert_provider_allowed
     assert_provider_allowed("maps")
     try:
-        headers = {"User-Agent": "LeadX/1.0 business-discovery"}
+        headers = HTTP_HEADERS
         async with httpx.AsyncClient(timeout=20, headers=headers) as client:
             r = await client.get(NOMINATIM_URL, params={"q": location, "format": "json", "limit": 1})
             r.raise_for_status()
@@ -419,10 +437,8 @@ async def osm_exhaustive(industry: str, location: str) -> list[dict]:
                 clauses.append(f'way["{key}"="{value}"]["name"]({south},{west},{north},{east});')
         query = "[out:json][timeout:30];(" + "".join(clauses) + ");out center tags;"
         try:
-            async with httpx.AsyncClient(timeout=float(os.getenv("OSM_REQUEST_TIMEOUT", "35"))) as client:
-                r = await client.post(OVERPASS_URL, data=query)
-                r.raise_for_status()
-                elements = (r.json() or {}).get("elements") or []
+            async with httpx.AsyncClient(timeout=float(os.getenv("OSM_REQUEST_TIMEOUT", "35")), headers=HTTP_HEADERS) as client:
+                elements = (await _overpass_post(client, query)).get("elements") or []
         except Exception as e:
             failure_count += 1
             logger.warning("Overpass cell failed %s: %s", location, e)

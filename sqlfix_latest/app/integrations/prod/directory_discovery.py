@@ -13,6 +13,9 @@ Compliance controls (all env):
   LEADX_DIRECTORY_DETAIL_FETCH detail pages per domain to fetch for a missing website (default 60)
   LEADX_DIRECTORY_BREAKER    consecutive block responses before a domain is skipped (default 3)
   LEADX_DIRECTORY_DOMAINS    comma list of directory domains to search through SearXNG
+  LEADX_DIRECTORY_PROXY      one egress proxy URL (your own paid account); plain config, no rotation. Blocked domains stay skipped if they still refuse.
+DEFAULT_BLOCKED domains refuse polite automated clients (401/403) and are skipped with zero requests unless the
+policy sets {"bbb.org": {"enabled": true}} (approved access or your own proxy).
 No CAPTCHA solving or fingerprint evasion: a blocked domain is skipped, not defeated.
 """
 from __future__ import annotations
@@ -35,15 +38,16 @@ logger = logging.getLogger("lead_engine.directory_discovery")
 DEFAULT_DOMAINS = (
     "yellowpages.com", "superpages.com", "bbb.org", "hotfrog.com", "manta.com", "chamberofcommerce.com",
     "cylex.us.com", "brownbook.net", "merchantcircle.com", "yell.com", "yellowpages.ca", "yellowpages.com.au",
-    "justdial.com", "sulekha.com", "192.com", "europages.com",
+    "justdial.com", "sulekha.com", "192.com", "europages.com", "dexknows.com",
 )
 # Directory domain -> country it covers (None = global). A US search skips the India/UK/AU directories.
 DOMAIN_COUNTRY = {"yellowpages.com": "US", "superpages.com": "US", "bbb.org": "US", "manta.com": "US", "chamberofcommerce.com": "US",
-                  "cylex.us.com": "US", "merchantcircle.com": "US", "yell.com": "GB", "192.com": "GB", "yellowpages.ca": "CA",
+                  "cylex.us.com": "US", "merchantcircle.com": "US", "dexknows.com": "US", "yell.com": "GB", "192.com": "GB", "yellowpages.ca": "CA",
                   "yellowpages.com.au": "AU", "justdial.com": "IN", "sulekha.com": "IN", "europages.com": None, "hotfrog.com": None, "brownbook.net": None}
 _US_STATES = set("AL AK AZ AR CA CO CT DE DC FL GA HI ID IL IN IA KS KY LA ME MD MA MI MN MS MO MT NE NV NH NJ NM NY NC ND OH OK OR PA RI SC SD TN TX UT VT VA WA WV WI WY".split())
 _COUNTRY_WORDS = {"IN": ("india",), "GB": ("united kingdom", "england", "scotland", "wales", " uk"), "CA": ("canada",), "AU": ("australia",),
                   "US": ("usa", "united states", "u.s.")}
+DEFAULT_BLOCKED = {"bbb.org", "manta.com", "brownbook.net", "chamberofcommerce.com", "cylex.us.com", "yelp.com"}
 _BLOCK_STATUS = {401, 403, 429, 451, 503}
 _CAPTCHA = re.compile(r"(captcha|are you a (human|robot)|unusual traffic|access denied|verify you are human)", re.I)
 _UA = "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36"
@@ -52,6 +56,7 @@ _US_LOC = re.compile(r"^\s*([A-Za-z.\- ]+?)\s*,\s*([A-Za-z]{2})\b")
 _last_hit: dict[str, float] = {}
 _locks: dict[str, asyncio.Lock] = {}
 _blocked: dict[str, int] = {}
+_logged_skip: set[str] = set()
 _robots: dict[str, Optional[robotparser.RobotFileParser]] = {}
 
 
@@ -78,7 +83,7 @@ def reset_state() -> None:
 
 
 def domain_enabled(domain: str) -> bool:
-    return os.getenv("LEADX_DIRECTORY_SCRAPING", "1") != "0" and _policy(domain).get("enabled", True) \
+    return os.getenv("LEADX_DIRECTORY_SCRAPING", "1") != "0" and _policy(domain).get("enabled", domain not in DEFAULT_BLOCKED) \
         and _blocked.get(domain, 0) < int(os.getenv("LEADX_DIRECTORY_BREAKER", "3"))
 
 
@@ -106,10 +111,26 @@ async def _robots_ok(url: str, domain: str) -> bool:
     return _robots[host].can_fetch(_UA, url)
 
 
+async def _proxy_fetch(url: str, proxy: str) -> dict:
+    import httpx
+    from app.integrations.prod.net_safety import assert_public_url
+    if await assert_public_url(url):
+        return {"ok": False}
+    try:
+        async with httpx.AsyncClient(timeout=25, headers={"User-Agent": _UA}, proxy=proxy, follow_redirects=False) as c:
+            r = await c.get(url)
+        return {"ok": r.status_code < 400, "html": r.text if r.status_code < 400 else "", "status": r.status_code}
+    except Exception as e:
+        return {"ok": False, "error": str(e)[:100]}
+
+
 async def fetch_page(url: str) -> Optional[str]:
     """Polite fetch: kill switch, circuit breaker, robots, per-domain spacing. None means skipped/failed."""
     domain = _registrable(_domain(url))
     if not domain_enabled(domain):
+        if domain in DEFAULT_BLOCKED and domain not in _logged_skip:
+            _logged_skip.add(domain)
+            logger.info("directory %s skipped: refuses automated clients (enable via LEADX_DIRECTORY_POLICY)", domain)
         return None
     if not await _robots_ok(url, domain):
         logger.info("directory %s: robots.txt disallows %s", domain, urlsplit(url).path)
@@ -120,8 +141,12 @@ async def fetch_page(url: str) -> Optional[str]:
         delay = _last_hit.get(domain, 0) + wait - time.monotonic()
         if delay > 0:
             await asyncio.sleep(delay)
-        from app.integrations.prod.enricher import fetch_scrapling
-        res = await fetch_scrapling(url)
+        proxy = os.getenv("LEADX_DIRECTORY_PROXY")
+        if proxy:
+            res = await _proxy_fetch(url, proxy)
+        else:
+            from app.integrations.prod.enricher import fetch_scrapling
+            res = await fetch_scrapling(url)
         _last_hit[domain] = time.monotonic()
     html = res.get("html") or ""
     status = res.get("status")
@@ -148,8 +173,8 @@ def seeds(industry: str, location: str) -> list[str]:
     return [
         f"https://www.yellowpages.com/search?search_terms={q}&geo_location_terms={geo}",
         f"https://www.superpages.com/search?search_terms={q}&geo_location_terms={geo}",
-        f"https://www.bbb.org/search?find_text={q}&find_loc={geo}",
         f"https://www.hotfrog.com/search/{slug}/{quote_plus(industry.lower())}",
+        f"https://www.dexknows.com/{slug}/{re.sub(r'[^a-z0-9]+', '-', industry.lower()).strip('-')}",
     ]
 
 
