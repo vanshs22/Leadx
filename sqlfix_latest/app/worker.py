@@ -367,6 +367,7 @@ async def _housekeeping() -> None:
         ("schedules.tick", SCHEDULES_INTERVAL, {}),
         ("leads.reverify", REVERIFY_INTERVAL, {}),
         ("autonomous.campaign_tick", AUTONOMOUS_CAMPAIGN_INTERVAL, {"limit": 10}),
+        ("inbound.imap_poll", float(os.getenv("IMAP_POLL_INTERVAL", "120")), {"limit": 50}),
         ("webhooks.deliver", WEBHOOK_INTERVAL, {"limit": 100}),
         ("agent.goals.tick", 300, {"limit": 20}),
         ("signals.refresh", 900, {"limit": 100}),

@@ -106,18 +106,18 @@ async def notify_tenant(tenant_id: str, message: str) -> None:
     except Exception as exc: __import__("logging").getLogger(__name__).debug("suppressed optional failure: %s", exc)
 
 
-async def process_unsubscribe(tenant_id: str, email: str) -> dict:
+async def process_unsubscribe(tenant_id: str, email: str, reason: str = "unsubscribe_link") -> dict:
     sb = get_supabase()
     email = email.strip().lower()
 
     (await aexec(sb.table("email_optouts").upsert(
-        {"tenant_id": tenant_id, "email": email, "reason": "unsubscribe_link"},
+        {"tenant_id": tenant_id, "email": email, "reason": reason},
         on_conflict="tenant_id,email",
     )))
 
     try:
         from app.integrations.prod.suppression import add_global_opt_out
-        await add_global_opt_out(email=email, reason="unsubscribe_link", requested_by="recipient")
+        await add_global_opt_out(email=email, reason=reason, requested_by="recipient")
     except Exception:
         logger.warning("global opt-out add failed (non-fatal)", exc_info=True)
 
@@ -139,11 +139,12 @@ async def process_unsubscribe(tenant_id: str, email: str) -> dict:
             if aids:
                 (await aexec(sb.table("email_sequence_enrollments").update({"status": "stopped_optout"}).in_(
                     "assignment_id", aids
-                ).eq("status", "active")))
+                ).in_("status", ["active", "sending"])))
     except Exception:
         logger.warning("sequence stop-on-optout failed (non-fatal)", exc_info=True)
 
-    await notify_tenant(tenant_id, f"📭 {email} unsubscribed and won't be emailed again.")
+    verb = "unsubscribed" if reason == "unsubscribe_link" else f"was removed ({reason})"
+    await notify_tenant(tenant_id, f"📭 {email} {verb} and won't be emailed again.")
     return {"ok": True, "email": email}
 
 

@@ -129,6 +129,10 @@ def test_send_to_lead_hands_off_normalized_message_to_local_sink(monkeypatch):
     monkeypatch.setattr(send_policy, "can_send_now", lambda *args, **kwargs: {"ok": True})
     monkeypatch.setattr(send_policy, "reserve_domain_slot", lambda *_args: True)
     monkeypatch.setattr(send_policy, "record_touch", lambda *_args: None)
+    # Sends are blocked without a sender profile (CAN-SPAM); supply it via the platform env fallback.
+    monkeypatch.setenv("SENDER_NAME", "Client")
+    monkeypatch.setenv("SENDER_POSTAL_ADDRESS", "1 Main St, Hoboken NJ")
+    monkeypatch.setenv("PRODUCT_DESCRIPTION", "Synthetic product")
 
     try:
         result = asyncio.run(email_outreach.send_to_lead(

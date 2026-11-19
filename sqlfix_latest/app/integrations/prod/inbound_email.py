@@ -179,7 +179,8 @@ def _find_assignment(tenant_id: str, from_email: str) -> Optional[str]:
     return rows[0]["id"] if rows else None
 
 
-async def handle_reply(raw_mime: str) -> dict:
+async def handle_reply(raw_mime: str, tenant_id: Optional[str] = None) -> dict:
+    """tenant_id is given by the IMAP poller; the SES path derives it from the plus-tag."""
     sb = get_supabase()
     msg = email.message_from_string(raw_mime)
     to_header = _decode(msg.get("To", ""))
@@ -189,7 +190,7 @@ async def handle_reply(raw_mime: str) -> dict:
     body = _extract_text(msg).strip()
 
     m = _PLUS_TAG.search(to_header)
-    tenant_id = m.group(1) if m else None
+    tenant_id = tenant_id or (m.group(1) if m else None)
     from_email = parseaddr(from_header)[1].strip().lower() or from_header.strip().lower()
 
     if not tenant_id:
@@ -277,8 +278,11 @@ async def handle_reply(raw_mime: str) -> dict:
                 await aexec(sb.table("lead_assignments").update({"status": "contacted"}).eq("id", assignment_id).eq("status", "new"))
             except Exception:
                 logger.warning("positive-reply status update failed assignment=%s", assignment_id, exc_info=True)
-            from app.integrations.prod.unsubscribe import notify_tenant
-            await notify_tenant(tenant_id, f"Reply from {from_email}: positive -- check your replies tab.")
+
+    if category != "opt_out":
+        # Every real reply reaches the operator (Telegram if configured, plus an in-app activity).
+        from app.integrations.prod.unsubscribe import notify_tenant
+        await notify_tenant(tenant_id, f"Reply from {from_email} ({category}): {body[:140]}")
 
     # Attribute replies back to an autonomous campaign when applicable.
     try:

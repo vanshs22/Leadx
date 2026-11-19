@@ -12,6 +12,7 @@ import re
 import smtplib
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
+from email.utils import make_msgid
 from datetime import datetime, timezone
 from typing import Any, Optional
 
@@ -31,7 +32,7 @@ BULK_DELAY_SEC = float(os.getenv("EMAIL_BULK_DELAY_SEC", "0.4"))
 # Daily free-tier style caps (env override). 0 = unlimited for that provider.
 RESEND_DAILY_LIMIT = int(os.getenv("RESEND_DAILY_LIMIT", "100"))
 BREVO_DAILY_LIMIT = int(os.getenv("BREVO_DAILY_LIMIT", "300"))
-SMTP_DAILY_LIMIT = int(os.getenv("SMTP_DAILY_LIMIT", "200"))
+SMTP_DAILY_LIMIT = int(os.getenv("SMTP_DAILY_LIMIT", "30"))
 
 
 def _today() -> str:
@@ -145,7 +146,10 @@ def is_email_opted_out(tenant_id: str, email: str) -> bool:
             .execute()
             .data
         )
-        return bool(rows)
+        if rows:
+            return True
+        # Opt-outs are permanent and global: another tenant's/campaign's unsubscribe counts too.
+        return bool(_sb().table("global_opt_out").select("email").eq("email", email.strip().lower()).limit(1).execute().data)
     except Exception:
         logger.warning("opt-out check failed, blocking send to be safe", exc_info=True)
         return True  # fail closed — same convention as suppression/first_touch checks
@@ -241,7 +245,7 @@ def send_via_smtp_sync(
     port = int(os.getenv("SMTP_PORT", "587"))
     user = os.getenv("SMTP_USER")
     password = os.getenv("SMTP_PASSWORD")
-    from_addr = from_addr or os.getenv("EMAIL_FROM") or user
+    from_addr = from_addr or os.getenv("SMTP_FROM") or os.getenv("EMAIL_FROM") or user
     use_tls = os.getenv("SMTP_TLS", "1") not in ("0", "false", "no")
     if not (host and from_addr):
         return {"ok": False, "error": "smtp_not_configured", "provider": "smtp"}
@@ -249,6 +253,9 @@ def send_via_smtp_sync(
     msg["Subject"] = subject
     msg["From"] = from_addr
     msg["To"] = to
+    # Stored as email_sends.provider_id so IMAP replies can be matched via In-Reply-To.
+    message_id = make_msgid(domain=from_addr.rsplit("@", 1)[-1].strip("> ") or None)
+    msg["Message-ID"] = message_id
     if reply_to:
         msg["Reply-To"] = reply_to
     if unsubscribe_url_value:
@@ -270,7 +277,7 @@ def send_via_smtp_sync(
                 if user and password:
                     s.login(user, password)
                 s.sendmail(from_addr, [to], msg.as_string())
-        return {"ok": True, "provider": "smtp", "provider_id": None}
+        return {"ok": True, "provider": "smtp", "provider_id": message_id}
     except Exception as e:
         return {"ok": False, "error": str(e), "provider": "smtp"}
 
@@ -543,6 +550,13 @@ async def send_to_lead(
         await _log_send(tenant_id, assignment_id, a["lead_id"], to, subject, "skipped_optout", provider="", provider_id=None, error="")
         return {"ok": False, "error": "recipient_opted_out", "to": to}
 
+    # CAN-SPAM: no send without sender identity, postal address and product description.
+    from app.integrations.prod import outreach_compliance
+    profile = await offload(outreach_compliance.outreach_profile, tenant_id)
+    missing = [k for k in outreach_compliance.REQUIRED if not profile[k]]
+    if missing:
+        return {"ok": False, "error": "sender_profile_incomplete", "missing": missing, "to": to}
+
     # Deliverability gate: never spend sender reputation on an address whose
     # domain has no MX/A record. Discovery-time verification (pipeline_hooks)
     # can be stale or absent for CSV-imported leads, so re-check at send time.
@@ -603,9 +617,12 @@ async def send_to_lead(
     # {{unsubscribe_url}} — CAN-SPAM requires this on every commercial send,
     # so it shouldn't depend on template authoring discipline.
     unsub = lead["_unsubscribe_url"]
-    if unsub and "unsubscribe" not in html.lower():
+    if unsub and unsub not in html:
         html += f'<p style="font-size:11px;color:#888;margin-top:24px;">Don\'t want these emails? <a href="{unsub}">Unsubscribe</a></p>'
         text += f"\n\nUnsubscribe: {unsub}"
+    f_html, f_text = outreach_compliance.footer(profile)
+    html += f_html
+    text += f_text
 
     result = await send_for_tenant(
         tenant_id, to, subj, html, text, reply_to=reply_to,

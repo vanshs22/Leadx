@@ -8,6 +8,7 @@ from __future__ import annotations
 
 from app.services.aio import aexec, offload, to_async
 import logging
+import os
 from datetime import datetime, timedelta, timezone
 from typing import Any, Optional
 
@@ -53,6 +54,10 @@ def _validate_campaign_fields(fields: dict[str, Any], *, existing: Optional[dict
 
 def _sb(): return get_supabase()
 def _now(): return datetime.now(timezone.utc)
+
+
+def _next_day_start() -> str:
+    return (_now() + timedelta(days=1)).replace(hour=0, minute=5, second=0, microsecond=0).isoformat()
 
 
 def list_campaigns(status: Optional[str] = None, *, tenant_id: Optional[str] = None) -> list[dict]:
@@ -144,6 +149,8 @@ async def run(campaign_id: str, *, execution_context: dict | None = None) -> dic
     capacity = max(0, int(c.get("max_active_enrollments") or 5000) - active_enrollments)
     remaining = min(capacity, max(0, int(c.get("daily_new_lead_limit") or 25) - int(stats.get("leads_discovered") or 0)))
     if remaining <= 0:
+        # Target met: sleep until tomorrow's fresh target instead of ticking every schedule_hours.
+        (await aexec(_sb().table("autonomous_campaigns").update({"next_discovery_at": _next_day_start()}).eq("id", campaign_id)))
         return {"ok": True, "skipped": "daily_new_lead_limit_reached"}
     try:
         from app.integrations.prod.pipeline import run_pipeline
@@ -175,7 +182,14 @@ async def run(campaign_id: str, *, execution_context: dict | None = None) -> dic
             from app.integrations.prod.sequences import enroll_leads
             enr = await enroll_leads(c["tenant_id"], c["sequence_id"], assigned, campaign_id=campaign_id, ai_copy_enabled=bool(c.get("generate_ai_copy", True)))
             enrolled = int(enr.get("enrolled") or 0)
-        (await aexec(_sb().table("autonomous_campaigns").update({"last_discovery_at": _now().isoformat(), "last_discovery_result": {**result, "auto_enrolled": enrolled}}).eq("id", campaign_id)))
+        # Under target and this run made progress: re-tick soon. Target met: wait for tomorrow.
+        # No progress keeps the schedule_hours back-off set by tick() so an exhausted ICP is not hammered.
+        patch = {"last_discovery_at": _now().isoformat(), "last_discovery_result": {**result, "auto_enrolled": enrolled}}
+        if current_n + added >= int(c.get("daily_new_lead_limit") or 25):
+            patch["next_discovery_at"] = _next_day_start()
+        elif added > 0:
+            patch["next_discovery_at"] = (_now() + timedelta(minutes=int(os.getenv("CAMPAIGN_RETICK_MINUTES", "15")))).isoformat()
+        (await aexec(_sb().table("autonomous_campaigns").update(patch).eq("id", campaign_id)))
         return {**result, "auto_enrolled": enrolled, "campaign_id": campaign_id}
     except Exception as exc:
         logger.exception("autonomous campaign failed %s", campaign_id)

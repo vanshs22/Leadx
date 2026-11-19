@@ -21,6 +21,9 @@ from app.memory.supabase_client import get_supabase
 logger = logging.getLogger("lead_engine.sequences")
 _WORKER_ID = f"sequence:{socket.gethostname()}:{os.getpid()}"
 _FROM_CACHE: dict[str, str] = {}
+# Campaign cap: 1 first email + 3 follow-ups, follow-ups at least 3 days apart.
+MAX_CAMPAIGN_STEPS = 4
+MIN_FOLLOWUP_GAP_DAYS = 3
 
 
 def _sb():
@@ -183,12 +186,14 @@ def _campaign_policy(campaign_id: Optional[str]) -> dict:
         "send_window_start": "09:00",
         "send_window_end": "17:00",
         "timezone": "UTC",
+        "auto_send": False,
+        "exclude_eu_uk": True,
     }
     if not campaign_id:
         return policy
     try:
         rows = (_sb().table("autonomous_campaigns")
-                .select("stop_on_reply,stop_on_optout,auto_followup,require_verified_email,send_window_start,send_window_end,timezone")
+                .select("stop_on_reply,stop_on_optout,auto_followup,require_verified_email,send_window_start,send_window_end,timezone,auto_send,exclude_eu_uk")
                 .eq("id", campaign_id).limit(1).execute().data or [])
         if rows:
             policy.update({k: rows[0].get(k) for k in policy if rows[0].get(k) is not None})
@@ -383,7 +388,7 @@ async def process_due_sends(limit: int = 200) -> dict:
                 defer_reasons["campaign_send_window"] = defer_reasons.get("campaign_send_window", 0) + 1
                 continue
             step = next((s for s in steps if int(s["step_number"]) == step_no), None)
-            if not step:
+            if not step or (enr.get("campaign_id") and step_no > MAX_CAMPAIGN_STEPS):
                 (await aexec(_sb().table("email_sequence_enrollments").update({"status": "completed", "next_send_at": None, "locked_at": None, "locked_by": None}).eq("id", enr["id"]).eq("status", "sending")))
                 continue
 
@@ -391,12 +396,27 @@ async def process_due_sends(limit: int = 200) -> dict:
             if enr.get("campaign_id") and bool(campaign_policy.get("require_verified_email", True)):
                 verified = (
                     lead.get("email_valid") is True
-                    or str(lead.get("email_status") or "").lower() in {"valid", "deliverable"}
+                    or str(lead.get("email_status") or "").lower() in {"valid", "deliverable", "probable"}
                 )
                 if not verified:
                     (await offload(_defer, enr["id"], _iso(_now() + timedelta(hours=6)), "campaign_verified_email_required"))
                     deferred += 1
                     defer_reasons["campaign_verified_email_required"] = defer_reasons.get("campaign_verified_email_required", 0) + 1
+                    continue
+            if enr.get("campaign_id") and campaign_policy.get("exclude_eu_uk", True):
+                from app.integrations.prod.outreach_compliance import is_eu_uk
+                if is_eu_uk(lead):
+                    (await aexec(_sb().table("email_sequence_enrollments").update({"status": "stopped_manual", "next_send_at": None, "last_error": "eu_uk_excluded", "locked_at": None, "locked_by": None}).eq("id", enr["id"]).eq("status", "sending")))
+                    stopped += 1
+                    continue
+            if enr.get("campaign_id") and enr.get("ai_copy_enabled") and not campaign_policy.get("auto_send"):
+                # Approval mode: AI drafts wait in campaign_email_copies until the operator approves them.
+                from app.integrations.prod.autonomous_copy import get_or_create_copy
+                draft = await get_or_create_copy(enr["campaign_id"], enr["id"], enr["assignment_id"], step_no, step["subject"], step["body_html"], step.get("body_text") or "")
+                if draft.get("approved") is False:
+                    (await offload(_defer, enr["id"], _iso(_now() + timedelta(hours=1)), "awaiting_approval"))
+                    deferred += 1
+                    defer_reasons["awaiting_approval"] = defer_reasons.get("awaiting_approval", 0) + 1
                     continue
             gate = send_policy.can_send_now(
                 enr["tenant_id"], lead, assignment_id=enr["assignment_id"],
@@ -468,6 +488,11 @@ async def process_due_sends(limit: int = 200) -> dict:
                 continue
             if not result.get("ok"):
                 err = result.get("error") or "send_failed"
+                if err == "sender_profile_incomplete":
+                    (await offload(_defer, enr["id"], _iso(_now() + timedelta(hours=6)), err))
+                    deferred += 1
+                    defer_reasons[err] = defer_reasons.get(err, 0) + 1
+                    continue
                 if err in {"no_email_on_lead", "recipient_opted_out", "email_undeliverable"}:
                     (await aexec(_sb().table("email_sequence_enrollments").update({"status": "stopped_optout", "last_error": err, "locked_at": None, "locked_by": None}).eq("id", enr["id"]).eq("status", "sending")))
                     stopped += 1
@@ -486,9 +511,12 @@ async def process_due_sends(limit: int = 200) -> dict:
                 "locked_at": None, "locked_by": None,
                 "last_provider_id": result.get("provider_id") or result.get("id"),
             }
-            if following:
+            if following and not (enr.get("campaign_id") and step_no >= MAX_CAMPAIGN_STEPS):
                 update["status"] = "active"
-                update["next_send_at"] = _iso(_now() + timedelta(days=int(following.get("delay_days") or 0)))
+                gap = int(following.get("delay_days") or 0)
+                if enr.get("campaign_id"):
+                    gap = max(gap, MIN_FOLLOWUP_GAP_DAYS)
+                update["next_send_at"] = _iso(_now() + timedelta(days=gap))
             else:
                 update["status"] = "completed"
                 update["next_send_at"] = None

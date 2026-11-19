@@ -37,7 +37,7 @@ def _models() -> dict[str, str]:
     }
 
 
-async def _openai_compatible(base: str, key: str, model: str, user: str) -> str:
+async def _openai_compatible(base: str, key: str, model: str, user: str, usage: Optional[dict] = None) -> str:
     async with httpx.AsyncClient(timeout=60.0) as client:
         r = await client.post(
             f"{base.rstrip('/')}/chat/completions",
@@ -53,6 +53,8 @@ async def _openai_compatible(base: str, key: str, model: str, user: str) -> str:
         )
         r.raise_for_status()
         data = r.json()
+        if usage is not None:
+            usage.update({"model": model, **(data.get("usage") or {})})
         return (data["choices"][0]["message"]["content"] or "").strip()
 
 
@@ -83,6 +85,7 @@ async def complete(user_prompt: str) -> dict[str, Any]:
     """Try providers in order; return {ok, text, provider} or {ok:false, error}."""
     models = _models()
     errors: list[str] = []
+    usage: dict[str, Any] = {}
 
     or_key = (os.getenv("OPENROUTER_API_KEY") or "").strip()
     if or_key:
@@ -92,18 +95,19 @@ async def complete(user_prompt: str) -> dict[str, Any]:
                 or_key,
                 models["openrouter"],
                 user_prompt,
+                usage,
             )
             if text:
-                return {"ok": True, "text": text, "provider": "openrouter"}
+                return {"ok": True, "text": text, "provider": "openrouter", "usage": usage}
         except Exception as e:
             errors.append(f"openrouter: {e}")
 
     oai = (os.getenv("OPENAI_API_KEY") or "").strip()
     if oai:
         try:
-            text = await _openai_compatible("https://api.openai.com/v1", oai, models["openai"], user_prompt)
+            text = await _openai_compatible("https://api.openai.com/v1", oai, models["openai"], user_prompt, usage)
             if text:
-                return {"ok": True, "text": text, "provider": "openai"}
+                return {"ok": True, "text": text, "provider": "openai", "usage": usage}
         except Exception as e:
             errors.append(f"openai: {e}")
 
@@ -111,10 +115,10 @@ async def complete(user_prompt: str) -> dict[str, Any]:
     if groq:
         try:
             text = await _openai_compatible(
-                "https://api.groq.com/openai/v1", groq, models["groq"], user_prompt
+                "https://api.groq.com/openai/v1", groq, models["groq"], user_prompt, usage
             )
             if text:
-                return {"ok": True, "text": text, "provider": "groq"}
+                return {"ok": True, "text": text, "provider": "groq", "usage": usage}
         except Exception as e:
             errors.append(f"groq: {e}")
 
@@ -247,6 +251,9 @@ async def write_personalized_email(context: dict[str, Any]) -> dict[str, Any]:
         "technology, job posting, or pain point. If evidence is weak, personalize around the known "
         "business/industry only. Avoid hype, fake familiarity, and generic compliments. "
         "Do not mention that AI researched the company. Include a simple CTA. "
+        "Plain text, under 120 words, no links, no attachments, no spammy or urgent wording, no fake 'Re:' subject. "
+        "Describe the sender's product only from product_description in the context. "
+        "If context.step is greater than 1 this is a short, polite follow-up that adds one new point, never guilt or pressure. "
         "Return exactly:\nSUBJECT: ...\nBODY:\n...\nEVIDENCE: comma-separated field names used.\n\n"
         + json.dumps(context, default=str)[:12000]
     )
@@ -272,4 +279,5 @@ async def write_personalized_email(context: dict[str, Any]) -> dict[str, Any]:
         return {"ok": False, "error": "invalid_ai_copy"}
     return {"ok": True, "provider": res.get("provider"), "subject": subject[:200],
             "body_html": "<p>" + "</p><p>".join(x.strip() for x in body.split("\n\n") if x.strip()) + "</p>",
-            "body_text": body, "evidence": {"fields": [x.strip() for x in evidence.split(",") if x.strip()]}}
+            "body_text": body, "usage": res.get("usage") or {},
+            "evidence": {"fields": [x.strip() for x in evidence.split(",") if x.strip()]}}

@@ -37,7 +37,7 @@ SEND_WEEKENDS = os.getenv("SEND_WEEKENDS", "false").lower() in ("1", "true", "ye
 # Hours that must pass between any two outbound touches to one lead.
 MIN_TOUCH_GAP_HOURS = int(os.getenv("MIN_TOUCH_GAP_HOURS", "24"))
 # Default daily cap per sending domain when no warm-up row exists.
-DEFAULT_DOMAIN_DAILY_CAP = int(os.getenv("DOMAIN_DAILY_CAP", "300"))
+DEFAULT_DOMAIN_DAILY_CAP = int(os.getenv("DOMAIN_DAILY_CAP", "30"))
 # Max jitter applied to each send so a batch spreads over a window.
 SEND_JITTER_MAX_SECONDS = int(os.getenv("SEND_JITTER_MAX_SECONDS", "90"))
 

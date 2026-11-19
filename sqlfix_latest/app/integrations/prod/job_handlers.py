@@ -258,6 +258,12 @@ async def _autonomous_campaign_run(payload: dict) -> dict:
     from app.integrations.prod.autonomous_campaigns import run
     return await run(payload["campaign_id"], execution_context=dict(payload.get("_job_context") or {}))
 
+@register("inbound.imap_poll")
+async def _inbound_imap_poll(payload: dict) -> dict:
+    from app.integrations.prod.imap_inbound import poll
+    return await poll(limit=int(payload.get("limit") or 50))
+
+
 @register("webhooks.deliver")
 async def _webhooks_deliver(payload: dict) -> dict:
     from app.integrations.prod.webhooks import deliver_due

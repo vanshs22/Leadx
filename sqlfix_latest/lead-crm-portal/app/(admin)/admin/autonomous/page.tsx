@@ -9,7 +9,7 @@ import { PollingDeadlineState } from "@/components/ui/States";
 const starter: SequenceStepInput[] = [
   { step_number: 1, delay_days: 0, subject: "Quick idea for {{company}}", body_html: "<p>Hi {{first_name}},</p><p>I came across {{company}} and noticed {{pitch}}.</p><p>Would it be useful to compare notes for 10 minutes?</p>" },
   { step_number: 2, delay_days: 3, subject: "Re: {{company}}", body_html: "<p>Hi {{first_name}},</p><p>Following up in case my note got buried. Happy to send a short example of what this could look like for {{company}}.</p>" },
-  { step_number: 3, delay_days: 7, subject: "Closing the loop", body_html: "<p>Hi {{first_name}},</p><p>I’ll close the loop here. If this becomes relevant later, just reply and I’ll pick it back up.</p>" },
+  { step_number: 3, delay_days: 4, subject: "Closing the loop", body_html: "<p>Hi {{first_name}},</p><p>I’ll close the loop here. If this becomes relevant later, just reply and I’ll pick it back up.</p>" },
 ];
 
 const csv = (s: string) => s.split(",").map((x) => x.trim()).filter(Boolean);
@@ -35,7 +35,13 @@ export default function AutonomousGrowthPage() {
     schedule_hours: 24,
     timezone: "America/New_York",
     score_threshold: 70,
+    auto_send: false,
+    exclude_eu_uk: true,
+    lawful_basis_note: "",
   });
+  const [profile, setProfile] = useState<Record<string, string>>({ sender_name: "", postal_address: "", product_description: "" });
+  const [missing, setMissing] = useState<string[]>([]);
+  const [drafts, setDrafts] = useState<Record<string, any[]>>({});
 
   const load = useCallback(async () => {
     try {
@@ -45,9 +51,28 @@ export default function AutonomousGrowthPage() {
         const i = await admin.icps(r.operator_tenant_id).catch(() => null);
         setIcps(i?.icps || i?.rows || []);
       }
+      const p = await autonomousCampaigns.profile().catch(() => null);
+      if (p) { setProfile((cur) => (cur.sender_name || cur.postal_address || cur.product_description ? cur : p.profile)); setMissing(p.missing); }
+      const pending: Record<string, any[]> = {};
+      for (const c of (r.campaigns || []).filter((c: any) => !c.auto_send)) {
+        pending[c.id] = (await autonomousCampaigns.drafts(c.id).catch(() => null))?.drafts || [];
+      }
+      setDrafts(pending);
       setError("");
     } catch (e: any) { setError(e.message); }
   }, []);
+
+  async function saveProfile() {
+    setBusy(true); setMsg(""); setError("");
+    try { const p = await autonomousCampaigns.saveProfile(profile); setProfile(p.profile); setMissing(p.missing); setMsg(p.missing.length ? "Saved. Sending stays blocked until every field is filled." : "Sender profile saved."); }
+    catch (e: any) { setError(e.message); } finally { setBusy(false); }
+  }
+
+  async function decide(campaignId: string, copyId: string, approve: boolean) {
+    setBusy(true);
+    try { await autonomousCampaigns.decideDraft(campaignId, copyId, { approve }); await load(); }
+    catch (e: any) { setError(e.message); } finally { setBusy(false); }
+  }
   useLiveLoader(load, 15000, [], { onDeadline: () => setPollingExpired(true) });
 
   const campaigns = data?.campaigns || [];
@@ -121,6 +146,17 @@ export default function AutonomousGrowthPage() {
         ))}
       </section>
 
+      <section className="data-card p-5 md:p-6">
+        <div className="section-kicker">00 · Sender identity (required by CAN-SPAM)</div>
+        {missing.length > 0 && <p className="mt-2 text-sm text-rust-700 dark:text-rust-300">Sending is blocked until these are filled: {missing.join(", ")}.</p>}
+        <div className="mt-4 grid gap-4 sm:grid-cols-3">
+          <label className="label">Sender / company name<input className="input mt-1" value={profile.sender_name} onChange={e=>setProfile({...profile,sender_name:e.target.value})}/></label>
+          <label className="label">Postal address<input className="input mt-1" value={profile.postal_address} onChange={e=>setProfile({...profile,postal_address:e.target.value})}/></label>
+          <label className="label">What you sell (AI uses only this)<textarea className="input mt-1 min-h-16" value={profile.product_description} onChange={e=>setProfile({...profile,product_description:e.target.value})}/></label>
+        </div>
+        <button className="btn-primary mt-4" disabled={busy} onClick={saveProfile}>Save sender profile</button>
+      </section>
+
       <section className="grid gap-5 xl:grid-cols-[1.05fr_.95fr]">
         <div className="data-card p-5 md:p-6">
           <div className="flex items-center justify-between"><div><div className="section-kicker">01 · Strategy</div><h2 className="mt-1 text-lg font-semibold">Create autonomous campaign</h2></div><span className="pill bg-signal-50 text-signal-700 dark:bg-signal-500/15 dark:text-signal-300">Admin only</span></div>
@@ -130,22 +166,25 @@ export default function AutonomousGrowthPage() {
             <label className="label sm:col-span-2">Offer<textarea className="input mt-1 min-h-20" value={form.offer} onChange={e=>setForm({...form,offer:e.target.value})}/></label>
             <label className="label sm:col-span-2">Locations<textarea className="input mt-1 min-h-16" value={form.locations} onChange={e=>setForm({...form,locations:e.target.value})}/></label>
             <label className="label sm:col-span-2">Search intent / queries<textarea className="input mt-1 min-h-16" value={form.queries} onChange={e=>setForm({...form,queries:e.target.value})}/></label>
-            <label className="label">New leads / day<input type="number" min={1} max={5000} className="input mt-1" value={form.daily_new_lead_limit} onChange={e=>setForm({...form,daily_new_lead_limit:Number(e.target.value)})}/></label>
+            <div className="label">Daily lead target<div className="mt-1 flex gap-2">{[50,100,500].map(n=><button type="button" key={n} aria-pressed={form.daily_new_lead_limit===n} className={form.daily_new_lead_limit===n?"btn-primary":"btn-secondary"} onClick={()=>setForm({...form,daily_new_lead_limit:n})}>{n}</button>)}<input type="number" min={1} max={5000} aria-label="Custom daily lead target" className="input" value={form.daily_new_lead_limit} onChange={e=>setForm({...form,daily_new_lead_limit:Number(e.target.value)})}/></div></div>
             <label className="label">Emails / day<input type="number" min={1} max={5000} className="input mt-1" value={form.daily_email_limit} onChange={e=>setForm({...form,daily_email_limit:Number(e.target.value)})}/></label>
             <label className="label">Discovery cadence<select className="input mt-1" value={form.schedule_hours} onChange={e=>setForm({...form,schedule_hours:Number(e.target.value)})}><option value={24}>Daily</option><option value={12}>Every 12h</option><option value={72}>Every 3 days</option><option value={168}>Weekly</option></select></label>
+            <label className="label flex items-center gap-2"><input type="checkbox" checked={form.auto_send} onChange={e=>setForm({...form,auto_send:e.target.checked})}/>Auto-send AI emails (off = approve each draft first)</label>
+            <label className="label flex items-center gap-2"><input type="checkbox" checked={form.exclude_eu_uk} onChange={e=>setForm({...form,exclude_eu_uk:e.target.checked})}/>Exclude EU/UK recipients (GDPR)</label>
+            {!form.exclude_eu_uk && <label className="label sm:col-span-2">Lawful basis for EU/UK outreach<textarea className="input mt-1 min-h-16" value={form.lawful_basis_note} onChange={e=>setForm({...form,lawful_basis_note:e.target.value})}/></label>}
             <label className="label">Minimum score<input type="number" min={0} max={100} className="input mt-1" value={form.score_threshold} onChange={e=>setForm({...form,score_threshold:Number(e.target.value)})}/></label>
           </div>
         </div>
 
         <div className="data-card p-5 md:p-6">
           <div className="section-kicker">02 · Follow-up journey</div>
-          <div className="mt-1 flex items-center justify-between"><h2 className="text-lg font-semibold">Drag to reorder sequence</h2><span className="text-xs text-ink-faint">AI personalizes each step</span></div>
+          <div className="mt-1 flex items-center justify-between"><h2 className="text-lg font-semibold">Drag to reorder sequence</h2><span className="text-xs text-ink-faint">AI personalizes each step · max 3 follow-ups, 3+ days apart</span></div>
           <div className="mt-4 space-y-2">
             {steps.map((s: SequenceStepInput,i: number)=><div key={i} draggable onDragStart={()=>setDragIndex(i)} onDragOver={e=>e.preventDefault()} onDrop={()=>{if(dragIndex!==null)moveStep(dragIndex,i);setDragIndex(null)}} className={`rounded-2xl border bg-surface-2 p-4 transition ${dragIndex===i?"border-brand-400 shadow-lift":"border-line"}`}>
               <div className="flex items-start gap-3"><div className="mt-0.5 cursor-grab rounded-xl bg-surface-3 px-2.5 py-2 text-xs font-bold text-ink-muted">↕ {i+1}</div><div className="min-w-0 flex-1"><div className="flex items-center justify-between gap-2"><input className="input h-9" value={s.subject} onChange={e=>{const x=[...steps];x[i]={...x[i],subject:e.target.value};setSteps(x)}}/><span className="ml-2 whitespace-nowrap text-[10px] font-bold uppercase tracking-wide text-ink-faint">{i===0?"Immediately":`+${s.delay_days}d`}</span></div><textarea className="input mt-2 min-h-20" value={s.body_html} onChange={e=>{const x=[...steps];x[i]={...x[i],body_html:e.target.value};setSteps(x)}}/></div></div>
             </div>)}
           </div>
-          <div className="mt-4 grid grid-cols-2 gap-2"><button className="btn-secondary" onClick={()=>setSteps([...steps,{step_number:steps.length+1,delay_days:7,subject:"One last note about {{company}}",body_html:"<p>Hi {{first_name}},</p><p>Worth keeping this on your radar?</p>"}])}>+ Add step</button><button className="btn-primary" disabled={busy || !data?.operator_tenant_id} onClick={create}>{busy?"Creating…":"Create campaign"}</button></div>
+          <div className="mt-4 grid grid-cols-2 gap-2"><button className="btn-secondary" disabled={steps.length>=4} title="Max 3 follow-ups" onClick={()=>setSteps([...steps,{step_number:steps.length+1,delay_days:5,subject:"One last note about {{company}}",body_html:"<p>Hi {{first_name}},</p><p>Worth keeping this on your radar?</p>"}])}>+ Add step</button><button className="btn-primary" disabled={busy || !data?.operator_tenant_id} onClick={create}>{busy?"Creating…":"Create campaign"}</button></div>
         </div>
       </section>
 
@@ -153,7 +192,7 @@ export default function AutonomousGrowthPage() {
         <div className="flex flex-wrap items-center justify-between gap-3 border-b border-line px-5 py-4"><div><div className="section-kicker">03 · Control room</div><h2 className="mt-1 text-lg font-semibold">Campaigns</h2></div><button className="btn-secondary" disabled={busy} onClick={()=>autonomousCampaigns.tick().then(load)}>Run due check</button></div>
         <div className="divide-y divide-line/70">
           {!campaigns.length && <div className="p-8 text-sm text-ink-muted">No autonomous campaigns yet. Create one above; nothing sends until you activate it.</div>}
-          {campaigns.map((c: any)=>{const d=data?.daily?.[c.id]||{};return <div key={c.id} className="p-5 hover:bg-surface-3/30"><div className="flex flex-wrap items-start justify-between gap-4"><div className="min-w-0"><div className="flex flex-wrap items-center gap-2"><h3 className="font-semibold text-ink">{c.name}</h3><span className="pill bg-surface-3 text-ink-muted">{c.status}</span></div><p className="mt-1 text-xs text-ink-faint">{(c.locations||[]).slice(0,4).join(" · ")} · {c.daily_new_lead_limit} leads/day · {c.daily_email_limit} emails/day</p></div><div className="flex gap-2">{c.status!=="active"?<button className="btn-success" disabled={busy} onClick={()=>setStatus(c.id,"active")}>Activate</button>:<button className="btn-secondary" disabled={busy} onClick={()=>setStatus(c.id,"paused")}>Pause</button>}<button className="btn-secondary" disabled={busy} onClick={()=>runNow(c.id)}>Run now</button></div></div><div className="mt-4 grid gap-3 sm:grid-cols-5"><div className="action-card"><div className="stat-label">Found today</div><div className="mt-1 font-mono text-lg font-semibold">{d.leads_discovered||0}</div></div><div className="action-card"><div className="stat-label">Sent today</div><div className="mt-1 font-mono text-lg font-semibold">{d.emails_sent||0} / {c.daily_email_limit}</div></div><div className="action-card"><div className="stat-label">Follow-up</div><div className="mt-1 text-sm font-semibold">{c.auto_followup?"Automatic":"Off"}</div></div><div className="action-card"><div className="stat-label">Reply stop</div><div className="mt-1 text-sm font-semibold">{c.stop_on_reply?"On":"Off"}</div></div><div className="action-card"><div className="stat-label">Opt-out</div><div className="mt-1 text-sm font-semibold">{c.stop_on_optout?"Global + tenant":"Manual"}</div></div></div></div>})}
+          {campaigns.map((c: any)=>{const d=data?.daily?.[c.id]||{};return <div key={c.id} className="p-5 hover:bg-surface-3/30"><div className="flex flex-wrap items-start justify-between gap-4"><div className="min-w-0"><div className="flex flex-wrap items-center gap-2"><h3 className="font-semibold text-ink">{c.name}</h3><span className="pill bg-surface-3 text-ink-muted">{c.status}</span></div><p className="mt-1 text-xs text-ink-faint">{(c.locations||[]).slice(0,4).join(" · ")} · {c.daily_new_lead_limit} leads/day · {c.daily_email_limit} emails/day</p></div><div className="flex gap-2">{c.status!=="active"?<button className="btn-success" disabled={busy} onClick={()=>setStatus(c.id,"active")}>Activate</button>:<button className="btn-secondary" disabled={busy} onClick={()=>setStatus(c.id,"paused")}>Pause</button>}<button className="btn-secondary" disabled={busy} onClick={()=>runNow(c.id)}>Run now</button></div></div><div className="mt-4 grid gap-3 sm:grid-cols-5"><div className="action-card"><div className="stat-label">Found today</div><div className="mt-1 font-mono text-lg font-semibold">{d.leads_discovered||0}</div></div><div className="action-card"><div className="stat-label">Sent today</div><div className="mt-1 font-mono text-lg font-semibold">{d.emails_sent||0} / {c.daily_email_limit}</div></div><div className="action-card"><div className="stat-label">Follow-up</div><div className="mt-1 text-sm font-semibold">{c.auto_followup?"Automatic":"Off"}</div></div><div className="action-card"><div className="stat-label">Reply stop</div><div className="mt-1 text-sm font-semibold">{c.stop_on_reply?"On":"Off"}</div></div><div className="action-card"><div className="stat-label">Opt-out</div><div className="mt-1 text-sm font-semibold">{c.stop_on_optout?"Global + tenant":"Manual"}</div></div></div>{!c.auto_send && <div className="mt-4"><div className="stat-label">Drafts waiting for approval ({(drafts[c.id]||[]).length})</div>{(drafts[c.id]||[]).slice(0,20).map((d:any)=><div key={d.id} className="mt-2 rounded-xl border border-line p-3 text-sm"><div className="font-semibold">Step {d.step_number}: {d.subject}</div><pre className="mt-1 whitespace-pre-wrap font-sans text-ink-muted">{d.body_text}</pre><div className="mt-2 flex gap-2"><button className="btn-success" disabled={busy} onClick={()=>decide(c.id,d.id,true)}>Approve</button><button className="btn-secondary" disabled={busy} onClick={()=>decide(c.id,d.id,false)}>Reject</button></div></div>)}</div>}</div>})}
         </div>
       </section>
     </div>
