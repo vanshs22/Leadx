@@ -323,6 +323,16 @@ async def handle_reply(raw_mime: str, tenant_id: Optional[str] = None) -> dict:
         )
     except Exception as exc: __import__("logging").getLogger(__name__).debug("suppressed optional failure: %s", exc)
 
+    try:
+        from app.integrations.prod.agent_run_evidence import record_outcomes
+        items = [("outreach", "reply_handling", {"category": category, "assignment_id": assignment_id})]
+        if category == "opt_out":
+            items += [("compliance", "opt_out", {"suppression_added": True, "assignment_id": assignment_id}),
+                      ("learning", "feedback_signal", {"signal": "opt_out", "assignment_id": assignment_id})]
+        await record_outcomes(tenant_id, None, items, "inbound-reply")
+    except Exception as exc:
+        logger.debug("reply agent evidence skipped: %s", type(exc).__name__)
+
     return {"ok": True, "tenant_id": tenant_id, "assignment_id": assignment_id, "category": category}
 
 

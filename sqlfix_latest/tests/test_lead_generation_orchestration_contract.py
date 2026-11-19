@@ -93,11 +93,12 @@ async def test_post_delivery_dispatch_queues_learning_through_existing_agent_run
 
     result = await dispatch.dispatch_post_delivery_agents(
         tenant_id="tenant-1", run_id="run-1", vertical="gym",
-        lead_ids=["assignment-1"], assigned=1, delivered=1,
+        lead_ids=["lead-1"], assigned=1, delivered=1,
     )
-    assert [row["agent_id"] for row in result] == list(POST_DELIVERY_AGENTS)
+    by_agent = {row["agent_id"]: row["status"] for row in result}
+    assert set(by_agent) == {*POST_DELIVERY_AGENTS, "contact_finder", "research", "web_research"}
     assert "learning" in [row[1] for row in created]
-    assert all(row["status"] == "queued" for row in result)
+    assert all(by_agent[agent] == "queued" for agent in POST_DELIVERY_AGENTS)
     assert all(kwargs["operation_kind"] == "agent.run" for _, kwargs in submitted)
     assert all(kwargs["provider_required"] is False for _, kwargs in submitted)
 

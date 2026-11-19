@@ -60,6 +60,9 @@ POST_DELIVERY_AGENTS = (
     "crm_hygiene", "deal", "revenue", "cost_optimizer", "campaign_optimizer", "learning",
 )
 
+# Heavy lead-gen agents queued once per run after delivery (they already ran when specialists are inline).
+POST_DELIVERY_LEADGEN_AGENTS = ("contact_finder", "research", "web_research")
+
 # (agent_id, phase, mode). mode: inline_batch (run level), inline_lead (per lead, CPU only),
 # post_delivery (queued agent.run job), campaign (autonomous campaign / inbound mail).
 LEAD_GEN_AGENT_FLOW = (

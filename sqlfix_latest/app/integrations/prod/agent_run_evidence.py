@@ -19,6 +19,9 @@ def build_evidence_rows(tenant_id: str, run_id: str, agent_context: dict[str, An
     for stage in stages:
         agent_id = str(stage["agent_id"])
         ops = stage.get("operations") or []
+        # A queued post-delivery agent already owns a real agent_runs row; do not duplicate it.
+        if any((op.get("summary") or {}).get("agent_run_id") for op in ops):
+            continue
         executed = [op for op in ops if op.get("status") != "skipped"]
         count = sum(int(op.get("count") or 0) for op in executed)
         failed = sum(int(op.get("failed") or 0) for op in executed)
@@ -66,3 +69,16 @@ async def record_agent_evidence(tenant_id: str, rows: list[dict[str, Any]]) -> i
 
 async def flush_pipeline_agent_evidence(tenant_id: str, run_id: str, agent_context: dict[str, Any], vertical: str = "") -> int:
     return await record_agent_evidence(tenant_id, build_evidence_rows(tenant_id, run_id, agent_context))
+
+
+async def record_outcomes(tenant_id: str, source_run_id: str | None, items: list[tuple[str, str, dict[str, Any]]], created_by: str) -> int:
+    """One batched insert of finished single-operation evidence rows (campaign run, inbound reply). Never raises."""
+    now = datetime.now(timezone.utc).isoformat()
+    rows = [{
+        "tenant_id": str(tenant_id), "agent_id": agent_id, "task": f"{agent_id}: {operation}"[:2000],
+        "input_data": {"source_run_id": str(source_run_id) if source_run_id else None, "operation": operation, "evidence_only": True},
+        "status": "done", "result": {"operation": operation, **summary}, "error": None,
+        "outcome": {"ok": True, "duration_ms": 0, "count": 1}, "created_by": created_by,
+        "created_at": now, "updated_at": now, "started_at": now, "finished_at": now,
+    } for agent_id, operation, summary in items]
+    return await record_agent_evidence(tenant_id, rows)

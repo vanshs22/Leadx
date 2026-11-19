@@ -14,6 +14,12 @@ UNSUB = "https://api.example.com/crm/unsubscribe?token=abc"
 PROFILE = {"sender_name": "Acme Co", "postal_address": "1 Main St, Austin TX 78701", "product_description": "Booking software"}
 
 
+@pytest.fixture(autouse=True)
+def _inside_send_window(monkeypatch):
+    # Campaign send window (09:00-17:00 local) depends on the wall clock; these tests are not about it.
+    monkeypatch.setattr(sequences, "_inside_campaign_window", lambda _policy: True)
+
+
 @pytest.fixture
 def profile_env(monkeypatch):
     for k, env in outreach_compliance._ENV.items():
@@ -278,6 +284,28 @@ async def test_daily_target_loop_reticks_until_met(fake_supabase, monkeypatch):
     assert fake_supabase.rows("autonomous_campaigns")[0]["next_discovery_at"] == ac._next_day_start()
     out = await ac.run("c1")
     assert out["skipped"] == "daily_new_lead_limit_reached" and asked == [50, 20]
+
+
+@pytest.mark.asyncio
+async def test_campaign_run_records_outreach_lane_in_one_insert_and_survives_failure(fake_supabase, monkeypatch):
+    from app.integrations.prod import agent_run_evidence, autonomous_campaigns as ac
+    monkeypatch.setattr(ac, "get_supabase", lambda: fake_supabase)
+    fake_supabase.store.update({
+        "autonomous_campaigns": [{"id": "c1", "tenant_id": "t1", "status": "active", "daily_new_lead_limit": 5, "generate_ai_copy": True}],
+        "autonomous_campaign_daily": [], "email_sequence_enrollments": [], "lead_assignments": [],
+    })
+    calls: list = []
+
+    async def fake_pipeline(**kw): return {"assigned": 2, "assignment_ids": [], "run_id": "run-9"}
+    async def record(tenant, run, items, by): calls.append((run, [i[0] for i in items], by)); return len(items)
+    monkeypatch.setattr("app.integrations.prod.pipeline.run_pipeline", fake_pipeline)
+    monkeypatch.setattr(agent_run_evidence, "record_outcomes", record)
+    out = await ac.run("c1")
+    assert calls == [("run-9", ["personalization", "outreach", "compliance"], "autonomous-campaign")]
+
+    async def boom(*a, **k): raise RuntimeError("db down")
+    monkeypatch.setattr(agent_run_evidence, "record_outcomes", boom)
+    assert (await ac.run("c1"))["campaign_id"] == "c1" and out["campaign_id"] == "c1"
 
 
 # ---- IMAP replies -------------------------------------------------------------------------------

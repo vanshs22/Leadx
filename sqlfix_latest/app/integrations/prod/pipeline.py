@@ -411,9 +411,6 @@ async def run_pipeline_parallel_target(
         "tranche": (selection_decision.get("normalized_plan") or {}).get("tranche_size"),
     })
     # Skips come after the planner so icp_planning is recorded first.
-    # Performed inside the enrichment engine, not by separate per-lead agent calls.
-    for covered in ("contact_finder", "research", "web_research"):
-        skip_agent_stage(agent_context, covered, "enrichment_engine", "performed_by_enrichment_engine")
     if is_portal_delivery(delivery_channel):
         skip_agent_stage(agent_context, "personalization", "outreach_context", "not_needed_for_portal_delivery")
     for stage, reason in skipped_stages.items():
@@ -1567,11 +1564,26 @@ async def run_pipeline_parallel_target(
     except Exception as exc:
         logger.debug("stage history flush skipped: %s", type(exc).__name__)
     elapsed = round((datetime.now(timezone.utc) - started).total_seconds(), 1)
+    # Queue independent post-delivery agents only after the persisted delivery
+    # attempt. Their durable agent.run jobs are observability/learning work and
+    # never determine the client-facing delivery result.
+    try:
+        from app.integrations.prod.post_run_agent_dispatch import dispatch_post_delivery_agents, record_dispatch_in_context
+        post_delivery_agents = await dispatch_post_delivery_agents(
+            tenant_id=str(tenant_id), run_id=str(run_id), vertical=str(vertical),
+            lead_ids=[str(lead["id"]) for lead in to_deliver if lead.get("id")],
+            assigned=int(assigned_n), delivered=int(delivered_n),
+        )
+        record_dispatch_in_context(agent_context, post_delivery_agents)
+    except Exception as exc:
+        logger.warning("post-delivery agent dispatch skipped run=%s error=%s", run_id, type(exc).__name__)
+        post_delivery_agents = []
     from app.integrations.prod.agent_run_evidence import flush_pipeline_agent_evidence
     agent_evidence_rows = await flush_pipeline_agent_evidence(str(tenant_id), str(run_id), agent_context, str(vertical))
     summary = {
         "agent_execution": agent_snapshot(agent_context),
         "agent_evidence_rows": agent_evidence_rows,
+        "post_delivery_agents": post_delivery_agents,
         "pipeline": "lead_engine_v2",
         "mode": "streaming_target",
         "run_id": run_id,
@@ -1628,20 +1640,6 @@ async def run_pipeline_parallel_target(
         "assignment_blockers": assignment_blockers,
         "selection_decision": selection_decision,
     }
-    # Queue independent post-delivery agents only after the persisted delivery
-    # attempt. Their durable agent.run jobs are observability/learning work and
-    # never determine the client-facing delivery result.
-    try:
-        from app.integrations.prod.post_run_agent_dispatch import dispatch_post_delivery_agents
-        summary["post_delivery_agents"] = await dispatch_post_delivery_agents(
-            tenant_id=str(tenant_id), run_id=str(run_id), vertical=str(vertical),
-            lead_ids=[str(value) for value in assignment_ids],
-            assigned=int(assigned_n), delivered=int(delivered_n),
-        )
-    except Exception as exc:
-        logger.warning("post-delivery agent dispatch skipped run=%s error=%s", run_id, type(exc).__name__)
-        summary["post_delivery_agents"] = []
-
     # Record only observed, sanitized target-five timing metadata at the
     # existing terminal boundary. Local/static runs remain blocked for the
     # live 20-30 second claim even when their stopwatch is inside the window.
@@ -2848,7 +2846,7 @@ async def run_pipeline(
             from app.integrations.prod.post_run_agent_dispatch import dispatch_post_delivery_agents
             summary["post_delivery_agents"] = await dispatch_post_delivery_agents(
                 tenant_id=str(tenant_id), run_id=str(run_id), vertical=str(vertical),
-                lead_ids=[str(value) for value in assignment_ids],
+                lead_ids=[str(lead["id"]) for lead in to_deliver if lead.get("id")],
                 assigned=int(assigned_n), delivered=int(delivered_n),
             )
         except Exception as exc:

@@ -175,7 +175,7 @@ async def execute_agent_task(run: dict, expected_agent: str | None = None) -> di
                     from app.integrations.prod.lead_research import deep_research_lead
                     from app.layers.persistence_layer import record_evidence
                     from app.layers.persistence_layer import upsert_enrichment
-                    merged = await deep_research_lead(lead)
+                    merged = await deep_research_lead(lead, allow_paid=data.get("allow_paid") is not False)
                     await upsert_enrichment(lid, merged)
                     await record_evidence(lid, merged.get("research_evidence") or [])
                     results.append({"lead_id": lid, "ok": True, "sources": merged.get("research_sources", [])})

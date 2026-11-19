@@ -141,7 +141,18 @@ async def execute_specialized(agent: str, data: dict[str, Any]) -> dict[str, Any
         return {"agent":"discovery_planner","mode":"discovery_execution","industry":plan.vertical,"locations":list(plan.locations),"queries":list(plan.queries),"plan":plan.as_dict(),"selection_decision":data.get("selection_decision"),"discovered":len(persisted),"lead_ids":ids,"board_lead_ids":ids,"source_counts":{str(x.get("source") or "unknown"): sum(1 for y in persisted if y.get("source")==x.get("source")) for x in persisted}}
 
     if agent == "web_research":
-        return {"agent":agent,"research":await research_company(lead, max_pages=int(data.get("max_pages") or 12), use_firecrawl=bool(data.get("use_firecrawl",True))),"lead_ids":[str(lead["id"])] if lead.get("id") else list(data.get("lead_ids") or [])}
+        # Every authorized lead (already capped by agent_batch_limit in _load_leads), 4 at a time.
+        gate = asyncio.Semaphore(4)
+        async def one(item: dict[str, Any]) -> dict[str, Any]:
+            async with gate:
+                try:
+                    found = await research_company(item, max_pages=int(data.get("max_pages") or 12), use_firecrawl=bool(data.get("use_firecrawl", True)))
+                except Exception as exc:
+                    found = {"ok": False, "error": type(exc).__name__}
+                return {"lead_id": str(item["id"]) if item.get("id") else None, "research": found}
+        results = await asyncio.gather(*(one(x) for x in (leads or [lead])))
+        ids = [r["lead_id"] for r in results if r["lead_id"]] or list(data.get("lead_ids") or [])
+        return {"agent":agent,"research":results[0]["research"],"results":results,"count":len(results),"lead_ids":ids}
     if agent == "enrichment":
         enrichment = await enrich_fields(lead,list(data.get("fields") or ["email","phone","owner_name","linkedin_url"]),budget=float(data.get("budget") or 6))
         persisted = await _persist_enrichment(lead, enrichment)

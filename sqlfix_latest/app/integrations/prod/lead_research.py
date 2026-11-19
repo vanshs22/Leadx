@@ -124,17 +124,16 @@ def _merge_unique(old: list, new: list, key=None, limit: int = 50) -> list:
     return out
 
 
-async def deep_research_lead(lead: dict) -> dict:
+async def deep_research_lead(lead: dict, allow_paid: bool = True) -> dict:
+    """allow_paid=False drops the Serper search lane and Firecrawl (free website/social lanes only)."""
     from app.integrations.prod import contact_candidates as cc
     name = lead.get("name") or lead.get("company_name") or ""
     city = lead.get("city")
     website = lead.get("website")
     # Independent lanes run concurrently; a failure in one never blocks the others.
-    tasks = [
-        asyncio.create_task(_google_research(name, city, website)),
-    ]
+    tasks = [asyncio.create_task(_google_research(name, city, website))] if allow_paid else []
     if website:
-        tasks.append(asyncio.create_task(enrich_one(website, use_crawl4ai=True, use_firecrawl=True, company_name=name, city=city)))
+        tasks.append(asyncio.create_task(enrich_one(website, use_crawl4ai=True, use_firecrawl=allow_paid, company_name=name, city=city)))
     tasks.append(asyncio.create_task(social_enrich_lead(dict(lead))))
     tasks.append(asyncio.create_task(lookup_linkedin_company(name, city=city, website=website, existing_linkedin=lead.get("linkedin_url"))))
     results = await asyncio.gather(*tasks, return_exceptions=True)
