@@ -291,17 +291,25 @@ async def test_campaign_run_records_outreach_lane_in_one_insert_and_survives_fai
     from app.integrations.prod import agent_run_evidence, autonomous_campaigns as ac
     monkeypatch.setattr(ac, "get_supabase", lambda: fake_supabase)
     fake_supabase.store.update({
-        "autonomous_campaigns": [{"id": "c1", "tenant_id": "t1", "status": "active", "daily_new_lead_limit": 5, "generate_ai_copy": True}],
+        "autonomous_campaigns": [{"id": "c1", "tenant_id": "t1", "status": "active", "daily_new_lead_limit": 50, "generate_ai_copy": True, "sequence_id": "s1"}],
+        "email_sequences": [{"id": "s1", "tenant_id": "t1", "status": "active"}],
         "autonomous_campaign_daily": [], "email_sequence_enrollments": [], "lead_assignments": [],
     })
     calls: list = []
+    enrolled = {"n": 0}
 
-    async def fake_pipeline(**kw): return {"assigned": 2, "assignment_ids": [], "run_id": "run-9"}
+    async def fake_enroll(*a, **k): return {"enrolled": enrolled["n"]}
+    monkeypatch.setattr("app.integrations.prod.sequences.enroll_leads", fake_enroll)
+
+    async def fake_pipeline(**kw): return {"assigned": 2, "assignment_ids": ["a1", "a2"], "run_id": "run-9"}
     async def record(tenant, run, items, by): calls.append((run, [i[0] for i in items], by)); return len(items)
     monkeypatch.setattr("app.integrations.prod.pipeline.run_pipeline", fake_pipeline)
     monkeypatch.setattr(agent_run_evidence, "record_outcomes", record)
     out = await ac.run("c1")
-    assert calls == [("run-9", ["personalization", "outreach", "compliance"], "autonomous-campaign")]
+    assert calls == []  # nothing enrolled: no evidence claimed
+    enrolled["n"] = 2
+    await ac.run("c1")
+    assert calls == [("run-9", ["personalization", "outreach"], "autonomous-campaign")]
 
     async def boom(*a, **k): raise RuntimeError("db down")
     monkeypatch.setattr(agent_run_evidence, "record_outcomes", boom)

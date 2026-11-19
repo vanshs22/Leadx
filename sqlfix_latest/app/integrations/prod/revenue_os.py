@@ -100,7 +100,7 @@ def command_center(tenant_id: str) -> dict[str, Any]:
         out["replies"] = sb.table("email_replies").select("id,assignment_id,from_email,subject,body_text,category,received_at").eq("tenant_id", tid).order("received_at", desc=True).limit(12).execute().data or []
         out["tasks"] = sb.table("tasks").select("id,title,due_at,status,priority,company_id,contact_id,deal_id").eq("tenant_id", tid).eq("status", "open").order("due_at").limit(12).execute().data or []
         out["goals"] = sb.table("agent_goals").select("id,name,agent_id,goal_type,target,current_state,status,next_run_at,last_run_at,last_error").eq("tenant_id", tid).order("created_at", desc=True).limit(12).execute().data or []
-        out["agents"] = sb.table("agent_runs").select("id,agent_id,task,status,created_at,finished_at,error,goal_id").eq("tenant_id", tid).order("created_at", desc=True).limit(8).execute().data or []
+        out["agents"] = sb.table("agent_runs").select("id,agent_id,task,status,created_at,finished_at,error,goal_id").eq("tenant_id", tid).neq("created_by", "pipeline-stage-evidence").order("created_at", desc=True).limit(8).execute().data or []
         out["stats"]["unread_replies"] = len([x for x in out["replies"] if x.get("category") in ("positive", "question", "unclassified")])
         out["stats"]["open_tasks"] = len(out["tasks"])
         out["stats"]["active_goals"] = len([x for x in out["goals"] if x.get("status") == "active"])

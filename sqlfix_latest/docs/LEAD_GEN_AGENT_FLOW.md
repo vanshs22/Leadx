@@ -21,6 +21,8 @@ agent is unclassified or classified twice.
 | `post_delivery` | Queued `agent.run` job after delivery (`post_run_agent_dispatch.py`) | A real `agent_runs` row per agent (`created_by=pipeline-post-delivery`), executed by the worker |
 | `campaign` | Daily-target campaign run or inbound reply | One bulk insert per campaign run or per reply (`created_by=autonomous-campaign` / `inbound-reply`) |
 
+A skipped agent is stored with `status='done'`, `result.status='skipped'` and `outcome={'skipped': True, 'reason': ...}`, because `agent_runs.status` has no `skipped` value. Campaign and reply hooks record only work done in that call (no send-gate row; copy generation only when `enrolled > 0`; `suppression_added` comes from the opt-out result). Platform and command-center agent lists exclude `pipeline-stage-evidence` rows.
+
 Evidence never adds per-lead database writes or network calls to a run. A failed evidence insert is logged and
 ignored; it never fails a run, a campaign, or reply handling.
 

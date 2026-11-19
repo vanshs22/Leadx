@@ -184,11 +184,12 @@ async def run(campaign_id: str, *, execution_context: dict | None = None) -> dic
             enrolled = int(enr.get("enrolled") or 0)
         try:
             from app.integrations.prod.agent_run_evidence import record_outcomes
-            items = [("outreach", "sequence_enrollment", {"enrolled": enrolled, "sequence_id": c.get("sequence_id"), "campaign_id": campaign_id}),
-                     ("compliance", "send_policy_gates", {"assigned": len(assigned), "gates": ["suppression", "sender_profile", "send_window"], "enforced_at": "send_time"})]
-            if c.get("generate_ai_copy", True):
-                items.insert(0, ("personalization", "ai_copy_generation", {"enrolled": enrolled, "mode": "approval_draft"}))
-            await record_outcomes(c["tenant_id"], result.get("run_id"), items, "autonomous-campaign")
+            # Only what ran here: send-time gates and copy generation happen later, so copy is noted as deferred.
+            items = [("outreach", "sequence_enrollment", {"enrolled": enrolled, "sequence_id": c.get("sequence_id"), "campaign_id": campaign_id})] if enrolled > 0 else []
+            if enrolled > 0 and c.get("generate_ai_copy", True):
+                items.insert(0, ("personalization", "ai_copy_enabled", {"enrolled": enrolled, "summary": "copy is generated at send time"}))
+            if items:
+                await record_outcomes(c["tenant_id"], result.get("run_id"), items, "autonomous-campaign")
         except Exception as exc:
             logger.debug("campaign agent evidence skipped: %s", type(exc).__name__)
         # Under target and this run made progress: re-tick soon. Target met: wait for tomorrow.

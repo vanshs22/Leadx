@@ -26,8 +26,9 @@ def build_evidence_rows(tenant_id: str, run_id: str, agent_context: dict[str, An
         count = sum(int(op.get("count") or 0) for op in executed)
         failed = sum(int(op.get("failed") or 0) for op in executed)
         reasons = stage.get("skipped_reasons") or []
-        if not executed:
-            status = "skipped"
+        skipped = not executed
+        if skipped:
+            status = "done"  # agent_runs.status CHECK has no 'skipped'; the skip is carried in result/outcome
         elif count and failed >= count:
             status = "failed"
         else:
@@ -40,9 +41,10 @@ def build_evidence_rows(tenant_id: str, run_id: str, agent_context: dict[str, An
             "task": f"Pipeline {str(run_id)[:8]} {agent_id}: {names}"[:2000],
             "input_data": {"source_run_id": str(run_id), "order": stage.get("order"), "phase": phase, "mode": mode, "evidence_only": True},
             "status": status,
-            "result": {"operations": ops, "count": count, "failed": failed, **({"skipped_reasons": reasons} if reasons else {})},
-            "error": "; ".join(reasons)[:500] if status == "skipped" and reasons else None,
-            "outcome": {"ok": status != "failed", "duration_ms": stage.get("duration_ms") or 0, "count": count},
+            "result": {"operations": ops, "count": count, "failed": failed, **({"status": "skipped"} if skipped else {}), **({"skipped_reasons": reasons} if reasons else {})},
+            "error": None,
+            "outcome": {"ok": status != "failed", "duration_ms": stage.get("duration_ms") or 0, "count": count,
+                        **({"skipped": True, "reason": "; ".join(reasons)[:500]} if skipped else {})},
             "created_by": CREATED_BY,
             "created_at": now,
             "updated_at": now,
@@ -63,7 +65,7 @@ async def record_agent_evidence(tenant_id: str, rows: list[dict[str, Any]]) -> i
         await aexec(get_supabase().table("agent_runs").insert(rows))
         return len(rows)
     except Exception as exc:
-        logger.warning("agent evidence insert skipped tenant=%s: %s", tenant_id, type(exc).__name__)
+        logger.warning("agent evidence insert failed tenant=%s rows=%d: %s: %s", tenant_id, len(rows), type(exc).__name__, str(exc)[:300])
         return 0
 
 
@@ -73,6 +75,8 @@ async def flush_pipeline_agent_evidence(tenant_id: str, run_id: str, agent_conte
 
 async def record_outcomes(tenant_id: str, source_run_id: str | None, items: list[tuple[str, str, dict[str, Any]]], created_by: str) -> int:
     """One batched insert of finished single-operation evidence rows (campaign run, inbound reply). Never raises."""
+    if not tenant_id:
+        return 0
     now = datetime.now(timezone.utc).isoformat()
     rows = [{
         "tenant_id": str(tenant_id), "agent_id": agent_id, "task": f"{agent_id}: {operation}"[:2000],

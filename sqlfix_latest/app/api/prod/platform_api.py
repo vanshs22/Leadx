@@ -342,7 +342,7 @@ def me(admin:PlatformAdmin=Depends(require_platform_admin)):
 def agents(admin: PlatformAdmin = Depends(require_platform_admin)):
     from app.integrations.prod.agent_registry import FULL_AGENT_REGISTRY
     from app.memory.supabase_client import get_supabase
-    rows = get_supabase().table('agent_runs').select('id,tenant_id,agent_id,task,outcome,status,created_at,started_at,finished_at,error').order('created_at', desc=True).limit(100).execute().data or []
+    rows = get_supabase().table('agent_runs').select('id,tenant_id,agent_id,task,outcome,status,created_at,started_at,finished_at,error').neq('created_by', 'pipeline-stage-evidence').order('created_at', desc=True).limit(100).execute().data or []
     return {'ok': True, 'agents': [{'id': agent_id, **contract} for agent_id, contract in FULL_AGENT_REGISTRY.items()], 'runs': rows}
 
     from app.integrations.prod.platform_control import platform_summary

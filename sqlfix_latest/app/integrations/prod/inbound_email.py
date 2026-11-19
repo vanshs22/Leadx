@@ -242,9 +242,10 @@ async def handle_reply(raw_mime: str, tenant_id: Optional[str] = None) -> dict:
     except Exception:
         logger.debug("automation reply event enqueue skipped", exc_info=True)
 
+    optout_result: dict = {}
     if category == "opt_out":
         from app.integrations.prod.unsubscribe import process_unsubscribe
-        await process_unsubscribe(tenant_id, from_email)
+        optout_result = await process_unsubscribe(tenant_id, from_email) or {}
 
     # A campaign may intentionally continue after a non-opt-out reply, but an
     # opt-out always wins for compliance. Non-campaign enrollments retain the
@@ -327,7 +328,7 @@ async def handle_reply(raw_mime: str, tenant_id: Optional[str] = None) -> dict:
         from app.integrations.prod.agent_run_evidence import record_outcomes
         items = [("outreach", "reply_handling", {"category": category, "assignment_id": assignment_id})]
         if category == "opt_out":
-            items += [("compliance", "opt_out", {"suppression_added": True, "assignment_id": assignment_id}),
+            items += [("compliance", "opt_out", {"suppression_added": bool(optout_result.get("ok")), "assignment_id": assignment_id}),
                       ("learning", "feedback_signal", {"signal": "opt_out", "assignment_id": assignment_id})]
         await record_outcomes(tenant_id, None, items, "inbound-reply")
     except Exception as exc:

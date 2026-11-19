@@ -72,6 +72,10 @@ class _Table:
         self.store = store
 
     def insert(self, rows):
+        # Mirrors the agent_runs.status CHECK in SUPABASE_FULL_MIGRATION.sql.
+        bad = [r["status"] for r in rows if r["status"] not in ("queued", "running", "done", "failed", "cancelled")]
+        if bad:
+            raise RuntimeError(f"agent_runs_status_check violated: {bad}")
         self.store.append(rows)
         return self
 
@@ -102,9 +106,10 @@ def test_flush_issues_one_insert_with_icp_first(monkeypatch):
     assert n == 3 and len(sb.inserts) == 1
     rows = sb.inserts[0]
     assert [r["agent_id"] for r in rows] == ["icp", "personalization", "verification"]
-    assert [r["status"] for r in rows] == ["done", "skipped", "done"]
+    assert [r["status"] for r in rows] == ["done", "done", "done"]
+    assert rows[1]["result"]["status"] == "skipped" and rows[1]["outcome"]["skipped"] is True
     assert rows[2]["outcome"]["count"] == 50 and rows[0]["created_by"] == "pipeline-stage-evidence"
-    assert rows[1]["error"] == "not_needed_for_portal_delivery"
+    assert rows[1]["outcome"]["reason"] == "not_needed_for_portal_delivery"
     assert rows[0]["task"].startswith("Pipeline 12345678 icp:")
 
 
@@ -248,11 +253,11 @@ def test_dispatch_context_shows_queued_run_id_and_no_duplicate_evidence_row(monk
     record_dispatch_in_context(ctx, result)
     assert ctx["stages"]["research"]["operations"][0]["summary"]["agent_run_id"] == "run-research"
     # Queued agents own their real agent_runs row; only the paid-gated skip becomes an evidence row.
-    assert [(r["agent_id"], r["error"]) for r in build_evidence_rows("t", "r1", ctx)] == [("contact_finder", "paid_fallback_not_always")]
+    assert [(r["agent_id"], r["outcome"]["reason"]) for r in build_evidence_rows("t", "r1", ctx)] == [("contact_finder", "paid_fallback_not_always")]
     ctx2 = rt.create_context("r1", "t")
     record_dispatch_in_context(ctx2, [{"agent_id": "research", "status": "skipped", "reason": "research_limit_0"}])
     rows = build_evidence_rows("t", "r1", ctx2)
-    assert [(r["agent_id"], r["status"], r["error"]) for r in rows] == [("research", "skipped", "research_limit_0")]
+    assert [(r["agent_id"], r["result"]["status"], r["outcome"]["reason"]) for r in rows] == [("research", "skipped", "research_limit_0")]
 
 
 def test_web_research_processes_all_authorized_leads(monkeypatch):
