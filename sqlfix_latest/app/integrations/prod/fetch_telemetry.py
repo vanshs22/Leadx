@@ -77,9 +77,14 @@ def seed_history(sb, days: int = 14, limit: int = 20000) -> int:
     from app.integrations.prod.fetch_engine import Domain, get_engine
     import time
     since = (datetime.now(timezone.utc) - timedelta(days=days)).isoformat()
-    rows = sb.table("fetch_attempts").select("domain,provider,category,trigger,kind,ok,elapsed_ms,created_at").gte("created_at", since).limit(limit).execute().data or []
+    rows = sb.table("fetch_attempts").select("domain,provider,category,trigger,kind,ok,elapsed_ms,created_at").gte("created_at", since).order("created_at", desc=True).limit(limit).execute().data or []
+    rows.reverse()   # oldest first, so an operator release later in the log cancels an earlier cooldown
     eng = get_engine()
     for r in rows:
+        if r["provider"] == "operator":
+            if r["kind"] == "released":
+                eng.domains.pop(r["domain"], None)
+            continue
         eng.history.add(r["provider"], r["domain"], r.get("trigger") or "first", bool(r["ok"]), float(r.get("elapsed_ms") or 0))
         if not r["ok"] and r["provider"] == "direct" and r.get("kind") in ("challenge", "rate_limit"):
             try:

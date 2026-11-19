@@ -26,7 +26,7 @@ def compute_fetching(sb, tenant_id: str, *, date_from: Optional[str] = None, dat
             x = x.eq("category", category)
         return x
 
-    attempts = q("fetch_attempts", "provider,category,kind,ok,elapsed_ms,cost,domain,http_status").limit(limit).execute().data or []
+    attempts = [a for a in (q("fetch_attempts", "provider,category,kind,ok,elapsed_ms,cost,domain,http_status").limit(limit).execute().data or []) if a["provider"] != "operator"]
     if provider:
         attempts = [a for a in attempts if a["provider"] == provider]
     outcomes_q = q("fetch_outcomes", "id,domain,website_fetched,category,challenge,acquisition,completeness,elapsed_ms,cost,tokens,provider,needs_human,human_status,recovery_sources,discovery_source")
@@ -92,5 +92,8 @@ def resolve_verification(sb, tenant_id: str, outcome_id: str, action: str) -> Op
     if action == "retry":
         from app.integrations.prod.fetch_engine import get_engine
         get_engine().clear_cooldown(rows[0]["domain"])
+        # recorded so a restarted worker (seed_history) does not restore the cooldown the operator just released
+        sb.table("fetch_attempts").insert({"tenant_id": tenant_id, "provider": "operator", "domain": rows[0]["domain"], "category": "released", "kind": "released", "ok": True,
+                                           "created_at": datetime.now(timezone.utc).isoformat()}).execute()
     sb.table("fetch_outcomes").update({"human_status": "retry_requested" if action == "retry" else action}).eq("id", outcome_id).eq("tenant_id", tenant_id).execute()
     return {"id": outcome_id, "domain": rows[0]["domain"], "human_status": "retry_requested" if action == "retry" else action}

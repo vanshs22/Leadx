@@ -18,6 +18,8 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 os.environ.setdefault("LEADX_PAID_FALLBACK", "never")
 OUT = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "artifacts", "fetch_audit")
 os.makedirs(OUT, exist_ok=True)
+PLAN_B = [("Los Angeles, CA", "dentist"), ("New York, NY", "lawyer"), ("San Diego, CA", "hair salon"), ("Portland, OR", "gym"), ("Philadelphia, PA", "dentist"),
+          ("Las Vegas, NV", "hair salon"), ("San Antonio, TX", "dentist"), ("Orlando, FL", "med spa"), ("Nashville, TN", "plumber"), ("Minneapolis, MN", "chiropractor")]
 PLAN = [("Houston, TX", "dentist"), ("Austin, TX", "plumber"), ("Denver, CO", "hair salon"), ("Phoenix, AZ", "lawyer"), ("Atlanta, GA", "hvac"),
         ("Chicago, IL", "dentist"), ("Seattle, WA", "gym"), ("Miami, FL", "med spa"), ("Dallas, TX", "roofer"), ("Boston, MA", "chiropractor")]
 
@@ -211,9 +213,12 @@ if __name__ == "__main__":
     ap.add_argument("--tag", default="bench")
     ap.add_argument("--sites", default="sites.json")
     ap.add_argument("--exclude", default=None)
+    ap.add_argument("--plan", default="A", choices=["A", "B"], help="collect: city/industry set (B = cities not used by earlier runs)")
     ap.add_argument("--split", action="store_true", help="bench: give each arm its own disjoint slice of the site file")
     a = ap.parse_args()
     if a.cmd == "collect":
+        if a.plan == "B":
+            PLAN[:] = PLAN_B
         asyncio.run(collect(a.n, a.exclude, a.sites, per_combo=1200 if a.exclude else None))
     elif a.cmd == "audit":
         asyncio.run(audit(a.limit, a.sites))

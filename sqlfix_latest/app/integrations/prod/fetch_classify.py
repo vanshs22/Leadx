@@ -46,7 +46,8 @@ _PATTERNS: list[tuple[str, re.Pattern]] = [
     ("js_challenge", re.compile(r"Checking your browser|enable javascript and cookies to continue|please wait while we verify|verifying you are human|are you a robot|unusual traffic|bot protection|ddos protection by", re.I)),
     ("access_denied", re.compile(r"<title>[^<]*(access denied|forbidden|blocked|not authorized)[^<]*</title>|you don'?t have permission to access|your access to this site has been (limited|blocked)|request blocked|error 1020", re.I)),
 ]
-_PROMPT = re.compile(r"verify|human|robot|unusual traffic|are you|checking|challenge", re.I)
+# the words a visitor is shown on a challenge page; a bare marker string or a widget is not enough on a 200 response
+_PROMPT = re.compile(r"verify (?:that )?you(?:'re| are) (?:a )?human|are you a (?:human|robot)|not a robot|prove you(?:'re| are) human|unusual traffic|complete the (?:captcha|security check)|checking (?:your browser|if the site connection)|just a moment\.\.\.|attention required|enable javascript and cookies|press (?:&amp;|&) hold|verifying you are human", re.I)
 _RATE = re.compile(r"rate limit exceeded|too many requests|error 1015|you are being rate limited", re.I)
 _STUB_REDIRECT = re.compile(r"""location(?:\.href|\.replace\()?\s*=?\s*\(?["']|http-equiv=["']?refresh""", re.I)
 _PARKED = re.compile(r"domain (?:is )?for sale|buy this domain|this domain may be for sale|parked (?:free|domain)|sedoparking|hugedomains|dan\.com/buy|account suspended|website (?:is )?(?:coming soon|under construction)|default web site page|apache2? (?:ubuntu )?default page|welcome to nginx", re.I)
@@ -59,6 +60,10 @@ _COOLDOWN = {"rate_limit": 900, "challenge": 21600, "access_denied": 21600, "htt
 def visible_text_len(html: str) -> int:
     t = re.sub(r"(?is)<(script|style|noscript)[^>]*>.*?</\1>", " ", html or "")
     return len(re.sub(r"\s+", " ", re.sub(r"<[^>]+>", " ", t)).strip())
+
+
+def visible_html_text(html: str) -> str:
+    return re.sub(r"\s+", " ", re.sub(r"<[^>]+>", " ", re.sub(r"(?is)<(script|style|noscript)[^>]*>.*?</\1>", " ", html or "")))
 
 
 def classify_error(err: Optional[str]) -> Verdict:
@@ -97,8 +102,8 @@ def classify_response(status: Optional[int], body: str = "", headers: Optional[d
         return Verdict(cat, "challenge", False, _COOLDOWN["challenge"])
     for cat, rx in _PATTERNS:
         if rx.search(head):
-            if not interstitial or (cat in ("recaptcha", "hcaptcha") and status < 400 and not (len(body) < 8000 and _PROMPT.search(head))):
-                continue  # a form widget alone is not a challenge; a challenge page also tells the visitor to verify. Marker strings (px-captcha, cf-chl, recaptcha...) also sit in the scripts of ordinary full pages
+            if not interstitial or (status < 400 and cat not in ("sgcaptcha", "datadome") and not (len(body) < 12000 and _PROMPT.search(visible_html_text(head)))):
+                continue  # a marker or widget alone is not a challenge on a 200 page; a challenge page also tells the visitor what to do. Marker strings (px-captcha, cf-chl, recaptcha...) also sit in the scripts of ordinary full pages
             kind = "challenge"
             return Verdict(cat, kind, False, _COOLDOWN["challenge"])
     if status == 429 or (status < 500 and _RATE.search(head) and short):

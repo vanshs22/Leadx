@@ -13,7 +13,7 @@ def test_classifier_vendors_and_status():
     cases = [
         (403, "<title>Just a moment...</title><script src='/cdn-cgi/challenge-platform/x'></script>", {}, "cloudflare"),
         (202, '<meta http-equiv="refresh" content="0;/.well-known/sgcaptcha/?r=x">', {}, "sgcaptcha"),
-        (200, "<html><div class='h-captcha'></div><p>Please verify</p></html>", {}, "hcaptcha"),
+        (200, "<html><div class='h-captcha'></div><p>Please verify you are human</p></html>", {}, "hcaptcha"),
         (200, "<html><p>Verify you are human</p><div class='g-recaptcha'></div></html>", {}, "recaptcha"),
         (403, "x", {"x-datadome": "protected"}, "datadome"),
         (403, "<div id='px-captcha'></div>", {}, "perimeterx"),
@@ -62,6 +62,34 @@ async def test_retry_after_http_date_does_not_crash_and_cache_hits_cost_nothing(
     first = await e2.acquire("https://paid.com/")
     e2.cache["https://paid.com/"][1]["cost"] = 1.0
     assert (await e2.acquire("https://paid.com/"))["cost"] == 0.0 and first["ok"]
+
+
+def test_ordinary_thin_pages_with_prompt_like_words_or_cloudflare_scripts_are_not_challenges():
+    for body in ("<html><body><h1>Injury Law</h1><p>Are you injured? We verify every claim. Call today.</p><div class='g-recaptcha'></div></body></html>",
+                 "<html><body><h1>Oak</h1><p>Call us</p><script src='/cdn-cgi/challenge-platform/scripts/jsd/main.js'></script></body></html>",
+                 "<html><body><p>Hi</p><script>var a='px-captcha';</script><iframe src='https://hcaptcha.com/x'></iframe></body></html>"):
+        assert classify_response(200, body).usable, body
+    assert classify_response(200, "<html><title>Just a moment...</title><body>Checking if the site connection is secure</body></html>").category == "cloudflare"
+
+
+def test_seed_history_restores_cooldowns_but_not_after_an_operator_release(tmp_path):
+    from datetime import datetime, timedelta, timezone
+    from app.integrations.prod.fetch_dashboard import resolve_verification
+    from app.memory.local_durable import LocalDurableClient
+    sb = LocalDurableClient(str(tmp_path / "d.sqlite3"))
+    ago = lambda s: (datetime.now(timezone.utc) - timedelta(seconds=s)).isoformat()
+    for i, d in enumerate(("blocked.com", "released.com")):
+        sb.table("fetch_attempts").insert({"tenant_id": "t", "provider": "direct", "domain": d, "category": "cloudflare", "kind": "challenge", "ok": False, "trigger": "first", "elapsed_ms": 5, "created_at": ago(60 - i)}).execute()
+    out = sb.table("fetch_outcomes").insert({"tenant_id": "t", "domain": "released.com", "acquisition": "failed", "needs_human": True, "human_status": "pending", "created_at": ago(30)}).execute().data[0]
+    eng = fe.get_engine()
+    eng.domains.clear()
+    try:
+        assert resolve_verification(sb, "t", out["id"], "retry")["human_status"] == "retry_requested"
+        eng.domains.clear()
+        fetch_telemetry.seed_history(sb)
+        assert "blocked.com" in eng.domains and "released.com" not in eng.domains
+    finally:
+        eng.domains.clear()
 
 
 def test_captcha_widget_on_a_real_page_is_not_a_challenge():
