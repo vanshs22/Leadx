@@ -16,7 +16,7 @@ from app.integrations.prod.lead_generation_orchestration import (
 
 def test_exact_stage_order_and_dependencies_are_closed():
     assert NORMAL_STAGE_ORDER == (
-        "prospecting", "source_router", "discovery_planner", "identity_resolution",
+        "icp_planning", "prospecting", "source_router", "discovery_planner", "identity_resolution",
         "enrichment", "contact_finder", "email_finder", "research", "web_research",
         "social_intelligence", "verification", "deliverability", "data_quality",
         "icp", "intent", "trigger", "signal", "qualification", "personalization",
@@ -31,13 +31,14 @@ def test_exact_stage_order_and_dependencies_are_closed():
     assert STAGE_DEPENDENCIES["assignment"] == ("crm_projection",)
     assert STAGE_DEPENDENCIES["delivery"] == ("assignment",)
     assert STAGE_DEPENDENCIES["learning"] == ("delivery",)
-    assert STAGE_OWNERS == {"outreach": "outreach", "crm_projection": "crm", "assignment": "crm", "delivery": "crm"}
+    assert STAGE_DEPENDENCIES["prospecting"] == ("icp_planning",)
+    assert STAGE_OWNERS == {"icp_planning": "icp", "outreach": "outreach", "crm_projection": "crm", "assignment": "crm", "delivery": "crm"}
 
 
 def test_parallel_research_branches_are_eligible_only_after_enrichment():
-    assert set(ready_stages({"prospecting", "source_router", "discovery_planner", "identity_resolution", "enrichment"})) >= set(PARALLEL_RESEARCH_BRANCHES)
+    assert set(ready_stages({"icp_planning", "prospecting", "source_router", "discovery_planner", "identity_resolution", "enrichment"})) >= set(PARALLEL_RESEARCH_BRANCHES)
     assert "research" not in ready_stages({"identity_resolution"})
-    assert set(ready_stages(set())) == {"prospecting"}
+    assert set(ready_stages(set())) == {"icp_planning"}
 
 
 def test_registry_has_all_31_trusted_bindings_without_execution():

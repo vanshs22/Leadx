@@ -148,3 +148,71 @@ async def enrich_lead_with_owned_agents(
         finish(agent_context, "personalization", "outreach_context", summary={"prepared": False, "reason": "outreach_adapter_owns_send"})
 
     return lead
+
+
+_SOCIAL_KEYS = ("linkedin_url", "instagram_url", "facebook_url", "twitter_url", "youtube_url")
+
+
+def run_local_lead_agents(lead: dict[str, Any], vertical: str, agent_context: dict[str, Any] | None = None) -> dict[str, Any]:
+    """CPU-only inline agents for one lead: no DB, no network, mutates and returns ``lead``."""
+    from app.integrations.prod.email_finder import generate_email_candidates
+
+    def run(agent_id: str, operation: str, fn) -> None:
+        if agent_context is not None:
+            begin(agent_context, agent_id, operation)
+        try:
+            summary = fn()
+            ok = True
+        except Exception as exc:
+            summary, ok = {"error": type(exc).__name__}, False
+        if agent_context is not None:
+            finish(agent_context, agent_id, operation, ok=ok, summary=summary)
+
+    def email_finder() -> dict[str, Any]:
+        candidates = generate_email_candidates(lead) if lead.get("owner_name") and lead.get("website") else []
+        if candidates:
+            lead["email_candidates"] = candidates[:10]
+        return {"count": len(candidates)}
+
+    def social() -> dict[str, Any]:
+        links = dict(lead.get("social_links") or {})
+        for key in _SOCIAL_KEYS:
+            if lead.get(key):
+                links[key.removesuffix("_url")] = lead[key]
+        if links:
+            lead["social_links"] = links
+        return {"identities": len([v for v in links.values() if v])}
+
+    run("email_finder", "email_candidate_generation", email_finder)
+    run("social_intelligence", "social_normalization", social)
+    # intent, trigger and signal share one pure computation; record it under each owner.
+    if agent_context is not None:
+        for agent_id, operation in (("intent", "intent_evidence"), ("trigger", "business_triggers"), ("signal", "signal_fusion")):
+            begin(agent_context, agent_id, operation)
+    try:
+        lead.update(attach_opportunity_intelligence(lead, vertical))
+        ok, summary = True, {"intent_score": lead.get("intent_score"), "opportunity_score": lead.get("opportunity_score_overall")}
+    except Exception as exc:
+        ok, summary = False, {"error": type(exc).__name__}
+    if agent_context is not None:
+        for agent_id, operation in (("intent", "intent_evidence"), ("trigger", "business_triggers"), ("signal", "signal_fusion")):
+            finish(agent_context, agent_id, operation, ok=ok, summary=summary)
+    return lead
+
+
+def record_deliverability(lead: dict[str, Any], agent_context: dict[str, Any] | None = None) -> str:
+    """Derive contactability risk from verification fields already on the lead (no new check)."""
+    status = str(lead.get("email_status") or "").lower()
+    if not lead.get("email"):
+        risk = "no_email" if not (lead.get("phone_e164") or lead.get("phone_normalized")) else "phone_only"
+    elif status in {"valid", "deliverable"}:
+        risk = "low"
+    elif status in {"invalid", "undeliverable", "bounced"}:
+        risk = "high"
+    else:
+        risk = "medium"
+    lead["deliverability_risk"] = risk
+    if agent_context is not None:
+        begin(agent_context, "deliverability", "contactability_risk")
+        finish(agent_context, "deliverability", "contactability_risk", summary={"risk": risk})
+    return risk

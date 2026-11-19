@@ -316,6 +316,7 @@ async def run_pipeline_parallel_target(
     require_verified_email: bool = False,
     allow_tier_c: bool = True,
     execution_context: Optional[dict] = None,
+    campaign_mode: str = "auto",
 ) -> dict:
     """Streaming target pipeline.
 
@@ -337,7 +338,7 @@ async def run_pipeline_parallel_target(
     """
     import os
     from app.integrations.prod.agent_stage_runtime import create_context as create_agent_context, begin as begin_agent_stage, finish as finish_agent_stage, skip as skip_agent_stage, snapshot as agent_snapshot
-    from app.integrations.prod.lead_generation_orchestration import owner_for, stage_plan
+    from app.integrations.prod.lead_generation_orchestration import is_portal_delivery, owner_for, stage_plan
 
     started = datetime.now(timezone.utc)
     run_clock = time.monotonic()
@@ -367,7 +368,7 @@ async def run_pipeline_parallel_target(
     # These stages are already owned by the target stream's existing engines or
     # are intentionally unnecessary for portal delivery. Record that fact
     # instead of claiming that a second specialist implementation ran.
-    skipped_stages = {
+    skipped_stages = {} if campaign_mode == "quality_campaign" else {
         "outreach": "requires_explicit_outreach_request",
     }
     for contract_stage in agent_context["stage_contract"]:
@@ -375,8 +376,6 @@ async def run_pipeline_parallel_target(
         if reason:
             contract_stage["status"] = "skipped"
             contract_stage["skipped_reason"] = reason
-    for stage, reason in skipped_stages.items():
-        skip_agent_stage(agent_context, owner_for(stage), stage, reason)
     execution_context = dict(execution_context or {})
     execution_context["agent_context"] = agent_context
     from app.integrations.prod import fetch_telemetry
@@ -391,6 +390,7 @@ async def run_pipeline_parallel_target(
         parent_icp = {"id": icp_id, "offer_category": offer_category}
     sub_icps = planner_context.get("sub_icps") or execution_context.get("sub_icps")
     from app.integrations.prod.discovery_runtime import local_validation_mode
+    begin_agent_stage(agent_context, "icp", "icp_planning")
     selection_decision = build_selection_decision(
         target=slots_cap, allow_tier_b=allow_tier_b, allow_tier_c=allow_tier_c,
         rotation_key=f"{tenant_id}:{run_id}",
@@ -405,6 +405,19 @@ async def run_pipeline_parallel_target(
         max_route_cells=max_cells_per_run,
     )
     tier_a_target = int((selection_decision.get("tier_policy") or {}).get("tier_a_target") or 0)
+    finish_agent_stage(agent_context, "icp", "icp_planning", summary={
+        "tier_policy": selection_decision.get("tier_policy"),
+        "route_cells": len(selection_decision.get("route_cells") or []),
+        "tranche": (selection_decision.get("normalized_plan") or {}).get("tranche_size"),
+    })
+    # Skips come after the planner so icp_planning is recorded first.
+    # Performed inside the enrichment engine, not by separate per-lead agent calls.
+    for covered in ("contact_finder", "research", "web_research"):
+        skip_agent_stage(agent_context, covered, "enrichment_engine", "performed_by_enrichment_engine")
+    if is_portal_delivery(delivery_channel):
+        skip_agent_stage(agent_context, "personalization", "outreach_context", "not_needed_for_portal_delivery")
+    for stage, reason in skipped_stages.items():
+        skip_agent_stage(agent_context, owner_for(stage), stage, reason)
     if slots_cap <= 0:
         result = {
             "pipeline": "lead_engine_v2",
@@ -688,13 +701,19 @@ async def run_pipeline_parallel_target(
         verification_reason = None
         try:
             from app.integrations.prod.lead6_runtime import prepare_lead
+            from app.integrations.prod.agent_pipeline_branches import record_deliverability
+            begin_agent_stage(agent_context, "icp", "icp_fit")
             lead = await prepare_lead(lead, tenant_id=tenant_id, industry=vertical, icp={"industries":[vertical]}, reps=[])
+            finish_agent_stage(agent_context, "icp", "icp_fit", summary={"score": lead.get("score")})
+            if os.getenv("LEADX_SPECIALIST_AGENTS", "deferred") != "inline":
+                record_deliverability(lead, agent_context)
             verified_n += 1
         except Exception as exc:
             # Verification remains a durable barrier even when an optional
             # intelligence adapter is unavailable; the deterministic contact
             # predicates below decide whether the lead can pass the gate.
             verification_reason = type(exc).__name__
+            finish_agent_stage(agent_context, "icp", "icp_fit", ok=False, summary={"error": verification_reason})
             logger.warning("[%s] verification adapter unavailable: %s", run_id[:8], exc)
         if lid:
             await record_stage_transition(
@@ -888,6 +907,9 @@ async def run_pipeline_parallel_target(
                             "specialist_timeout" if isinstance(exc, asyncio.TimeoutError) else "specialist_error",
                             exc,
                         )
+                if os.getenv("LEADX_SPECIALIST_AGENTS", "deferred") != "inline":
+                    from app.integrations.prod.agent_pipeline_branches import run_local_lead_agents
+                    run_local_lead_agents(result, str(vertical), agent_context)
                 gated = await _timed("persist_and_gate", _persist_and_gate(result))
                 if gated is not None:
                     await _queue_ready(gated)
@@ -1082,8 +1104,11 @@ async def run_pipeline_parallel_target(
 
         try:
             from app.integrations.prod.suppression import filter_blocked_leads
-            fresh, _, _ = await filter_blocked_leads(tenant_id, fresh)
+            begin_agent_stage(agent_context, "compliance", "suppression_filter")
+            fresh, _suppressed, _opt_out = await filter_blocked_leads(tenant_id, fresh)
+            finish_agent_stage(agent_context, "compliance", "suppression_filter", summary={"suppressed": _suppressed, "opt_out": _opt_out})
         except Exception as exc:
+            finish_agent_stage(agent_context, "compliance", "suppression_filter", ok=False, summary={"error": type(exc).__name__})
             logger.debug("non-fatal fallback exception: %s", exc)
         if fresh and tenant_pol.get("skip_known_crm", True):
             from app.integrations.prod.crm_known import filter_known
@@ -1542,7 +1567,11 @@ async def run_pipeline_parallel_target(
     except Exception as exc:
         logger.debug("stage history flush skipped: %s", type(exc).__name__)
     elapsed = round((datetime.now(timezone.utc) - started).total_seconds(), 1)
+    from app.integrations.prod.agent_run_evidence import flush_pipeline_agent_evidence
+    agent_evidence_rows = await flush_pipeline_agent_evidence(str(tenant_id), str(run_id), agent_context, str(vertical))
     summary = {
+        "agent_execution": agent_snapshot(agent_context),
+        "agent_evidence_rows": agent_evidence_rows,
         "pipeline": "lead_engine_v2",
         "mode": "streaming_target",
         "run_id": run_id,
@@ -2078,6 +2107,7 @@ async def run_pipeline(
             require_verified_email=require_verified_email,
             allow_tier_c=allow_tier_c,
             execution_context=execution_context,
+            campaign_mode=campaign_mode,
         )
 
     # ---------- Stage 1: Reuse shared global inventory before provider spend ----------
@@ -3287,7 +3317,7 @@ def _finish_run(run_id: str, status: str, summary: dict, error: str = "", execut
         "board_lead_ids", "target_assignments", "requested_target", "effective_target",
         "quota_limited", "assignment_blockers", "shortfall", "stop_reason", "rounds_used",
         "target_mode", "quota_remaining_after", "lane_telemetry", "coverage", "freshness",
-        "reuse_counts", "agent_execution", "post_delivery_agents", "verified_count",
+        "reuse_counts", "agent_execution", "agent_evidence_rows", "post_delivery_agents", "verified_count",
         "scored_count", "remaining_gap", "remaining", "reserved", "failed", "qualified",
         "client_visible", "assignment_confirmed", "persisted_qualifying", "persisted_contactable",
         "tranche", "reconciliation", "stop_projection", "authoritative_counts", "authoritative_scope",
