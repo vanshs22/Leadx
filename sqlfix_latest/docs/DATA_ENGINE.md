@@ -91,6 +91,52 @@ Typed extractors for email, phone, social, link hubs, people, address and JSON-L
 
 Quality check: `tests/test_extraction_golden.py` runs 100 synthetic pages (precision/recall floors). The pages were written by the same author as the extractor, so this guards regressions; it does not measure real-world accuracy. `scripts/benchmark_extraction.py` compares site extraction with Overture values for real businesses (see results below).
 
+## Website acquisition engine (`fetch_engine.py`, `fetch_classify.py`, `alt_recovery.py`, `acquisition.py`)
+
+Every page fetch (`enricher.fetch_scrapling`, so enrich_one, the enrichment mesh, directories and the website finder) goes through `fetch_engine.acquire(url)` unless `LEADX_FETCH_ENGINE=0`.
+
+```
+direct HTTP (pooled httpx, per-hop SSRF checks, free same-site fixes) -> classify the answer (fetch_classify)
+  usable page                      -> done
+  JS shell / redirect stub / empty -> local browser (Playwright; Crawl4AI if installed) -> Firecrawl (only with a key, never when LEADX_PAID_FALLBACK=never)
+  disconnect / 5xx / tls / connect -> Scrapling and browser, ordered by observed success per cost
+  challenge, 403, 429              -> STOP: classify, keep prior data, cool the domain down, queue for a person, run alternative sources
+  dead domain / parked / 404 site  -> STOP, run alternative sources
+alternative sources (alt_recovery): discovery hints -> Internet Archive snapshot -> YellowPages/Superpages card -> search snippets (SearXNG/Serper) -> Google Places -> successor site (dead domains only); Nominatim is opt-in
+```
+
+- **Classification** (`fetch_classify.Verdict`): ok, js_shell, redirect_stub, parked; challenges cloudflare, recaptcha, hcaptcha, datadome, perimeterx, sgcaptcha (SiteGround), akamai, incapsula, sucuri, js_challenge, access_denied, http_403, http_429; http_404/4xx/5xx, empty_body; dns, timeout, tls, connect, disconnect, too_many_redirects. Captcha/challenge marker strings count only on a response that is an error status or a small, almost empty page with no mailto/tel link, because real pages embed captcha widgets on contact forms.
+- **Provider choice** (`Engine._next`): candidates for that verdict are ranked by smoothed success probability divided by cost and latency weight, from history per (provider, triggering verdict) and per (provider, domain). A provider that failed twice on a domain with no success is skipped for it. History is seeded from `fetch_attempts` (`fetch_telemetry.seed_history`) and from priors measured in the audit.
+- **Controls**: per-provider concurrency (browser 4, Firecrawl 4, Scrapling 16), per-provider timeout, per-URL budget (`LEADX_FETCH_BUDGET_S`), per-host limit of 3, circuit breaker per provider (opens after 5 provider faults such as a missing browser, never on a site's refusal), 5 minute URL result cache, shared hosting platforms (glossgenius, square.site, ...) are tracked per subdomain.
+- **Challenges**: nothing here solves, evades or retries a challenge through another fetcher. The domain gets a cooldown (challenge 6 h, 429 15 min, 403 1 h, DNS/404/parked 24 h), the outcome row is `needs_human` with `human_status=pending`, and `enrichment_layer` adds a `lead_review_queue` entry (`site_challenge:<vendor>`). An operator opens the site by hand and marks it resolved, dismissed or retry (retry clears the cooldown). The lead keeps all earlier data and `enrichment_ok` is only false when no source produced anything; the error is `site_challenge:<vendor>`.
+- **Alternative-source identity** (`alt_recovery.identity_match`): a candidate is accepted only with a shared domain, phone or street address (strong signals) plus a compatible business name, or two strong signals. Name alone never merges, and a different phone or ZIP rejects it even when the names match. Rejections are returned with the reason. Vendor and agency emails in archived footers are dropped (`_own_or_freemail`).
+- **Acquisition classes** (`acquisition.py`): fetched, recovered (alternative source gave an email/phone the lead lacked), corroborated (alternative source confirmed the discovery contact), hint_only, failed. They are reported separately everywhere; website fetch success is never mixed with recovery.
+- **Extraction and provenance**: `content_prep.extract_profile` adds description, services, industries, company size and technologies deterministically (JSON-LD, meta tags, headings, script signatures). `field_provenance` records value, source, method, URL, confidence, observed_at and status per field: `verified` (first-party structured markup, or two independent sources agree), `inferred` (plain text or one third-party source), `hint` (discovery record, not re-observed).
+- **Tokens and cost**: the acquisition path calls no LLM, so tokens are 0. `content_prep.main_text` (boilerplate removal), `content_hash`, the URL cache, the cooldown and the corroborating-source rule keep work off any later model; `needs_llm()` flags the leads where deterministic extraction left an owner gap despite enough clean text, so the size of that need is measurable. Per-lead cost is the sum of Firecrawl/Places credits in `fetch_outcomes.cost`.
+- **Telemetry and dashboard**: tables `fetch_attempts`, `fetch_outcomes` (migration `20261119000100`). `GET /crm/{t}/engine/fetching` (filters `date_from`, `date_to`, `provider`, `category`, `source`) returns attempted/successful/blocked/HTTP/timeout counts, recoveries, completeness, per-provider success, average fetch time, cost per enriched lead, tokens and problem domains. `GET .../engine/fetching/verification` and `POST .../engine/fetching/verification/{id}` (resolved | dismissed | retry) drive the human queue. Portal page: `/fetching`.
+- **Audit and benchmark**: `python scripts/fetch_audit.py collect|audit|bench|report`; results and the honest reading are in [FETCH_AUDIT.md](FETCH_AUDIT.md).
+
+### Fetching environment variables
+
+| Variable | Default | Effect |
+|---|---|---|
+| `LEADX_FETCH_ENGINE` | 1 | 0 restores the previous direct-then-Scrapling path and disables alternative-source recovery |
+| `LEADX_FETCH_PROVIDERS` | direct,scrapling,browser,crawl4ai,firecrawl | providers the engine may use |
+| `LEADX_FETCH_BROWSER` / `LEADX_FETCH_BROWSER_CONCURRENCY` | 1 / 4 | local Playwright Chromium (needs `playwright install chromium`) |
+| `LEADX_FETCH_HOST_CONCURRENCY` | 3 | simultaneous requests per site |
+| `LEADX_FETCH_BUDGET_S` | 60 | total time per URL across providers |
+| `LEADX_FETCH_CACHE_SECONDS` | 300 | URL result cache |
+| `LEADX_FETCH_COOLDOWN_SCALE` | 1.0 | multiplier on domain cooldowns |
+| `LEADX_FETCH_PLATFORM_DOMAINS` | empty | extra multi-tenant hosting domains tracked per subdomain |
+| `LEADX_ALT_RECOVERY` | 1 | alternative-source recovery on/off |
+| `LEADX_ALT_SOURCES` | hints,archive,directory,search,places | order of alternative sources (add `osm` for Nominatim, 1 request/s) |
+| `LEADX_ALT_DEADLINE_S` | 40 | most time recovery may spend per lead |
+| `LEADX_ALT_ARCHIVE_MAX_AGE_DAYS` | 1825 | oldest Internet Archive snapshot accepted |
+| `LEADX_NOMINATIM_URL`, `LEADX_NOMINATIM_INTERVAL` | public instance, 1.1 | Nominatim endpoint and spacing |
+| `GOOGLE_PLACES_API_KEY`, `LEADX_PLACES_CREDITS` | unset, 0.017 | official Places text search (paid, only with a key) |
+| `FIRECRAWL_API_KEY(S)`, `FIRECRAWL_CREDITS_PER_PAGE` | unset, 1 | Firecrawl as a rendering provider; never used when `LEADX_PAID_FALLBACK=never`; not a captcha solver |
+| `SEARXNG_URL`, `SERPER_API_KEY(S)` | unset | search-snippet source (existing `web_search`) |
+
 ## Waterfall and spend (`waterfall_runtime.py`, `enrichment_mesh.py`)
 
 - Providers are ordered by expected hits per credit from `ProviderIntelligence` (priors keep the historical order until there is data).
@@ -108,6 +154,7 @@ Quality check: `tests/test_extraction_golden.py` runs 100 synthetic pages (preci
 
 - `GET /crm/{t}/engine/review`, `POST .../review/{id}/resolve` (approve | reject), `POST .../review/{id}/recover` (free re-enrichment + verification).
 - `GET /crm/{t}/engine/delivery` (outbox state, dead letters), `POST .../delivery/{id}/replay`.
+- `GET /crm/{t}/engine/fetching`, `.../fetching/verification`: fetching intelligence (see Website acquisition engine).
 - `GET /crm/{t}/engine/metrics`: coverage by field, accuracy (share not credited back), credits per assigned lead and per provider, time to delivery, review counts.
 
 ## Scoring
@@ -131,6 +178,8 @@ WITH_SEARXNG=1 scripts/local_stack/stack.sh python scripts/local_stack/e2e.py   
 ## Verified, and not
 
 Verified this pass: unit tests (`tests/test_free_discovery.py`, `test_waterfall_runtime.py`, `test_data_engine_policies.py`, `test_enricher_firecrawl_fallback.py`, golden extraction); 84 local API checks including the new engine endpoints; the free layer on live data (Austin dentists: 1,010 Overture rows, 539 NPPES organisations, 354 directory rows (with SearXNG), merged to 777 businesses, 590 with a website, 403 with an email); a real Supabase project: keys, Auth admin and password sign-in, private Realtime channel join for a member, join refused for another tenant, `crm_change` broadcast received, and a 3-lead pipeline run that completed (`target_met`) in about 4 minutes.
+
+Not verified (fetch engine): Firecrawl, Serper/SearXNG search and Google Places (no keys or instance here; mocked in `tests/test_fetch_engine.py`), Crawl4AI (not installed), the new tables on a real Supabase project (exercised on the SQLite plane only); the portal page was typechecked and `next build` passes, but it was not opened against a live API.
 
 Not verified: the real project's schema is behind this repository (no `tenants.settings`, no migration 48 tables), so the 10-lead run and the new engine tables on Supabase wait for the schema reset. HubSpot and Salesforce delivery against developer accounts (no credentials). Companies House live. Email deliverability beyond MX (port 25 is blocked, no paid verifier key). Phone liveness (no provider key). Serper (account has no credits).
 

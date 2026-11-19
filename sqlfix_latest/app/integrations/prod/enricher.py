@@ -583,7 +583,7 @@ async def enrich_one(website: str, use_crawl4ai: bool = True, use_firecrawl: boo
             return {"ok": False, "error": type(exc).__name__}
 
     scrap, c4 = await asyncio.gather(
-        bounded(scrap_task, 25),
+        bounded(scrap_task, 25 if os.getenv("LEADX_FETCH_ENGINE", "1") == "0" else float(os.getenv("LEADX_FETCH_BUDGET_S", "60")) + 20),
         bounded(crawl_task, 35) if crawl_task else asyncio.sleep(0, result={}),
     )
 
@@ -609,6 +609,7 @@ async def enrich_one(website: str, use_crawl4ai: bool = True, use_firecrawl: boo
     hints.setdefault("name", company_name)
     hints.setdefault("city", city)
     hints["website"] = website
+    hints["fetch_category"] = scrap.get("category")
 
     if not content and not _recovery_enabled():
         empty["error"] = scrap.get("error") or c4.get("error") or "all_fetchers_failed"
@@ -730,11 +731,11 @@ async def enrich_one(website: str, use_crawl4ai: bool = True, use_firecrawl: boo
         profile["industries"] = {"value": [hints["category"]], "source": "discovery_record"}
     prov = acq.build_provenance(parsed, profile, website if site_ok else None, found, {"email": hints.get("email"), "phone": hints.get("phone")})
     klass = acq.acquisition_class(site_ok, found, {"email": hints.get("email"), "phone": hints.get("phone")})
-    ok = ok and klass != "hint_only"  # discovery hints are not an enrichment; the lead keeps them either way
+    ok = ok and klass not in ("hint_only",)  # discovery hints are not an enrichment; the lead keeps them either way
     meta = _acq_meta(scrap, klass)
     meta.update(completeness=acq.completeness(prov), recovery={"sources_tried": alt.get("sources_tried", []), "found": sorted(found), "rejected": alt.get("rejected", []), "cost": alt.get("cost", 0.0)},
                 tokens=0, llm_candidate=content_prep.needs_llm(parsed, content_prep.main_text(html, 6000)) if site_ok else False,
-                cost=round(meta["cost"] + firecrawl_calls * 1.0 + alt.get("cost", 0.0), 4), fields=sorted(prov))
+                cost=round(meta["cost"] + firecrawl_calls * 1.0 + alt.get("cost", 0.0), 4), fields=sorted(f for f, v in prov.items() if v.get("status") != "hint"))
     fetch_telemetry.record_outcome({"domain": urlparse(website).hostname, "website_fetched": site_ok, "category": meta["category"], "challenge": meta["challenge"],
                                     "acquisition": klass, "recovery_sources": meta["recovery"]["found"] and sorted({f["source"] for f in found.values()}), "completeness": meta["completeness"],
                                     "fields": meta["fields"], "elapsed_ms": meta["elapsed_ms"], "cost": meta["cost"], "tokens": 0, "provider": meta["provider"],

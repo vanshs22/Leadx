@@ -379,6 +379,8 @@ async def run_pipeline_parallel_target(
         skip_agent_stage(agent_context, owner_for(stage), stage, reason)
     execution_context = dict(execution_context or {})
     execution_context["agent_context"] = agent_context
+    from app.integrations.prod import fetch_telemetry
+    fetch_telemetry.ctx.set({"tenant_id": str(tenant_id), "run_id": str(run_id)})  # inherited by every enrichment task this run starts
     slots_cap = max(0, min(int(target_assign), int(remaining)))
     geo = geo if isinstance(geo, list) and geo else ["New Jersey"]
     planner_context = execution_context.get("planner_context")

@@ -98,8 +98,8 @@ def classify_response(status: Optional[int], body: str = "", headers: Optional[d
         return Verdict(cat, "challenge", False, _COOLDOWN["challenge"])
     for cat, rx in _PATTERNS:
         if rx.search(head):
-            if cat in _WIDGET_ONLY and not interstitial:
-                continue
+            if not interstitial:
+                continue  # marker strings (px-captcha, cf-chl, recaptcha...) also sit in the scripts of ordinary full pages
             kind = "challenge"
             return Verdict(cat, kind, False, _COOLDOWN["challenge"])
     if status == 429 or (status < 500 and _RATE.search(head) and short):

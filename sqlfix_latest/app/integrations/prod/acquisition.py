@@ -2,7 +2,8 @@
 
 Acquisition classes (mutually exclusive, reported separately everywhere):
   fetched     the lead's own site returned a usable page
-  recovered   the site was unusable, an identity-matched alternative source (archive/osm/directory/search/places) supplied email or phone
+  recovered   the site was unusable, an identity-matched alternative source (archive/directory/search/places/successor site) supplied an email or phone the lead did not have
+  corroborated  the site was unusable, an alternative source confirmed the email/phone the discovery record already had (adds confidence, not new data)
   hint_only   the site was unusable and only discovery-record hints (e.g. Overture phone/email) cover contact
   failed      nothing usable
 Field status: "verified" = first-party structured markup (mailto, tel link, JSON-LD, microdata) or the same value seen in two independent
@@ -70,14 +71,20 @@ def build_provenance(parsed: dict, profile: dict, site_url: Optional[str], found
 
 
 def completeness(prov: dict) -> float:
-    return round(sum(1 for f in CORE_FIELDS if f in prov) / len(CORE_FIELDS), 3)
+    return round(sum(1 for f in CORE_FIELDS if f in prov and prov[f].get("status") != "hint") / len(CORE_FIELDS), 3)  # discovery hints are not extraction
+
+
+def _same(field: str, a: Any, b: Any) -> bool:
+    return bool(a and b) and ((_digits(a) == _digits(b)) if field == "phone" else str(a).lower() == str(b).lower())
 
 
 def acquisition_class(site_ok: bool, found: dict, hints: dict) -> str:
+    """fetched | recovered (alt source gave an email/phone the lead did not have) | corroborated (alt source confirmed the discovery contact) | hint_only | failed"""
     if site_ok:
         return "fetched"
-    if any(f in found and found[f]["source"] != "hints" for f in ("email", "phone")):
+    alt = {f: found[f] for f in ("email", "phone") if f in found and found[f]["source"] != "hints"}
+    if any(not _same(f, rec["value"], hints.get(f)) for f, rec in alt.items()):
         return "recovered"
-    if any(found.get(f) or hints.get(f) for f in ("email", "phone")):
-        return "hint_only"
-    return "failed"
+    if alt:
+        return "corroborated"
+    return "hint_only" if any(found.get(f) or hints.get(f) for f in ("email", "phone")) else "failed"

@@ -38,6 +38,7 @@ def compute_fetching(sb, tenant_id: str, *, date_from: Optional[str] = None, dat
     fetched = sum(1 for o in outcomes if o.get("website_fetched"))
     recovered = sum(1 for o in outcomes if o.get("acquisition") == "recovered")
     hint_only = sum(1 for o in outcomes if o.get("acquisition") == "hint_only")
+    corroborated = sum(1 for o in outcomes if o.get("acquisition") == "corroborated")
     enriched = sum(1 for o in outcomes if o.get("acquisition") in ("fetched", "recovered"))
     cost = sum(float(o.get("cost") or 0) for o in outcomes)
     by_provider: dict[str, dict] = {}
@@ -64,7 +65,7 @@ def compute_fetching(sb, tenant_id: str, *, date_from: Optional[str] = None, dat
         "timeout_failures": cats.get("timeout", 0), "dns_failures": cats.get("dns", 0),
         "other_network_failures": sum(v for k, v in cats.items() if k in NETWORK_CATEGORIES and k not in ("timeout", "dns")),
         "failure_categories": dict(cats.most_common()),
-        "alt_source_recoveries": recovered, "alt_recovery_pct_of_attempted": _pct(recovered, n), "hint_only": hint_only,
+        "alt_source_recoveries": recovered, "alt_recovery_pct_of_attempted": _pct(recovered, n), "hint_only": hint_only, "corroborated": corroborated,
         "acquisition_success_pct": _pct(fetched + recovered, n),
         "avg_extraction_completeness_pct": round(100 * sum(comp) / len(comp), 1) if comp else None,
         "avg_fetch_seconds": round(sum(secs) / len(secs), 2) if secs else None,

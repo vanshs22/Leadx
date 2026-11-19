@@ -1237,3 +1237,24 @@ export const crmTools = {
     api<{ lane: string; free: boolean; baseline: boolean; changed: boolean; changes: { type: string; detail: unknown }[] }>(
       `/crm/${tenantId}/leads/${assignmentId}/refresh-check`, { method: "POST", body: JSON.stringify({ allow_paid: allowPaid }) }),
 };
+
+export type FetchingMetrics = {
+  websites_attempted: number; successful_fetches: number; fetch_success_pct: number | null; captcha_blocked: number; challenge_breakdown: Record<string, number>;
+  http_failures: number; timeout_failures: number; dns_failures: number; other_network_failures: number; failure_categories: Record<string, number>;
+  alt_source_recoveries: number; hint_only: number; acquisition_success_pct: number | null; avg_extraction_completeness_pct: number | null; avg_fetch_seconds: number | null;
+  cost: { total_credits: number; avg_per_enriched_lead: number | null; enriched_leads: number }; ai_tokens: number; needs_human_verification: number; sources: string[];
+  by_provider: Record<string, { attempts: number; ok: number; success_rate_pct: number | null; avg_ms: number | null; cost: number }>;
+  problem_domains: { domain: string; attempts: number; failures: number; last_category: string | null }[];
+};
+export type FetchVerification = { id: string; domain: string; category: string; challenge: string | null; created_at: string; lead_key: string | null };
+
+export const crmFetching = {
+  metrics: (tenantId: string, f: { date_from?: string; date_to?: string; provider?: string; category?: string; source?: string } = {}) => {
+    const q = new URLSearchParams();
+    Object.entries(f).forEach(([k, v]) => { if (v) q.set(k, v); });
+    return api<{ ok: boolean } & FetchingMetrics>(`/crm/${tenantId}/engine/fetching?${q.toString()}`);
+  },
+  verification: (tenantId: string) => api<{ ok: boolean; items: FetchVerification[] }>(`/crm/${tenantId}/engine/fetching/verification`),
+  resolve: (tenantId: string, id: string, action: "resolved" | "dismissed" | "retry") =>
+    api<{ ok: boolean }>(`/crm/${tenantId}/engine/fetching/verification/${id}`, { method: "POST", body: JSON.stringify({ action }) }),
+};

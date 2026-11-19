@@ -15,7 +15,7 @@ site refusals), per-host politeness limit, domain cooldowns, URL result cache. E
 
 Env: LEADX_FETCH_ENGINE=0 disables the engine (callers fall back to the plain direct-then-Scrapling path);
 LEADX_FETCH_PROVIDERS (comma list, default direct,scrapling,browser,crawl4ai,firecrawl); LEADX_FETCH_BROWSER_CONCURRENCY (4);
-LEADX_FETCH_HOST_CONCURRENCY (3); LEADX_FETCH_CACHE_SECONDS (300); LEADX_FETCH_COOLDOWN_SCALE (1.0).
+LEADX_FETCH_HOST_CONCURRENCY (3); LEADX_FETCH_CACHE_SECONDS (300); LEADX_FETCH_COOLDOWN_SCALE (1.0); LEADX_FETCH_BUDGET_S (60, total time per URL across providers).
 """
 from __future__ import annotations
 
@@ -60,9 +60,18 @@ def enabled() -> bool:
     return os.getenv("LEADX_FETCH_ENGINE", "1") != "0"
 
 
+# hosting platforms where every subdomain is a different business: cooldowns and history must not spread across them
+PLATFORMS = {"glossgenius.com", "square.site", "godaddysites.com", "wixsite.com", "weebly.com", "business.site", "myshopify.com", "wordpress.com", "blogspot.com", "site123.me",
+             "mystrikingly.com", "carrd.co", "webflow.io", "vagaro.com", "booksy.com", "hub.biz", "trustab.org", "placeweb.site", "jany.io", "klo7.io", "squarespace.com", "sites.google.com",
+             "mindbodyonline.com", "setmore.com", "acuityscheduling.com", "fresha.com", "wixstudio.io", "netlify.app", "vercel.app", "github.io", "pages.dev"}
+
+
 def registered_domain(url_or_host: str) -> str:
     h = (urlparse(url_or_host).hostname if "//" in url_or_host else url_or_host) or ""
     h = h.lower().removeprefix("www.")
+    extra = {x.strip() for x in os.getenv("LEADX_FETCH_PLATFORM_DOMAINS", "").split(",") if x.strip()}
+    if any(h == p or h.endswith("." + p) for p in PLATFORMS | extra):
+        return h
     parts = h.split(".")
     if len(parts) >= 3 and (parts[-2] in ("co", "com", "org", "net", "ac", "gov") and len(parts[-1]) == 2):
         return ".".join(parts[-3:])
@@ -93,7 +102,7 @@ class Breaker:
 class History:
     """Observed outcomes: (provider) overall, (provider, domain), (provider, protection vendor)."""
 
-    # starting beliefs from the 450-site audit (docs/FETCH_AUDIT.md): (provider, direct verdict) -> [tries, successes]; real history replaces them
+    # starting beliefs from an earlier 450-site audit run (see docs/FETCH_AUDIT.md, provider table): (provider, direct verdict) -> [tries, successes]; real history replaces them
     PRIORS = {("browser", "disconnect"): [19, 16], ("scrapling", "disconnect"): [19, 1], ("browser", "http_5xx"): [9, 7], ("scrapling", "http_5xx"): [9, 0],
               ("browser", "empty_body"): [1, 1], ("scrapling", "empty_body"): [1, 1], ("scrapling", "tls"): [3, 0], ("scrapling", "connect"): [1, 0]}
 
@@ -357,7 +366,8 @@ class Engine:
         async with self._sem(("host", host), int(os.getenv("LEADX_FETCH_HOST_CONCURRENCY", "3"))):
             raw, v, atts = await self._direct_with_fixes(url, timeout)
             tried = {"direct"}
-            while not light and (not v.usable or (v.category == "js_shell" and visible_text_len(raw["html"]) < 400)):
+            budget = float(os.getenv("LEADX_FETCH_BUDGET_S", "60"))  # total wall time one URL may spend across providers
+            while not light and time.monotonic() - t0 < budget and (not v.usable or (v.category == "js_shell" and visible_text_len(raw["html"]) < 400)):
                 nxt = self._next(v, tried, host)
                 if not nxt:
                     break

@@ -36,7 +36,7 @@ create table if not exists public.fetch_outcomes (
   challenge text,
   http_status integer,
   provider text,
-  acquisition text not null check (acquisition in ('fetched','recovered','hint_only','failed')),
+  acquisition text not null check (acquisition in ('fetched','recovered','corroborated','hint_only','failed')),
   recovery_sources jsonb,
   completeness numeric,
   fields jsonb,

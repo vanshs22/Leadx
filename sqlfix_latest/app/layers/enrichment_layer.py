@@ -308,7 +308,8 @@ async def enrich(leads: list[dict], *, max_concurrent: int = 5,
                 except Exception as exc:
                     logger.debug("website finder skipped: %s", type(exc).__name__)
             from app.integrations.prod import fetch_telemetry
-            fetch_telemetry.ctx.set({"tenant_id": context.tenant_id, "run_id": context.run_id, "discovery_source": str(row.get("source") or ""),
+            base = fetch_telemetry.ctx.get()
+            fetch_telemetry.ctx.set({"tenant_id": context.tenant_id or base.get("tenant_id"), "run_id": context.run_id or base.get("run_id"), "discovery_source": str(row.get("source") or ""),
                                      "lead_key": str(row.get("id") or row.get("website_domain") or row.get("name") or "")})
             deadline_s = _deadline_seconds(context, row)
             lead_context = context.child(
@@ -369,10 +370,11 @@ async def enrich(leads: list[dict], *, max_concurrent: int = 5,
                         if key not in row or _empty(row.get(key)):
                             row[key] = value
                 _merge_audit(row, deep_audit)
-            if row.get("fetch_challenge") and context.tenant_id and row.get("id"):
+            tenant = context.tenant_id or fetch_telemetry.ctx.get().get("tenant_id")
+            if row.get("fetch_challenge") and tenant and row.get("id"):
                 try:  # site challenge: keep the lead, let an operator open the site and resolve it by hand (never automated)
                     from app.integrations.prod import review_queue
-                    await asyncio.to_thread(review_queue.enqueue, context.tenant_id, row, context.run_id, [f"site_challenge:{row['fetch_challenge']}", "needs_human_verification"])
+                    await asyncio.to_thread(review_queue.enqueue, tenant, row, context.run_id or fetch_telemetry.ctx.get().get("run_id") or "", [f"site_challenge:{row['fetch_challenge']}", "needs_human_verification"])
                 except Exception as exc:
                     logger.debug("challenge review enqueue skipped: %s", type(exc).__name__)
             if deep_status:

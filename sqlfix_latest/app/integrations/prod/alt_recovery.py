@@ -12,8 +12,8 @@ Nothing from a source is used until identity_match() accepts it: a shared domain
 compatible business name, or two strong signals. Name alone never merges. A conflicting phone or ZIP rejects the candidate even when
 the names match, which is how "Smile Dental" in another suburb is kept out.
 
-Env: LEADX_ALT_SOURCES (comma list, default hints,archive,osm,directory,search,places), LEADX_NOMINATIM_URL, GOOGLE_PLACES_API_KEY,
-LEADX_PLACES_CREDITS (cost per call, default 0.017), LEADX_ALT_ARCHIVE_MAX_AGE_DAYS (default 1095).
+Env: LEADX_ALT_SOURCES (comma list, default hints,archive,directory,search,places; add osm to enable Nominatim), LEADX_NOMINATIM_URL, GOOGLE_PLACES_API_KEY,
+LEADX_PLACES_CREDITS (cost per call, default 0.017), LEADX_ALT_ARCHIVE_MAX_AGE_DAYS (default 1825).
 """
 from __future__ import annotations
 
@@ -30,7 +30,7 @@ from app.integrations.prod.entity_resolution import names_compatible
 from app.integrations.prod.net_safety import safe_get
 
 logger = logging.getLogger("lead_engine.alt_recovery")
-DEFAULT_SOURCES = "hints,archive,osm,directory,search,places"
+DEFAULT_SOURCES = "hints,archive,directory,search,places"  # osm is opt-in: 1 hit in 118 lookups (docs/FETCH_AUDIT.md) at a 1.1 s global pacing cost
 _PROFILE_HOSTS = ("facebook.com", "instagram.com", "linkedin.com", "yelp.com", "yellowpages.com", "twitter.com", "x.com", "youtube.com", "tiktok.com")
 
 
@@ -85,7 +85,7 @@ async def _archive(h: dict) -> list[dict]:
     if not site:
         return []
     from app.integrations.prod.enricher import _parse_content
-    maxage = int(os.getenv("LEADX_ALT_ARCHIVE_MAX_AGE_DAYS", "1095"))
+    maxage = int(os.getenv("LEADX_ALT_ARCHIVE_MAX_AGE_DAYS", "1825"))
     out = []
     for path in ("", "contact", "contact-us"):
         target = site.rstrip("/") + ("/" + path if path else "")
@@ -222,6 +222,42 @@ async def _places(h: dict) -> list[dict]:
              "address": p.get("formattedAddress"), "confidence": 0.9, "cost": float(os.getenv("LEADX_PLACES_CREDITS", "0.017"))} for p in rows]
 
 
+_DEAD = {"dns", "http_404", "http_4xx", "parked", "tls", "connect"}
+
+
+async def _successor(h: dict, urls: list[str]) -> list[dict]:
+    """The business moved to another domain: read that site (listed by a matched directory/places record, or found by the free domain probe)."""
+    from app.integrations.prod.enricher import _parse_content, fetch_scrapling
+    out = []
+    for u in urls[:3]:
+        r = await fetch_scrapling(u, timeout=15, light=True)
+        if not r.get("ok"):
+            continue
+        parsed = _parse_content(r["html"], u)
+        hp = _digits(h.get("phone"))
+        phones = parsed.get("phones") or []
+        phone = next((p for p in phones if hp and _digits(p) == hp), None) or (phones[0] if phones else None)
+        title = re.search(r"(?is)<title[^>]*>(.*?)</title>", r["html"])
+        out.append({"source": "successor_site", "url": u, "website": u, "name": (parsed.get("business_jsonld") or {}).get("name") or (re.sub(r"\s+", " ", title.group(1)).strip() if title else None),
+                    "phone": phone, "email": parsed.get("email"), "emails": parsed.get("emails"), "address": _addr_str(parsed.get("address_parsed")),
+                    "social_links": parsed.get("social_links"), "owner_name": parsed.get("owner_name"), "confidence": 0.8})
+    return out
+
+
+async def _probe_successor(h: dict) -> list[str]:
+    from app.integrations.prod.enricher import fetch_scrapling
+    from app.integrations.prod.website_finder import find_website
+
+    async def fetch(url):
+        return await fetch_scrapling(url, timeout=6, light=True)
+    try:
+        found = await find_website(str(h.get("name") or ""), str(h.get("city") or ""), str(h.get("phone") or ""), fetch=fetch)
+    except Exception as exc:
+        logger.debug("successor probe failed: %s", type(exc).__name__)
+        return []
+    return [found["website"]] if found and _dom(found["website"]) != _dom(h.get("website")) else []
+
+
 _SOURCES = {"archive": _archive, "osm": _osm, "directory": _directory, "search": _search, "places": _places}
 
 
@@ -246,6 +282,9 @@ async def recover(hint: dict, have: Optional[dict] = None, want: tuple = ("email
     tried: list[str] = []
     rejected: list[dict] = []
     cost = 0.0
+    listed: list[dict] = []   # identity-accepted candidates that name a website, for the successor step
+    listed: list[dict] = []   # candidates (identity-accepted or not) that name a website, kept for the successor step
+    deadline = time.monotonic() + float(os.getenv("LEADX_ALT_DEADLINE_S", "40"))  # public directories and Nominatim are rate-limited by policy; a lead never waits longer than this
     names = [s.strip() for s in (sources or os.getenv("LEADX_ALT_SOURCES", DEFAULT_SOURCES)).split(",") if s.strip()]
 
     def gap() -> bool:
@@ -258,8 +297,12 @@ async def recover(hint: dict, have: Optional[dict] = None, want: tuple = ("email
         if src == "hints":
             cands = [_hints_candidate(hint)]
         elif src in _SOURCES:
+            left = deadline - time.monotonic()
+            if left <= 1:
+                rejected.append({"source": src, "name": "", "reason": "deadline"})
+                continue
             try:
-                cands = await asyncio.wait_for(_SOURCES[src](hint), timeout=60)
+                cands = await asyncio.wait_for(_SOURCES[src](hint), timeout=left)
             except Exception as exc:
                 logger.debug("alt source %s failed: %s", src, type(exc).__name__)
                 cands = []
@@ -278,6 +321,8 @@ async def recover(hint: dict, have: Optional[dict] = None, want: tuple = ("email
                 if c.get("name") and src != "hints":
                     rejected.append({"source": c["source"], "name": str(c.get("name"))[:80], "reason": why})
                 continue
+            if c.get("website") and src not in ("hints", "archive"):
+                listed.append(c)
             prov = {"source": c["source"], "url": c.get("url"), "matched_on": matched, "confidence": c.get("confidence"), "observed_at": datetime.now(timezone.utc).isoformat()}
             if c.get("snapshot"):
                 prov.update(snapshot=c["snapshot"], age_days=c.get("age_days"))
@@ -285,6 +330,27 @@ async def recover(hint: dict, have: Optional[dict] = None, want: tuple = ("email
             email = next((e for e in ([c.get("email")] + list(c.get("emails") or [])) if e and (src in ("hints", "places") or _own_or_freemail(e, site_dom))), None)
             for f, v in (("email", email), ("phone", c.get("phone")), ("address", c.get("address") if src != "search" else None), ("owner_name", c.get("owner_name")), ("website", c.get("website"))):
                 if v and f not in have and (f not in found or (found[f]["source"] == "hints" and c["source"] != "hints")) and (f != "website" or _dom(v) not in _PROFILE_HOSTS):
+                    found[f] = {"value": v, **prov}
+            for k, v in (c.get("social_links") or {}).items():
+                social.setdefault(k, v)
+    # successor site: the old domain is dead, so read the site the business moved to. Only for dead domains, never to get around a challenge.
+    if gap() and hint.get("fetch_category") in _DEAD and time.monotonic() < deadline - 3:
+        urls = [c["website"] for c in listed if c.get("website") and _dom(c["website"]) not in (_dom(hint.get("website")),) + _PROFILE_HOSTS][:2]
+        try:
+            urls = urls or await asyncio.wait_for(_probe_successor(hint), timeout=max(deadline - time.monotonic(), 1))
+            cands = await asyncio.wait_for(_successor(hint, urls), timeout=max(deadline - time.monotonic(), 1)) if urls else []
+        except Exception as exc:
+            logger.debug("successor step failed: %s", type(exc).__name__)
+            cands = []
+        tried.append("successor")
+        for c in cands:
+            ok, matched, why = identity_match(hint, c)
+            if not ok:
+                rejected.append({"source": "successor_site", "name": str(c.get("name"))[:80], "reason": why})
+                continue
+            prov = {"source": "successor_site", "url": c["url"], "matched_on": matched, "confidence": c["confidence"], "observed_at": datetime.now(timezone.utc).isoformat()}
+            for f, v in (("email", c.get("email")), ("phone", c.get("phone")), ("address", c.get("address")), ("owner_name", c.get("owner_name")), ("website", c.get("website"))):
+                if v and f not in have and (f not in found or found[f]["source"] == "hints"):
                     found[f] = {"value": v, **prov}
             for k, v in (c.get("social_links") or {}).items():
                 social.setdefault(k, v)

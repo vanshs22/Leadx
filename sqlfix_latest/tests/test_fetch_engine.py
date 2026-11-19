@@ -32,6 +32,19 @@ def test_classifier_vendors_and_status():
     assert classify_response(403, "x", {"cf-mitigated": "challenge"}).is_challenge
 
 
+def test_challenge_marker_inside_a_full_page_is_not_a_challenge():
+    full = REAL.replace("</body>", "<script>var x='px-captcha cf-chl- challenge-platform';</script></body>")
+    assert classify_response(200, full).category == "ok"
+    assert classify_response(403, "<div id='px-captcha'></div>").category == "perimeterx"
+
+
+async def test_cooldown_does_not_spread_across_platform_subdomains():
+    e = Stub({"direct": lambda u: page("<title>Just a moment...</title>", 403) if "bad" in u else page(), "browser": page()})
+    assert not (await e.acquire("https://bad.glossgenius.com/"))["ok"]
+    assert (await e.acquire("https://good.glossgenius.com/"))["ok"]                      # another business on the same platform
+    assert (await e.acquire("https://other.example.org/"))["ok"] and fe.registered_domain("https://a.b.co.uk/") == "b.co.uk"
+
+
 def test_captcha_widget_on_a_real_page_is_not_a_challenge():
     page = REAL.replace("</body>", "<div class='g-recaptcha'></div><div class='h-captcha'></div></body>")
     assert classify_response(200, page).category == "ok"
@@ -178,6 +191,8 @@ def test_provenance_marks_verified_vs_inferred_and_class():
     found = {"email": {"value": "x@y.com", "source": "hints"}}
     assert acquisition.acquisition_class(False, found, {"email": "x@y.com"}) == "hint_only"
     assert acquisition.acquisition_class(False, {"phone": {"value": "1", "source": "osm"}}, {}) == "recovered"
+    same = {"phone": {"value": "+1 (512) 555-0100", "source": "directory:yellowpages.com"}}
+    assert acquisition.acquisition_class(False, same, {"phone": "+15125550100"}) == "corroborated"   # confirms what discovery had; not new data
     assert acquisition.acquisition_class(True, {}, {}) == "fetched" and acquisition.acquisition_class(False, {}, {}) == "failed"
 
 
@@ -207,7 +222,7 @@ async def test_enrich_one_recovers_through_alt_sources_and_keeps_the_lead(monkey
                 "social_links": {}, "sources_tried": ["directory"], "rejected": [], "cost": 0.0}
     monkeypatch.setattr(enricher, "fetch_scrapling", fetch)
     monkeypatch.setattr(alt_recovery, "recover", recover)
-    out = await enricher.enrich_one("https://blocked.com", use_crawl4ai=False, use_firecrawl=False, company_name="Blocked Co", city="Austin", hints={"phone": "+15125550100"})
+    out = await enricher.enrich_one("https://blocked.com", use_crawl4ai=False, use_firecrawl=False, company_name="Blocked Co", city="Austin", hints={"email": "x@y.com"})
     a = out["acquisition"]
     assert a["class"] == "recovered" and a["challenge"] == "cloudflare" and out["enrichment_ok"] and out["phone_from_web"] == "+15125550100"
     assert out["field_provenance"]["phone"]["source"] == "directory:yellowpages.com" and out["field_provenance"]["phone"]["status"] == "inferred"
