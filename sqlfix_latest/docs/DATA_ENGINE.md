@@ -56,6 +56,49 @@ Output of `python scripts/check_verification.py` from the sandbox (no keys):
 
 Mailbox-level email verification and live phone checks need a verifier key (below) or a host with port 25 open.
 
+### SMTP mailbox probe and production requirements (`contact_verification_mesh.py`)
+
+The local probe resolves the MX (falling back to the A record), connects on TCP 25, optionally upgrades with STARTTLS, sends `MAIL FROM`, `RCPT TO:<address>` and then `RCPT TO` for a random control address on the same domain, and always quits with `RSET`/`QUIT`. It never sends `DATA`, so no mail is delivered.
+
+| Reply | Result |
+|---|---|
+| address accepted, random control address rejected | `valid` (score 88) |
+| address and control address both accepted | `accept_all` (catch-all domain, the mailbox is not proven) |
+| 5xx user unknown | `invalid` |
+| 4xx on `RCPT` (greylisting) | one retry on a new connection after `LEADX_SMTP_GREYLIST_DELAY` seconds (`LEADX_SMTP_GREYLIST_RETRIES` times), then `unknown` with reason `greylisted` |
+| 4xx on the control address, timeout, port 25 blocked | `unknown`, never `valid` |
+
+Only `valid` counts as a verified mailbox. `accept_all` and `unknown` are not deliverable proof; the delivery policy decides whether they pass.
+
+Production requirements:
+
+- Outbound TCP 25 must be open. Most clouds block it by default (AWS needs a request, GCP and Azure block it). A preflight connect to `LEADX_SMTP_PREFLIGHT_HOST` (default gmail-smtp-in.l.google.com) runs once, so a blocked host reports `unknown` quickly instead of timing out per lead. If 25 is blocked, use `LEADX_SMTP_SOCKS_PROXY` (needs PySocks) to egress via a host that allows it, or a validator (below).
+- `LEADX_SMTP_HELO` must be a public FQDN of the sending host. Readiness validation rejects localhost, IPs and names without a dot.
+- The sending IP needs reverse DNS (PTR) that matches the HELO name, and the domain of `LEADX_SMTP_PROBE_FROM` (default `postmaster@<HELO>`) needs an SPF record that authorizes the IP. Many receivers answer 4xx/5xx or tarpit when these do not line up. The code cannot check PTR or SPF and prints a warning instead.
+- Amazon SES, SendGrid and Mailgun SMTP relays cannot be used for this. They accept every `RCPT TO` for your own relay and do not let you talk to a third party's MX, so they cannot verify third-party mailboxes. Use a host with direct port 25 egress.
+- Microsoft 365, Yahoo and secure email gateways accept or tarpit probes from unknown IPs, so those domains usually stay `unknown`.
+- Reacher (open-source `check-if-email-exists`) or a compatible service can be self-hosted on a port-25 host. Set `LEADX_EMAIL_VALIDATOR_URL` to its endpoint; it is queried with `?email=` and its `status` is used as a tier 0 observation (`smtp_valid`, `mx_valid` also read).
+
+| Variable | Default | Meaning |
+|---|---|---|
+| `LEADX_SMTP_PROBE_ENABLED` | 1 | master switch; legacy name `LEADX_SMTP_PROBE` is read only when this is unset |
+| `LEADX_SMTP_HELO` | none | public FQDN used in `EHLO`; required |
+| `LEADX_SMTP_PROBE_FROM` | `postmaster@<HELO>` | envelope sender |
+| `LEADX_SMTP_PROBE_TIMEOUT` | 12 | seconds per SMTP command |
+| `LEADX_SMTP_CONNECT_TIMEOUT` | 8 | seconds for TCP connect |
+| `LEADX_SMTP_PROBE_CONCURRENCY` | 8 | probes in flight per process |
+| `LEADX_SMTP_GREYLIST_RETRIES` | 1 | retries after a 4xx on `RCPT` |
+| `LEADX_SMTP_GREYLIST_DELAY` | 15 | seconds before the retry |
+| `LEADX_SMTP_STARTTLS` | 1 | opportunistic STARTTLS, falls back to plain |
+| `LEADX_SMTP_SOCKS_PROXY` | none | `socks5://host:port` egress for port 25 |
+| `LEADX_SMTP_PREFLIGHT_HOST`, `LEADX_SMTP_PREFLIGHT_PORT` | gmail MX, 25 | host reachability test; override for tests |
+| `LEADX_SMTP_PORT` | 25 | target port; tests only |
+| `LEADX_EMAIL_VALIDATOR_URL` | none | Reacher-style validator endpoint |
+
+### Contact candidates (`contact_candidates.py`)
+
+Every email and phone seen for a lead is kept in `lead["email_candidates"]` and `lead["phone_candidates"]` (also in `raw_extraction`), each as `{value, source, confidence, observed_at, status: verified|inferred, identity, also_seen}`. A second source with a different value adds a candidate; a repeat value keeps the stronger record and lists the other source in `also_seen`. `lead["email"]` and `lead["phone"]` stay as the single primary picked by `choose_primary` (own site and registries before directories, search snippets and hints), so existing consumers are unchanged. The pipeline keeps looking for the missing contact type (phone when only an email is known and the reverse) before stopping, and the Serper fallback accepts a contact only after an identity match to the business. Delivery gating is unchanged and stays in `lead_policy.contact_requirement` (`email`, `phone` or `either`). Measured yield: `docs/CONTACT_YIELD.md`.
+
 ### Paid fallbacks and environment variables
 
 All paid lanes are off until a key is set, run cheapest first, and only for leads about to be assigned. Spend is written to `enrichment_spend_ledger`. Set keys in the environment only, never in files.
