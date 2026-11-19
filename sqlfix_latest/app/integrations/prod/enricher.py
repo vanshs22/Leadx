@@ -808,7 +808,6 @@ async def enrich_one(website: str, use_crawl4ai: bool = True, use_firecrawl: boo
             serper_found = fallback
             if fallback.get('phones'):
                 parsed['phones'] = list(dict.fromkeys((parsed.get('phones') or []) + fallback['phones']))[:10]
-                parsed['phone_from_web'] = parsed.get('phone_from_web') or fallback['phones'][0]
             if fallback.get('emails'):
                 parsed['emails'] = list(dict.fromkeys((parsed.get('emails') or []) + fallback['emails']))[:20]
                 parsed['email'] = parsed['emails'][0]
@@ -879,13 +878,14 @@ async def enrich_one(website: str, use_crawl4ai: bool = True, use_firecrawl: boo
                    "inferred" if found[f]["source"] == "hints" else "verified", observed_at=found[f].get("observed_at"))
     cc.add_many(parsed, "email", serper_found.get("emails") or [], "serper", 0.5)
     cc.add_many(parsed, "phone", serper_found.get("phones") or [], "serper", 0.5)
-    seen_e = {c["value"] for c in parsed.get("email_candidates") or []}  # whatever is left in parsed came from the Firecrawl last resort
+    seen_e = {c["value"] for c in parsed.get("email_contacts") or []}  # whatever is left in parsed came from the Firecrawl last resort
     cc.add_many(parsed, "email", [e for e in parsed.get("emails") or [] if cc.norm_value("email", e) not in seen_e], "firecrawl", 0.7, "verified")
-    seen_p = {c["value"] for c in parsed.get("phone_candidates") or []}
+    seen_p = {c["value"] for c in parsed.get("phone_contacts") or []}
     cc.add_many(parsed, "phone", [x for x in parsed.get("phones") or [] if cc.norm_value("phone", x) not in seen_p], "firecrawl", 0.7, "verified")
     _dom = urlparse(website).netloc
     if not parsed.get("phone_from_web"):
-        parsed["phone_from_web"] = cc.choose_primary(parsed, "phone")
+        # search-snippet phones stay candidates; only site/registry/alt phones become the primary
+        parsed["phone_from_web"] = cc.choose_primary({"phone_contacts": [c for c in parsed.get("phone_contacts") or [] if c.get("source") != "serper"]}, "phone")
     if not parsed.get("email"):
         parsed["emails"] = [e for e in [cc.choose_primary(parsed, "email")] if e]
         parsed["email"] = parsed["emails"][0] if parsed["emails"] else None
@@ -947,8 +947,8 @@ async def enrich_one(website: str, use_crawl4ai: bool = True, use_firecrawl: boo
         "email_valid": parsed.get("email_valid"),
         "emails": parsed.get("emails") or [],
         "phone_from_web": parsed.get("phone_from_web"),
-        "email_candidates": parsed.get("email_candidates") or [],
-        "phone_candidates": parsed.get("phone_candidates") or [],
+        "email_contacts": parsed.get("email_contacts") or [],
+        "phone_contacts": parsed.get("phone_contacts") or [],
         "has_booking": parsed.get("has_booking") or False,
         "booking_platform": parsed.get("booking_platform"),
         "services": (profile.get("services") or {}).get("value") or parsed.get("services") or [],

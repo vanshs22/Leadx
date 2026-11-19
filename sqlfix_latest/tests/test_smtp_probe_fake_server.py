@@ -124,6 +124,29 @@ def test_control_4xx_is_inconclusive_not_valid(m):
     assert r["result"] == "unknown" and r["reason"] == "catch_all_check_inconclusive"
 
 
+def test_control_policy_5xx_is_not_valid(m):
+    s = Fake(known={"a@x.test"}, control_reply="554 5.7.1 rejected by policy")
+    r = probe(m, s, "a@x.test")
+    s.close()
+    assert r["result"] == "unknown" and r["reason"] == "catch_all_check_inconclusive"
+
+
+def test_crlf_address_is_invalid_and_sends_nothing(m, monkeypatch):
+    s = Fake(known={"a@b.com"})
+    monkeypatch.setenv("LEADX_SMTP_PORT", str(s.port))
+    r = asyncio.run(m.local_smtp_probe("a@b.com\r\nRCPT TO:<x@y.com>"))
+    s.close()
+    assert r["status"] == "invalid" and r["reason"] == "syntax" and not s.cmds
+
+
+def test_inf_numbers_are_rejected(m, monkeypatch):
+    _clean(monkeypatch)
+    monkeypatch.setenv("LEADX_SMTP_PORT", "inf")
+    assert m._envnum("LEADX_SMTP_PORT", 25) == 25
+    monkeypatch.setenv("LEADX_SMTP_HELO", "mail.example.com")
+    assert any("LEADX_SMTP_PORT" in e for e in m.verification_readiness()["errors"])
+
+
 def test_greylist_persistent_is_unknown_after_bounded_retry(m):
     s = Fake(known={"a@x.test"}, grey_first=99)
     r = probe(m, s, "a@x.test", greylist_retries=2)

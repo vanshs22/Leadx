@@ -73,7 +73,7 @@ def _env_enabled(name: str) -> bool:
 def _envnum(name: str, default: float) -> float:
     try:
         v = float(os.getenv(name) or default)
-        return v if v >= 0 else default
+        return v if 0 <= v < float("inf") else default  # rejects negative, inf and nan
     except ValueError:
         return default
 
@@ -142,10 +142,10 @@ def verification_readiness() -> dict[str, Any]:
     for _k in ("LEADX_SMTP_PROBE_TIMEOUT", "LEADX_SMTP_CONNECT_TIMEOUT", "LEADX_SMTP_PROBE_CONCURRENCY", "LEADX_SMTP_GREYLIST_RETRIES", "LEADX_SMTP_GREYLIST_DELAY", "LEADX_SMTP_PORT"):
         _v = (os.getenv(_k) or "").strip()
         try:
-            if _v and float(_v) < 0:
+            if _v and not 0 <= float(_v) < float("inf"):
                 raise ValueError
         except ValueError:
-            errors.append(f"{_k}={_v!r} must be a non-negative number.")
+            errors.append(f"{_k}={_v!r} must be a finite non-negative number.")
     if _socks_proxy():
         try:
             import socks  # noqa: F401
@@ -341,10 +341,10 @@ def _probe_host(host: str, email: str, *, helo: str, mail_from: str, timeout: fl
             srv.rset()  # fresh transaction before the catch-all control address
             if srv.mail(mail_from)[0] >= 400:
                 return {"result": "unknown", "reason": "catch_all_check_failed", **base}
-            pcode, _ = srv.rcpt(f"lx-{secrets.token_hex(6)}@{domain}")
+            pcode, pmsg = srv.rcpt(f"lx-{secrets.token_hex(6)}@{domain}")
             if pcode in (250, 251):
                 return {"result": "accept_all", "reason": "catch_all_domain", **base}
-            if pcode >= 500:
+            if pcode >= 500 and any(t in _rcpt_text(pmsg) for t in _USER_UNKNOWN):  # a policy/quota 5xx says nothing about the mailbox
                 return {"result": "valid", "reason": "rcpt_accepted_non_catch_all", **base}
             return {"result": "unknown", "reason": "catch_all_check_inconclusive", **base}  # 4xx on the control: never valid
         if 400 <= rcode < 500:
@@ -454,11 +454,17 @@ async def local_smtp_probe(email: str) -> dict[str, Any]:
         _probe_global_sem = asyncio.Semaphore(max(1, int(_envnum("LEADX_SMTP_PROBE_CONCURRENCY", 8))))
     host_sem = _probe_host_sems.setdefault(hosts[0].lower(), asyncio.Semaphore(2))
     timeout = _envnum("LEADX_SMTP_PROBE_TIMEOUT", 12)
-    async with _probe_global_sem, host_sem:
-        if not _port25_open():  # the breaker may have tripped while this probe waited for a slot: don't burn another timeout
-            obs["reason"] = "smtp_egress_blocked"; return obs
-        res = await asyncio.to_thread(_smtp_probe_sync, e, hosts, helo=helo, mail_from=mail_from, timeout=timeout,
-                                     port=int(_envnum("LEADX_SMTP_PORT", 25)))
+    retries = int(_envnum("LEADX_SMTP_GREYLIST_RETRIES", 1))
+    for attempt in range(retries + 1):
+        if attempt:
+            await asyncio.sleep(_envnum("LEADX_SMTP_GREYLIST_DELAY", 15))  # waited outside the semaphores so greylisters don't stall the pool
+        async with _probe_global_sem, host_sem:
+            if not _port25_open():  # the breaker may have tripped while this probe waited for a slot: don't burn another timeout
+                obs["reason"] = "smtp_egress_blocked"; return obs
+            res = await asyncio.to_thread(_smtp_probe_sync, e, hosts, helo=helo, mail_from=mail_from, timeout=timeout,
+                                         port=int(_envnum("LEADX_SMTP_PORT", 25)), greylist_retries=0)
+        if res.get("reason") != "greylisted":
+            break
     result = res.get("result", "unknown")
     out = {"status": result, "reason": res.get("reason"), "mx": res.get("mx"), "smtp_code": res.get("code"), "tls": res.get("tls")}
     if result == "valid":

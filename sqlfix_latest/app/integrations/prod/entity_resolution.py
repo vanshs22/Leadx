@@ -138,7 +138,7 @@ def _merge_record(a: dict, b: dict) -> dict:
     from app.integrations.prod import contact_candidates as cc
     def _own(r: dict) -> dict:
         r = dict(r)
-        for k in ("email_candidates", "phone_candidates"):
+        for k in ("email_contacts", "phone_contacts"):
             r[k] = [dict(c) for c in r.get(k) or []]
         return cc.seed_from_fields(r, _origin(r))
     out = cc.merge(_own(a), _own(b))
@@ -147,7 +147,7 @@ def _merge_record(a: dict, b: dict) -> dict:
         if a.get(k) and k not in prov:
             prov[k] = _origin(a)
     for k, v in b.items():
-        if k in ("sources_hit", "source", "field_sources", "email_candidates", "phone_candidates"):
+        if k in ("sources_hit", "source", "field_sources", "email_contacts", "phone_contacts"):
             continue
         if v is None or v == "" or v == [] or v == {}:
             continue

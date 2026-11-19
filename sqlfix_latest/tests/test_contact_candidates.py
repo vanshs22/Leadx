@@ -12,7 +12,7 @@ def test_dedupe_normalizes_and_keeps_provenance():
     assert not cc.add(lead, "email", "info@oak.com", "website", 0.8, "verified")
     assert cc.add(lead, "phone", "(512) 482-1234", "osm")
     assert not cc.add(lead, "phone", "+1 512-482-1234", "nppes")
-    (e,), (p,) = lead["email_candidates"], lead["phone_candidates"]
+    (e,), (p,) = lead["email_contacts"], lead["phone_contacts"]
     assert e["source"] == "website" and e["status"] == "verified" and e["also_seen"] == ["directory"]
     assert p["value"] == "+15124821234" and {"source", "confidence", "observed_at", "status"} <= set(p)
     assert not cc.add(lead, "email", "not-an-email", "x")
@@ -26,7 +26,7 @@ def test_primary_ranking():
     assert cc.choose_primary(lead, "email", "https://www.oak.com") == "someone@gmail.com"  # verified beats inferred
     cc.add(lead, "email", "owner@oak.com", "website", 0.8, "verified")
     assert cc.choose_primary(lead, "email", "https://www.oak.com") == "owner@oak.com"  # then own domain
-    assert cc.choose_primary({"email_candidates": [{"value": "x@y.com", "source": "overture", "identity": False}]}, "email") is None
+    assert cc.choose_primary({"email_contacts": [{"value": "x@y.com", "source": "overture", "identity": False}]}, "email") is None
 
 
 def test_merge_keeps_both_contacts():
@@ -34,16 +34,16 @@ def test_merge_keeps_both_contacts():
     b = {"name": "Oak Dental", "source": "nppes", "sources_hit": ["nppes"], "phone": "5124821299", "email": "b@oak.com"}
     out = er._merge_record(a, b)
     assert out["phone"] == "5124821234" and out["email"] == "a@oak.com"  # primary unchanged
-    assert {c["value"] for c in out["phone_candidates"]} == {"+15124821234", "+15124821299"}
-    assert {c["value"] for c in out["email_candidates"]} == {"a@oak.com", "b@oak.com"}
-    assert {c["source"] for c in out["phone_candidates"]} == {"osm", "nppes"}
+    assert {c["value"] for c in out["phone_contacts"]} == {"+15124821234", "+15124821299"}
+    assert {c["value"] for c in out["email_contacts"]} == {"a@oak.com", "b@oak.com"}
+    assert {c["source"] for c in out["phone_contacts"]} == {"osm", "nppes"}
 
 
 def test_directory_email_of_other_business_is_candidate_not_primary():
     from app.integrations.prod.free_discovery import _row
     row = _row({"name": "Oak Dental", "website": "https://oakdental.com", "email": "x@otherclinic.com", "phone": "5124821234", "id": "1"}, "dentist", "Austin, TX", "overture")
     assert not row.get("email")
-    assert row["email_candidates"][0]["identity"] is False and "overture" in row["phone_candidates"][0]["also_seen"]
+    assert row["email_contacts"][0]["identity"] is False and "overture" in row["phone_contacts"][0]["also_seen"]
     ok = _row({"name": "Oak Dental", "website": "https://oakdental.com", "email": "hi@oakdental.com", "id": "2"}, "dentist", "Austin, TX", "overture")
     assert ok["email"] == "hi@oakdental.com"
 
@@ -93,5 +93,12 @@ def test_phone_only_site_still_runs_email_sources(monkeypatch):
     out = asyncio.run(enricher.enrich_one("https://oakdental.com", use_crawl4ai=False, use_firecrawl=False, company_name="Oak Dental", city="Austin"))
     assert seen["want"] == ("email",) and "places" not in (seen["sources"] or "")
     assert out["email"] == "hello@oakdental.com" and out["phone_from_web"]
-    assert {c["source"] for c in out["email_candidates"]} == {"alt:directory:x"}
-    assert out["phone_candidates"][0]["status"] == "verified"
+    assert {c["source"] for c in out["email_contacts"]} == {"alt:directory:x"}
+    assert out["phone_contacts"][0]["status"] == "verified"
+
+
+def test_legacy_string_email_candidates_do_not_collide():
+    lead = {"email_candidates": ["guess@oak.com"]}
+    cc.add(lead, "email", "a@oak.com", "website")
+    assert lead["email_candidates"] == ["guess@oak.com"] and lead["email_contacts"][0]["value"] == "a@oak.com"
+    cc.merge(lead, {"email_candidates": ["x@y.com"]})

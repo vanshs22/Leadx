@@ -1,6 +1,6 @@
 """Every email/phone seen for a lead, from every source, with provenance.
 
-lead["email_candidates"] / lead["phone_candidates"] are lists of
+lead["email_contacts"] / lead["phone_contacts"] are lists of
 {value, source, confidence, observed_at, status: verified|inferred, identity: bool, also_seen: [sources]}.
 The primary lead["email"] / lead["phone"] fields stay as they were for existing consumers; ``choose_primary`` picks them from the candidates.
 Nothing is dropped on merge: a second source with a different number or address becomes another candidate.
@@ -13,7 +13,7 @@ from typing import Iterable, Optional
 
 from app.integrations.prod.utils import to_e164
 
-_KEYS = {"email": "email_candidates", "phone": "phone_candidates"}
+_KEYS = {"email": "email_contacts", "phone": "phone_contacts"}
 # Lower is better. Own-site and structured registry data beat directory listings, which beat free-text search snippets.
 SOURCE_RANK = {"website": 0, "jsonld": 0, "tel_link": 0, "mailto": 0, "site": 0, "nppes": 1, "companies_house": 1, "places": 1, "google_maps": 1, "maps": 1,
                "alt": 2, "search": 3, "directory": 3, "osm": 3, "overture": 4, "social": 4, "serper": 4, "hints": 5}
@@ -100,15 +100,3 @@ def choose_primary(lead: dict, kind: str, website: Optional[str] = None) -> Opti
         return (c.get("status") != "verified", not own, _rank(c.get("source")), -float(c.get("confidence") or 0))
     return min(cands, key=key)["value"]
 
-
-def apply_primary(lead: dict) -> dict:
-    """Fill lead email/phone from candidates only when empty, so existing primary values and consumers are untouched."""
-    if not lead.get("email"):
-        lead["email"] = choose_primary(lead, "email")
-        if not lead["email"]:
-            lead.pop("email")
-    if not (lead.get("phone") or lead.get("phone_e164") or lead.get("phone_from_web")):
-        p = choose_primary(lead, "phone")
-        if p:
-            lead["phone"] = p
-    return lead
