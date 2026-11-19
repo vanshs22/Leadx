@@ -753,7 +753,7 @@ async def enrich_one(website: str, use_crawl4ai: bool = True, use_firecrawl: boo
         "owner_name": parsed.get("owner_name"),
         "decision_makers": parsed.get("decision_makers") or [],
         "markdown_summary": (md or "")[:4000] or None,
-        "raw_extraction": parsed,
+        "raw_extraction": {**parsed, "field_provenance": prov, "profile": profile, "acquisition": {k: v for k, v in meta.items() if k != "attempts"}},  # persisted in enrichment.raw_extraction
         "profile": profile,
         "field_provenance": prov,
         "acquisition": meta,

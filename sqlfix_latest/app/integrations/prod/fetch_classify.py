@@ -46,8 +46,7 @@ _PATTERNS: list[tuple[str, re.Pattern]] = [
     ("js_challenge", re.compile(r"Checking your browser|enable javascript and cookies to continue|please wait while we verify|verifying you are human|are you a robot|unusual traffic|bot protection|ddos protection by", re.I)),
     ("access_denied", re.compile(r"<title>[^<]*(access denied|forbidden|blocked|not authorized)[^<]*</title>|you don'?t have permission to access|your access to this site has been (limited|blocked)|request blocked|error 1020", re.I)),
 ]
-# captcha widgets sit on ordinary contact forms; they only mean "blocked" when the page is an interstitial or an error status
-_WIDGET_ONLY = {"recaptcha", "hcaptcha", "js_challenge", "akamai", "incapsula", "cloudflare"}
+_PROMPT = re.compile(r"verify|human|robot|unusual traffic|are you|checking|challenge", re.I)
 _RATE = re.compile(r"rate limit exceeded|too many requests|error 1015|you are being rate limited", re.I)
 _STUB_REDIRECT = re.compile(r"""location(?:\.href|\.replace\()?\s*=?\s*\(?["']|http-equiv=["']?refresh""", re.I)
 _PARKED = re.compile(r"domain (?:is )?for sale|buy this domain|this domain may be for sale|parked (?:free|domain)|sedoparking|hugedomains|dan\.com/buy|account suspended|website (?:is )?(?:coming soon|under construction)|default web site page|apache2? (?:ubuntu )?default page|welcome to nginx", re.I)
@@ -98,8 +97,8 @@ def classify_response(status: Optional[int], body: str = "", headers: Optional[d
         return Verdict(cat, "challenge", False, _COOLDOWN["challenge"])
     for cat, rx in _PATTERNS:
         if rx.search(head):
-            if not interstitial:
-                continue  # marker strings (px-captcha, cf-chl, recaptcha...) also sit in the scripts of ordinary full pages
+            if not interstitial or (cat in ("recaptcha", "hcaptcha") and status < 400 and not (len(body) < 8000 and _PROMPT.search(head))):
+                continue  # a form widget alone is not a challenge; a challenge page also tells the visitor to verify. Marker strings (px-captcha, cf-chl, recaptcha...) also sit in the scripts of ordinary full pages
             kind = "challenge"
             return Verdict(cat, kind, False, _COOLDOWN["challenge"])
     if status == 429 or (status < 500 and _RATE.search(head) and short):

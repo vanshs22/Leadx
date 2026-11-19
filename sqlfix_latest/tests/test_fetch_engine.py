@@ -14,7 +14,7 @@ def test_classifier_vendors_and_status():
         (403, "<title>Just a moment...</title><script src='/cdn-cgi/challenge-platform/x'></script>", {}, "cloudflare"),
         (202, '<meta http-equiv="refresh" content="0;/.well-known/sgcaptcha/?r=x">', {}, "sgcaptcha"),
         (200, "<html><div class='h-captcha'></div><p>Please verify</p></html>", {}, "hcaptcha"),
-        (200, "<html><div class='g-recaptcha'></div></html>", {}, "recaptcha"),
+        (200, "<html><p>Verify you are human</p><div class='g-recaptcha'></div></html>", {}, "recaptcha"),
         (403, "x", {"x-datadome": "protected"}, "datadome"),
         (403, "<div id='px-captcha'></div>", {}, "perimeterx"),
         (403, "<title>Access Denied</title>", {}, "access_denied"),
@@ -43,6 +43,25 @@ async def test_cooldown_does_not_spread_across_platform_subdomains():
     assert not (await e.acquire("https://bad.glossgenius.com/"))["ok"]
     assert (await e.acquire("https://good.glossgenius.com/"))["ok"]                      # another business on the same platform
     assert (await e.acquire("https://other.example.org/"))["ok"] and fe.registered_domain("https://a.b.co.uk/") == "b.co.uk"
+
+
+def test_thin_one_page_site_with_a_recaptcha_form_is_not_a_challenge():
+    thin = "<html><head><title>Ann Lee Law</title></head><body><h1>Ann Lee Law</h1><p>Call us.</p><form><div class='g-recaptcha'></div></form></body></html>"
+    assert classify_response(200, thin).usable
+    prompt = "<html><body><p>Please verify you are human</p><div class='g-recaptcha'></div></body></html>"
+    assert classify_response(200, prompt).category == "recaptcha"
+
+
+async def test_retry_after_http_date_does_not_crash_and_cache_hits_cost_nothing(monkeypatch):
+    e = Stub({"direct": {"status": 429, "html": "busy", "error": None, "headers": {"Retry-After": "Wed, 21 Oct 2026 07:28:00 GMT"}}})
+    r = await e.acquire("https://slow.com/")
+    assert r["category"] == "http_429" and e.calls == ["direct"]
+    assert fe._retry_after({"retry-after": "3"}) == 3 and fe._retry_after({}) == 99
+    monkeypatch.setenv("LEADX_FETCH_CACHE_SECONDS", "60")
+    e2 = Stub({"direct": page()})
+    first = await e2.acquire("https://paid.com/")
+    e2.cache["https://paid.com/"][1]["cost"] = 1.0
+    assert (await e2.acquire("https://paid.com/"))["cost"] == 0.0 and first["ok"]
 
 
 def test_captcha_widget_on_a_real_page_is_not_a_challenge():
@@ -166,6 +185,7 @@ def test_identity_gate_refuses_lookalikes():
     assert not alt_recovery.identity_match(hint, {"name": "Smile Dental of Austin"})[0]                                  # name alone never merges
     assert alt_recovery.identity_match(hint, {"name": "Smile Dental", "phone": "(512) 555-9999"})[2] == "phone_conflict"  # same name, other phone
     assert alt_recovery.identity_match(hint, {"name": "Smile Dental of Austin", "address": "9 Oak Ave, Austin, TX 78759"})[2] == "zip_conflict"
+    assert not alt_recovery.identity_match({"name": "Smile Dental", "address": "100 Main St"}, {"name": "Smile Dental", "address": "100 Main Street, Dallas"})[0]   # street alone, no ZIP on either side
     assert alt_recovery.identity_match(hint, {"name": "Smile Austin", "website": "https://www.smileaustin.com/contact"})[0]  # same domain + compatible name
 
 

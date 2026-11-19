@@ -91,3 +91,19 @@ def seed_history(sb, days: int = 14, limit: int = 20000) -> int:
             if left > 0:
                 eng.domains[r["domain"]] = Domain(time.time() + left, r["category"], r["kind"], r["category"], time.time() - age)
     return len(rows)
+
+
+_seeded = False
+
+
+def seed_once() -> None:
+    """Warm engine history from the database the first time enrichment runs in this process. Never raises."""
+    global _seeded
+    if _seeded:
+        return
+    _seeded = True
+    try:
+        from app.memory.supabase_client import get_supabase
+        seed_history(get_supabase())
+    except Exception as exc:
+        logger.debug("history seed skipped: %s", type(exc).__name__)

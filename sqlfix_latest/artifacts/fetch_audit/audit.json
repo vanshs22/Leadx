@@ -160,12 +160,6 @@
      "status": 403,
      "ms": 331,
      "error": ""
-    },
-    "browser_probe": {
-     "category": "cloudflare",
-     "usable": false,
-     "status": 403,
-     "ms": 1808
     }
    }
   },
@@ -225,12 +219,6 @@
      "status": 202,
      "ms": 408,
      "error": ""
-    },
-    "browser_probe": {
-     "category": "sgcaptcha",
-     "usable": false,
-     "status": 202,
-     "ms": 750
     }
    }
   },
@@ -443,12 +431,6 @@
      "status": 202,
      "ms": 653,
      "error": ""
-    },
-    "browser_probe": {
-     "category": "sgcaptcha",
-     "usable": false,
-     "status": 202,
-     "ms": 737
     }
    }
   },
@@ -474,12 +456,6 @@
      "status": 202,
      "ms": 653,
      "error": ""
-    },
-    "browser_probe": {
-     "category": "sgcaptcha",
-     "usable": false,
-     "status": 202,
-     "ms": 773
     }
    }
   },
@@ -522,12 +498,6 @@
      "status": 202,
      "ms": 704,
      "error": ""
-    },
-    "browser_probe": {
-     "category": "sgcaptcha",
-     "usable": false,
-     "status": 202,
-     "ms": 861
     }
    }
   },
@@ -604,12 +574,6 @@
      "status": 403,
      "ms": 985,
      "error": ""
-    },
-    "browser_probe": {
-     "category": "cloudflare",
-     "usable": false,
-     "status": 403,
-     "ms": 1621
     }
    }
   },
@@ -652,12 +616,6 @@
      "status": 202,
      "ms": 689,
      "error": ""
-    },
-    "browser_probe": {
-     "category": "sgcaptcha",
-     "usable": false,
-     "status": 202,
-     "ms": 734
     }
    }
   },
@@ -717,12 +675,6 @@
      "status": 202,
      "ms": 158,
      "error": ""
-    },
-    "browser_probe": {
-     "category": "sgcaptcha",
-     "usable": false,
-     "status": 202,
-     "ms": 593
     }
    }
   },
@@ -918,12 +870,6 @@
      "status": 202,
      "ms": 529,
      "error": ""
-    },
-    "browser_probe": {
-     "category": "sgcaptcha",
-     "usable": false,
-     "status": 202,
-     "ms": 743
     }
    }
   },
@@ -1485,12 +1431,6 @@
      "status": 403,
      "ms": 405,
      "error": ""
-    },
-    "browser_probe": {
-     "category": "cloudflare",
-     "usable": false,
-     "status": 403,
-     "ms": 758
     }
    }
   },
@@ -1765,12 +1705,6 @@
      "status": 403,
      "ms": 142,
      "error": ""
-    },
-    "browser_probe": {
-     "category": "http_403",
-     "usable": false,
-     "status": 403,
-     "ms": 565
     }
    }
   },
@@ -1813,12 +1747,6 @@
      "status": 403,
      "ms": 259,
      "error": ""
-    },
-    "browser_probe": {
-     "category": "cloudflare",
-     "usable": false,
-     "status": 403,
-     "ms": 2808
     }
    }
   },
@@ -1844,12 +1772,6 @@
      "status": 403,
      "ms": 212,
      "error": ""
-    },
-    "browser_probe": {
-     "category": "cloudflare",
-     "usable": false,
-     "status": 403,
-     "ms": 2821
     }
    }
   },
@@ -1892,12 +1814,6 @@
      "status": 403,
      "ms": 106,
      "error": ""
-    },
-    "browser_probe": {
-     "category": "cloudflare",
-     "usable": false,
-     "status": 403,
-     "ms": 1803
     }
    }
   },
@@ -2004,12 +1920,6 @@
      "status": 403,
      "ms": 263,
      "error": ""
-    },
-    "browser_probe": {
-     "category": "cloudflare",
-     "usable": false,
-     "status": 403,
-     "ms": 4201
     }
    }
   },
@@ -2318,12 +2228,6 @@
      "status": 202,
      "ms": 276,
      "error": ""
-    },
-    "browser_probe": {
-     "category": "sgcaptcha",
-     "usable": false,
-     "status": 202,
-     "ms": 675
     }
    }
   },
@@ -2517,12 +2421,6 @@
      "status": 403,
      "ms": 109,
      "error": ""
-    },
-    "browser_probe": {
-     "category": "cloudflare",
-     "usable": false,
-     "status": 403,
-     "ms": 2209
     }
    }
   },
@@ -2582,12 +2480,6 @@
      "status": 202,
      "ms": 473,
      "error": ""
-    },
-    "browser_probe": {
-     "category": "sgcaptcha",
-     "usable": false,
-     "status": 202,
-     "ms": 945
     }
    }
   },
@@ -2679,12 +2571,6 @@
      "status": 202,
      "ms": 295,
      "error": ""
-    },
-    "browser_probe": {
-     "category": "sgcaptcha",
-     "usable": false,
-     "status": 202,
-     "ms": 766
     }
    }
   },
@@ -2793,12 +2679,6 @@
      "status": 202,
      "ms": 121,
      "error": ""
-    },
-    "browser_probe": {
-     "category": "sgcaptcha",
-     "usable": false,
-     "status": 202,
-     "ms": 604
     }
    }
   },
@@ -3128,12 +3008,6 @@
      "status": 403,
      "ms": 111,
      "error": ""
-    },
-    "browser_probe": {
-     "category": "cloudflare",
-     "usable": false,
-     "status": 403,
-     "ms": 1654
     }
    }
   },
@@ -3159,12 +3033,6 @@
      "status": 403,
      "ms": 69,
      "error": ""
-    },
-    "browser_probe": {
-     "category": "cloudflare",
-     "usable": false,
-     "status": 403,
-     "ms": 1517
     }
    }
   },
@@ -3445,12 +3313,6 @@
      "status": 403,
      "ms": 91,
      "error": ""
-    },
-    "browser_probe": {
-     "category": "cloudflare",
-     "usable": false,
-     "status": 403,
-     "ms": 1440
     }
    }
   },
@@ -3493,12 +3355,6 @@
      "status": 403,
      "ms": 106,
      "error": ""
-    },
-    "browser_probe": {
-     "category": "cloudflare",
-     "usable": false,
-     "status": 403,
-     "ms": 704
     }
    }
   },
@@ -3558,12 +3414,6 @@
      "status": 202,
      "ms": 159,
      "error": ""
-    },
-    "browser_probe": {
-     "category": "sgcaptcha",
-     "usable": false,
-     "status": 202,
-     "ms": 672
     }
    }
   },

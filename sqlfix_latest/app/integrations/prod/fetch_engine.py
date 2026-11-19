@@ -220,9 +220,14 @@ class Engine:
 
     async def _browser_fetch(self, url: str, timeout: float) -> dict:
         """Local headless Chromium with its own honest user agent. Images/media/fonts are not loaded, and every request it makes
-        (including sub-requests and redirects) is checked as a public URL, same as the HTTP path."""
+        (including sub-requests and redirects) is checked as a public URL, same as the HTTP path.
+        shortcut: Chromium re-resolves DNS after our check (rebinding window), same limit as any pre-resolved check; upgrade by running the browser in a network namespace without private routes."""
         browser = await self._get_browser()
-        ctx = await browser.new_context(java_script_enabled=True, ignore_https_errors=False)
+        ctx = await browser.new_context(java_script_enabled=True, ignore_https_errors=False, service_workers="block")
+        try:  # route() does not see WebSockets; a hostile page must not be able to open one to an internal host
+            await ctx.route_web_socket("**/*", lambda ws: asyncio.ensure_future(ws.close()))
+        except AttributeError:
+            logger.debug("playwright without route_web_socket")
         seen: dict[str, bool] = {}
 
         async def gate(route):
@@ -333,7 +338,7 @@ class Engine:
         elif v.category in ("dns", "connect", "tls", "disconnect", "network_other"):
             host = p.netloc[4:] if p.netloc.startswith("www.") else "www." + p.netloc
             alt = f"{'http' if p.scheme == 'https' else 'https'}://{host}{p.path or '/'}"
-        elif v.category == "http_429" and float(raw.get("headers", {}).get("retry-after", raw.get("headers", {}).get("Retry-After", 99)) or 99) <= 5:
+        elif v.category == "http_429" and _retry_after(raw.get("headers") or {}) <= 5:
             await asyncio.sleep(2.0); alt = url
         if alt and not await assert_public_url(alt):
             raw2, v2, a2 = await self.run_provider("direct", alt, v.category); atts.append(a2)
@@ -357,7 +362,7 @@ class Engine:
         ttl = float(os.getenv("LEADX_FETCH_CACHE_SECONDS", "300"))
         hit = self.cache.get(url)
         if hit and time.time() - hit[0] < ttl:
-            return {**hit[1], "cached": True, "attempts": []}
+            return {**hit[1], "cached": True, "attempts": [], "cost": 0.0}   # a cache hit spends nothing
         cool = self.cooling(url)
         if cool:
             out.update(error=f"cooldown:{cool.category}", category=cool.category, kind=cool.kind, cooldown=True)
@@ -386,12 +391,21 @@ class Engine:
         out["challenge"] = v.category if v.is_challenge else None
         if v.usable:
             self.cache[url] = (time.time(), {k: val for k, val in out.items() if k != "attempts"})
-            if len(self.cache) > 4000:
+            if len(self.cache) > 1000:
                 self.cache.pop(next(iter(self.cache)))
         else:
             self.mark(url, v)
         tel.record_attempts(atts)
         return out
+
+
+def _retry_after(headers: dict) -> float:
+    """Seconds from a Retry-After header; an HTTP-date or garbage value counts as 'long' (no immediate retry)."""
+    v = {str(k).lower(): str(x) for k, x in headers.items()}.get("retry-after", "")
+    try:
+        return float(v)
+    except ValueError:
+        return 99.0
 
 
 def _site_side(msg: str) -> bool:

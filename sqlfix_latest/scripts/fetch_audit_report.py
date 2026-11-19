@@ -55,10 +55,8 @@ def write_report(out_dir):
         ok = [r for r in tried if r["others"][p]["usable"]]
         by = Counter(r["direct"]["category"] for r in ok)
         prov.append((p, len(tried), len(ok), pct(len(ok), len(tried)), dict(by)))
-    probe = [r for r in audit if "browser_probe" in r["others"]]
-    pk = [r for r in probe if r["others"]["browser_probe"]["usable"]]
     L += ["### What each fallback provider recovers (sites the direct fetch could not use)", "", table(["Provider", "Tried", "Recovered", "Rate", "Recovered by direct verdict"], prov), "",
-          f"Measurement only: a real headless browser on {len(probe)} challenged sites got a usable page on {len(pk)} (an earlier run on a different 450-site sample found 2 of 25, both plain 403/'access denied' responses). The engine does not do this: 403/429/challenge responses stop the cascade, set a cooldown and go to the human-verification queue.", "",
+          "Sites that answered with a challenge or 403/429 are not retried with another provider, not even for measurement; the table covers only dead-site, network and rendering failures.", "",
           "Reading: Scrapling recovers almost nothing the direct fetch misses. The browser's value depends on how many sites drop plain HTTP clients: an earlier run on a different 450-site sample (direct usable 72.4%) had the browser recover 24 of 97 failed sites (16 of 19 server disconnects, 7 of 9 5xx answers, 1 empty body) and Scrapling 1 of 124; in the sample above there were only 7 disconnects and 1 5xx, so it recovers little. The engine's starting priors (`fetch_engine.History.PRIORS`) come from that earlier run and are replaced by live history as attempts accumulate.", ""]
     dom = defaultdict(int)
     for r in audit:

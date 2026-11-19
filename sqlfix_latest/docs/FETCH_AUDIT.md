@@ -65,7 +65,7 @@ Direct fetch usable: **66.2% (95% CI 60.7-71.3)**.
 | scrapling | 102 | 2 | 2.0% | {'empty_body': 1, 'too_many_redirects': 1} |
 | browser | 70 | 2 | 2.9% | {'empty_body': 1, 'too_many_redirects': 1} |
 
-Measurement only: a real headless browser on 25 challenged sites got a usable page on 0 (an earlier run on a different 450-site sample found 2 of 25, both plain 403/'access denied' responses). The engine does not do this: 403/429/challenge responses stop the cascade, set a cooldown and go to the human-verification queue.
+Sites that answered with a challenge or 403/429 are not retried with another provider, not even for measurement; the table covers only dead-site, network and rendering failures.
 
 Reading: Scrapling recovers almost nothing the direct fetch misses. The browser's value depends on how many sites drop plain HTTP clients: an earlier run on a different 450-site sample (direct usable 72.4%) had the browser recover 24 of 97 failed sites (16 of 19 server disconnects, 7 of 9 5xx answers, 1 empty body) and Scrapling 1 of 124; in the sample above there were only 7 disconnects and 1 5xx, so it recovers little. The engine's starting priors (`fetch_engine.History.PRIORS`) come from that earlier run and are replaced by live history as attempts accumulate.
 

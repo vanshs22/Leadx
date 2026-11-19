@@ -284,6 +284,8 @@ async def enrich(leads: list[dict], *, max_concurrent: int = 5,
         context = execution_context
     else:
         context = ProviderExecutionContext.from_lead(leads[0], **dict(execution_context or {}))
+    from app.integrations.prod import fetch_telemetry as _ft
+    await asyncio.to_thread(_ft.seed_once)
     sem = asyncio.Semaphore(max(1, max_concurrent))
 
     async def one(lead: dict) -> dict:

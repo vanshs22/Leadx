@@ -71,7 +71,7 @@ def identity_match(hint: dict, cand: dict) -> tuple[bool, list[str], str]:
     hs, cs = _street(hint.get("address")), _street(cand.get("address"))
     if hz and cz and hz != cz and not same_domain:
         return False, [], "zip_conflict"
-    if hs[0] and hs == cs and (not hz or not cz or hz == cz):
+    if hs[0] and hs == cs and hz and cz and hz == cz:   # street number+name alone repeats across cities; the ZIP must agree too
         strong.append("address")
     name_ok = bool(cand.get("name") and hint.get("name") and names_compatible(str(hint["name"]), str(cand["name"])))
     if len(strong) >= 2 or (strong and (name_ok or not cand.get("name"))):

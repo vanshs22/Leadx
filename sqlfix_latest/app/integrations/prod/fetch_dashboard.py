@@ -34,6 +34,7 @@ def compute_fetching(sb, tenant_id: str, *, date_from: Optional[str] = None, dat
     if provider:
         outcomes = [o for o in outcomes if o.get("provider") == provider]
     n = len(outcomes)
+    truncated = n >= limit or len(attempts) >= limit
     cats = Counter(o.get("category") or "unknown" for o in outcomes if not o.get("website_fetched"))
     fetched = sum(1 for o in outcomes if o.get("website_fetched"))
     recovered = sum(1 for o in outcomes if o.get("acquisition") == "recovered")
@@ -57,7 +58,7 @@ def compute_fetching(sb, tenant_id: str, *, date_from: Optional[str] = None, dat
     comp = [float(o["completeness"]) for o in outcomes if o.get("completeness") is not None]
     secs = [float(o["elapsed_ms"]) / 1000 for o in outcomes if o.get("elapsed_ms")]
     return {
-        "window": {"from": date_from, "to": date_to}, "filters": {"provider": provider, "category": category, "source": source},
+        "truncated": truncated, "window": {"from": date_from, "to": date_to}, "filters": {"provider": provider, "category": category, "source": source},
         "websites_attempted": n, "successful_fetches": fetched, "fetch_success_pct": _pct(fetched, n),
         "captcha_blocked": sum(v for k, v in cats.items() if k in CHALLENGE_CATEGORIES or k in ("http_403", "http_429")),
         "challenge_breakdown": {k: v for k, v in cats.items() if k in CHALLENGE_CATEGORIES or k in ("http_403", "http_429")},

@@ -78,20 +78,14 @@ async def audit(limit, sites_file="sites.json"):
                    "server": (raw.get("headers") or {}).get("server") or (raw.get("headers") or {}).get("Server")}, "others": {}}
             if not v.usable:
                 for prov in ("scrapling", "browser"):
-                    if prov == "browser" and v.kind in ("challenge", "rate_limit"):
-                        # measured once on a small sample below; the engine itself never escalates a challenge
-                        continue
+                    if v.kind in ("challenge", "rate_limit"):
+                        continue  # a refused or challenged site is not retried with other tools, even for measurement
                     r2, v2, a2 = await eng.run_provider(prov, url, v.category)
                     row["others"][prov] = {"category": v2.category, "usable": v2.usable, "status": r2.get("status"), "ms": a2["ms"], "error": (r2.get("error") or "")[:100]}
             rows.append(row)
 
     t = time.monotonic()
     await asyncio.gather(*(one(s) for s in sites))
-    # challenge sites: does a real browser get a different answer? (measurement only, 25 sites, not an engine path)
-    probe = [r for r in rows if r["direct"]["kind"] in ("challenge", "rate_limit")][:25]
-    for r in probe:
-        r2, v2, a2 = await eng.run_provider("browser", r["site"], r["direct"]["category"])
-        r["others"]["browser_probe"] = {"category": v2.category, "usable": v2.usable, "status": r2.get("status"), "ms": a2["ms"]}
     await eng.close()
     _jl("audit.json", {"n": len(rows), "wall_s": round(time.monotonic() - t, 1), "rows": rows})
     summarize_audit(rows)
