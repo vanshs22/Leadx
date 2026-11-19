@@ -287,6 +287,8 @@ class Engine:
             return os.getenv("LEADX_FETCH_BROWSER", "1") != "0"
         if provider == "crawl4ai":
             try:
+                from app.integrations.prod.enricher import ensure_crawl4ai_dir
+                ensure_crawl4ai_dir()
                 import crawl4ai  # noqa: F401
             except ImportError:
                 return False

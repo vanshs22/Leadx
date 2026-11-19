@@ -123,6 +123,7 @@ alternative sources (alt_recovery): discovery hints -> Internet Archive snapshot
 |---|---|---|
 | `LEADX_FETCH_ENGINE` | 1 | 0 restores the previous direct-then-Scrapling path and disables alternative-source recovery |
 | `LEADX_FETCH_PROVIDERS` | direct,scrapling,browser,crawl4ai,firecrawl | providers the engine may use |
+| `CRAWL4_AI_BASE_DIRECTORY` | `~` if writable, else `$TMPDIR/leadx-crawl4ai` | Crawl4AI keeps its cache in `<dir>/.crawl4ai` and reads this at import. The app sets it before the first import only when unset; set it yourself (and mount a volume) in read-only containers |
 | `LEADX_FETCH_BROWSER` / `LEADX_FETCH_BROWSER_CONCURRENCY` | 1 / 4 | local Playwright Chromium (needs `playwright install chromium`) |
 | `LEADX_FETCH_HOST_CONCURRENCY` | 2 | simultaneous requests per site (engine level); `LEADX_HOST_CONNECTIONS` (2) caps in-flight requests per host in `net_safety.safe_get` |
 | `LEADX_FETCH_NET_RETRY` | 1 | retry timeout/disconnect/connect/network_other once after 0.5-1.5 s with 1.75x the timeout, before the scheme/www flip |

@@ -212,6 +212,21 @@ async def fetch_scrapling(url: str, timeout: int = 20, light: bool = False) -> d
     return out
 
 
+def ensure_crawl4ai_dir() -> None:
+    """Crawl4AI reads CRAWL4_AI_BASE_DIRECTORY at import, so call this before the first import. Never overrides a user value."""
+    if os.environ.get("CRAWL4_AI_BASE_DIRECTORY"):
+        return
+    import tempfile
+    home = os.path.join(os.path.expanduser("~"), ".crawl4ai")
+    for d in (home, os.path.join(tempfile.gettempdir(), "leadx-crawl4ai")):
+        try:
+            os.makedirs(os.path.join(d, ".crawl4ai"), exist_ok=True)  # Crawl4AI appends .crawl4ai to the base dir
+            os.environ["CRAWL4_AI_BASE_DIRECTORY"] = d if d != home else os.path.expanduser("~")
+            return
+        except OSError:
+            continue
+
+
 async def fetch_crawl4ai(url: str) -> dict:
     """Render a public page and return every useful result representation.
 
@@ -227,9 +242,7 @@ async def fetch_crawl4ai(url: str) -> dict:
         out["error"] = f"blocked:{blocked}"
         return out
     try:
-        import tempfile
-        os.environ.setdefault("CRAWL4_AI_BASE_DIRECTORY", os.path.join(tempfile.gettempdir(), "leadx-crawl4ai"))  # its cache dir must be writable
-        os.makedirs(os.environ["CRAWL4_AI_BASE_DIRECTORY"], exist_ok=True)
+        ensure_crawl4ai_dir()
         from crawl4ai import AsyncWebCrawler, BrowserConfig, CacheMode, CrawlerRunConfig
         browser_config = BrowserConfig(browser_type="chromium", headless=True, verbose=False)
         # Crawl4AI defaults to the installed Google Chrome channel; use the

@@ -14,7 +14,7 @@ from urllib.parse import unquote
 logger = logging.getLogger("lead_engine")
 
 EMAIL_RE = re.compile(r"^[A-Za-z0-9!#$%&'*+\-/=?^_`{|}~]+(?:\.[A-Za-z0-9!#$%&'*+\-/=?^_`{|}~]+)*@(?:[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?\.)+[A-Za-z]{2,63}$")
-PHONE_EXTRACT_RE = re.compile(r"(\+?[0-9][0-9().\-\s]{6,}[0-9])")
+PHONE_EXTRACT_RE = re.compile(r"(\+?\(?[0-9][0-9().\-\s]{6,}[0-9])")
 EMAIL_EXTRACT_RE = re.compile(r"(?i)(?:mailto:)?[A-Z0-9.!#$%&'*+/=?^_`{|}~-]+@[A-Z0-9-]+(?:\.[A-Z0-9-]+)+")
 
 DISPOSABLE_DOMAINS = {
