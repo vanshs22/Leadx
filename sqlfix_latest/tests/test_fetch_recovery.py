@@ -333,3 +333,80 @@ async def test_firecrawl_never_runs_without_a_key_or_when_policy_or_credit_cap_f
     monkeypatch.setenv("LEADX_RUN_CREDIT_CAP", "0.5")      # one call costs 1 credit
     assert (await fe.firecrawl_last_resort("https://a.example", "js_shell"))["skipped"] == "run_credit_cap"
     assert fc == [] and "firecrawl_calls" not in fetch_telemetry.counters
+
+
+# ---- review fixes -------------------------------------------------------------------------------------------------------------
+async def test_guessed_path_pass_honors_robots(monkeypatch):
+    base = "https://site.example"
+    fetched: list = []
+
+    async def fake(url, timeout=20, light=False):
+        fetched.append(url.replace(base, ""))
+        return {"ok": True, "html": "User-agent: *\nDisallow: /contact\n" if url.endswith("/robots.txt") else "<html>p</html>", "status": 200}
+    monkeypatch.setattr(enricher, "fetch_scrapling", fake)
+    await enricher._fetch_secondary_pages(base, "", guessed=True)
+    assert "/robots.txt" in fetched and "/contact" not in fetched and len(fetched) > 1
+
+
+async def test_crawl4ai_gates_every_browser_request(monkeypatch):
+    import sys, types
+    handlers: dict = {}
+
+    class Strat:
+        def set_hook(self, name, fn):
+            handlers[name] = fn
+
+    class Crawler:
+        crawler_strategy = Strat()
+        def __init__(self, **k): pass
+        async def __aenter__(self): return self
+        async def __aexit__(self, *a): return False
+        async def arun(self, url, config):
+            class Ctx:
+                async def route(self, pat, fn): self.fn = fn
+            ctx = Ctx()
+            await handlers["on_page_context_created"](object(), context=ctx)
+            outcomes = []
+            for u in ("https://pub.example/x", "http://10.0.0.1/admin"):
+                class Route:
+                    request = types.SimpleNamespace(url=u)
+                    async def continue_(self): outcomes.append("ok")
+                    async def abort(self): outcomes.append("abort")
+                await ctx.fn(Route())
+            assert outcomes == ["ok", "abort"]
+            return types.SimpleNamespace(markdown="hi", cleaned_html="<p>hi</p>", success=True)
+    mod = types.SimpleNamespace(AsyncWebCrawler=Crawler, BrowserConfig=lambda **k: types.SimpleNamespace(), CacheMode=types.SimpleNamespace(BYPASS=1), CrawlerRunConfig=lambda **k: None)
+    monkeypatch.setitem(sys.modules, "crawl4ai", mod)
+
+    async def fake_public(u):
+        return "private" if "10.0.0.1" in u else None
+    monkeypatch.setattr(enricher, "assert_public_url", fake_public)
+    r = await enricher.fetch_crawl4ai("https://pub.example/")
+    assert r["ok"] and r["error"] is None
+
+
+async def test_firecrawl_gate_uses_recovered_and_real_cost(monkeypatch):
+    called: list = []
+
+    async def fc(url):
+        called.append(url)
+        return {"ok": True, "html": '<a href="mailto:a@b.com">x</a>', "markdown": ""}
+
+    async def scrap(url, timeout=20, light=False):
+        return {"ok": True, "html": '<html><body><div id="root"></div><noscript>enable JavaScript</noscript></body></html>', "status": 200, "method": "scrapling"}
+    from app.integrations.prod import waterfall_runtime as wf
+
+    async def noledger(*a, **k): return None
+    monkeypatch.setattr(wf, "ledger", noledger)
+    monkeypatch.setattr(enricher, "fetch_scrapling", scrap)
+    monkeypatch.setattr(enricher, "fetch_firecrawl", fc)
+    monkeypatch.setenv("FIRECRAWL_API_KEY", "fc-test")
+    monkeypatch.setenv("ENRICH_SEARCH_FALLBACK", "0")
+    monkeypatch.setenv("FIRECRAWL_CREDITS_PER_PAGE", "3")
+    monkeypatch.delenv("LEADX_PAID_FALLBACK", raising=False)
+    monkeypatch.delenv("LOCAL_VALIDATION_MODE", raising=False)
+    monkeypatch.setattr(fe, "PROVIDERS", {**fe.PROVIDERS, "firecrawl": {**fe.PROVIDERS["firecrawl"], "cost": 3.0}})
+    out = await enricher.enrich_one("https://oakdental.com", use_crawl4ai=False, use_firecrawl=True)
+    assert out["firecrawl_calls"] == 1 and called and out["acquisition"]["cost"] >= 3.0
+    # a recovered lead is refused by the gate itself
+    assert (await fe.firecrawl_last_resort("https://x.example", "js_shell", recovered=True))["skipped"] == "already_recovered"

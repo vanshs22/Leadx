@@ -236,6 +236,18 @@ async def fetch_crawl4ai(url: str) -> dict:
         # Playwright-managed Chromium binary instead.
         browser_config.chrome_channel = None
         async with AsyncWebCrawler(config=browser_config, verbose=False) as crawler:
+            seen: dict[str, bool] = {}
+
+            async def gate(route):  # same per-request SSRF gate as fetch_engine._browser_fetch: redirects and subrequests included
+                host = urlparse(route.request.url).hostname or ""
+                if host not in seen:
+                    seen[host] = not await assert_public_url(route.request.url)
+                await (route.continue_() if seen[host] else route.abort())
+
+            async def on_context(page, context, **kw):
+                await context.route("**/*", gate)
+                return page
+            crawler.crawler_strategy.set_hook("on_page_context_created", on_context)
             # wait for the load event (not just DOM ready), allow slow pages, and scroll once for lazy content
             res = await crawler.arun(url=url, config=CrawlerRunConfig(wait_until="load", page_timeout=45000, delay_before_return_html=1.0, scan_full_page=True, cache_mode=CacheMode.BYPASS))
             markdown_value = getattr(res, "markdown", "") or ""
@@ -510,7 +522,12 @@ async def _fetch_secondary_pages(base_url: str, html: str, use_firecrawl_for_sec
         except Exception as exc:  # no sitemap or a slow one never blocks the crawl
             logger.debug("sitemap plan failed: %s", type(exc).__name__)
     allowed = lambda u: robots_allows(urlparse(u).path + ("?" + urlparse(u).query if urlparse(u).query else ""), disallow)
-    if guessed:
+    if guessed:  # the sitemap plan is skipped on this pass, but robots.txt still applies
+        try:
+            robots = await fetch_scrapling(f"{urlparse(base_url).scheme}://{urlparse(base_url).netloc}/robots.txt", timeout=8, light=True)
+            disallow = parse_robots(robots.get("html") or "" if robots.get("ok") else "")[0]
+        except Exception as exc:
+            logger.debug("robots fetch failed: %s", type(exc).__name__)
         urls = [u for u in _secondary_urls(base_url, '', guess=True) if u not in tried and allowed(u)][:SECONDARY_MAX]
     else:
         linked = _secondary_urls(base_url, html, guess=False, limit=10_000)
@@ -704,6 +721,7 @@ async def enrich_one(website: str, use_crawl4ai: bool = True, use_firecrawl: boo
 
     parsed = _parse_content(content, website) if content else {}
     firecrawl_calls = 0
+    firecrawl_cost = 0.0
     site_ok = bool(content)
     hints = dict(hints or {})
     hints.setdefault("name", company_name)
@@ -788,12 +806,13 @@ async def enrich_one(website: str, use_crawl4ai: bool = True, use_firecrawl: boo
     # and only for a JS shell or an unrecovered challenge (fetch_engine.firecrawl_last_resort holds every gate, cap and cache).
     contact_missing = not parsed.get("email") and not parsed.get("phone_from_web")
     fc_cat = scrap.get("category") if not site_ok else ("js_shell" if _needs_rendering(content) else None)
-    if use_firecrawl and contact_missing and fc_cat:
+    if use_firecrawl and fc_cat:
         try:
             from app.integrations.prod import fetch_engine
-            fc = await fetch_engine.firecrawl_last_resort(website, fc_cat, recovered=False)
+            fc = await fetch_engine.firecrawl_last_resort(website, fc_cat, recovered=not contact_missing)
             if not fc["skipped"]:
                 firecrawl_calls += 1
+                firecrawl_cost += fc.get("cost", 0.0)
             fc_content = "\n".join(x for x in (fc.get("html"), fc.get("markdown")) if x)
             if fc_content:
                 content = "\n".join(x for x in (content, fc_content) if x)
@@ -846,7 +865,7 @@ async def enrich_one(website: str, use_crawl4ai: bool = True, use_firecrawl: boo
     meta.update(pages_crawled=pages_crawled, completeness=acq.completeness(prov), recovery={"sources_tried": alt.get("sources_tried", []), "found": sorted(found), "rejected": alt.get("rejected", []), "cost": alt.get("cost", 0.0),
                 "index_methods": sorted({f["method"] for f in found.values() if f.get("method")})},   # index recovery is reported apart from fetch success: website_fetched stays false
                 tokens=0, llm_candidate=content_prep.needs_llm(parsed, content_prep.main_text(html, 6000)) if site_ok else False,
-                cost=round(meta["cost"] + firecrawl_calls * 1.0 + alt.get("cost", 0.0), 4), fields=sorted(f for f, v in prov.items() if v.get("status") != "hint"))
+                cost=round(meta["cost"] + firecrawl_cost + alt.get("cost", 0.0), 4), fields=sorted(f for f, v in prov.items() if v.get("status") != "hint"))
     fetch_telemetry.record_outcome({"domain": urlparse(website).hostname, "website_fetched": site_ok, "category": meta["category"], "challenge": meta["challenge"],
                                     "acquisition": klass, "recovery_sources": meta["recovery"]["found"] and sorted({f["source"] for f in found.values()}), "completeness": meta["completeness"],
                                     "fields": meta["fields"], "elapsed_ms": meta["elapsed_ms"], "cost": meta["cost"], "tokens": 0, "provider": meta["provider"],
