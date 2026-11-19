@@ -599,6 +599,22 @@ def _email_belongs(email: str, site_domain: Optional[str], name: str) -> bool:
     return dom in _FREE_MAIL and any(w in local for w in words)
 
 
+def _about_business(item: dict, name: str, city: Optional[str], domain: Optional[str]) -> bool:
+    """A search result is about this business when it sits on its domain, or names every distinctive word of the business name
+    (and its city when known). Other companies' LinkedIn people, directories and parent brands fail this."""
+    from app.integrations.prod.entity_resolution import _name_tokens
+    link = (item.get("link") or "").lower()
+    dom = (domain or "").lower().removeprefix("www.")
+    if dom and re.search(r"(^|[/.@])" + re.escape(dom) + r"([/:?#]|$)", link):
+        return True
+    blob = " ".join(str(item.get(k) or "") for k in ("title", "snippet")).lower()
+    words = set(re.findall(r"[a-z0-9]+", blob))
+    toks = _name_tokens(name)
+    if not toks or not toks <= words:
+        return False
+    return not city or city.lower() in blob or bool(dom and dom in blob)
+
+
 async def _serper_contact_fallback(name: str, city: Optional[str], domain: Optional[str]) -> dict:
     from app.integrations.prod.discovery_runtime import assert_provider_allowed
     assert_provider_allowed("serper_search")
@@ -611,24 +627,28 @@ async def _serper_contact_fallback(name: str, city: Optional[str], domain: Optio
         queries = []
         if domain:
             queries += [f'site:{domain} (contact OR email OR owner OR founder OR manager)', f'site:{domain} (team OR staff OR about)']
-        queries += [f'"{name}"{loc} owner founder manager', f'"{name}"{loc} email contact', f'"{name}"{loc} site:linkedin.com/in']
-        emails, owners, social = [], [], {}
+        queries += [f'"{name}"{loc} owner founder manager', f'"{name}"{loc} email contact', f'"{name}"{loc} phone', f'"{name}"{loc} site:linkedin.com/in']
+        emails, phones, owners, social = [], [], [], {}
         from app.integrations.prod.web_search import web_search
         # Queries run together (web_search paces Serper itself); SearXNG first, Serper only if SearXNG is unavailable.
-        for rows in await asyncio.gather(*(web_search(q, max_pages=1) for q in queries[:5]), return_exceptions=True):
+        for rows in await asyncio.gather(*(web_search(q, max_pages=1) for q in queries[:6]), return_exceptions=True):
             if isinstance(rows, BaseException):
                 continue
             for item in rows:
+                if not _about_business(item, name, city, domain):
+                    continue
                 blob = ' '.join(str(item.get(k) or '') for k in ('title','snippet','link'))
                 for email in extract_emails(blob):
                     if email not in emails and _email_belongs(email, domain, name): emails.append(email)
+                for ph in extract_phones(' '.join(str(item.get(k) or '') for k in ('title', 'snippet'))):
+                    if ph not in phones: phones.append(ph)
                 link = item.get('link') or ''
-                if 'linkedin.com/in/' in link and len(owners) < 5:
+                if 'linkedin.com/in/' in link and len(owners) < 5 and link.split('?')[0] not in {o['linkedin_url'] for o in owners}:
                     title = item.get('title') or ''
                     owners.append({'name': title.split('-')[0].split('|')[0].strip()[:120], 'title': title[:200], 'linkedin_url': link.split('?')[0]})
                 if 'instagram.com/' in link and 'instagram' not in social: social['instagram'] = link.split('?')[0]
                 if 'facebook.com/' in link and 'facebook' not in social: social['facebook'] = link.split('?')[0]
-        return {'emails': emails[:10], 'decision_makers': owners[:5], 'social_links': social}
+        return {'emails': emails[:10], 'phones': phones[:5], 'decision_makers': owners[:5], 'social_links': social}
     except Exception as e:
         logger.debug('Serper contact fallback failed for %s: %s', name, e)
         return {}
@@ -654,6 +674,7 @@ def _merge_parsed(base: dict, extra: dict) -> dict:
     base["email"] = base["emails"][0] if base["emails"] else base.get("email")
     base["email_valid"] = is_valid_email(base["email"]) if base.get("email") else None
     base["phone_from_web"] = base.get("phone_from_web") or extra.get("phone_from_web")
+    base["phones"] = list(dict.fromkeys((base.get("phones") or []) + (extra.get("phones") or [])))[:10]
     base["has_booking"] = bool(base.get("has_booking") or extra.get("has_booking"))
     base["booking_platform"] = base.get("booking_platform") or extra.get("booking_platform")
     base["social_links"] = {**(base.get("social_links") or {}), **(extra.get("social_links") or {})}
@@ -765,7 +786,9 @@ async def enrich_one(website: str, use_crawl4ai: bool = True, use_firecrawl: boo
     if site_ok and not parsed.get("emails"):
         extra = await _try_contact_pages(website, parsed.get("emails") or [], tried)
         if extra.get("emails"):
+            keep_phones = parsed.get("phones") or []
             parsed.update({k: v for k, v in extra.items() if v})
+            parsed["phones"] = list(dict.fromkeys(keep_phones + (extra.get("phones") or [])))[:10]
             method_parts.append("contact-pages")
             secondary_urls = secondary_urls + [u for u in (extra.get("secondary_pages") or []) if u not in secondary_urls]
 
@@ -774,12 +797,18 @@ async def enrich_one(website: str, use_crawl4ai: bool = True, use_firecrawl: boo
     # Paid Serper lookup is a fallback: only when the free crawl found no email
     # (owner-only lookups are opt-in via ENRICH_SEARCH_FALLBACK_OWNER=1).
     _os = __import__('os')
-    _need_search = (not parsed.get('email')) or (_os.getenv('ENRICH_SEARCH_FALLBACK_OWNER', '0') == '1' and not parsed.get('owner_name'))
+    serper_found: dict = {}
+    site_emails, site_phones = list(parsed.get("emails") or []), list(parsed.get("phones") or [parsed.get("phone_from_web")])  # what the site itself gave, before any search/recovery merge
+    _need_search = (not parsed.get('email')) or (not parsed.get('phone_from_web')) or (_os.getenv('ENRICH_SEARCH_FALLBACK_OWNER', '0') == '1' and not parsed.get('owner_name'))
     if _os.getenv('ENRICH_SEARCH_FALLBACK', '1') == '1' and _os.getenv('LEADX_PAID_FALLBACK', 'auto').strip().lower() != 'never' and _need_search:
         try:
             host = urlparse(website).netloc
             brand = (company_name or '').strip() or host.split('.')[0].replace('-', ' ')
             fallback = await _serper_contact_fallback(brand, city, host)
+            serper_found = fallback
+            if fallback.get('phones'):
+                parsed['phones'] = list(dict.fromkeys((parsed.get('phones') or []) + fallback['phones']))[:10]
+                parsed['phone_from_web'] = parsed.get('phone_from_web') or fallback['phones'][0]
             if fallback.get('emails'):
                 parsed['emails'] = list(dict.fromkeys((parsed.get('emails') or []) + fallback['emails']))[:20]
                 parsed['email'] = parsed['emails'][0]
@@ -795,11 +824,14 @@ async def enrich_one(website: str, use_crawl4ai: bool = True, use_firecrawl: boo
     # Identity-matched public sources only; nothing is merged unless domain/phone/address and name agree (alt_recovery.identity_match).
     found: dict = {}
     alt: dict = {}
-    if _recovery_enabled() and (not site_ok or not (parsed.get("email") or parsed.get("phone_from_web"))):
+    # Finding one contact type does not stop the search for the other: the free alternative sources keep looking for whichever is missing.
+    if _recovery_enabled() and (not site_ok or not (parsed.get("email") and parsed.get("phone_from_web"))):
         try:
             from app.integrations.prod.alt_recovery import recover
             have = {k: parsed.get(v) for k, v in (("email", "email"), ("phone", "phone_from_web")) if parsed.get(v)}
-            alt = await recover(hints, have, sources=None if not site_ok or hints.get("force_alt") else "hints")
+            partial = site_ok and not hints.get("force_alt") and bool(parsed.get("email") or parsed.get("phone_from_web"))
+            alt = await recover(hints, have, want=tuple(f for f in ("email", "phone") if f not in have),
+                                sources="hints,archive,commoncrawl,directory,search" if partial else (None if not site_ok or hints.get("force_alt") else "hints"))
             found = alt.get("found") or {}
             if "email" in found:
                 parsed["emails"] = list(dict.fromkeys((parsed.get("emails") or []) + [found["email"]["value"]]))[:20]
@@ -810,8 +842,9 @@ async def enrich_one(website: str, use_crawl4ai: bool = True, use_firecrawl: boo
             if "owner_name" in found and not parsed.get("owner_name"):
                 parsed["owner_name"] = found["owner_name"]["value"]
             parsed["social_links"] = {**(alt.get("social_links") or {}), **(parsed.get("social_links") or {})}
-            if found:
-                method_parts.append("alt:" + "+".join(dict.fromkeys(f["source"] for f in found.values())))
+            real = [f["source"] for f in found.values() if f["source"] != "hints"] if site_ok else [f["source"] for f in found.values()]
+            if real:
+                method_parts.append("alt:" + "+".join(dict.fromkeys(real)))
         except Exception as exc:
             logger.debug("alt recovery failed: %s", exc)
 
@@ -835,6 +868,31 @@ async def enrich_one(website: str, use_crawl4ai: bool = True, use_firecrawl: boo
                     md = md or fc.get("markdown") or ""
         except Exception as e:
             logger.debug("firecrawl last resort failed: %s", e)
+
+    # Every email/phone seen, with its source. The primary email/phone fields below keep their existing meaning.
+    from app.integrations.prod import contact_candidates as cc
+    cc.add_many(parsed, "email", site_emails, "website", 0.8, "verified")
+    cc.add_many(parsed, "phone", site_phones, "website", 0.8, "verified")
+    for f, kind in (("email", "email"), ("phone", "phone")):
+        if f in found:
+            cc.add(parsed, kind, found[f]["value"], "alt:" + str(found[f]["source"]), float(found[f].get("confidence") or 0.6),
+                   "inferred" if found[f]["source"] == "hints" else "verified", observed_at=found[f].get("observed_at"))
+    cc.add_many(parsed, "email", serper_found.get("emails") or [], "serper", 0.5)
+    cc.add_many(parsed, "phone", serper_found.get("phones") or [], "serper", 0.5)
+    seen_e = {c["value"] for c in parsed.get("email_candidates") or []}  # whatever is left in parsed came from the Firecrawl last resort
+    cc.add_many(parsed, "email", [e for e in parsed.get("emails") or [] if cc.norm_value("email", e) not in seen_e], "firecrawl", 0.7, "verified")
+    seen_p = {c["value"] for c in parsed.get("phone_candidates") or []}
+    cc.add_many(parsed, "phone", [x for x in parsed.get("phones") or [] if cc.norm_value("phone", x) not in seen_p], "firecrawl", 0.7, "verified")
+    _dom = urlparse(website).netloc
+    if not parsed.get("phone_from_web"):
+        parsed["phone_from_web"] = cc.choose_primary(parsed, "phone")
+    if not parsed.get("email"):
+        parsed["emails"] = [e for e in [cc.choose_primary(parsed, "email")] if e]
+        parsed["email"] = parsed["emails"][0] if parsed["emails"] else None
+        parsed["email_valid"] = is_valid_email(parsed["email"]) if parsed["email"] else None
+    # discovery hints stay candidates only (never the enrichment's primary); the lead keeps them either way
+    cc.add(parsed, "email", hints.get("email"), "hints", 0.4, identity="@" in str(hints.get("email") or "") and _email_belongs(str(hints["email"]).lower(), _dom, company_name or ""))
+    cc.add(parsed, "phone", hints.get("phone"), "hints", 0.4)
 
     # Rank candidate emails so the most reachable, most relevant address is primary.
     try:
@@ -889,6 +947,8 @@ async def enrich_one(website: str, use_crawl4ai: bool = True, use_firecrawl: boo
         "email_valid": parsed.get("email_valid"),
         "emails": parsed.get("emails") or [],
         "phone_from_web": parsed.get("phone_from_web"),
+        "email_candidates": parsed.get("email_candidates") or [],
+        "phone_candidates": parsed.get("phone_candidates") or [],
         "has_booking": parsed.get("has_booking") or False,
         "booking_platform": parsed.get("booking_platform"),
         "services": (profile.get("services") or {}).get("value") or parsed.get("services") or [],
@@ -1001,6 +1061,8 @@ async def enrich_batch(
                 lead["email"] = info.get("email") or lead.get("email")
                 lead["email_valid"] = info.get("email_valid")
                 lead["emails"] = info.get("emails") or []
+                from app.integrations.prod import contact_candidates as cc
+                cc.merge(lead, info)
                 if info.get("phone_from_web") and not lead.get("phone_normalized"):
                     lead["phone"] = info["phone_from_web"]
                     lead["phone_normalized"] = normalize_phone(info["phone_from_web"])

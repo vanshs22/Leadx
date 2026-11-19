@@ -134,12 +134,20 @@ def entity_keys(lead: dict) -> list[str]:
 def _merge_record(a: dict, b: dict) -> dict:
     """Prefer non-empty richer fields; union sources."""
     out = dict(a)
+    # keep every email/phone either record carried, so the primary field losing the merge does not lose the contact
+    from app.integrations.prod import contact_candidates as cc
+    def _own(r: dict) -> dict:
+        r = dict(r)
+        for k in ("email_candidates", "phone_candidates"):
+            r[k] = [dict(c) for c in r.get(k) or []]
+        return cc.seed_from_fields(r, _origin(r))
+    out = cc.merge(_own(a), _own(b))
     prov = dict(a.get("field_sources") or {})
     for k in _PROVENANCE_FIELDS:
         if a.get(k) and k not in prov:
             prov[k] = _origin(a)
     for k, v in b.items():
-        if k in ("sources_hit", "source", "field_sources"):
+        if k in ("sources_hit", "source", "field_sources", "email_candidates", "phone_candidates"):
             continue
         if v is None or v == "" or v == [] or v == {}:
             continue

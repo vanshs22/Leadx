@@ -106,7 +106,7 @@ def _normalize(raw: dict, industry: str, location: str, source: str) -> Optional
     address = raw.get("address") or raw.get("formattedAddress") or raw.get("display_name") or ""
     place_id = raw.get("placeId") or raw.get("id") or raw.get("fsq_place_id")
     fp = fingerprint(name, phone, website)
-    return annotate_route_result({
+    lead = annotate_route_result({
         "name": name[:200],
         "company_name": name[:200],
         "phone": phone or None,
@@ -132,6 +132,14 @@ def _normalize(raw: dict, industry: str, location: str, source: str) -> Optional
                    "geography": location, "query": industry, "result_budget": 1},
        raw=raw, requested_limit=1, cursor={"page": 1, "token": None}, page=1,
        evidence_level="L1", billable=source not in {"osm", "osm_nominatim"})
+    from app.integrations.prod import contact_candidates as cc
+    from app.integrations.prod.enricher import _email_belongs
+    cc.add(lead, "phone", phone, source, 0.5)
+    email = raw.get("email")
+    if email and "@" in str(email):
+        email = str(email).split(";")[0].strip()
+        cc.add(lead, "email", email, source, 0.5, identity=_email_belongs(email.lower(), lead["website_domain"], name))
+    return lead
 
 
 def _dedupe(items: list[dict]) -> list[dict]:
@@ -454,7 +462,7 @@ async def osm_exhaustive(industry: str, location: str) -> list[dict]:
             if not name:
                 continue
             addr = " ".join(x for x in [tags_data.get("addr:housenumber"), tags_data.get("addr:street"), tags_data.get("addr:city"), tags_data.get("addr:state"), tags_data.get("addr:postcode")] if x)
-            raw = {"name": name, "phone": tags_data.get("phone") or tags_data.get("contact:phone"), "website": tags_data.get("website") or tags_data.get("contact:website"), "address": addr, "id": f"osm:{el.get('type')}:{el.get('id')}"}
+            raw = {"name": name, "phone": tags_data.get("phone") or tags_data.get("contact:phone"), "website": tags_data.get("website") or tags_data.get("contact:website"), "email": tags_data.get("email") or tags_data.get("contact:email"), "address": addr, "id": f"osm:{el.get('type')}:{el.get('id')}"}
             lead = _normalize(raw, industry, location, "osm")
             if lead and lead["fingerprint"] not in seen:
                 seen.add(lead["fingerprint"]); out.append(lead)

@@ -21,6 +21,8 @@ from urllib.parse import urlparse
 from app.integrations.prod.entity_resolution import entity_keys, resolve_entities
 from app.integrations.prod import exhaustive_discovery
 from app.integrations.prod.exhaustive_discovery import _normalize
+from app.integrations.prod import contact_candidates as cc
+from app.integrations.prod.enricher import _email_belongs
 from app.integrations.prod.field_extract import _email_ok, classify_social
 from app.integrations.prod.utils import extract_domain, normalize_email
 
@@ -86,10 +88,16 @@ def _row(raw: dict, industry: str, location: str, sub: str) -> Optional[dict]:
         return None
     row["sources_hit"] = ["osm", sub]
     row["source_ids"] = {**row.get("source_ids", {}), sub: str(raw.get("id") or raw.get("detail_url") or "")}
+    cc.add(row, "phone", raw.get("phone"), sub, 0.5)
     email = normalize_email(raw.get("email"))
-    if email and _email_ok(email, extract_domain(row.get("website") or "") or "")[0]:
-        row["email"] = email
-        row["email_source"] = sub
+    if email:
+        dom = extract_domain(row.get("website") or "") or ""
+        ok = _email_ok(email, dom)[0]
+        belongs = ok and _email_belongs(email, dom, row.get("name") or "")  # a directory/Overture address of another business is kept as a candidate but never primary
+        cc.add(row, "email", email, sub, 0.5, identity=belongs)
+        if ok and belongs:
+            row["email"] = email
+            row["email_source"] = sub
     socials = {}
     for url in raw.get("socials") or []:
         info = classify_social(url)
