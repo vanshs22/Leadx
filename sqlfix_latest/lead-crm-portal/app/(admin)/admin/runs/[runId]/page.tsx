@@ -24,6 +24,7 @@ type RunLead = {
   website?: string;
   city?: string;
   source?: string;
+  stage_status?: string | null;
 };
 
 const COLUMNS: { key: string; title: string; hint: string }[] = [
@@ -36,8 +37,10 @@ const COLUMNS: { key: string; title: string; hint: string }[] = [
 ];
 
 function columnFor(L: RunLead): string {
-  if (L.stage === "excluded" || L.included === false) return "excluded";
-  if (L.stage === "assigned") {
+  // Gate-rejected cards keep stage "gated"; they did not pass the gate.
+  if (L.stage === "excluded" || L.included === false || L.stage_status === "rejected") return "excluded";
+  // CRM and delivery are later steps of an assigned card, not new discoveries.
+  if (L.stage === "assigned" || L.stage === "crm" || L.stage === "delivery") {
     return (L.tier || "").toUpperCase() === "B" ? "assigned_B" : "assigned";
   }
   if (L.stage === "gated") return "gated";
@@ -91,6 +94,7 @@ export default function RunBoardPage() {
   const runId = String(params?.runId || "");
   const [run, setRun] = useState<any>(null);
   const [leads, setLeads] = useState<RunLead[]>([]);
+  const [stageCounts, setStageCounts] = useState<Record<string, number>>({});
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -105,6 +109,7 @@ export default function RunBoardPage() {
       const d: any = await admin.runLeads(runId);
       setRun(d.run);
       setLeads(d.leads || []);
+      setStageCounts(d.stage_counts || {});
       setError(d.error || "");
     } catch (caught: any) {
       setError(caught?.message || "Could not load run board");
@@ -266,18 +271,19 @@ export default function RunBoardPage() {
         {saving && <p className="text-xs text-ink-faint">Saving…</p>}
       </header>
 
-      <div className="grid min-h-[420px] grid-cols-1 gap-3 overflow-x-auto pb-4 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-6">
+      <div className="flex min-h-[420px] flex-nowrap gap-3 overflow-x-auto pb-4">
         {COLUMNS.map((col) => (
           <div
             key={col.key}
             onDragOver={onDragOver}
             onDrop={(e) => onDrop(e, col.key)}
-            className={`run-column run-column-${col.key} flex min-h-[360px] flex-col rounded-xl border bg-surface-2 shadow-sm`}
+            className={`run-column run-column-${col.key} flex min-h-[360px] w-[240px] shrink-0 flex-col rounded-xl border bg-surface-2 shadow-sm`}
           >
             <div className="border-b border-line px-3 py-2">
               <div className="text-sm font-medium text-ink">{col.title}</div>
               <div className="text-[11px] text-ink-faint">
-                {col.hint} · {buckets[col.key]?.length || 0}
+                {/* Funnel columns show the cumulative count (same as the run counters); the cards are the ones currently at that stage. */}
+                {col.hint} · {(["discovered", "enriched", "gated"].includes(col.key) ? stageCounts[col.key] : undefined) ?? buckets[col.key]?.length ?? 0}
               </div>
             </div>
             <div className="min-h-0 flex-1 space-y-2 overflow-y-auto p-2">

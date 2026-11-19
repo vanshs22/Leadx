@@ -4,6 +4,7 @@ import gzip
 import json
 import socket
 import threading
+import time
 from http.server import BaseHTTPRequestHandler, HTTPServer
 
 import pytest
@@ -40,6 +41,21 @@ async def test_discovery_drops_dead_domains_but_keeps_rows_without_a_website(mon
     kept = await free_discovery.drop_dead_domains(rows, stats)
     assert [r["name"] for r in kept] == ["Live", "NoSite", "Empty"]
     assert stats["discovery_dead_domain"] == 1 and fetch_telemetry.counters["discovery_dead_domain"] == 1
+
+
+async def test_a_hanging_resolver_cannot_hold_the_batch(monkeypatch):
+    monkeypatch.setenv("LEADX_DISCOVERY_DNS_CHECK", "1")
+    monkeypatch.setenv("LEADX_DISCOVERY_DNS_BUDGET_S", "0.2")
+
+    async def gone(host, sem):
+        if host == "hang.example":
+            await asyncio.sleep(30)
+        return host == "dead.example"
+
+    monkeypatch.setattr(free_discovery, "_host_is_gone", gone)
+    t0 = time.monotonic()
+    kept = await free_discovery.drop_dead_domains([{"name": n, "website": f"https://{n}.example"} for n in ("hang", "dead", "live")])
+    assert time.monotonic() - t0 < 2 and [r["name"] for r in kept] == ["hang", "live"]
 
 
 async def test_a_resolver_timeout_does_not_drop_a_row(monkeypatch):

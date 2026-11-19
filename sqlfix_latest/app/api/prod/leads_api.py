@@ -1072,15 +1072,27 @@ def get_pipeline_run(run_id: str):
             raise HTTPException(500, f"Failed to load run: {e}") from e
     if not rows:
         raise HTTPException(404, "run not found")
-    run = dict(rows[0])
+    return {"run": _project_run_counters(dict(rows[0]))}
+
+
+def _project_run_counters(run: dict) -> dict:
+    """These counters live in meta because pipeline_runs has no columns for them; project them into the admin contract."""
     meta = run.get("meta") if isinstance(run.get("meta"), dict) else {}
-    # These counters live in meta because the legacy pipeline_runs schema does
-    # not have columns for them; project them into the stable admin contract.
-    run.setdefault("verified", meta.get("verified_count"))
-    run.setdefault("scored", meta.get("scored_count"))
-    run.setdefault("stage", meta.get("stage"))
-    run.setdefault("message", meta.get("message"))
-    return {"run": run}
+    auth = meta.get("authoritative_counts") if isinstance(meta.get("authoritative_counts"), dict) else {}
+    values = {
+        "verified": meta.get("verified_count"),
+        "scored": meta.get("scored_count"),
+        "stage": meta.get("stage"),
+        "message": meta.get("message"),
+        "gated": run.get("gated_ok"),
+        "crm_saved": meta.get("crm_saved", auth.get("crm_saved")),
+        "effective_target": meta.get("effective_target") or meta.get("target_assignments") or run.get("target_assigned"),
+        "last_progress_at": meta.get("last_progress_at") or run.get("finished_at") or run.get("started_at"),
+    }
+    for key, value in values.items():
+        if run.get(key) is None:
+            run[key] = value
+    return run
 
 
 @router.get("/admin/runs/{run_id}/leads")
@@ -1216,7 +1228,15 @@ def get_run_leads(run_id: str):
     by_stage: dict = {}
     for L in leads:
         by_stage.setdefault(L.get("stage") or "discovered", []).append(L)
-    out = {"run": run, "leads": leads, "by_stage": by_stage, "count": len(leads)}
+    # Cumulative funnel from the same pure reconciler the pipeline uses for its terminal counters, so the board matches them.
+    from app.integrations.prod.discovery_runtime import reconcile_target_counts
+    funnel = reconcile_target_counts(leads)
+    stage_counts = {
+        "discovered": funnel["discovered"], "enriched": funnel["enriched"], "gated": funnel["qualified"],
+        "assigned": sum(1 for L in leads if (L.get("stage") or "") in ("assigned", "crm", "delivery")
+                        and str(L.get("stage_status") or "accepted").lower() == "accepted"),
+    }
+    out = {"run": _project_run_counters(run) if run else run, "leads": leads, "by_stage": by_stage, "stage_counts": stage_counts, "count": len(leads)}
     if board_error and not leads:
         out["error"] = board_error
     return out
@@ -1249,6 +1269,7 @@ def _recount_run_from_board(sb, run_id: str) -> dict:
         if r.get("included") is False or (r.get("stage") or "") == "excluded":
             continue
         st = (r.get("stage") or "").lower()
+        st = "assigned" if st in ("crm", "delivery") else st  # CRM/delivery are later steps of an assigned card
         if st in ("discovered", "enriched", "gated", "assigned"):
             discovered += 1
         if st in ("enriched", "gated", "assigned"):
@@ -1342,6 +1363,7 @@ async def patch_run_lead(run_id: str, lead_id: str, body: RunLeadPatch):
     updates: dict = {}
     if body.stage is not None:
         updates["stage"] = body.stage
+        updates["stage_status"] = "accepted"  # an operator move overrides a gate rejection (the board shows rejected cards as excluded)
     if body.tier is not None:
         updates["tier"] = body.tier.upper()
     if body.included is not None:
@@ -1355,6 +1377,7 @@ async def patch_run_lead(run_id: str, lead_id: str, body: RunLeadPatch):
                 "lead_id": lead_id,
                 "tenant_id": tenant_id or row.get("tenant_id"),
                 "stage": merged.get("stage") or "discovered",
+                "stage_status": merged.get("stage_status") or "accepted",
                 "tier": merged.get("tier"),
                 "included": merged.get("included", True),
                 "score": merged.get("score"),

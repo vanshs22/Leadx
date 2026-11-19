@@ -643,10 +643,14 @@ async def run_pipeline_parallel_target(
             stop_event.set()
         return state
 
+    last_progress_write = 0.0
+
     async def _progress(stage: str, message: str, force: bool = False) -> None:
-        nonlocal discovered_n, stored_n, enriched_n, verified_n, scored_n, gated_n, assigned_n
+        nonlocal discovered_n, stored_n, enriched_n, verified_n, scored_n, gated_n, assigned_n, last_progress_write
         d, s, e, v, sc, g, a = await _snapshot()
-        if force or a == slots_cap or a == 0 or a % 5 == 0 or e == d:
+        # Time throttle: the old count-based filter (a % 5 == 0 ...) skipped most updates, so the UI lagged by whole stages.
+        if force or a >= slots_cap or time.monotonic() - last_progress_write >= float(os.getenv("LEADX_PROGRESS_INTERVAL_S", "1")):
+            last_progress_write = time.monotonic()
             await _progress_run(
                 run_id,
                 "running",
@@ -661,6 +665,8 @@ async def run_pipeline_parallel_target(
                     "stage": stage,
                     "message": message,
                     "target": slots_cap,
+                    "effective_target": slots_cap,
+                    "crm_saved": delivery_ready_n,
                     "mode": "streaming_target",
                     "enrichment_workers": enrich_workers_n,
                     "assignment_workers": assign_workers_n,
@@ -1199,7 +1205,12 @@ async def run_pipeline_parallel_target(
             return
         seed_tasks.extend(asyncio.create_task(_one(loc), name="leadx-free-stream") for loc in geo[:8])
         # Wait only the fast-seed window; directories/OSM keep streaming until discovery ends (see _discovery_producer).
-        await _await_cancellable(asyncio.wait(seed_tasks, timeout=float(os.getenv("LEADX_FAST_SEED_SECONDS", "15"))))
+        # A seed with no rows after the probe (country-wide "usa": no bbox answer) stops holding up the discovery rounds.
+        window = float(os.getenv("LEADX_FAST_SEED_SECONDS", "15"))
+        probe = min(window, float(os.getenv("LEADX_FAST_SEED_PROBE_SECONDS", "5")))
+        _, pending = await _await_cancellable(asyncio.wait(seed_tasks, timeout=probe)) or (None, set())
+        if emitted and pending and window > probe:
+            await _await_cancellable(asyncio.wait(pending, timeout=window - probe))
         discovery_telemetry["fast_seed"] = {"rows": emitted, "seconds": round(time.monotonic() - t0, 1)}
 
     async def _discovery_producer() -> None:
@@ -1267,6 +1278,9 @@ async def run_pipeline_parallel_target(
                         include_yelp=include_yelp,
                         include_facebook=include_facebook,
                         exhaustive=False,
+                        # The OSM lane re-runs discover_free sequentially before every other lane (up to its 90s budget).
+                        # While the fast seed is still streaming those same free sources, skip it so maps/web lanes start now.
+                        sources={"osm": False} if any(not t.done() for t in seed_tasks) else None,
                     )) or []
                 except Exception as exc:
                     logger.warning("[%s] streaming discover round %s: %s", run_id[:8], round_i, exc)
@@ -1558,6 +1572,7 @@ async def run_pipeline_parallel_target(
         "target_assignments": slots_cap,
         "target_metric": target_metric,
         "target_count": slots_cap,
+        "effective_target": slots_cap,
         "shortfall": shortfall,
         "remaining_gap": shortfall,
         "assignment_confirmed": persisted_confirmed,
@@ -3137,7 +3152,7 @@ def _progress_run(run_id: str, status: str = "running", **counts) -> None:
         if k in counts and counts[k] is not None:
             payload[k] = int(counts[k])
     if "meta" in counts and isinstance(counts["meta"], dict):
-        payload["meta"] = counts["meta"]
+        payload["meta"] = {**counts["meta"], "last_progress_at": datetime.now(timezone.utc).isoformat()}
     msg = (
         f"PROGRESS {run_id[:8]} status={status} "
         f"discovered={payload.get('discovered')} enriched={payload.get('enriched')} "
@@ -3280,9 +3295,10 @@ def _finish_run(run_id: str, status: str, summary: dict, error: str = "", execut
         "queue_outcome", "provider_outcome", "cancellation_outcome", "timeout_outcome",
         "dependency_mode", "authenticated_scope", "terminal_status", "failures",
         "forbidden_action_counters", "target_speed_measurement", "target5_measurement",
-        "target5_timing_evaluation",
+        "target5_timing_evaluation", "crm_saved",
     ) if summary.get(k) is not None}
     meta["stop_reason"] = stop_reason
+    meta["last_progress_at"] = datetime.now(timezone.utc).isoformat()
     payload = {
         "status": status,
         "finished_at": datetime.now(timezone.utc).isoformat(),

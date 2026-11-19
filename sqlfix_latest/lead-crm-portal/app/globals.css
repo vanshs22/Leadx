@@ -325,8 +325,8 @@ tbody tr:hover { background: rgb(var(--brand) / .035); }
 .landing-proof-icon { display: inline-flex; height: 36px; width: 36px; align-items: center; justify-content: center; border-radius: 9px; background: rgb(219 184 111 / .12); color: #DBB86F; }
 
 /* ---------- Run board ---------------------------------------------------- */
-.run-summary-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: .5rem; }
-.run-summary-grid > div { border: 1px solid rgb(var(--line)); border-radius: 8px; background: rgb(var(--surface-2)); padding: .6rem .75rem; }
+.run-summary-grid { display: flex; flex-wrap: nowrap; gap: .5rem; overflow-x: auto; }
+.run-summary-grid > div { flex: 1 0 160px; border: 1px solid rgb(var(--line)); border-radius: 8px; background: rgb(var(--surface-2)); padding: .6rem .75rem; }
 .run-summary-label { display: block; color: rgb(var(--ink-faint)); font: 600 10.5px/1 var(--font-sans), sans-serif; letter-spacing: .06em; text-transform: uppercase; }
 .run-summary-value { display: block; margin-top: .35rem; color: rgb(var(--ink)); font-size: .875rem; font-weight: 600; font-variant-numeric: tabular-nums; }
 .run-column { border-top-width: 2px; }

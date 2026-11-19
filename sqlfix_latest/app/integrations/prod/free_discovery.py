@@ -65,7 +65,13 @@ async def drop_dead_domains(rows: list[dict], stats: Optional[dict] = None) -> l
         w = str(r.get("website") or "").strip()
         h = (urlparse(w if "//" in w else "//" + w).hostname or "").lower() if w else ""
         hosts.append(h if h and not re.fullmatch(r"[\d.:]+|\[.*\]", h) else None)
-    gone = dict(zip(set(h for h in hosts if h), await asyncio.gather(*(_host_is_gone(h, sem) for h in set(h for h in hosts if h)))))
+    # One hanging resolver used to hold the whole batch for the full per-host timeout; unanswered hosts are kept, like a timeout.
+    tasks = {h: asyncio.ensure_future(_host_is_gone(h, sem)) for h in set(h for h in hosts if h)}
+    if tasks:
+        await asyncio.wait(tasks.values(), timeout=float(os.getenv("LEADX_DISCOVERY_DNS_BUDGET_S", "1.5")))
+    gone = {h: t.done() and not t.cancelled() and t.exception() is None and t.result() for h, t in tasks.items()}
+    for t in tasks.values():
+        t.cancel()
     kept = [r for r, h in zip(rows, hosts) if not (h and gone.get(h))]
     if len(kept) < len(rows):
         from app.integrations.prod import fetch_telemetry
@@ -197,7 +203,8 @@ async def discover_free(industry: str, location: str, *, stats: Optional[dict[st
             seen_keys.update(keys)
             r["source"] = "osm"
             fresh.append(r)
-        fresh = (await drop_dead_domains(fresh, stats))[:cap - emitted]
+        # DNS-check only what can still be emitted (2x for dead domains): a country-wide Overture answer is ~5000 rows.
+        fresh = (await drop_dead_domains(fresh[:2 * (cap - emitted)], stats))[:cap - emitted]
         if fresh:
             emitted += len(fresh)
             await on_rows(fresh)
@@ -243,10 +250,10 @@ async def discover_free(industry: str, location: str, *, stats: Optional[dict[st
     if stats is not None:
         for name in enabled:
             stats[name] = {"error": errors[name]} if name in errors else {"rows": len(made_by[name]), **({"timed_out": True} if name in timed_out else {})}
-    merged = await drop_dead_domains(resolve_entities(rows), stats)
+    merged = resolve_entities(rows)
     merged.sort(key=lambda r: (len(r.get("sources_hit") or []) >= 3, bool(r.get("email")), bool(r.get("website")), bool(r.get("phone")),
                                int(r.get("discovery_quality") or 0)), reverse=True)
-    merged = merged[:cap]
+    merged = (await drop_dead_domains(merged[:2 * cap], stats))[:cap]  # sort first so only the kept head is DNS-checked
     for r in merged:
         r["source"] = "osm"  # keep the free lane as the source token; per-source detail lives in sources_hit/source_ids/field_sources
     if stats is not None:
