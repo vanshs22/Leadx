@@ -1,13 +1,12 @@
 # LeadX API — local default is version-pinned; production supplies an immutable digest.
 ARG PYTHON_BASE_IMAGE=python:3.12-slim-bookworm
 FROM ${PYTHON_BASE_IMAGE} AS runtime
-ENV PYTHONUNBUFFERED=1 PYTHONDONTWRITEBYTECODE=1 PIP_NO_CACHE_DIR=1 PYTHONPATH=/app WORKER_HEALTH_FILE=/tmp/leadx-worker-heartbeat PLAYWRIGHT_DOWNLOAD_CONNECTION_TIMEOUT=120000 PLAYWRIGHT_BROWSERS_PATH=/home/leadx/.cache/ms-playwright
+ENV PYTHONUNBUFFERED=1 PYTHONDONTWRITEBYTECODE=1 PIP_NO_CACHE_DIR=1 PYTHONPATH=/app WORKER_HEALTH_FILE=/tmp/leadx-worker-heartbeat PLAYWRIGHT_DOWNLOAD_CONNECTION_TIMEOUT=120000 PLAYWRIGHT_BROWSERS_PATH=/home/leadx/.cache/ms-playwright CRAWL4_AI_BASE_DIRECTORY=/home/leadx
 WORKDIR /app
 COPY requirements.lock requirements.txt ./
 RUN mkdir -p /home/leadx/.cache/ms-playwright \
     && python -m pip install --retries 8 --timeout 60 -r requirements.lock \
-    && python -m pip install --retries 8 --timeout 60 \
-        scrapling==0.2.9 crawl4ai==0.4.24 playwright==1.49.1 litellm==1.53.1 browserforge==1.2.4 \
+    && python -m pip install --retries 8 --timeout 60 crawl4ai==0.9.5 httpx==0.27.2 \
     && python -m playwright install --with-deps chromium chromium-headless-shell \
     && python -m pip check
 COPY app ./app
