@@ -107,11 +107,13 @@ def write_report(out_dir):
             r = d["rows"]
             rows.append([arm] + [pct(sum(1 for x in r if f(x["info"])), len(r)) for _, f in keys])
         L += [table(["Arm"] + [k for k, _ in keys], rows), ""]
-        e = G["engine"]["rows"]
+        e = G.get("engine", {}).get("rows", [])  # benchG.json currently holds only legacy and fast
         extra = Counter(f for r in e for f in (r["info"].get("fields") or []))
-        L += ["Engine-only fields (per lead, from first-party pages and identity-matched sources, each with source, method, timestamp, confidence and verified/inferred status in `field_provenance`): "
+        if e:
+          L += ["Engine-only fields (per lead, from first-party pages and identity-matched sources, each with source, method, timestamp, confidence and verified/inferred status in `field_provenance`): "
               + ", ".join(f"{k} {pct(extra.get(k, 0), len(e))}" for k in ("description", "services", "industries", "company_size", "technologies", "address", "decision_maker", "social")) + ".", ""]
-    em = arm_metrics(G["engine"]["rows"]) if G else {}
+    eng = (G or {}).get("engine") or (load("after_fixed.json") or {}).get("engine")  # latest engine arm available
+    em = arm_metrics(eng["rows"]) if eng else {}
     dns = pct(cat.get("dns", 0), n)
     corr = pct(em.get("corroborated", 0), em.get("n", 0)) if em else "n/a"
     L += ["## 3. Honest reading", "",
@@ -121,6 +123,17 @@ def write_report(out_dir):
           "* Cost: 0 credits and 0 AI tokens in every arm (no paid provider keys were present and the acquisition path calls no LLM). Latency is higher with the engine because recovery waits on rate-limited public directories (3 s spacing per directory domain); `LEADX_ALT_DEADLINE_S` caps it per lead.",
           "* Not exercised: Firecrawl, Serper/SearXNG search, Google Places (no keys or instance), Crawl4AI (not installed; Playwright chromium used instead). They are implemented behind env keys and mocked in tests only.",
           "* Arms ran on different random sites, so differences of a few points between arms are noise; the table gives 95% intervals for fetch success.", ""]
+    B, A, B4 = load("before_fixed.json"), load("after_fixed.json"), load("before_fixed_t400.json")
+    if B and A:
+        rows = [("before (old code, wait_for 150 s)", B["engine"]["metrics"]), ("before (old code, wait_for 400 s)", (B4 or {}).get("engine")), ("after (recovery changes)", A["engine"]["metrics"])]
+        keys = [("fetch_success_all_pct", "fetch success, all sites %"), ("fetch_success_live_pct", "fetch success, DNS-live %"), ("pages_per_site_avg", "pages per fetched site"), ("avg_core_completeness_pct", "core completeness %"),
+                ("avg_latency_s", "avg s/site"), ("alt_recovered_pct", "index/alt-source recovered % (separate)"), ("firecrawl_calls", "Firecrawl calls")]
+        L += ["## 4. Fixed 400-site list (`sites_fixed.json`): before vs after recovery changes", "", table(["Arm"] + [k[1] for k in keys], [[n] + [m.get(k[0]) for k in keys] for n, m in rows if m]), "",
+              "Same site list and flags for every row. Recovery by method (after): " + str(A["engine"]["metrics"].get("recovered_by_method")) + ". Failures on live sites (after): " + str(A["engine"]["metrics"].get("failure_categories_live")) + ".", ""]
+    H0, H1 = load("h2_0.json"), load("h2_1.json")
+    if H0 and H1:
+        L += ["### HTTP/2 A/B (first 100 sites of the fixed list, after code)", "", table(["LEADX_HTTP2", "fetch success all %", "fetch success live %", "avg s/site", "wall s"],
+              [[v, m["fetch_success_all_pct"], m["fetch_success_live_pct"], m["avg_latency_s"], d["wall_s"]] for v, d in (("0", H0["engine"]), ("1", H1["engine"])) for m in [d["metrics"]]]), ""]
     path = os.path.join(ROOT, "docs", "FETCH_AUDIT.md")
     open(path, "w").write("\n".join(L))
     print("wrote", path)

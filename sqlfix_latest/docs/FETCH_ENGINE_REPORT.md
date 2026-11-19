@@ -76,3 +76,33 @@ Needs to be verified with external resources:
 - Crawl reads robots.txt and sitemap.xml (one index level) and fetches up to 12 pages ranked contact, about, team, service, location.
 - Bot-protected sites: Common Crawl (CDX + WARC byte range), Wayback and search snippets, tagged `method=commoncrawl|wayback|search_snippet`. This is index recovery, reported apart from fetch success. Nothing here gets past a protection.
 - Firecrawl runs last, behind key, policy, credit cap, `LEADX_FIRECRAWL_RUN_MAX` and a per-URL cache.
+
+## 5. Recovery changes measured on the fixed 400-site list
+
+Same list (`artifacts/fetch_audit/sites_fixed.json`: 400 sites, 354 whose domain resolves), same flags (engine arm, free path, no provider keys), same script. Numbers come from `artifacts/fetch_audit/before_fixed.json`, `before_fixed_t400.json` and `after_fixed.json`; the table is also in [FETCH_AUDIT.md](FETCH_AUDIT.md) section 4.
+
+| Metric | Before (150 s bench wait) | Before (400 s bench wait) | After |
+|---|---|---|---|
+| Fetch success, all 400 sites | 68.2% | 68.2% | 72.5% |
+| Fetch success, 354 DNS-live sites | 77.1% | 77.1% | 81.9% |
+| Pages per fetched site | 4.66 | 4.68 | 6.47 |
+| Core field completeness (email, phone, owner, social, address) | 42.7% | 43.5% | 42.9% |
+| Email / phone / address / social from the site | 37.8 / 72.0 / 40.0 / 58.2% | 39.0 / 74.2 / 39.2 / 60.5% | 38.5 / 71.0 / 41.5 / 58.2% |
+| Average latency per site | 15.8 s | 15.8 s | 21.7 s |
+| Homepage recovered by browser or Crawl4AI | 8 + 1 | 4 + 0 | 22 + 2 |
+| Homepage recovered by network retry | 6 | 8 | 6 |
+| Index / alternative-source recovery (separate from fetch success) | 17 (4.2%) | 25 (6.2%) | 10 (2.5%) |
+| Firecrawl calls | 0 | 0 | 0 |
+
+Fairness check. The briefing assumed the bench's 150 s per-site wait truncated the old arm. The old arm has 18 `TimeoutError` failures on live sites at 150 s and still 13 at 400 s, with a wall time of 196 s, so those are not bench truncations. They are timeouts raised inside the old code path and counted as failures. After the changes there are 0. `scripts/fetch_audit.py` now reads the wait from `BENCH_SITE_TIMEOUT` (default 150). The after run (150 s) had no bench timeout, so it was not re-run at 400 s. The before arm was re-run on the old code (`d8170ad`) at 400 s: fetch success is identical, 68.2% and 77.1%.
+
+Reading, without rounding up:
+* Fetch success rose 4.3 points on all sites and 4.8 on live sites. Run-to-run noise is 1 to 2 points, so the gain is real but it is below the +5 to +7 expected for JS rendering plus +2 to +3 for retry, taken together or separately. Network retry added nothing measurable (6 recoveries before and after). The old arm's 13 to 18 internal `TimeoutError` failures account for most of the gap, so the browser path (22 recoveries against 4 to 8) is what turns them into fetches, not new reach into bot-protected sites.
+* The remaining live-site failures after: Cloudflare 25, disconnect 8, 404 7, plain 403 5, TLS 6, other 4xx 3, parked 2, timeout 2, reCAPTCHA 2, one each access denied, 429, empty body, connect. Nothing in this change passes a protection.
+* Sitemap and robots crawling raised pages per fetched site from 4.66 to 6.47 (+39%), but average core completeness did not move (42.7% to 42.9%). More pages did not add fields on this sample.
+* Latency rose 37% (15.8 s to 21.7 s) because of the larger crawl, the longer browser wait and the retry.
+* Index recovery fell from 17 or 25 leads to 10. Common Crawl was tried for 101 leads and recovered none in this run; Wayback gave 22 hits (51 before). The drop is mostly because sites that the old arm lost to its internal timeouts now fetch directly and need no recovery, and the Wayback count moves between runs. Do not read it as a Common Crawl gain.
+* HTTP/2 A/B on the first 100 sites (after code): `LEADX_HTTP2=0` 62.0% / 70.5% live, 21.1 s per site; `LEADX_HTTP2=1` 61.0% / 69.3% live, 18.7 s per site, wall time 93.4 s against 93.1 s. No success difference beyond noise; latency per site is lower with HTTP/2 but wall time is equal.
+* Discovery dead-domain drop: 46 of the 400 sites (11.5%) have no DNS record. `drop_dead_domains` removes such rows before enrichment, which is why the live-site column is the fair comparison for fetch success. The drop rate was measured on this stored list by the same DNS check, not by running a fresh discovery.
+
+Not verified: real Firecrawl (0 calls, covered by mocked tests only), Serper/SearXNG, Google Places, SMTP deliverability (port 25 blocked), Supabase/Postgres, the portal page. One run per arm, so the sub-point differences above are not significant.

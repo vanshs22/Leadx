@@ -151,7 +151,7 @@ async def bench(limit, arms, tag="bench", sites_file="sites.json", split=False):
                 fetch_telemetry.ctx.set({"tenant_id": "bench-tenant", "run_id": f"bench-{arm}", "discovery_source": s["source"], "lead_key": s["website"]})
                 try:
                     info = await asyncio.wait_for(enricher.enrich_one(s["website"], use_crawl4ai=False, use_firecrawl=False, company_name=s["name"], city=s["city"],
-                                                                      hints={"phone": s["phone"], "email": s["email"], "address": s["address"], "category": s["category"], "region": s["region"]}), 150)
+                                                                      hints={"phone": s["phone"], "email": s["email"], "address": s["address"], "category": s["category"], "region": s["region"]}), float(os.getenv("BENCH_SITE_TIMEOUT", "150")))
                 except Exception as exc:
                     info = {"error": type(exc).__name__}
                 url = enricher._normalize_website_url(s["website"])
