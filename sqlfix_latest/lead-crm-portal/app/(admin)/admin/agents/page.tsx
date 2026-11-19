@@ -49,6 +49,7 @@ export default function AdminAgentsPage() {
   useEffect(() => { void load(); }, [load]);
   const agents: any[] = data?.agents || [];
   const runs: any[] = data?.runs || [];
+  const flow: any[] = data?.latest_pipeline_flow || [];
   const active = runs.filter((run) => ["queued", "running", "started"].includes(String(run.status))).length;
   const failed = runs.filter((run) => ["failed", "error"].includes(String(run.status))).length;
   return <div className="page">
@@ -59,6 +60,13 @@ export default function AdminAgentsPage() {
       <StatCard label="Active now" value={active} tone="accent" icon={<Icon name="clock" size={16} />} />
       <StatCard label="Recent failures" value={failed} tone={failed ? "danger" : "success"} icon={<Icon name="health" size={16} />} />
     </StatGrid>
+    <Panel title="Latest pipeline agent flow" description="Agents of the most recent pipeline run, in execution order." bodyClassName="p-0">
+      {flow.length === 0 ? <EmptyState title="No pipeline runs yet" /> : <ul className="divide-y divide-line">{flow.map((step) => {
+        const skipped = step.result?.status === "skipped";
+        const o = step.outcome || {};
+        return <li key={step.id} className="flex items-center justify-between gap-3 px-5 py-3"><div className="min-w-0"><span className="font-mono text-[11px] text-ink-muted">{step.input_data?.order ?? "—"}. {String(step.agent_id || "agent")}</span><div className="mt-1 truncate text-[11px] text-ink-faint">{skipped ? (o.reason || "skipped") : o.count != null ? `${o.count} results` : step.task}</div></div><div className="flex items-center gap-3"><span className="text-[11px] tabular-nums text-ink-faint">{o.duration_ms != null ? `${o.duration_ms} ms` : "—"}</span><StatusBadge status={skipped ? "skipped" : step.status} /></div></li>;
+      })}</ul>}
+    </Panel>
     <TaskTraceView trace={lastMissionTrace} loading={missionLoading} error={missionError} />
     <div className="grid gap-4 lg:grid-cols-3">
       <Panel title="31-agent registry" description="One platform registry. Client workspaces do not expose this control surface." className="lg:col-span-2" bodyClassName="p-0">

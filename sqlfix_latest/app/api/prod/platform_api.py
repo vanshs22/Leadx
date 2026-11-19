@@ -342,8 +342,16 @@ def me(admin:PlatformAdmin=Depends(require_platform_admin)):
 def agents(admin: PlatformAdmin = Depends(require_platform_admin)):
     from app.integrations.prod.agent_registry import FULL_AGENT_REGISTRY
     from app.memory.supabase_client import get_supabase
-    rows = get_supabase().table('agent_runs').select('id,tenant_id,agent_id,task,outcome,status,created_at,started_at,finished_at,error').neq('created_by', 'pipeline-stage-evidence').order('created_at', desc=True).limit(100).execute().data or []
-    return {'ok': True, 'agents': [{'id': agent_id, **contract} for agent_id, contract in FULL_AGENT_REGISTRY.items()], 'runs': rows}
+    table = get_supabase().table
+    # or_ keeps NULL created_by rows (plain neq drops them); the Python filter covers planes that ignore or_.
+    rows = table('agent_runs').select('id,tenant_id,agent_id,task,outcome,status,created_at,started_at,finished_at,error,created_by').or_('created_by.is.null,created_by.neq.pipeline-stage-evidence').order('created_at', desc=True).limit(100).execute().data or []
+    rows = [{k: v for k, v in r.items() if k != 'created_by'} for r in rows if r.get('created_by') != 'pipeline-stage-evidence']
+    ev = table('agent_runs').select('id,tenant_id,agent_id,task,status,input_data,result,outcome,created_at,started_at,finished_at').eq('created_by', 'pipeline-stage-evidence').order('created_at', desc=True).limit(60).execute().data or []
+    groups: dict = {}
+    for r in ev:  # newest first, so the first source_run_id seen is the latest flow
+        groups.setdefault((r.get('input_data') or {}).get('source_run_id'), []).append(r)
+    flow = sorted(next(iter(groups.values()), []), key=lambda r: (r.get('input_data') or {}).get('order', 0))
+    return {'ok': True, 'agents': [{'id': agent_id, **contract} for agent_id, contract in FULL_AGENT_REGISTRY.items()], 'runs': rows, 'latest_pipeline_flow': flow}
 
     from app.integrations.prod.platform_control import platform_summary
     return {'ok':True,**platform_summary()}
