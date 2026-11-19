@@ -236,6 +236,9 @@ def _jsonld_business(blocks: list[str]) -> dict:
                 people.append({"name": str(node["name"]).strip(), "title": str(node.get("jobTitle") or "").strip() or None, "source": "jsonld"})
             if not _BIZ_TYPES.search(types):
                 continue
+            out.setdefault("type", types.split()[0])
+            if node.get("numberOfEmployees") and "numberOfEmployees" not in out:
+                out["numberOfEmployees"] = node["numberOfEmployees"]
             for src, dst in (("name", "name"), ("telephone", "telephone"), ("email", "email"), ("url", "url"), ("description", "description"), ("priceRange", "price_range")):
                 if node.get(src) and dst not in out:
                     out[dst] = str(node[src]).strip()
@@ -277,6 +280,10 @@ _TITLE = r"(Owner|Founder|Co-?Founder|CEO|President|Principal|Managing (?:Partne
 _PERSON = re.compile(rf"\b((?:Dr\.?\s+)?[A-Z][a-z]+(?:\s+[A-Z]\.)?\s+[A-Z][a-z]+(?:-[A-Z][a-z]+)?)(?:,\s*(?:DDS|DMD|MD|DO|DC|DPT|PhD|Esq|CPA))?\s*[,\-–—|:]\s*{_TITLE}", re.U)
 
 
+# words that make a "First Last, Title" regex hit a service or business name ("Pediatric Dentistry, Dentist"), not a person
+_NOT_A_NAME = {"dentistry", "dental", "dentist", "pediatric", "family", "plumbing", "services", "service", "care", "center", "centre", "clinic", "health", "implant", "implants", "cosmetic",
+               "general", "emergency", "orthodontics", "orthodontic", "periodontal", "restorative", "preventive", "pain", "heating", "cooling", "roofing", "repair", "law", "legal", "office",
+               "practice", "team", "staff", "welcome", "appointment", "request", "schedule", "contact", "learn", "read", "more", "our", "meet", "your", "sedation", "treatment", "treatments"}
 _CALLING = {"US": "1", "CA": "1", "GB": "44", "UK": "44", "AU": "61", "NZ": "64", "IN": "91", "FR": "33", "DE": "49", "JP": "81", "CN": "86"}
 _GTLDS = {"com", "net", "org", "edu", "gov", "mil", "int", "info", "biz", "io", "co", "ai", "app", "dev", "xyz", "online", "site", "store", "shop", "tech", "health", "clinic", "dental", "care", "fitness", "salon", "spa", "studio", "media", "agency", "services", "solutions", "group", "law", "legal", "realty", "pro", "club", "life", "world", "today", "design", "marketing", "digital", "cloud", "ink", "cafe", "restaurant", "pizza", "pet", "vet", "tax", "cpa", "plus", "zone", "page", "email", "global", "company", "center", "team", "church", "academy", "bio", "me", "tv", "us", "mobi", "name", "travel", "work", "network", "systems", "institute", "foundation", "directory"}
 
@@ -378,7 +385,7 @@ def extract_all(content: str, page_url: str = "", *, region: str = "US") -> dict
     people = list(ld.get("people") or [])
     for m in _PERSON.finditer(text):
         name = re.sub(r"^Dr\.?\s+", "Dr. ", m.group(1)).strip()
-        if name.lower().split()[0] not in {"our", "the", "meet", "contact", "about"} and not any(q["name"] == name for q in people):
+        if name.lower().split()[0] not in {"our", "the", "meet", "contact", "about"} and not (set(re.findall(r"[a-z]+", name.lower())) & _NOT_A_NAME) and not any(q["name"] == name for q in people):
             people.append({"name": name, "title": m.group(2), "source": "text"})
     return {
         "emails": sorted(emails.values(), key=lambda e: (-e["confidence"], e["role"])),

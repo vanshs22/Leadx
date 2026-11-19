@@ -194,3 +194,40 @@ def compute_metrics(sb, tenant_id: str, days: int = 30) -> dict:
 def engine_metrics(tenant_id: UUID, days: int = Query(30, ge=1, le=365), ctx: TenantContext = Depends(require_tenant)):
     assert_tenant_match(ctx, tenant_id)
     return {"ok": True, **compute_metrics(_sb(), str(tenant_id), days)}
+
+
+@router.get("/{tenant_id}/engine/fetching")
+def engine_fetching(tenant_id: UUID, date_from: Optional[str] = Query(None, max_length=40), date_to: Optional[str] = Query(None, max_length=40),
+                    provider: Optional[str] = Query(None, pattern="^(direct|scrapling|browser|crawl4ai|firecrawl)$"),
+                    category: Optional[str] = Query(None, pattern="^[a-z0-9_]{2,30}$"), source: Optional[str] = Query(None, pattern="^[A-Za-z0-9_:.-]{1,60}$"),
+                    ctx: TenantContext = Depends(require_tenant)):
+    """Fetching-intelligence dashboard: fetch/challenge/HTTP/timeout counts, alternative-source recovery, completeness, provider success, cost, tokens, problem domains."""
+    assert_tenant_match(ctx, tenant_id)
+    from app.integrations.prod.fetch_dashboard import compute_fetching
+    try:
+        return {"ok": True, **compute_fetching(_sb(), str(tenant_id), date_from=date_from, date_to=date_to, provider=provider, category=category, source=source)}
+    except Exception as exc:
+        logger.warning("fetching dashboard unavailable (%s)", type(exc).__name__)  # tables arrive with the fetch-intelligence migration
+        raise HTTPException(503, "fetching metrics are not available until the fetch_attempts migration is applied")
+
+
+@router.get("/{tenant_id}/engine/fetching/verification")
+def fetching_verification(tenant_id: UUID, ctx: TenantContext = Depends(require_tenant)):
+    """Sites that answered with a bot-protection challenge. An operator opens each one by hand; nothing here solves or bypasses a challenge."""
+    assert_tenant_match(ctx, tenant_id)
+    from app.integrations.prod.fetch_dashboard import pending_verification
+    return {"ok": True, "items": pending_verification(_sb(), str(tenant_id))}
+
+
+class VerifyBody(BaseModel):
+    action: str = Field(..., pattern="^(resolved|dismissed|retry)$")
+
+
+@router.post("/{tenant_id}/engine/fetching/verification/{outcome_id}")
+def fetching_verification_resolve(tenant_id: UUID, outcome_id: UUID, body: VerifyBody, ctx: TenantContext = Depends(require_writer)):
+    assert_tenant_match(ctx, tenant_id)
+    from app.integrations.prod.fetch_dashboard import resolve_verification
+    row = resolve_verification(_sb(), str(tenant_id), str(outcome_id), body.action)
+    if not row:
+        raise HTTPException(404, "verification item not found")
+    return {"ok": True, "item": row}

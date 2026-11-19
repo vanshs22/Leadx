@@ -203,7 +203,7 @@ async def safe_get(url: str, *, timeout: float = 20.0, max_redirects: int = 5,
                 r._content = bytes(body[:max_bytes])  # noqa: SLF001 - expose .text/.content
                 return r, None
         except Exception as e:  # network errors are data, not crashes
-            return None, str(e)[:300]
+            return None, f"{type(e).__name__}: {e}"[:300]  # type name matters: httpx timeouts have an empty message
     return None, "too_many_redirects"
 
 

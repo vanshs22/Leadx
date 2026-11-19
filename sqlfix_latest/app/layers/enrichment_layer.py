@@ -307,6 +307,9 @@ async def enrich(leads: list[dict], *, max_concurrent: int = 5,
                         row["website_domain"] = found["website"].split("//", 1)[-1].removeprefix("www.")
                 except Exception as exc:
                     logger.debug("website finder skipped: %s", type(exc).__name__)
+            from app.integrations.prod import fetch_telemetry
+            fetch_telemetry.ctx.set({"tenant_id": context.tenant_id, "run_id": context.run_id, "discovery_source": str(row.get("source") or ""),
+                                     "lead_key": str(row.get("id") or row.get("website_domain") or row.get("name") or "")})
             deadline_s = _deadline_seconds(context, row)
             lead_context = context.child(
                 field="enrichment", attempt=1,
@@ -366,6 +369,12 @@ async def enrich(leads: list[dict], *, max_concurrent: int = 5,
                         if key not in row or _empty(row.get(key)):
                             row[key] = value
                 _merge_audit(row, deep_audit)
+            if row.get("fetch_challenge") and context.tenant_id and row.get("id"):
+                try:  # site challenge: keep the lead, let an operator open the site and resolve it by hand (never automated)
+                    from app.integrations.prod import review_queue
+                    await asyncio.to_thread(review_queue.enqueue, context.tenant_id, row, context.run_id, [f"site_challenge:{row['fetch_challenge']}", "needs_human_verification"])
+                except Exception as exc:
+                    logger.debug("challenge review enqueue skipped: %s", type(exc).__name__)
             if deep_status:
                 _merge_audit(row, {"deadline": {"status": deep_status, "stage": "free_deep_crawl"}})
                 return row
@@ -388,7 +397,10 @@ async def enrich(leads: list[dict], *, max_concurrent: int = 5,
                 _merge_audit(row, {"deadline": {"status": paid_status, "stage": "paid_fallback"}})
             return row
 
-    return list(await asyncio.gather(*(one(lead) for lead in leads)))
+    rows = list(await asyncio.gather(*(one(lead) for lead in leads)))
+    from app.integrations.prod import fetch_telemetry
+    await asyncio.to_thread(fetch_telemetry.flush)
+    return rows
 
 
 async def enrich_for_pipeline(leads: list[dict], *, max_concurrent: int = 5,

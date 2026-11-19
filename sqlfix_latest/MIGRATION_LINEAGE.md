@@ -1,6 +1,6 @@
 # LeadX migration lineage
 
-The executable database source of truth is `supabase/migrations/`, containing **48 ordered migrations**. `SUPABASE_FULL_MIGRATION.sql` is the clean-install mirror of that same chain. Apply one path only: Supabase CLI migrations or the root mirror, never both.
+The executable database source of truth is `supabase/migrations/`, containing **49 ordered migrations**. `SUPABASE_FULL_MIGRATION.sql` is the clean-install mirror of that same chain. Apply one path only: Supabase CLI migrations or the root mirror, never both.
 
 Legacy SQL patches are retained only as historical/source material and are not a current install path. Existing tables, statuses, rows, and RLS boundaries are preserved by the additive 16.0 data-plane migrations.
 

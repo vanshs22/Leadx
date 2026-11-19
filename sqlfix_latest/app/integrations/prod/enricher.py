@@ -138,6 +138,9 @@ async def fetch_scrapling(url: str, timeout: int = 20, light: bool = False) -> d
     """
     from app.integrations.prod.discovery_runtime import assert_provider_allowed
     assert_provider_allowed("first_party_web")
+    from app.integrations.prod import fetch_engine
+    if fetch_engine.enabled():  # classified, history-aware cascade (docs/DATA_ENGINE.md); LEADX_FETCH_ENGINE=0 keeps the path below
+        return await fetch_engine.acquire(url, light=light, timeout=timeout)
     out = {"html": "", "text": "", "method": "scrapling", "ok": False, "error": None, "status": None}
     blocked = await assert_public_url(url)
     if blocked:
@@ -538,9 +541,10 @@ def _needs_rendering(content: str) -> bool:
     return len(re.sub(r"\s+", " ", text).strip()) < 1200 or bool(_JS_SHELL.search(content or ""))
 
 
-async def enrich_one(website: str, use_crawl4ai: bool = True, use_firecrawl: bool = True, company_name: Optional[str] = None, city: Optional[str] = None) -> dict:
+async def enrich_one(website: str, use_crawl4ai: bool = True, use_firecrawl: bool = True, company_name: Optional[str] = None, city: Optional[str] = None, hints: Optional[dict] = None) -> dict:
     """
-    Full enrichment cascade for one URL.
+    Full enrichment cascade for one URL. ``hints`` (phone, email, address, social_links, region) from discovery drive alternative-source
+    recovery and identity matching when the site itself cannot be read.
 
     Returns dict ready for enrichment table upsert.
     """
@@ -600,16 +604,22 @@ async def enrich_one(website: str, use_crawl4ai: bool = True, use_firecrawl: boo
 
     parsed = _parse_content(content, website) if content else {}
     firecrawl_calls = 0
+    site_ok = bool(content)
+    hints = dict(hints or {})
+    hints.setdefault("name", company_name)
+    hints.setdefault("city", city)
+    hints["website"] = website
 
-    if not content:
+    if not content and not _recovery_enabled():
         empty["error"] = scrap.get("error") or c4.get("error") or "all_fetchers_failed"
+        empty["acquisition"] = _acq_meta(scrap, "failed")
         return empty
 
     # Crawl high-value internal pages (contact/about/team/services/locations) so
     # enrichment is domain-deep instead of homepage-only.
     tried: set = set()
     try:
-        secondary_html, secondary_urls = await _fetch_secondary_pages(website, html or content, tried=tried, use_firecrawl_for_secondary=use_firecrawl and os.getenv('LEADX_FIRECRAWL_SECONDARY', '0') == '1')
+        secondary_html, secondary_urls = await _fetch_secondary_pages(website, html or content, tried=tried, use_firecrawl_for_secondary=use_firecrawl and os.getenv('LEADX_FIRECRAWL_SECONDARY', '0') == '1') if site_ok else ("", [])
         if secondary_html:
             secondary = _parse_content(secondary_html, website)
             parsed = _merge_parsed(parsed, secondary)
@@ -618,7 +628,7 @@ async def enrich_one(website: str, use_crawl4ai: bool = True, use_firecrawl: boo
         logger.debug('secondary enrichment crawl failed: %s', e)
 
     # Contact page follow-up if no email
-    if not parsed.get("emails"):
+    if site_ok and not parsed.get("emails"):
         extra = await _try_contact_pages(website, parsed.get("emails") or [], tried)
         if extra.get("emails"):
             parsed.update({k: v for k, v in extra.items() if v})
@@ -628,7 +638,7 @@ async def enrich_one(website: str, use_crawl4ai: bool = True, use_firecrawl: boo
     # contact pages still left no email/phone AND the page looks unrendered (empty, tiny, or a JS shell), or nothing loaded.
     # LEADX_FIRECRAWL_MODE=always restores the old "whenever a contact is missing" behaviour.
     contact_missing = not parsed.get("email") or not parsed.get("phone_from_web")
-    if use_firecrawl and contact_missing and (os.getenv("LEADX_FIRECRAWL_MODE", "fallback") == "always" or _needs_rendering(content)):
+    if site_ok and use_firecrawl and contact_missing and (os.getenv("LEADX_FIRECRAWL_MODE", "fallback") == "always" or _needs_rendering(content)):
         try:
             fc = await fetch_firecrawl(website)
             firecrawl_calls += 1
@@ -664,6 +674,30 @@ async def enrich_one(website: str, use_crawl4ai: bool = True, use_firecrawl: boo
             parsed['social_links'] = {**(parsed.get('social_links') or {}), **(fallback.get('social_links') or {})}
         except Exception as exc: __import__("logging").getLogger(__name__).debug("suppressed optional failure: %s", exc)
 
+    # Alternative-source recovery: the site was unreadable (challenge, 403/429, DNS, timeout, empty) or gave no contact at all.
+    # Identity-matched public sources only; nothing is merged unless domain/phone/address and name agree (alt_recovery.identity_match).
+    found: dict = {}
+    alt: dict = {}
+    if _recovery_enabled() and (not site_ok or not (parsed.get("email") or parsed.get("phone_from_web"))):
+        try:
+            from app.integrations.prod.alt_recovery import recover
+            have = {k: parsed.get(v) for k, v in (("email", "email"), ("phone", "phone_from_web")) if parsed.get(v)}
+            alt = await recover(hints, have, sources=None if not site_ok or hints.get("force_alt") else "hints")
+            found = alt.get("found") or {}
+            if "email" in found:
+                parsed["emails"] = list(dict.fromkeys((parsed.get("emails") or []) + [found["email"]["value"]]))[:20]
+                parsed["email"] = parsed["emails"][0]
+                parsed["email_valid"] = is_valid_email(parsed["email"])
+            if "phone" in found and not parsed.get("phone_from_web"):
+                parsed["phone_from_web"] = found["phone"]["value"]
+            if "owner_name" in found and not parsed.get("owner_name"):
+                parsed["owner_name"] = found["owner_name"]["value"]
+            parsed["social_links"] = {**(alt.get("social_links") or {}), **(parsed.get("social_links") or {})}
+            if found:
+                method_parts.append("alt:" + "+".join(dict.fromkeys(f["source"] for f in found.values())))
+        except Exception as exc:
+            logger.debug("alt recovery failed: %s", exc)
+
     # Rank candidate emails so the most reachable, most relevant address is primary.
     try:
         from app.integrations.prod.contact_quality import rank_emails, contact_confidence
@@ -690,7 +724,21 @@ async def enrich_one(website: str, use_crawl4ai: bool = True, use_firecrawl: boo
         or parsed.get("phone_from_web")
         or parsed.get("social_links")
     )
-
+    from app.integrations.prod import acquisition as acq, content_prep, fetch_telemetry
+    profile = content_prep.extract_profile(html or content, parsed) if site_ok else {}
+    if hints.get("category") and "industries" not in profile:
+        profile["industries"] = {"value": [hints["category"]], "source": "discovery_record"}
+    prov = acq.build_provenance(parsed, profile, website if site_ok else None, found, {"email": hints.get("email"), "phone": hints.get("phone")})
+    klass = acq.acquisition_class(site_ok, found, {"email": hints.get("email"), "phone": hints.get("phone")})
+    ok = ok and klass != "hint_only"  # discovery hints are not an enrichment; the lead keeps them either way
+    meta = _acq_meta(scrap, klass)
+    meta.update(completeness=acq.completeness(prov), recovery={"sources_tried": alt.get("sources_tried", []), "found": sorted(found), "rejected": alt.get("rejected", []), "cost": alt.get("cost", 0.0)},
+                tokens=0, llm_candidate=content_prep.needs_llm(parsed, content_prep.main_text(html, 6000)) if site_ok else False,
+                cost=round(meta["cost"] + firecrawl_calls * 1.0 + alt.get("cost", 0.0), 4), fields=sorted(prov))
+    fetch_telemetry.record_outcome({"domain": urlparse(website).hostname, "website_fetched": site_ok, "category": meta["category"], "challenge": meta["challenge"],
+                                    "acquisition": klass, "recovery_sources": meta["recovery"]["found"] and sorted({f["source"] for f in found.values()}), "completeness": meta["completeness"],
+                                    "fields": meta["fields"], "elapsed_ms": meta["elapsed_ms"], "cost": meta["cost"], "tokens": 0, "provider": meta["provider"],
+                                    "needs_human": bool(meta["challenge"]), "human_status": "pending" if meta["challenge"] else None, "http_status": meta["status"]})
     return {
         "website": website,
         "email": parsed.get("email"),
@@ -699,18 +747,30 @@ async def enrich_one(website: str, use_crawl4ai: bool = True, use_firecrawl: boo
         "phone_from_web": parsed.get("phone_from_web"),
         "has_booking": parsed.get("has_booking") or False,
         "booking_platform": parsed.get("booking_platform"),
-        "services": parsed.get("services") or [],
+        "services": (profile.get("services") or {}).get("value") or parsed.get("services") or [],
         "social_links": parsed.get("social_links") or {},
         "owner_name": parsed.get("owner_name"),
         "decision_makers": parsed.get("decision_makers") or [],
         "markdown_summary": (md or "")[:4000] or None,
         "raw_extraction": parsed,
+        "profile": profile,
+        "field_provenance": prov,
+        "acquisition": meta,
         "enrichment_method": "+".join(dict.fromkeys(method_parts)) or "unknown",
         "enrichment_ok": ok,
         "firecrawl_calls": firecrawl_calls,
-        "error": None if ok else "sparse_extraction",
+        "error": None if ok else (f"site_challenge:{meta['challenge']}" if meta["challenge"] else scrap.get("error") if not site_ok else "sparse_extraction"),
     }
 
+
+def _recovery_enabled() -> bool:
+    return os.getenv("LEADX_ALT_RECOVERY", "1") != "0" and os.getenv("LEADX_FETCH_ENGINE", "1") != "0"
+
+
+def _acq_meta(scrap: dict, klass: str) -> dict:
+    return {"class": klass, "website_fetched": bool(scrap.get("ok")), "category": scrap.get("category"), "challenge": scrap.get("challenge"), "status": scrap.get("status"),
+            "provider": scrap.get("method"), "attempts": scrap.get("attempts") or [], "elapsed_ms": scrap.get("elapsed_ms") or 0, "cost": float(scrap.get("cost") or 0.0),
+            "cooldown": bool(scrap.get("cooldown")), "cached": bool(scrap.get("cached"))}
 
 
 async def _resolve_website(name: str, city: Optional[str] = None) -> Optional[str]:
@@ -778,14 +838,21 @@ async def enrich_batch(
             return lead
         async with sem:
             try:
-                info = await enrich_one(url, use_crawl4ai=use_crawl4ai, use_firecrawl=use_firecrawl, company_name=lead.get("name") or lead.get("company_name"), city=lead.get("city"))
+                info = await enrich_one(url, use_crawl4ai=use_crawl4ai, use_firecrawl=use_firecrawl, company_name=lead.get("name") or lead.get("company_name"), city=lead.get("city"),
+                                        hints={"phone": lead.get("phone_e164") or lead.get("phone"), "email": lead.get("email"), "address": lead.get("address"), "category": lead.get("category"),
+                                               "social_links": lead.get("social_links") or {}, "region": lead.get("region") or lead.get("state")})
             except Exception as e:
                 logger.exception("enrich_one crashed for %s", url)
                 lead["enrichment_ok"] = False
                 lead["enrichment_error"] = str(e)
                 return lead
 
+            lead["acquisition"] = info.get("acquisition")
+            if (info.get("acquisition") or {}).get("challenge"):
+                lead["fetch_challenge"] = info["acquisition"]["challenge"]
             if info.get("enrichment_ok"):
+                lead["field_provenance"] = info.get("field_provenance")
+                lead["profile"] = info.get("profile")
                 lead["email"] = info.get("email") or lead.get("email")
                 lead["email_valid"] = info.get("email_valid")
                 lead["emails"] = info.get("emails") or []
