@@ -3,6 +3,7 @@
 Sources, in cost order, each stopping the cascade only when the contact gap is closed:
   hints      what discovery already knows (Overture/OSM/directory fields on the lead). No network.
   archive    Internet Archive snapshot of the business's own site (public cached copy; stale, so lower confidence)
+  commoncrawl  Common Crawl capture of the business's own site, only after a bot-protection verdict (index_recovery.py)
   osm        OpenStreetMap Nominatim record (phone/email/website/socials tags)
   directory  YellowPages/Superpages search card (existing robots-respecting directory fetcher)
   search     SearXNG/Serper result snippets, when one is configured
@@ -12,7 +13,7 @@ Nothing from a source is used until identity_match() accepts it: a shared domain
 compatible business name, or two strong signals. Name alone never merges. A conflicting phone or ZIP rejects the candidate even when
 the names match, which is how "Smile Dental" in another suburb is kept out.
 
-Env: LEADX_ALT_SOURCES (comma list, default hints,archive,directory,search,places; add osm to enable Nominatim), LEADX_NOMINATIM_URL, GOOGLE_PLACES_API_KEY,
+Env: LEADX_ALT_SOURCES (comma list, default hints,archive,commoncrawl,directory,search,places; add osm to enable Nominatim), LEADX_NOMINATIM_URL, GOOGLE_PLACES_API_KEY,
 LEADX_PLACES_CREDITS (cost per call, default 0.017), LEADX_ALT_ARCHIVE_MAX_AGE_DAYS (default 1825).
 """
 from __future__ import annotations
@@ -30,7 +31,7 @@ from app.integrations.prod.entity_resolution import names_compatible
 from app.integrations.prod.net_safety import safe_get
 
 logger = logging.getLogger("lead_engine.alt_recovery")
-DEFAULT_SOURCES = "hints,archive,directory,search,places"  # osm is opt-in: 1 hit in 118 lookups (docs/FETCH_AUDIT.md) at a 1.1 s global pacing cost
+DEFAULT_SOURCES = "hints,archive,commoncrawl,directory,search,places"  # osm is opt-in: 1 hit in 118 lookups (docs/FETCH_AUDIT.md) at a 1.1 s global pacing cost
 _PROFILE_HOSTS = ("facebook.com", "instagram.com", "linkedin.com", "yelp.com", "yellowpages.com", "twitter.com", "x.com", "youtube.com", "tiktok.com")
 
 
@@ -258,7 +259,12 @@ async def _probe_successor(h: dict) -> list[str]:
     return [found["website"]] if found and _dom(found["website"]) != _dom(h.get("website")) else []
 
 
-_SOURCES = {"archive": _archive, "osm": _osm, "directory": _directory, "search": _search, "places": _places}
+async def _commoncrawl(h: dict) -> list[dict]:
+    from app.integrations.prod.index_recovery import commoncrawl_candidates
+    return await commoncrawl_candidates(h)
+
+
+_SOURCES = {"archive": _archive, "commoncrawl": _commoncrawl, "osm": _osm, "directory": _directory, "search": _search, "places": _places}
 
 
 def _own_or_freemail(email: str, site_dom: str) -> bool:
@@ -311,7 +317,7 @@ async def recover(hint: dict, have: Optional[dict] = None, want: tuple = ("email
             continue
         for c in cands:
             cost += float(c.get("cost") or 0)
-            if src == "archive":
+            if src in ("archive", "commoncrawl"):
                 ok, matched, why = (True, ["domain", "name"], "ok") if c.get("text_name_hit") else (False, [], "archive_name_absent")
             elif src == "hints":
                 ok, matched, why = True, ["discovery_record"], "ok"
@@ -324,6 +330,8 @@ async def recover(hint: dict, have: Optional[dict] = None, want: tuple = ("email
             if c.get("website") and src not in ("hints", "archive"):
                 listed.append(c)
             prov = {"source": c["source"], "url": c.get("url"), "matched_on": matched, "confidence": c.get("confidence"), "observed_at": datetime.now(timezone.utc).isoformat()}
+            if src in ("archive", "commoncrawl", "search"):   # index/alternative-source recovery, never a fetch success
+                prov["method"] = {"archive": "wayback", "commoncrawl": "commoncrawl", "search": "search_snippet"}[src]
             if c.get("snapshot"):
                 prov.update(snapshot=c["snapshot"], age_days=c.get("age_days"))
             site_dom = _dom(hint.get("website"))

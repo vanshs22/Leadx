@@ -21,7 +21,10 @@ def _run(monkeypatch, html, mode=None):
         return {"ok": True, "html": '<a href="mailto:front@oakdental.com">x</a> (512) 867-5309', "markdown": ""}
     monkeypatch.setattr(enricher, "fetch_scrapling", scrapling)
     monkeypatch.setattr(enricher, "fetch_firecrawl", firecrawl)
-    monkeypatch.setenv("LEADX_PAID_FALLBACK", "never")        # keeps the Serper contact fallback out of this test
+    monkeypatch.setenv("FIRECRAWL_API_KEY", "fc-test")        # last-resort gate needs a key; the HTTP call itself is mocked above
+    monkeypatch.setenv("ENRICH_SEARCH_FALLBACK", "0")          # keeps the Serper contact fallback out of this test
+    from app.integrations.prod import fetch_engine
+    fetch_engine._FC_CACHE.clear(); fetch_engine._FC_CALLS.clear()
     if mode:
         monkeypatch.setenv("LEADX_FIRECRAWL_MODE", mode)
     out = asyncio.run(enricher.enrich_one("https://oakdental.com", use_crawl4ai=False, use_firecrawl=True))
@@ -44,6 +47,6 @@ def test_page_with_contact_never_calls_firecrawl(monkeypatch):
     assert calls == [] and out["email"] == "hello@oakdental.com"
 
 
-def test_always_mode_restores_old_behaviour(monkeypatch):
-    out, calls = _run(monkeypatch, RICH_NO_CONTACT, mode="always")
-    assert len(calls) == 1
+def test_always_mode_no_longer_sends_rendered_pages_to_firecrawl(monkeypatch):
+    out, calls = _run(monkeypatch, RICH_NO_CONTACT, mode="always")   # the old LEADX_FIRECRAWL_MODE=always is gone: only a JS shell or unrecovered challenge qualifies
+    assert calls == []

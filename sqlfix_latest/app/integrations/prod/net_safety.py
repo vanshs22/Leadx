@@ -152,6 +152,30 @@ except Exception:  # httpx internals changed: fall back to the stock behaviour
 
 _CLIENTS: dict = {}
 _SHARDS = 16
+_HOST_SEMS: dict = {}
+
+
+def _http2_on() -> bool:
+    """HTTP/2 when the h2 package is installed; LEADX_HTTP2=0 forces HTTP/1.1 (A/B switch)."""
+    if os.getenv("LEADX_HTTP2", "1") == "0":
+        return False
+    try:
+        import h2  # noqa: F401
+        return True
+    except ImportError:
+        return False
+
+
+def _host_sem(host: str):
+    """At most LEADX_HOST_CONNECTIONS (default 2) requests in flight per host: many parallel connections to one small site read as an attack and get dropped."""
+    import asyncio
+    loop = asyncio.get_running_loop()
+    if _HOST_SEMS.get("loop") is not loop or len(_HOST_SEMS) > 50_000:
+        _HOST_SEMS.clear(); _HOST_SEMS["loop"] = loop
+    s = _HOST_SEMS.get(host)
+    if s is None:
+        s = _HOST_SEMS[host] = asyncio.Semaphore(max(1, int(os.getenv("LEADX_HOST_CONNECTIONS", "2"))))
+    return s
 
 
 def _shared_client(host: str = ""):
@@ -172,7 +196,7 @@ def _shared_client(host: str = ""):
     c = pools.get(i)
     if c is None or c.is_closed:
         c = pools[i] = httpx.AsyncClient(
-            follow_redirects=False, http2=False,
+            follow_redirects=False, http2=_http2_on(),
             limits=httpx.Limits(max_connections=64, max_keepalive_connections=32, keepalive_expiry=30),
         )
         c.cookies.jar.set_policy(http.cookiejar.DefaultCookiePolicy(allowed_domains=[]))
@@ -191,7 +215,8 @@ async def safe_get(url: str, *, timeout: float = 20.0, max_redirects: int = 5,
         if reason:
             return None, f"blocked:{reason}"
         try:
-            async with _shared_client(urlparse(current).hostname or "").stream("GET", current, headers=headers, timeout=timeout) as r:
+            host = urlparse(current).hostname or ""
+            async with _host_sem(host), _shared_client(host).stream("GET", current, headers=headers, timeout=timeout) as r:
                 if r.status_code in _REDIRECT_CODES and r.headers.get("location"):
                     current = urljoin(current, r.headers["location"])
                     continue

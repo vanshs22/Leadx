@@ -13,8 +13,10 @@ import inspect
 import logging
 import os
 import re
+import socket
 import time
 from typing import Any, Awaitable, Callable, Optional
+from urllib.parse import urlparse
 
 from app.integrations.prod.entity_resolution import entity_keys, resolve_entities
 from app.integrations.prod import exhaustive_discovery
@@ -25,6 +27,50 @@ from app.integrations.prod.utils import extract_domain, normalize_email
 logger = logging.getLogger("lead_engine.free_discovery")
 
 ALL_SOURCES = ("overture", "nppes", "companies_house", "directories", "osm")
+
+_DNS_DEAD: dict[str, tuple[float, bool]] = {}   # host -> (checked at, definitely does not exist)
+_DNS_TTL = 600.0
+_DNS_GONE = {socket.EAI_NONAME, getattr(socket, "EAI_NODATA", socket.EAI_NONAME)}
+
+
+async def _host_is_gone(host: str, sem: asyncio.Semaphore) -> bool:
+    """True only for a definite "name does not exist". A timeout or temporary resolver failure keeps the row."""
+    hit = _DNS_DEAD.get(host)
+    if hit and time.monotonic() - hit[0] < _DNS_TTL:
+        return hit[1]
+    gone = False
+    async with sem:
+        try:
+            await asyncio.wait_for(asyncio.get_running_loop().getaddrinfo(host, 80, type=socket.SOCK_STREAM), timeout=float(os.getenv("LEADX_DISCOVERY_DNS_TIMEOUT_S", "5")))
+        except socket.gaierror as exc:
+            gone = exc.errno in _DNS_GONE
+        except (asyncio.TimeoutError, UnicodeError, OSError):
+            pass
+    if len(_DNS_DEAD) > 50_000:
+        _DNS_DEAD.clear()
+    _DNS_DEAD[host] = (time.monotonic(), gone)
+    return gone
+
+
+async def drop_dead_domains(rows: list[dict], stats: Optional[dict] = None) -> list[dict]:
+    """Drop rows whose website host does not resolve (about 12% of discovered sites are dead domains and cost a full fetch cascade each).
+    Rows without a website are untouched. Counted as discovery_dead_domain in fetch_telemetry.counters. LEADX_DISCOVERY_DNS_CHECK=0 disables."""
+    if os.getenv("LEADX_DISCOVERY_DNS_CHECK", "1") == "0" or not rows:
+        return rows
+    sem = asyncio.Semaphore(int(os.getenv("LEADX_DISCOVERY_DNS_CONCURRENCY", "32")))
+    hosts: list[Optional[str]] = []
+    for r in rows:
+        w = str(r.get("website") or "").strip()
+        h = (urlparse(w if "//" in w else "//" + w).hostname or "").lower() if w else ""
+        hosts.append(h if h and not re.fullmatch(r"[\d.:]+|\[.*\]", h) else None)
+    gone = dict(zip(set(h for h in hosts if h), await asyncio.gather(*(_host_is_gone(h, sem) for h in set(h for h in hosts if h)))))
+    kept = [r for r, h in zip(rows, hosts) if not (h and gone.get(h))]
+    if len(kept) < len(rows):
+        from app.integrations.prod import fetch_telemetry
+        fetch_telemetry.count("discovery_dead_domain", len(rows) - len(kept))
+        if stats is not None:
+            stats["discovery_dead_domain"] = stats.get("discovery_dead_domain", 0) + len(rows) - len(kept)
+    return kept
 
 
 # placeholder names some open datasets emit for unnamed places, e.g. "Dentist in Austin, TX"
@@ -143,7 +189,7 @@ async def discover_free(industry: str, location: str, *, stats: Optional[dict[st
             seen_keys.update(keys)
             r["source"] = "osm"
             fresh.append(r)
-        fresh = fresh[:cap - emitted]
+        fresh = (await drop_dead_domains(fresh, stats))[:cap - emitted]
         if fresh:
             emitted += len(fresh)
             await on_rows(fresh)
@@ -189,7 +235,7 @@ async def discover_free(industry: str, location: str, *, stats: Optional[dict[st
     if stats is not None:
         for name in enabled:
             stats[name] = {"error": errors[name]} if name in errors else {"rows": len(made_by[name]), **({"timed_out": True} if name in timed_out else {})}
-    merged = resolve_entities(rows)
+    merged = await drop_dead_domains(resolve_entities(rows), stats)
     merged.sort(key=lambda r: (len(r.get("sources_hit") or []) >= 3, bool(r.get("email")), bool(r.get("website")), bool(r.get("phone")),
                                int(r.get("discovery_quality") or 0)), reverse=True)
     merged = merged[:cap]

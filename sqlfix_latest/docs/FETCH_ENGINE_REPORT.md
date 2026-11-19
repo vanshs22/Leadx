@@ -67,3 +67,12 @@ Needs to be verified with external resources:
 * Port 25: SMTP mailbox verification.
 * Postgres/Supabase: the fetch tables, RLS and the client projection. The SQL migration for the fetch tables has not been run against Postgres.
 * Portal: `next build` and a visual check of the fetch dashboard page.
+
+## 4. Recovery changes (js render, retry, crawl, index recovery)
+
+- Discovery drops rows whose website host does not resolve (`free_discovery.drop_dead_domains`, counter `discovery_dead_domain`).
+- Browser fetch waits for `load`, network idle (10 s), 400+ characters of visible text (6 s), then scrolls once. Browser timeout 45 s, Crawl4AI 50 s (`wait_until=load`, `page_timeout=45000`). Thin 200 pages and JS shells escalate to the browser.
+- Network errors (timeout, disconnect, connect) are retried once with 1.75x timeout. Per-host concurrency 2. HTTP/2 is on when `h2` is installed (`LEADX_HTTP2=0` to compare).
+- Crawl reads robots.txt and sitemap.xml (one index level) and fetches up to 12 pages ranked contact, about, team, service, location.
+- Bot-protected sites: Common Crawl (CDX + WARC byte range), Wayback and search snippets, tagged `method=commoncrawl|wayback|search_snippet`. This is index recovery, reported apart from fetch success. Nothing here gets past a protection.
+- Firecrawl runs last, behind key, policy, credit cap, `LEADX_FIRECRAWL_RUN_MAX` and a per-URL cache.

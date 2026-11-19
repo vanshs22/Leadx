@@ -5,7 +5,7 @@ method can plausibly fix escalates, and the next provider is chosen by expected 
 (per domain, per protection vendor, per provider), not by walking a fixed list.
 
   usable page              -> done
-  JS shell / redirect stub -> local browser (Playwright, or Crawl4AI when installed), then Firecrawl if a key is configured and policy allows
+  JS shell / redirect stub -> local browser (Playwright, or Crawl4AI when installed). Firecrawl is not part of the cascade: see firecrawl_last_resort
   network error            -> Scrapling (different HTTP stack), scheme/www flip
   challenge, 403, 429      -> STOP. Classified, cooled down per domain, reported to the caller, never retried through another fetcher.
   dead domain / 404 site   -> STOP.
@@ -15,13 +15,14 @@ site refusals), per-host politeness limit, domain cooldowns, URL result cache. E
 
 Env: LEADX_FETCH_ENGINE=0 disables the engine (callers fall back to the plain direct-then-Scrapling path);
 LEADX_FETCH_PROVIDERS (comma list, default direct,scrapling,browser,crawl4ai,firecrawl); LEADX_FETCH_BROWSER_CONCURRENCY (4);
-LEADX_FETCH_HOST_CONCURRENCY (3); LEADX_FETCH_CACHE_SECONDS (300); LEADX_FETCH_COOLDOWN_SCALE (1.0); LEADX_FETCH_BUDGET_S (60, total time per URL across providers).
+LEADX_FETCH_HOST_CONCURRENCY (2); LEADX_FETCH_NET_RETRY (1: retry timeout/disconnect/connect once with a 1.75x timeout); LEADX_HTTP2 (1); LEADX_FETCH_CACHE_SECONDS (300); LEADX_FETCH_COOLDOWN_SCALE (1.0); LEADX_FETCH_BUDGET_S (60, total time per URL across providers).
 """
 from __future__ import annotations
 
 import asyncio
 import logging
 import os
+import random
 import re
 import time
 from dataclasses import dataclass, field
@@ -39,16 +40,19 @@ HEADERS = {"User-Agent": _UA, "Accept": "text/html,application/xhtml+xml,applica
 PROVIDERS = {
     "direct": {"cost": 0.0, "weight": 0.2, "timeout": 20},
     "scrapling": {"cost": 0.0, "weight": 0.5, "timeout": 20},
-    "browser": {"cost": 0.0, "weight": 3.0, "timeout": 35},
-    "crawl4ai": {"cost": 0.0, "weight": 3.0, "timeout": 40},
+    "browser": {"cost": 0.0, "weight": 3.0, "timeout": 45},
+    "crawl4ai": {"cost": 0.0, "weight": 3.0, "timeout": 50},
     "firecrawl": {"cost": float(os.getenv("FIRECRAWL_CREDITS_PER_PAGE", "1")), "weight": 5.0, "timeout": 60},
 }
 # which providers a verdict category may escalate to (challenges and refusals escalate nowhere, by design)
 ESCALATE = {
-    "js_shell": ["browser", "crawl4ai", "firecrawl"], "redirect_stub": ["browser", "crawl4ai"], "empty_body": ["browser", "scrapling", "crawl4ai"],
+    "js_shell": ["browser", "crawl4ai"], "redirect_stub": ["browser", "crawl4ai"], "empty_body": ["browser", "scrapling", "crawl4ai"],
     "disconnect": ["browser", "scrapling"], "connect": ["scrapling", "browser"], "tls": ["scrapling", "browser"], "network_other": ["scrapling", "browser"],
-    "timeout": [], "http_5xx": ["browser", "scrapling"], "http_4xx": [],
+    "timeout": [], "ok": ["browser"], "http_5xx": ["browser", "scrapling"], "http_4xx": [],
 }
+
+
+_NET_RETRY = ("timeout", "disconnect", "connect", "network_other")
 
 
 def _enabled_providers() -> list[str]:
@@ -242,11 +246,21 @@ class Engine:
         await ctx.route("**/*", gate)
         try:
             page = await ctx.new_page()
-            resp = await page.goto(url, wait_until="domcontentloaded", timeout=timeout * 1000)
+            # the waits after goto add up to ~17 s; keep the whole fetch under `timeout` so run_provider's deadline does not discard a rendered page
+            resp = await page.goto(url, wait_until="load", timeout=max(timeout - 17, 10) * 1000)
             try:
-                await page.wait_for_load_state("networkidle", timeout=4000)
+                await page.wait_for_load_state("networkidle", timeout=10000)
             except Exception as exc:  # pages with long-polling never go idle; the DOM is already there
                 logger.debug("networkidle not reached: %s", type(exc).__name__)
+            try:  # client-side apps paint after load: wait for real visible text
+                await page.wait_for_function("() => ((document.body && document.body.innerText) || '').trim().length > 400", timeout=6000)
+            except Exception as exc:
+                logger.debug("body text stayed short: %s", type(exc).__name__)
+            try:  # one scroll to trigger lazy-loaded sections
+                await page.evaluate("() => window.scrollTo(0, document.body.scrollHeight)")
+                await page.wait_for_timeout(500)
+            except Exception as exc:
+                logger.debug("scroll failed: %s", type(exc).__name__)
             html = await page.content()
             return {"status": resp.status if resp else None, "html": html[:2_500_000], "error": None, "headers": dict(resp.headers) if resp else {}, "final_url": page.url}
         finally:
@@ -281,15 +295,16 @@ class Engine:
             return bool(os.getenv("FIRECRAWL_API_KEY") or os.getenv("FIRECRAWL_API_KEYS")) and paid_fallback_mode() != "never" and not local_mode_denies_paid()
         return True
 
-    async def run_provider(self, provider: str, url: str, category_in: str = "first") -> tuple[dict, Verdict, dict]:
+    async def run_provider(self, provider: str, url: str, category_in: str = "first", timeout: Optional[float] = None) -> tuple[dict, Verdict, dict]:
         """One attempt: bounded by the provider's concurrency limit, timeout and breaker. Returns (raw, verdict, attempt record)."""
         cfg = PROVIDERS[provider]
+        tmo = timeout or cfg["timeout"]
         fn = getattr(self, "_" + ("browser_fetch" if provider == "browser" else provider))
         t0 = time.monotonic()
         provider_fault = False
         async with self._sem((provider,), self._limit(provider)):
             try:
-                raw = await asyncio.wait_for(fn(url, cfg["timeout"]), timeout=cfg["timeout"] + 5)
+                raw = await asyncio.wait_for(fn(url, tmo), timeout=tmo + 5)
             except asyncio.CancelledError:
                 raise
             except asyncio.TimeoutError:
@@ -325,6 +340,9 @@ class Engine:
         """Direct fetch plus the free, non-evasive fixes: same-site JS/meta redirect stub, dead path -> homepage, scheme/www flip, one short 429 wait."""
         atts: list[dict] = []
         raw, v, a = await self.run_provider("direct", url, "first"); atts.append(a)
+        if v.category in _NET_RETRY and os.getenv("LEADX_FETCH_NET_RETRY", "1") != "0":
+            await asyncio.sleep(random.uniform(0.5, 1.5))   # a dropped connection often succeeds on a calmer second try with more time
+            raw, v, a = await self.run_provider("direct", url, v.category, timeout=PROVIDERS["direct"]["timeout"] * 1.75); atts.append(a)
         p = urlparse(url)
         alt = None
         if v.category == "redirect_stub":
@@ -368,11 +386,11 @@ class Engine:
             out.update(error=f"cooldown:{cool.category}", category=cool.category, kind=cool.kind, cooldown=True)
             return out
         host = registered_domain(url)
-        async with self._sem(("host", host), int(os.getenv("LEADX_FETCH_HOST_CONCURRENCY", "3"))):
+        async with self._sem(("host", host), int(os.getenv("LEADX_FETCH_HOST_CONCURRENCY", "2"))):
             raw, v, atts = await self._direct_with_fixes(url, timeout)
             tried = {"direct"}
             budget = float(os.getenv("LEADX_FETCH_BUDGET_S", "60"))  # total wall time one URL may spend across providers
-            while not light and time.monotonic() - t0 < budget and (not v.usable or (v.category == "js_shell" and visible_text_len(raw["html"]) < 400)):
+            while not light and time.monotonic() - t0 < budget and (not v.usable or _thin(v, raw["html"])):
                 nxt = self._next(v, tried, host)
                 if not nxt:
                     break
@@ -397,6 +415,56 @@ class Engine:
             self.mark(url, v)
         tel.record_attempts(atts)
         return out
+
+
+_FC_CACHE: dict[str, dict] = {}      # url -> result, no TTL: a URL is never paid for twice in this process
+_FC_CALLS: dict[str, int] = {}       # run id -> paid calls made
+
+
+async def firecrawl_last_resort(url: str, category: Optional[str], recovered: bool = False) -> dict:
+    """The only place Firecrawl is called. Runs after direct, retry, Scrapling, browser/Crawl4AI and index recovery have all failed,
+    and only for a JS shell or a challenge that recovery did not resolve. Never for dead domains, never for a lead that already has contact data.
+    Gates: key present, paid_policy, LEADX_RUN_CREDIT_CAP / tenant cap, LEADX_FIRECRAWL_RUN_MAX calls per run (25), URL cache.
+    Returns {"ok", "html", "markdown", "skipped": reason|None, "cost"}; every real call is counted in fetch_telemetry.counters['firecrawl_calls']."""
+    from app.integrations.prod import fetch_telemetry as tel
+    from app.integrations.prod import waterfall_runtime as wf
+    from app.integrations.prod.fetch_classify import CHALLENGE_CATEGORIES
+    from app.integrations.prod.paid_policy import local_mode_denies_paid, paid_fallback_mode
+    skip = lambda why: {"ok": False, "html": "", "markdown": "", "skipped": why, "cost": 0.0}
+    if recovered:
+        return skip("already_recovered")
+    if category not in CHALLENGE_CATEGORIES and category not in ("js_shell", "http_403", "http_429"):
+        return skip("verdict_not_eligible")   # dns, 404, parked, timeouts and fine pages never reach a paid renderer
+    if not (os.getenv("FIRECRAWL_API_KEY") or os.getenv("FIRECRAWL_API_KEYS")):
+        return skip("no_key")
+    if paid_fallback_mode() == "never" or local_mode_denies_paid():
+        return skip("paid_policy")
+    if url in _FC_CACHE:
+        return {**_FC_CACHE[url], "skipped": "cached", "cost": 0.0}
+    c = tel.ctx.get()
+    run, tenant = c.get("run_id") or "-", c.get("tenant_id") or ""
+    cost = PROVIDERS["firecrawl"]["cost"]
+    if _FC_CALLS.get(run, 0) >= int(os.getenv("LEADX_FIRECRAWL_RUN_MAX", "25")):
+        return skip("run_call_cap")
+    if not wf.budget_allows(run, tenant, cost):
+        return skip("run_credit_cap")
+    from app.integrations.prod.enricher import fetch_firecrawl
+    _FC_CALLS[run] = _FC_CALLS.get(run, 0) + 1
+    tel.count("firecrawl_calls")
+    r = await fetch_firecrawl(url)
+    if not str(r.get("error") or "").startswith("blocked"):   # an SSRF refusal never reached the API
+        wf.charge(run, cost)
+        await wf.ledger(tenant, run, {"website": url}, "firecrawl", "website", cost, bool(r.get("ok")))
+    if len(_FC_CACHE) > 5000:
+        _FC_CACHE.pop(next(iter(_FC_CACHE)))
+    _FC_CACHE[url] = {"ok": bool(r.get("ok")), "html": r.get("html") or "", "markdown": r.get("markdown") or ""}
+    return {**_FC_CACHE[url], "skipped": None, "cost": cost}
+
+
+def _thin(v: Verdict, html: str) -> bool:
+    """A 200 page that is a JS shell or has almost no visible text: a browser may render the real content."""
+    n = visible_text_len(html)
+    return (v.category == "js_shell" and n < 1200) or (v.category == "ok" and n < 400)
 
 
 def _retry_after(headers: dict) -> float:

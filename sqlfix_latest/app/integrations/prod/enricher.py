@@ -8,6 +8,7 @@ Production Enricher cascade:
 from __future__ import annotations
 
 import asyncio
+import time
 import html as html_lib
 import json
 import logging
@@ -57,7 +58,13 @@ CONTACT_PATHS = (
     "/our-team", "/meet-the-team", "/services", "/locations", "/book", "/booking",
     "/appointments", "/get-started", "/schedule", "/request-an-appointment",
 )
-SECONDARY_MAX = 6  # linked pages fetched per site; the old crawl fetched ~30 (mostly 404s)
+SECONDARY_MAX = 6  # homepage links considered per site before the sitemap merge; the old crawl fetched ~30 (mostly 404s)
+CRAWL_RANK = tuple(re.compile(p, re.I) for p in ("contact", "about", "team|staff|owner|founder|manager", "service", "location|book|appointment", "career"))
+_OUR_UA = "leadx"  # robots.txt group we honor before falling back to "*"
+
+
+def _crawl_max_pages() -> int:
+    return max(1, int(os.getenv("LEADX_CRAWL_MAX_PAGES", "12")))
 CONTACT_FIRST = re.compile(r"(contact|about|team|staff)", re.I)
 SECONDARY_HINTS = re.compile(r"(contact|about|team|staff|owner|founder|manager|service|location|book|appointment|career)", re.I)
 
@@ -220,13 +227,17 @@ async def fetch_crawl4ai(url: str) -> dict:
         out["error"] = f"blocked:{blocked}"
         return out
     try:
-        from crawl4ai import AsyncWebCrawler, BrowserConfig
+        import tempfile
+        os.environ.setdefault("CRAWL4_AI_BASE_DIRECTORY", os.path.join(tempfile.gettempdir(), "leadx-crawl4ai"))  # its cache dir must be writable
+        os.makedirs(os.environ["CRAWL4_AI_BASE_DIRECTORY"], exist_ok=True)
+        from crawl4ai import AsyncWebCrawler, BrowserConfig, CacheMode, CrawlerRunConfig
         browser_config = BrowserConfig(browser_type="chromium", headless=True, verbose=False)
         # Crawl4AI defaults to the installed Google Chrome channel; use the
         # Playwright-managed Chromium binary instead.
         browser_config.chrome_channel = None
         async with AsyncWebCrawler(config=browser_config, verbose=False) as crawler:
-            res = await crawler.arun(url=url)
+            # wait for the load event (not just DOM ready), allow slow pages, and scroll once for lazy content
+            res = await crawler.arun(url=url, config=CrawlerRunConfig(wait_until="load", page_timeout=45000, delay_before_return_html=1.0, scan_full_page=True, cache_mode=CacheMode.BYPASS))
             markdown_value = getattr(res, "markdown", "") or ""
             if not isinstance(markdown_value, str):
                 markdown_value = (
@@ -390,7 +401,76 @@ def _same_domain(url: str, base: str) -> bool:
         return False
 
 
-def _secondary_urls(base_url: str, html: str, guess: bool = True) -> list[str]:
+def parse_robots(text: str) -> tuple[list[str], list[str]]:
+    """(Disallow patterns for our user agent, Sitemap URLs). The group named for us wins over "*".
+    shortcut: Allow lines and crawl-delay are ignored (only stricter, never looser than the file says); upgrade if a site needs Allow carve-outs."""
+    groups: dict[str, list[str]] = {}
+    agents: list[str] = []
+    in_rules = False
+    sitemaps: list[str] = []
+    for raw in (text or "").splitlines():
+        line = raw.split("#", 1)[0].strip()
+        key, _, val = line.partition(":")
+        key, val = key.strip().lower(), val.strip()
+        if key == "user-agent":
+            if in_rules:
+                agents, in_rules = [], False
+            agents.append(val.lower())
+            groups.setdefault(val.lower(), [])
+        elif key in ("disallow", "allow"):
+            in_rules = True
+            if key == "disallow" and val:
+                for a in agents:
+                    groups[a].append(val)
+        elif key == "sitemap" and val:
+            sitemaps.append(val)
+    mine = next((g for a, g in groups.items() if a == _OUR_UA), None)
+    return (mine if mine is not None else groups.get("*", [])), sitemaps
+
+
+def robots_allows(path_and_query: str, disallow: list[str]) -> bool:
+    for pat in disallow:
+        rx = re.escape(pat).replace(r"\*", ".*")
+        if rx.endswith(r"\$"):
+            rx = rx[:-2] + "$"
+        if re.match(rx, path_and_query):
+            return False
+    return True
+
+
+def parse_sitemap(xml: str) -> tuple[list[str], list[str]]:
+    """(page URLs, child sitemap URLs). A <sitemapindex> yields children, a <urlset> yields pages."""
+    import html as _html
+    locs = [_html.unescape(u.strip()) for u in re.findall(r"<loc>\s*([^<]+?)\s*</loc>", xml or "", re.I)]
+    return ([], locs) if re.search(r"<sitemapindex", xml or "", re.I) else (locs, [])
+
+
+def _crawl_rank(url: str) -> int:
+    path = urlparse(url).path
+    return next((i for i, rx in enumerate(CRAWL_RANK) if rx.search(path)), len(CRAWL_RANK))
+
+
+async def _sitemap_plan(base_url: str) -> tuple[list[str], list[str]]:
+    """(robots Disallow patterns, same-domain sitemap URLs matching SECONDARY_HINTS). Sitemap index followed one level, 3 children max."""
+    root = f"{urlparse(base_url).scheme}://{urlparse(base_url).netloc}"
+    robots, first = await asyncio.gather(fetch_scrapling(root + "/robots.txt", timeout=8, light=True), fetch_scrapling(root + "/sitemap.xml", timeout=8, light=True))
+    disallow, listed = parse_robots(robots.get("html") or "" if robots.get("ok") else "")
+    pages: list[str] = []
+    docs = [first.get("html") or "" if first.get("ok") else ""]
+    extra = [u for u in dict.fromkeys(listed) if _same_domain(u, base_url) and u.rstrip("/") != root + "/sitemap.xml"][:2]
+    docs += [d.get("html") or "" for d in await asyncio.gather(*(fetch_scrapling(u, timeout=8, light=True) for u in extra)) if d.get("ok")]
+    children: list[str] = []
+    for d in docs:
+        p, c = parse_sitemap(d)
+        pages += p; children += c
+    kids = [u for u in dict.fromkeys(children) if _same_domain(u, base_url)][:3]
+    for d in await asyncio.gather(*(fetch_scrapling(u, timeout=8, light=True) for u in kids)):
+        if d.get("ok"):
+            pages += parse_sitemap(d.get("html") or "")[0]
+    return disallow, [u for u in dict.fromkeys(pages) if _same_domain(u, base_url) and SECONDARY_HINTS.search(urlparse(u).path)]
+
+
+def _secondary_urls(base_url: str, html: str, guess: bool = True, limit: int = SECONDARY_MAX) -> list[str]:
     """Contact/about-style pages: links the homepage actually has first, guessed paths only after them."""
     found: list[str] = []
     seen: set[str] = set()
@@ -405,9 +485,9 @@ def _secondary_urls(base_url: str, html: str, guess: bool = True) -> list[str]:
     for href in re.findall(r"(?:href|data-href)\s*=\s*[\"']([^\"']+)[\"']", html or '', re.I):
         if SECONDARY_HINTS.search(href):
             add(urljoin(base_url, href))
-    if len(found) > SECONDARY_MAX:
+    if len(found) > limit:
         found = [u for u in found if CONTACT_FIRST.search(u)] + [u for u in found if not CONTACT_FIRST.search(u)]
-    found = found[:SECONDARY_MAX]
+    found = found[:limit]
     if guess:
         for path in CONTACT_PATHS:
             add(urljoin(base_url.rstrip('/') + '/', path.lstrip('/')))
@@ -415,13 +495,29 @@ def _secondary_urls(base_url: str, html: str, guess: bool = True) -> list[str]:
 
 
 async def _fetch_secondary_pages(base_url: str, html: str, use_firecrawl_for_secondary: bool = False,
-                                 tried: Optional[set] = None, guessed: bool = False) -> tuple[str, list[str]]:
-    """First pass: pages the homepage links to (or 4 guessed paths if it links none). guessed=True: the other guessed paths."""
+                                 tried: Optional[set] = None, guessed: bool = False, stats: Optional[dict] = None) -> tuple[str, list[str]]:
+    """First pass: homepage links merged with sitemap.xml URLs (robots.txt honored), contact/about/team/service/location first, up to
+    LEADX_CRAWL_MAX_PAGES (12), same domain, within LEADX_CRAWL_BUDGET_S (25). Falls back to 4 guessed paths if nothing is linked or listed.
+    guessed=True: the other guessed paths. ``stats`` receives sitemap_urls (used from the sitemap) and the planned page count."""
     tried = tried if tried is not None else set()
+    budget = float(os.getenv("LEADX_CRAWL_BUDGET_S", "25"))
+    t0 = time.monotonic()
+    disallow: list[str] = []
+    mapped: list[str] = []
+    if not guessed:
+        try:
+            disallow, mapped = await asyncio.wait_for(_sitemap_plan(base_url), timeout=min(12, budget))
+        except Exception as exc:  # no sitemap or a slow one never blocks the crawl
+            logger.debug("sitemap plan failed: %s", type(exc).__name__)
+    allowed = lambda u: robots_allows(urlparse(u).path + ("?" + urlparse(u).query if urlparse(u).query else ""), disallow)
     if guessed:
-        urls = [u for u in _secondary_urls(base_url, '', guess=True) if u not in tried][:SECONDARY_MAX]
+        urls = [u for u in _secondary_urls(base_url, '', guess=True) if u not in tried and allowed(u)][:SECONDARY_MAX]
     else:
-        urls = _secondary_urls(base_url, html, guess=False) or _secondary_urls(base_url, '', guess=True)[:4]
+        linked = _secondary_urls(base_url, html, guess=False, limit=10_000)
+        merged = [u for u in dict.fromkeys(linked + [u for u in mapped if u.rstrip('/') != base_url.rstrip('/')]) if allowed(u)]
+        urls = sorted(merged, key=_crawl_rank)[:_crawl_max_pages()] or [u for u in _secondary_urls(base_url, '', guess=True)[:4] if allowed(u)]
+        if stats is not None:
+            stats["sitemap_urls"] = [u for u in urls if u in mapped and u not in linked]
     tried.update(urls)
     if not urls:
         return '', []
@@ -442,7 +538,11 @@ async def _fetch_secondary_pages(base_url: str, html: str, use_firecrawl_for_sec
                 except Exception:
                     content = ''
             return url, content
-    rows = await asyncio.gather(*(one(u) for u in urls), return_exceptions=True)
+    tasks = [asyncio.ensure_future(one(u)) for u in urls]
+    _, pending = await asyncio.wait(tasks, timeout=max(budget - (time.monotonic() - t0), 1))
+    for t in pending:  # per-site time budget: keep what finished, drop the stragglers
+        t.cancel()
+    rows = [t.result() if t.done() and not t.cancelled() and not t.exception() else Exception("skipped") for t in tasks]
     chunks, used = [], []
     for row in rows:
         if isinstance(row, Exception):
@@ -583,8 +683,8 @@ async def enrich_one(website: str, use_crawl4ai: bool = True, use_firecrawl: boo
             return {"ok": False, "error": type(exc).__name__}
 
     scrap, c4 = await asyncio.gather(
-        bounded(scrap_task, 25 if os.getenv("LEADX_FETCH_ENGINE", "1") == "0" else float(os.getenv("LEADX_FETCH_BUDGET_S", "60")) + 20),
-        bounded(crawl_task, 35) if crawl_task else asyncio.sleep(0, result={}),
+        bounded(scrap_task, 25 if os.getenv("LEADX_FETCH_ENGINE", "1") == "0" else float(os.getenv("LEADX_FETCH_BUDGET_S", "60")) + 65),
+        bounded(crawl_task, 55) if crawl_task else asyncio.sleep(0, result={}),
     )
 
     html = scrap.get("html") or ""
@@ -619,8 +719,10 @@ async def enrich_one(website: str, use_crawl4ai: bool = True, use_firecrawl: boo
     # Crawl high-value internal pages (contact/about/team/services/locations) so
     # enrichment is domain-deep instead of homepage-only.
     tried: set = set()
+    crawl: dict = {}
+    secondary_urls: list = []
     try:
-        secondary_html, secondary_urls = await _fetch_secondary_pages(website, html or content, tried=tried, use_firecrawl_for_secondary=use_firecrawl and os.getenv('LEADX_FIRECRAWL_SECONDARY', '0') == '1') if site_ok else ("", [])
+        secondary_html, secondary_urls = await _fetch_secondary_pages(website, html or content, tried=tried, stats=crawl, use_firecrawl_for_secondary=use_firecrawl and os.getenv('LEADX_FIRECRAWL_SECONDARY', '0') == '1') if site_ok else ("", [])
         if secondary_html:
             secondary = _parse_content(secondary_html, website)
             parsed = _merge_parsed(parsed, secondary)
@@ -634,24 +736,7 @@ async def enrich_one(website: str, use_crawl4ai: bool = True, use_firecrawl: boo
         if extra.get("emails"):
             parsed.update({k: v for k, v in extra.items() if v})
             method_parts.append("contact-pages")
-
-    # Firecrawl (paid) is the last local-failure fallback: only after the free crawl, the secondary pages and the
-    # contact pages still left no email/phone AND the page looks unrendered (empty, tiny, or a JS shell), or nothing loaded.
-    # LEADX_FIRECRAWL_MODE=always restores the old "whenever a contact is missing" behaviour.
-    contact_missing = not parsed.get("email") or not parsed.get("phone_from_web")
-    if site_ok and use_firecrawl and contact_missing and (os.getenv("LEADX_FIRECRAWL_MODE", "fallback") == "always" or _needs_rendering(content)):
-        try:
-            fc = await fetch_firecrawl(website)
-            firecrawl_calls += 1
-            fc_content = "\n".join(x for x in (fc.get("html"), fc.get("markdown")) if x)
-            if fc_content:
-                content = "\n".join(x for x in (content, fc_content) if x)
-                parsed = _merge_parsed(parsed, _parse_content(fc_content, website))
-                if fc.get("ok"):
-                    method_parts.append("firecrawl")
-                    md = md or fc.get("markdown") or ""
-        except Exception as e:
-            logger.debug("firecrawl contact augmentation failed: %s", e)
+            secondary_urls = secondary_urls + [u for u in (extra.get("secondary_pages") or []) if u not in secondary_urls]
 
     # Public-search waterfall for missing contact/decision-maker fields. Uses only
     # indexed public results and can be disabled to conserve Serper quota.
@@ -699,6 +784,26 @@ async def enrich_one(website: str, use_crawl4ai: bool = True, use_firecrawl: boo
         except Exception as exc:
             logger.debug("alt recovery failed: %s", exc)
 
+    # Firecrawl (paid) is the last resort: only after the free crawl, browser/Crawl4AI and index/alternative recovery all left no email or phone,
+    # and only for a JS shell or an unrecovered challenge (fetch_engine.firecrawl_last_resort holds every gate, cap and cache).
+    contact_missing = not parsed.get("email") and not parsed.get("phone_from_web")
+    fc_cat = scrap.get("category") if not site_ok else ("js_shell" if _needs_rendering(content) else None)
+    if use_firecrawl and contact_missing and fc_cat:
+        try:
+            from app.integrations.prod import fetch_engine
+            fc = await fetch_engine.firecrawl_last_resort(website, fc_cat, recovered=False)
+            if not fc["skipped"]:
+                firecrawl_calls += 1
+            fc_content = "\n".join(x for x in (fc.get("html"), fc.get("markdown")) if x)
+            if fc_content:
+                content = "\n".join(x for x in (content, fc_content) if x)
+                parsed = _merge_parsed(parsed, _parse_content(fc_content, website))
+                if fc.get("ok"):
+                    method_parts.append("firecrawl")
+                    md = md or fc.get("markdown") or ""
+        except Exception as e:
+            logger.debug("firecrawl last resort failed: %s", e)
+
     # Rank candidate emails so the most reachable, most relevant address is primary.
     try:
         from app.integrations.prod.contact_quality import rank_emails, contact_confidence
@@ -729,11 +834,17 @@ async def enrich_one(website: str, use_crawl4ai: bool = True, use_firecrawl: boo
     profile = content_prep.extract_profile(html or content, parsed) if site_ok else {}
     if hints.get("category") and "industries" not in profile:
         profile["industries"] = {"value": [hints["category"]], "source": "discovery_record"}
+    pages_crawled = (1 if site_ok else 0) + len(secondary_urls)   # homepage + secondary pages that returned content
+    parsed["crawl"] = {"pages_crawled": pages_crawled, "pages": secondary_urls, "from_sitemap": crawl.get("sitemap_urls", [])}
+    for m in {f["method"] for f in found.values() if f.get("method")}:
+        fetch_telemetry.count("index_recovery_" + m)
+    fetch_telemetry.count("pages_crawled", pages_crawled); fetch_telemetry.count("sites_crawled")  # per-site value is in raw_extraction.crawl (fetch_outcomes has no column for it)
     prov = acq.build_provenance(parsed, profile, website if site_ok else None, found, {"email": hints.get("email"), "phone": hints.get("phone")})
     klass = acq.acquisition_class(site_ok, found, {"email": hints.get("email"), "phone": hints.get("phone")})
     ok = ok and klass not in ("hint_only",)  # discovery hints are not an enrichment; the lead keeps them either way
     meta = _acq_meta(scrap, klass)
-    meta.update(completeness=acq.completeness(prov), recovery={"sources_tried": alt.get("sources_tried", []), "found": sorted(found), "rejected": alt.get("rejected", []), "cost": alt.get("cost", 0.0)},
+    meta.update(pages_crawled=pages_crawled, completeness=acq.completeness(prov), recovery={"sources_tried": alt.get("sources_tried", []), "found": sorted(found), "rejected": alt.get("rejected", []), "cost": alt.get("cost", 0.0),
+                "index_methods": sorted({f["method"] for f in found.values() if f.get("method")})},   # index recovery is reported apart from fetch success: website_fetched stays false
                 tokens=0, llm_candidate=content_prep.needs_llm(parsed, content_prep.main_text(html, 6000)) if site_ok else False,
                 cost=round(meta["cost"] + firecrawl_calls * 1.0 + alt.get("cost", 0.0), 4), fields=sorted(f for f, v in prov.items() if v.get("status") != "hint"))
     fetch_telemetry.record_outcome({"domain": urlparse(website).hostname, "website_fetched": site_ok, "category": meta["category"], "challenge": meta["challenge"],
@@ -760,6 +871,7 @@ async def enrich_one(website: str, use_crawl4ai: bool = True, use_firecrawl: boo
         "enrichment_method": "+".join(dict.fromkeys(method_parts)) or "unknown",
         "enrichment_ok": ok,
         "firecrawl_calls": firecrawl_calls,
+        "pages_crawled": pages_crawled,
         "error": None if ok else (f"site_challenge:{meta['challenge']}" if meta["challenge"] else scrap.get("error") if not site_ok else "sparse_extraction"),
     }
 

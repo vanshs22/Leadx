@@ -23,9 +23,12 @@ ecdsa==0.19.0
 email-validator==2.2.0
 fastapi==0.111.0
 gotrue==2.5.1
+h2==4.4.1
 h11==0.14.0
+hpack==4.2.0
 httpcore==1.0.5
 httpx==0.27.0
+hyperframe==6.1.0
 idna==3.10
 jiter==0.5.0
 jinja2==3.1.4

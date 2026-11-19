@@ -19,6 +19,12 @@ _lock = threading.Lock()
 _attempts: list[dict] = []
 _outcomes: list[dict] = []
 FLUSH_AT = 200
+counters: dict[str, int] = {}   # in-process event counts (e.g. discovery_dead_domain, firecrawl_calls); read by tests and the audit script
+
+
+def count(name: str, n: int = 1) -> None:
+    with _lock:
+        counters[name] = counters.get(name, 0) + n
 
 
 def _now() -> str:

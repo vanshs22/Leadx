@@ -123,18 +123,23 @@ alternative sources (alt_recovery): discovery hints -> Internet Archive snapshot
 | `LEADX_FETCH_ENGINE` | 1 | 0 restores the previous direct-then-Scrapling path and disables alternative-source recovery |
 | `LEADX_FETCH_PROVIDERS` | direct,scrapling,browser,crawl4ai,firecrawl | providers the engine may use |
 | `LEADX_FETCH_BROWSER` / `LEADX_FETCH_BROWSER_CONCURRENCY` | 1 / 4 | local Playwright Chromium (needs `playwright install chromium`) |
-| `LEADX_FETCH_HOST_CONCURRENCY` | 3 | simultaneous requests per site |
+| `LEADX_FETCH_HOST_CONCURRENCY` | 2 | simultaneous requests per site (engine level); `LEADX_HOST_CONNECTIONS` (2) caps in-flight requests per host in `net_safety.safe_get` |
+| `LEADX_FETCH_NET_RETRY` | 1 | retry timeout/disconnect/connect/network_other once after 0.5-1.5 s with 1.75x the timeout, before the scheme/www flip |
+| `LEADX_HTTP2` | 1 | HTTP/2 on the shared client when `h2` is installed (HTTP/1.1 otherwise); 0 forces HTTP/1.1 for A/B tests |
+| `LEADX_DISCOVERY_DNS_CHECK`, `LEADX_DISCOVERY_DNS_CONCURRENCY` | 1, 32 | `free_discovery.drop_dead_domains`: rows whose website name does not exist are dropped (counter `discovery_dead_domain`); rows without a website are kept |
+| `LEADX_CRAWL_MAX_PAGES`, `LEADX_CRAWL_BUDGET_S` | 12, 25 | secondary pages per site (homepage links + sitemap.xml URLs, robots.txt Disallow honored, contact/about/team/service/location first) and the per-site time budget; `raw_extraction.crawl` and `pages_crawled` record what was read |
+| `LEADX_FIRECRAWL_RUN_MAX` | 25 | most paid Firecrawl calls per run; also gated by key, `LEADX_PAID_FALLBACK`, `LEADX_RUN_CREDIT_CAP`, and a per-URL no-TTL cache. Only for a JS shell or an unrecovered challenge, after every free step, never for dead domains or leads that already have contact data (`fetch_engine.firecrawl_last_resort`) |
 | `LEADX_FETCH_BUDGET_S` | 60 | total time per URL across providers |
 | `LEADX_FETCH_CACHE_SECONDS` | 300 | URL result cache |
 | `LEADX_FETCH_COOLDOWN_SCALE` | 1.0 | multiplier on domain cooldowns |
 | `LEADX_FETCH_PLATFORM_DOMAINS` | empty | extra multi-tenant hosting domains tracked per subdomain |
 | `LEADX_ALT_RECOVERY` | 1 | alternative-source recovery on/off |
-| `LEADX_ALT_SOURCES` | hints,archive,directory,search,places | order of alternative sources (add `osm` for Nominatim, 1 request/s) |
+| `LEADX_ALT_SOURCES` | hints,archive,commoncrawl,directory,search,places | order of alternative sources (add `osm` for Nominatim, 1 request/s) |
 | `LEADX_ALT_DEADLINE_S` | 40 | most time recovery may spend per lead |
 | `LEADX_ALT_ARCHIVE_MAX_AGE_DAYS` | 1825 | oldest Internet Archive snapshot accepted |
 | `LEADX_NOMINATIM_URL`, `LEADX_NOMINATIM_INTERVAL` | public instance, 1.1 | Nominatim endpoint and spacing |
 | `GOOGLE_PLACES_API_KEY`, `LEADX_PLACES_CREDITS` | unset, 0.017 | official Places text search (paid, only with a key) |
-| `FIRECRAWL_API_KEY(S)`, `FIRECRAWL_CREDITS_PER_PAGE` | unset, 1 | Firecrawl as a rendering provider; never used when `LEADX_PAID_FALLBACK=never`; not a captcha solver |
+| `FIRECRAWL_API_KEY(S)`, `FIRECRAWL_CREDITS_PER_PAGE` | unset, 1 | Firecrawl as the last-resort renderer (see `LEADX_FIRECRAWL_RUN_MAX`); `LEADX_FIRECRAWL_MODE=always` no longer exists; never used when `LEADX_PAID_FALLBACK=never`; not a captcha solver |
 | `SEARXNG_URL`, `SERPER_API_KEY(S)` | unset | search-snippet source (existing `web_search`) |
 
 ## Waterfall and spend (`waterfall_runtime.py`, `enrichment_mesh.py`)
