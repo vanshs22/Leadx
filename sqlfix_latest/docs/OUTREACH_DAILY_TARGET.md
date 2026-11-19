@@ -10,6 +10,19 @@ What it does once a campaign is active:
 6. Stop rules: when a lead replies, the sequence stops and you get a notification (in-app, plus Telegram if that is your delivery channel). If the reply asks to be removed ("unsubscribe", "remove me", "stop emailing me"), or the email bounces, or the recipient clicks unsubscribe, the address goes on the global opt-out list and is never emailed again by any campaign.
 7. EU and UK recipients are skipped unless you untick "Exclude EU/UK recipients" and write your lawful basis.
 
+## Upgrade note: lower default send caps
+
+The default daily send cap fell from 200 (`SMTP_DAILY_LIMIT`) and 300 (`DOMAIN_DAILY_CAP`) to **30** each. It applies to every existing deployment, not only new mailboxes. To keep the old volume, set both variables explicitly in `.env` before deploying.
+
+## Reply and bounce polling (IMAP)
+
+Only hard bounces (`Action: failed` with `Status: 5.x.x`) that quote a Message-ID we sent to that same address add a global opt-out. Delay notices, soft failures and read receipts are ignored. Mail that matches no send is marked read so unrelated unread mail cannot block the poller. A reply whose handling fails stays unread and is retried.
+
+## Known limits
+
+- EU/UK exclusion uses the lead's country (code or full name). If the country is unknown it checks only the email domain's country suffix, so a `.com` business in the EU is not excluded.
+- Pending AI drafts have no expiry or alert. Review them regularly, or leave "Auto-send AI emails" off and pause the campaign if the queue grows.
+
 ## Setup (PowerShell)
 
 Run each line on its own.

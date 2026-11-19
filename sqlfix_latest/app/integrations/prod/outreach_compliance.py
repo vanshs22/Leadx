@@ -19,7 +19,16 @@ _ENV = {"sender_name": "SENDER_NAME", "postal_address": "SENDER_POSTAL_ADDRESS",
 EU_UK = frozenset(
     "AT BE BG HR CY CZ DK EE FI FR DE GR HU IE IT LV LT LU MT NL PL PT RO SK SI ES SE GB UK IS LI NO CH".split()
 )
-_NAMES = {"UNITED KINGDOM": "GB", "GERMANY": "DE", "FRANCE": "FR", "SPAIN": "ES", "ITALY": "IT", "IRELAND": "IE", "NETHERLANDS": "NL"}
+_NAMES = {
+    n: c for c, ns in {
+        "AT": "AUSTRIA", "BE": "BELGIUM", "BG": "BULGARIA", "HR": "CROATIA", "CY": "CYPRUS", "CZ": "CZECHIA|CZECH REPUBLIC",
+        "DK": "DENMARK", "EE": "ESTONIA", "FI": "FINLAND", "FR": "FRANCE", "DE": "GERMANY", "GR": "GREECE", "HU": "HUNGARY",
+        "IE": "IRELAND", "IT": "ITALY", "LV": "LATVIA", "LT": "LITHUANIA", "LU": "LUXEMBOURG", "MT": "MALTA",
+        "NL": "NETHERLANDS|THE NETHERLANDS|HOLLAND", "PL": "POLAND", "PT": "PORTUGAL", "RO": "ROMANIA", "SK": "SLOVAKIA",
+        "SI": "SLOVENIA", "ES": "SPAIN", "SE": "SWEDEN", "GB": "UNITED KINGDOM|GREAT BRITAIN|ENGLAND|SCOTLAND|WALES|NORTHERN IRELAND",
+        "IS": "ICELAND", "LI": "LIECHTENSTEIN", "NO": "NORWAY", "CH": "SWITZERLAND",
+    }.items() for n in ns.split("|")
+}
 
 
 def outreach_profile(tenant_id: str) -> dict[str, str]:
@@ -56,9 +65,8 @@ def footer(profile: dict[str, str]) -> tuple[str, str]:
 
 def is_eu_uk(lead: dict[str, Any]) -> bool:
     code = str(lead.get("country_code") or lead.get("country") or "").strip().upper()
-    if _NAMES.get(code):
-        code = _NAMES[code]
-    if code:
+    code = _NAMES.get(code, code)
+    if code:  # shortcut: unknown country falls back to the email TLD only, so a .com EU business passes; upgrade by requiring country at enrichment
         return code in EU_UK
     tld = str(lead.get("email") or "").rsplit(".", 1)[-1].upper()
     return tld in EU_UK

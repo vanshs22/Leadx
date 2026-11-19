@@ -6,7 +6,9 @@ import json
 
 import pytest
 
-from app.integrations.prod import email_outreach, outreach_compliance, sequences
+from app.integrations.prod import (  # noqa: F401  imported up front: a first import under fake_supabase would keep the fake in module globals
+    autonomous_campaigns, autonomous_copy, email_outreach, imap_inbound, inbound_email, outreach_compliance, pipeline, sequences, unsubscribe,
+)
 
 UNSUB = "https://api.example.com/crm/unsubscribe?token=abc"
 PROFILE = {"sender_name": "Acme Co", "postal_address": "1 Main St, Austin TX 78701", "product_description": "Booking software"}
@@ -306,7 +308,7 @@ async def test_imap_reply_stops_sequence_and_notifies_and_bounce_suppresses(fake
     reply = (b"From: Owner <owner@acme.com>\nTo: me@acme.com\nSubject: Re: Hi\nMessage-ID: <r1@acme.com>\n"
              b"In-Reply-To: <m1@acme.com>\n\nSure, tell me more about pricing.\n")
     bounce = (b"From: MAILER-DAEMON@mx.test\nTo: me@acme.com\nSubject: Undelivered\nContent-Type: text/plain\n\n"
-              b"Final-Recipient: rfc822; gone@acme.com\nAction: failed\n")
+              b"Final-Recipient: rfc822; gone@acme.com\nAction: failed\nStatus: 5.1.1\n\nOriginal-Message-ID: <m2@acme.com>\n")
     auto = b"From: o@acme.com\nTo: me@acme.com\nAuto-Submitted: auto-replied\nSubject: OOO\n\nAway\n"
     client = _Imap([reply, bounce, auto])
     out = await imap_inbound.poll(client=client)
@@ -316,3 +318,46 @@ async def test_imap_reply_stops_sequence_and_notifies_and_bounce_suppresses(fake
     assert fake_supabase.rows("email_sequence_enrollments")[0]["status"] == "stopped_reply"
     assert any("owner@acme.com" in n for n in notes)
     assert len(client.seen) == 3
+
+
+@pytest.mark.asyncio
+async def test_imap_soft_spoofed_and_failed_mail_handling(fake_supabase, monkeypatch):
+    from app.integrations.prod import imap_inbound, inbound_email
+    fake_supabase.store.update({
+        "email_sends": [{"tenant_id": "t1", "provider_id": "<m2@acme.com>", "to_email": "gone@acme.com"}],
+        "email_sequence_enrollments": [], "email_replies": [], "lead_assignments": [],
+    })
+
+    def dsn(rcpt, status, ref="<m2@acme.com>", action="failed"):
+        return (f"From: MAILER-DAEMON@mx.test\nSubject: x\n\nFinal-Recipient: rfc822; {rcpt}\nAction: {action}\n"
+                f"Status: {status}\n\nMessage-ID: {ref}\n").encode()
+
+    async def fail(raw, tenant_id=None): return {"ok": False}
+    monkeypatch.setattr(inbound_email, "handle_reply", fail)
+    msgs = [dsn("gone@acme.com", "4.2.2"), dsn("gone@acme.com", "2.0.0", action="delayed"),
+            dsn("gone@acme.com", "5.1.1", ref="<other@x>"), dsn("victim@x.com", "5.1.1"),
+            b"From: Owner <owner@acme.com>\nIn-Reply-To: <m2@acme.com>\nSubject: Re\n\nhi\n",
+            b"From: stranger@x.com\nSubject: unrelated\n\nhi\n"]
+    client = _Imap(msgs)
+    out = await imap_inbound.poll(client=client)
+    assert fake_supabase.rows("global_opt_out") == []  # soft, delay, unknown Message-ID, wrong recipient
+    assert out["ignored"] == 2 and out["unmatched"] == 3 and out["errors"] == 1
+    assert client.seen == [b"1", b"2", b"3", b"4", b"6"]  # failed reply (5) stays unread; unmatched mail is marked seen
+
+
+@pytest.mark.parametrize("lead,eu", [({"country": "Poland"}, True), ({"country": "sweden"}, True), ({"country_code": "us"}, False),
+                                     ({"country": "United States", "email": "a@b.de"}, False), ({"email": "a@b.fr"}, True)])
+def test_eu_uk_detects_full_country_names(lead, eu):
+    assert outreach_compliance.is_eu_uk(lead) is eu
+
+
+def test_rejected_draft_leaves_queue(fake_supabase):
+    from app.integrations.prod import autonomous_copy
+    fake_supabase.store.update({
+        "campaign_email_copies": [{"id": "c1", "campaign_id": "k", "assignment_id": "a1", "approved": False}],
+        "email_sequence_enrollments": [{"id": "e1", "tenant_id": "t1", "assignment_id": "a1", "campaign_id": "k", "status": "active"}],
+    })
+    assert len(autonomous_copy.list_drafts("k")) == 1
+    assert autonomous_copy.decide_draft("t1", "k", "c1", approve=False)["rejected"]
+    assert autonomous_copy.list_drafts("k") == []
+    assert fake_supabase.rows("email_sequence_enrollments")[0]["status"] == "stopped_manual"

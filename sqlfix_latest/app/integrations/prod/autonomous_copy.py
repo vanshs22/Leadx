@@ -103,6 +103,7 @@ def decide_draft(tenant_id: str, campaign_id: str, copy_id: str, approve: bool,
     if not approve:  # rejected: never email this lead from this campaign
         (sb.table("email_sequence_enrollments").update({"status": "stopped_manual", "next_send_at": None})
          .eq("tenant_id", tenant_id).eq("assignment_id", rows[0]["assignment_id"]).eq("campaign_id", campaign_id).execute())
+        sb.table("campaign_email_copies").update({"approved": None}).eq("id", copy_id).execute()  # null = rejected, hidden from list_drafts
         return {"ok": True, "rejected": True}
     patch: dict[str, Any] = {"approved": True}
     if subject:
