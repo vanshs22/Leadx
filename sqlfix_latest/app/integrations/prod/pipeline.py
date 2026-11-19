@@ -828,11 +828,6 @@ async def run_pipeline_parallel_target(
                         if done is None:
                             continue
                         result = (done or [lead])[0]
-                        if result.get("firecrawl_calls"):  # paid scrape: count it toward the run budget and cost per lead
-                            from app.integrations.prod import waterfall_runtime as _wf
-                            _wf.charge(str(run_id), float(result["firecrawl_calls"]))
-                            await _wf.ledger(str(tenant_id), str(run_id), result, "firecrawl", "page", float(result["firecrawl_calls"]),
-                                             bool(result.get("email") or result.get("phone_from_web")))
                     except Exception as exc:
                         logger.warning("[%s] enrich worker %s failed: %s", run_id[:8], worker_id, type(exc).__name__)
                         result = _mark_enrichment_failure(

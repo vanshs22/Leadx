@@ -406,7 +406,9 @@ async def test_firecrawl_gate_uses_recovered_and_real_cost(monkeypatch):
     monkeypatch.delenv("LEADX_PAID_FALLBACK", raising=False)
     monkeypatch.delenv("LOCAL_VALIDATION_MODE", raising=False)
     monkeypatch.setattr(fe, "PROVIDERS", {**fe.PROVIDERS, "firecrawl": {**fe.PROVIDERS["firecrawl"], "cost": 3.0}})
+    before = wf.spent("-")
     out = await enricher.enrich_one("https://oakdental.com", use_crawl4ai=False, use_firecrawl=True)
     assert out["firecrawl_calls"] == 1 and called and out["acquisition"]["cost"] >= 3.0
+    assert wf.spent("-") - before == 3.0   # charged once, by the engine; the pipeline must not charge again
     # a recovered lead is refused by the gate itself
     assert (await fe.firecrawl_last_resort("https://x.example", "js_shell", recovered=True))["skipped"] == "already_recovered"
