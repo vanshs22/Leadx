@@ -3,6 +3,7 @@
   python scripts/fetch_audit.py collect --n 450 [--exclude a.json,b.json] [--sites out.json]   # sample real business sites from Overture (several cities/industries)
   python scripts/fetch_audit.py audit   [--sites sites_audit.json] [--limit N]    # failure audit: classify what each provider really returned, per status/vendor/domain
   python scripts/fetch_audit.py bench   [--sites sites_bench.json] [--split] [--arms legacy,fast,engine] [--tag benchG]   # enrich_one per arm; --split gives each arm its own sites
+  python scripts/fetch_audit.py fixed --n 400                 # build artifacts/fetch_audit/sites_fixed.json (dedupe all sites_*.json, dns_ok per site)
   python scripts/fetch_audit.py report                      # write docs/FETCH_AUDIT.md from the JSON results
 
 Arms: legacy = Scrapling-first fetch (LEADX_FETCH_FAST=0, no engine; the original behaviour), fast = pooled-httpx-first without the engine
@@ -117,6 +118,7 @@ async def bench(limit, arms, tag="bench", sites_file="sites.json", split=False):
     from app.integrations.prod import enricher, fetch_engine as fe
     from app.integrations.prod.fetch_classify import classify_response
     sites = _jl(sites_file)[:limit]
+    dns = {fe.registered_domain(s["website"]): s["dns_ok"] for s in sites if "dns_ok" in s}
     results = {}
     for i, arm in enumerate(arms):
         if split:  # each arm gets its own disjoint slice of fresh sites, so no arm is throttled by another arm's earlier visits
@@ -135,7 +137,8 @@ async def bench(limit, arms, tag="bench", sites_file="sites.json", split=False):
             if not light:
                 v = classify_response(r.get("status") if r.get("status") else (200 if r.get("ok") else None), r.get("html") or "", None, r.get("error"))
                 seen_home.setdefault(url, {"category": r.get("category") or v.category, "usable": bool(r.get("ok")) and v.usable, "method": r.get("method"), "status": r.get("status"),
-                                           "direct_first": (r.get("attempts") or [{}])[0].get("ok") if r.get("attempts") else None})
+                                           "direct_first": (r.get("attempts") or [{}])[0].get("ok") if r.get("attempts") else None,
+                                           "providers": [a.get("provider") for a in r.get("attempts") or []]})
             return r
         enricher.fetch_scrapling = traced
         sem = asyncio.Semaphore(int(os.getenv("BENCH_CONC", "48")))
@@ -161,8 +164,9 @@ async def bench(limit, arms, tag="bench", sites_file="sites.json", split=False):
         await fe._engine.close()
         results[arm] = {"wall_s": round(time.monotonic() - t0, 1), "rows": out}
         print(arm, "done", results[arm]["wall_s"], "s", flush=True)
+        results[arm]["metrics"] = {**arm_metrics(out), **extra_metrics(out, dns)}
         _jl(f"{tag}.json", results)
-    summarize_bench(results)
+    summarize_bench(results, dns)
 
 
 def slim(info):
@@ -170,7 +174,8 @@ def slim(info):
     a = info.get("acquisition") or {}
     prov = info.get("field_provenance") or {}
     site = lambda f, v: v if (prov.get(f) or {}).get("source") != "hints" else None  # a discovery-record value is not something the fetch found
-    return {"ok": bool(info.get("enrichment_ok")), "error": info.get("error"), "email": site("email", info.get("email")), "phone": site("phone", info.get("phone_from_web")),
+    return {"ok": bool(info.get("enrichment_ok")), "error": info.get("error"), "pages": len(raw.get("secondary_pages") or []), "description": bool((raw.get("business_jsonld") or {}).get("description")),  # the only description the parser extracts
+            "firecrawl_calls": info.get("firecrawl_calls") or 0, "email": site("email", info.get("email")), "phone": site("phone", info.get("phone_from_web")),
             "owner": info.get("owner_name"), "social": bool(info.get("social_links")), "address": bool(raw.get("address_parsed")),
             "class": a.get("class"), "cost": a.get("cost", 0.0), "tokens": a.get("tokens", 0), "completeness": a.get("completeness"), "recovery": (a.get("recovery") or {}).get("found"),
             "challenge": a.get("challenge"), "category": a.get("category"), "profile": sorted((info.get("profile") or {})), "fields": a.get("fields"),
@@ -199,14 +204,62 @@ def arm_metrics(rows):
             "provider_cost_credits": round(sum(r["info"].get("cost") or 0 for r in rows), 3), "tokens": sum(r["info"].get("tokens") or 0 for r in rows)}
 
 
-def summarize_bench(results):
+def extra_metrics(rows, dns):
+    """DNS-live split, failure categories, pages, per-field completeness, recovery counts by method. dns: registered domain -> dns_ok."""
+    live = [r for r in rows if dns.get(r["domain"], True)]
+    ok = lambda rs: sum(1 for r in rs if r["home"].get("usable"))
+    fields = {f: _p(sum(1 for r in rows if r["info"].get(f)), len(rows)) for f in ("email", "phone", "address", "social", "description")}
+    rec = Counter()
+    for r in rows:
+        h = r["home"]
+        if h.get("usable") and h.get("direct_first") is False:
+            rec["retry" if h.get("method") == "direct" else h.get("method")] += 1
+        if r["info"].get("class") == "recovered":
+            rec["alt_source"] += 1
+    fetched = [r for r in rows if r["home"].get("usable")]
+    return {"sites": len(rows), "dns_live_sites": len(live), "fetch_success_all_pct": _p(ok(rows), len(rows)), "fetch_success_live_pct": _p(ok(live), len(live)),
+            "failure_categories_all": dict(Counter(r["home"].get("category") or r["info"].get("category") or r["info"].get("error") or "unknown" for r in rows if not r["home"].get("usable"))),
+            "failure_categories_live": dict(Counter(r["home"].get("category") or r["info"].get("category") or r["info"].get("error") or "unknown" for r in live if not r["home"].get("usable"))),
+            "pages_per_site_avg": round(sum(1 + r["info"].get("pages", 0) for r in fetched) / len(fetched), 2) if fetched else None, "field_completeness_pct": fields,
+            "recovered_by_method": dict(rec), "firecrawl_calls": sum(r["info"].get("firecrawl_calls") or 0 for r in rows)}
+
+
+def summarize_bench(results, dns=None):
     for arm, d in results.items():
-        print(arm, json.dumps({**arm_metrics(d["rows"]), "wall_s": d["wall_s"]}))
+        print(arm, json.dumps({**arm_metrics(d["rows"]), **extra_metrics(d["rows"], dns or {}), "wall_s": d["wall_s"]}))
+
+
+def fixed(n=400, out="sites_fixed.json"):
+    """One fixed site list: union of sites_*.json deduped by registered domain, seeded sample of n, each with a dns_ok flag."""
+    import glob, socket
+    from app.integrations.prod.fetch_engine import registered_domain
+    seen, pool = set(), []
+    for f in sorted(glob.glob(os.path.join(OUT, "sites_*.json"))):
+        if os.path.basename(f) == out:
+            continue
+        for s in json.load(open(f)):
+            d = registered_domain(s["website"])
+            if d not in seen:
+                seen.add(d); pool.append(s)
+    random.Random(2026).shuffle(pool)
+    pool = pool[:n]
+
+    def ok(s):
+        try:
+            return bool(socket.getaddrinfo(urlparse(s["website"]).hostname, None))
+        except OSError:
+            return False
+    from concurrent.futures import ThreadPoolExecutor
+    with ThreadPoolExecutor(32) as ex:
+        for s, v in zip(pool, ex.map(ok, pool)):
+            s["dns_ok"] = v
+    _jl(out, pool)
+    print("saved", len(pool), "dns_ok", sum(s["dns_ok"] for s in pool))
 
 
 if __name__ == "__main__":
     ap = argparse.ArgumentParser()
-    ap.add_argument("cmd", choices=["collect", "audit", "bench", "report"])
+    ap.add_argument("cmd", choices=["collect", "audit", "bench", "report", "fixed"])
     ap.add_argument("--n", type=int, default=450)
     ap.add_argument("--limit", type=int, default=10_000)
     ap.add_argument("--arms", default="legacy,fast,engine")
@@ -220,6 +273,8 @@ if __name__ == "__main__":
         if a.plan == "B":
             PLAN[:] = PLAN_B
         asyncio.run(collect(a.n, a.exclude, a.sites, per_combo=1200 if a.exclude else None))
+    elif a.cmd == "fixed":
+        fixed(a.n, a.sites if a.sites != "sites.json" else "sites_fixed.json")
     elif a.cmd == "audit":
         asyncio.run(audit(a.limit, a.sites))
     elif a.cmd == "bench":
