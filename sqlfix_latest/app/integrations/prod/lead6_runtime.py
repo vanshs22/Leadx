@@ -6,6 +6,8 @@ pipeline. It performs real provider calls through the verification mesh and
 persists the resulting intelligence when a lead id is available.
 """
 from __future__ import annotations
+
+import os
 from datetime import datetime, timezone, timedelta
 from typing import Any
 
@@ -34,7 +36,7 @@ async def verify_contacts(lead: dict[str, Any]) -> dict[str, Any]:
 
     email = (out.get("email") or "").strip()
     if email and not _fresh(out.get("email_verified_at"), 14):
-        result = await verify_email(email)
+        result = await verify_email(email, allow_paid=os.getenv("LEADX_PAID_VERIFY", "delivery") == "always")
         observations.extend(result.get("observations") or [])
         c = result.get("canonical") or {}
         out["email_status"] = c.get("status", "unknown")
@@ -192,3 +194,29 @@ async def prepare_lead(lead: dict[str, Any], *, tenant_id: str | None, industry:
         # outage into a lost lead; the pipeline gate still operates on `out`.
         pass
     return out
+
+
+async def final_verify_for_delivery(lead: dict[str, Any], policy: dict[str, Any] | None = None, *, tenant_id: str = "", run_id: str = "") -> tuple[bool, str]:
+    """Last check on a lead that is about to be assigned: spend paid verification only now.
+
+    Returns (ok, reason). A lead whose email the paid verifier proves undeliverable no longer satisfies an
+    email requirement and is rejected before it consumes a delivery slot.
+    """
+    from app.integrations.prod.contact_state import email_level
+    from app.integrations.prod.contact_verification_mesh import verify_email
+    from app.integrations.prod.tenant_policy import contact_ok
+    email = (lead.get("email") or "").strip()
+    if email and email_level(lead) != "valid" and os.getenv("LEADX_PAID_VERIFY", "delivery") != "never":
+        result = await verify_email(email, allow_paid=True)
+        c = result.get("canonical") or {}
+        lead["email_status"] = c.get("status", lead.get("email_status", "unknown"))
+        lead["email_verification_confidence"] = c.get("confidence", 0)
+        lead["email_verified"] = c.get("status") in {"valid", "deliverable"}
+        lead["email_verified_at"] = datetime.now(timezone.utc).isoformat()
+        lead["email_verification"] = result
+        from app.integrations.prod import waterfall_runtime as wf
+        for obs in result.get("observations") or []:
+            if int(obs.get("tier") or 0) >= 1:  # paid or free-plan verifier
+                await wf.ledger(tenant_id, run_id, lead, str(obs.get("provider")), "email_verify",
+                                float(os.getenv("LEADX_VERIFY_CREDIT_COST", "0.2")), obs.get("status") in {"valid", "deliverable"})
+    return (True, "ok") if contact_ok(lead, policy) else (False, "failed_final_verification")

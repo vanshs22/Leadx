@@ -1,0 +1,6231 @@
+{
+ "n": 300,
+ "wall_s": 86.3,
+ "rows": [
+  {
+   "site": "http://www.CenterCityPhillydentist.com/",
+   "domain": "centercityphillydentist.com",
+   "city": "Philadelphia",
+   "industry": "dentist",
+   "direct": {
+    "category": "sgcaptcha",
+    "kind": "challenge",
+    "status": 202,
+    "usable": false,
+    "ms": 608,
+    "attempts": 1,
+    "error": "",
+    "server": "nginx"
+   },
+   "others": {}
+  },
+  {
+   "site": "http://joeundentist.com/",
+   "domain": "joeundentist.com",
+   "city": "Los Angeles",
+   "industry": "dentist",
+   "direct": {
+    "category": "sgcaptcha",
+    "kind": "challenge",
+    "status": 202,
+    "usable": false,
+    "ms": 630,
+    "attempts": 1,
+    "error": "",
+    "server": "nginx"
+   },
+   "others": {}
+  },
+  {
+   "site": "https://atelierskincare.com",
+   "domain": "atelierskincare.com",
+   "city": "Orlando",
+   "industry": "med spa",
+   "direct": {
+    "category": "ok",
+    "kind": "ok",
+    "status": 200,
+    "usable": true,
+    "ms": 647,
+    "attempts": 1,
+    "error": "",
+    "server": "cloudflare"
+   },
+   "others": {}
+  },
+  {
+   "site": "https://www.divorcelawnj.com",
+   "domain": "divorcelawnj.com",
+   "city": "New York",
+   "industry": "lawyer",
+   "direct": {
+    "category": "ok",
+    "kind": "ok",
+    "status": 200,
+    "usable": true,
+    "ms": 682,
+    "attempts": 1,
+    "error": "",
+    "server": "cloudflare"
+   },
+   "others": {}
+  },
+  {
+   "site": "http://lindamunizlme.com",
+   "domain": "lindamunizlme.com",
+   "city": "Orlando",
+   "industry": "med spa",
+   "direct": {
+    "category": "sgcaptcha",
+    "kind": "challenge",
+    "status": 202,
+    "usable": false,
+    "ms": 722,
+    "attempts": 1,
+    "error": "",
+    "server": "nginx"
+   },
+   "others": {}
+  },
+  {
+   "site": "http://kashidental.com/",
+   "domain": "kashidental.com",
+   "city": "San Antonio",
+   "industry": "dentist",
+   "direct": {
+    "category": "ok",
+    "kind": "ok",
+    "status": 200,
+    "usable": true,
+    "ms": 722,
+    "attempts": 1,
+    "error": "",
+    "server": "cloudflare"
+   },
+   "others": {}
+  },
+  {
+   "site": "http://www.shaenfieldsmiles.com",
+   "domain": "shaenfieldsmiles.com",
+   "city": "San Antonio",
+   "industry": "dentist",
+   "direct": {
+    "category": "sgcaptcha",
+    "kind": "challenge",
+    "status": 202,
+    "usable": false,
+    "ms": 758,
+    "attempts": 1,
+    "error": "",
+    "server": "nginx"
+   },
+   "others": {}
+  },
+  {
+   "site": "https://orlandofootmassage.com/",
+   "domain": "orlandofootmassage.com",
+   "city": "Orlando",
+   "industry": "med spa",
+   "direct": {
+    "category": "http_403",
+    "kind": "challenge",
+    "status": 403,
+    "usable": false,
+    "ms": 777,
+    "attempts": 1,
+    "error": "",
+    "server": "cloudflare"
+   },
+   "others": {}
+  },
+  {
+   "site": "https://drjantiagingclinic.com/",
+   "domain": "drjantiagingclinic.com",
+   "city": "Orlando",
+   "industry": "med spa",
+   "direct": {
+    "category": "sgcaptcha",
+    "kind": "challenge",
+    "status": 202,
+    "usable": false,
+    "ms": 782,
+    "attempts": 1,
+    "error": "",
+    "server": "nginx"
+   },
+   "others": {}
+  },
+  {
+   "site": "https://www.turturrolawpc.com",
+   "domain": "turturrolawpc.com",
+   "city": "New York",
+   "industry": "lawyer",
+   "direct": {
+    "category": "ok",
+    "kind": "ok",
+    "status": 200,
+    "usable": true,
+    "ms": 782,
+    "attempts": 1,
+    "error": "",
+    "server": "cloudflare"
+   },
+   "others": {}
+  },
+  {
+   "site": "http://www.udfd.com/",
+   "domain": "udfd.com",
+   "city": "Philadelphia",
+   "industry": "dentist",
+   "direct": {
+    "category": "ok",
+    "kind": "ok",
+    "status": 200,
+    "usable": true,
+    "ms": 890,
+    "attempts": 1,
+    "error": "",
+    "server": "Squarespace"
+   },
+   "others": {}
+  },
+  {
+   "site": "http://www.ourdentalplanet.com",
+   "domain": "ourdentalplanet.com",
+   "city": "Los Angeles",
+   "industry": "dentist",
+   "direct": {
+    "category": "cloudflare",
+    "kind": "challenge",
+    "status": 403,
+    "usable": false,
+    "ms": 924,
+    "attempts": 1,
+    "error": "",
+    "server": "cloudflare"
+   },
+   "others": {}
+  },
+  {
+   "site": "http://www.drbrianhale.com",
+   "domain": "drbrianhale.com",
+   "city": "San Antonio",
+   "industry": "dentist",
+   "direct": {
+    "category": "ok",
+    "kind": "ok",
+    "status": 200,
+    "usable": true,
+    "ms": 948,
+    "attempts": 1,
+    "error": "",
+    "server": "cloudflare"
+   },
+   "others": {}
+  },
+  {
+   "site": "http://www.thegympdx.com/",
+   "domain": "thegympdx.com",
+   "city": "Portland",
+   "industry": "gym",
+   "direct": {
+    "category": "ok",
+    "kind": "ok",
+    "status": 200,
+    "usable": true,
+    "ms": 978,
+    "attempts": 1,
+    "error": "",
+    "server": "cloudflare"
+   },
+   "others": {}
+  },
+  {
+   "site": "https://www.sdconwaydental.com/",
+   "domain": "sdconwaydental.com",
+   "city": "Philadelphia",
+   "industry": "dentist",
+   "direct": {
+    "category": "ok",
+    "kind": "ok",
+    "status": 200,
+    "usable": true,
+    "ms": 1018,
+    "attempts": 1,
+    "error": "",
+    "server": "Apache"
+   },
+   "others": {}
+  },
+  {
+   "site": "https://www.opendi.us/philadelphia/5642413.html",
+   "domain": "opendi.us",
+   "city": "Philadelphia",
+   "industry": "dentist",
+   "direct": {
+    "category": "cloudflare",
+    "kind": "challenge",
+    "status": 403,
+    "usable": false,
+    "ms": 266,
+    "attempts": 1,
+    "error": "",
+    "server": "cloudflare"
+   },
+   "others": {}
+  },
+  {
+   "site": "http://www.myalfadental.com/",
+   "domain": "myalfadental.com",
+   "city": "Philadelphia",
+   "industry": "dentist",
+   "direct": {
+    "category": "ok",
+    "kind": "ok",
+    "status": 200,
+    "usable": true,
+    "ms": 1046,
+    "attempts": 1,
+    "error": "",
+    "server": "cloudflare"
+   },
+   "others": {}
+  },
+  {
+   "site": "http://www.abingtondentalcare.com/",
+   "domain": "abingtondentalcare.com",
+   "city": "Philadelphia",
+   "industry": "dentist",
+   "direct": {
+    "category": "ok",
+    "kind": "ok",
+    "status": 200,
+    "usable": true,
+    "ms": 1077,
+    "attempts": 1,
+    "error": "",
+    "server": "cloudflare"
+   },
+   "others": {}
+  },
+  {
+   "site": "https://www.bravermanlawfirm.com",
+   "domain": "bravermanlawfirm.com",
+   "city": "New York",
+   "industry": "lawyer",
+   "direct": {
+    "category": "ok",
+    "kind": "ok",
+    "status": 200,
+    "usable": true,
+    "ms": 1109,
+    "attempts": 1,
+    "error": "",
+    "server": "cloudflare"
+   },
+   "others": {}
+  },
+  {
+   "site": "http://www.mypersonalcaredentistry.com/",
+   "domain": "mypersonalcaredentistry.com",
+   "city": "Philadelphia",
+   "industry": "dentist",
+   "direct": {
+    "category": "ok",
+    "kind": "ok",
+    "status": 200,
+    "usable": true,
+    "ms": 1143,
+    "attempts": 1,
+    "error": "",
+    "server": "cloudflare"
+   },
+   "others": {}
+  },
+  {
+   "site": "https://coronadobliss.com",
+   "domain": "coronadobliss.com",
+   "city": "San Diego",
+   "industry": "hair salon",
+   "direct": {
+    "category": "ok",
+    "kind": "ok",
+    "status": 200,
+    "usable": true,
+    "ms": 465,
+    "attempts": 1,
+    "error": "",
+    "server": "cloudflare"
+   },
+   "others": {}
+  },
+  {
+   "site": "https://www.mortonplumbing.net/",
+   "domain": "mortonplumbing.net",
+   "city": "Nashville",
+   "industry": "plumber",
+   "direct": {
+    "category": "ok",
+    "kind": "ok",
+    "status": 200,
+    "usable": true,
+    "ms": 540,
+    "attempts": 1,
+    "error": "",
+    "server": "Apache"
+   },
+   "others": {}
+  },
+  {
+   "site": "http://www.kenwortheylaw.com",
+   "domain": "kenwortheylaw.com",
+   "city": "New York",
+   "industry": "lawyer",
+   "direct": {
+    "category": "ok",
+    "kind": "ok",
+    "status": 200,
+    "usable": true,
+    "ms": 1225,
+    "attempts": 1,
+    "error": "",
+    "server": "cloudflare"
+   },
+   "others": {}
+  },
+  {
+   "site": "http://www.dentistglendaleca.com/",
+   "domain": "dentistglendaleca.com",
+   "city": "Los Angeles",
+   "industry": "dentist",
+   "direct": {
+    "category": "ok",
+    "kind": "ok",
+    "status": 200,
+    "usable": true,
+    "ms": 1245,
+    "attempts": 1,
+    "error": "",
+    "server": "cloudflare"
+   },
+   "others": {}
+  },
+  {
+   "site": "http://www.dapperjays.com/",
+   "domain": "dapperjays.com",
+   "city": "San Diego",
+   "industry": "hair salon",
+   "direct": {
+    "category": "ok",
+    "kind": "ok",
+    "status": 200,
+    "usable": true,
+    "ms": 1290,
+    "attempts": 1,
+    "error": "",
+    "server": "Squarespace"
+   },
+   "others": {}
+  },
+  {
+   "site": "https://zinmandds.com",
+   "domain": "zinmandds.com",
+   "city": "Los Angeles",
+   "industry": "dentist",
+   "direct": {
+    "category": "ok",
+    "kind": "ok",
+    "status": 200,
+    "usable": true,
+    "ms": 1326,
+    "attempts": 1,
+    "error": "",
+    "server": "nginx/1.31.8"
+   },
+   "others": {}
+  },
+  {
+   "site": "http://www.merakihairandbody.com/",
+   "domain": "merakihairandbody.com",
+   "city": "Las Vegas",
+   "industry": "hair salon",
+   "direct": {
+    "category": "js_shell",
+    "kind": "render",
+    "status": 200,
+    "usable": true,
+    "ms": 1359,
+    "attempts": 1,
+    "error": "",
+    "server": "Squarespace"
+   },
+   "others": {}
+  },
+  {
+   "site": "https://www.madamemusebeauty.com/",
+   "domain": "madamemusebeauty.com",
+   "city": "Las Vegas",
+   "industry": "hair salon",
+   "direct": {
+    "category": "js_shell",
+    "kind": "render",
+    "status": 200,
+    "usable": true,
+    "ms": 1401,
+    "attempts": 1,
+    "error": "",
+    "server": "cloudflare"
+   },
+   "others": {}
+  },
+  {
+   "site": "http://www.thebeautyshoppelv.com/",
+   "domain": "thebeautyshoppelv.com",
+   "city": "Las Vegas",
+   "industry": "hair salon",
+   "direct": {
+    "category": "js_shell",
+    "kind": "render",
+    "status": 200,
+    "usable": true,
+    "ms": 1492,
+    "attempts": 1,
+    "error": "",
+    "server": "Squarespace"
+   },
+   "others": {}
+  },
+  {
+   "site": "http://muvtraining.com",
+   "domain": "muvtraining.com",
+   "city": "Portland",
+   "industry": "gym",
+   "direct": {
+    "category": "http_403",
+    "kind": "challenge",
+    "status": 403,
+    "usable": false,
+    "ms": 385,
+    "attempts": 1,
+    "error": "",
+    "server": null
+   },
+   "others": {}
+  },
+  {
+   "site": "http://www.foremantaxlaw.com/contact",
+   "domain": "foremantaxlaw.com",
+   "city": "New York",
+   "industry": "lawyer",
+   "direct": {
+    "category": "js_shell",
+    "kind": "render",
+    "status": 200,
+    "usable": true,
+    "ms": 955,
+    "attempts": 1,
+    "error": "",
+    "server": "Squarespace"
+   },
+   "others": {}
+  },
+  {
+   "site": "http://TruSmileDentistry.com/",
+   "domain": "trusmiledentistry.com",
+   "city": "San Antonio",
+   "industry": "dentist",
+   "direct": {
+    "category": "ok",
+    "kind": "ok",
+    "status": 200,
+    "usable": true,
+    "ms": 1632,
+    "attempts": 1,
+    "error": "",
+    "server": "cloudflare"
+   },
+   "others": {}
+  },
+  {
+   "site": "http://Www.honeyandhivesalon.com/",
+   "domain": "honeyandhivesalon.com",
+   "city": "San Diego",
+   "industry": "hair salon",
+   "direct": {
+    "category": "ok",
+    "kind": "ok",
+    "status": 200,
+    "usable": true,
+    "ms": 1668,
+    "attempts": 1,
+    "error": "",
+    "server": "cloudflare"
+   },
+   "others": {}
+  },
+  {
+   "site": "https://www.ars.com/nashville",
+   "domain": "ars.com",
+   "city": "Nashville",
+   "industry": "plumber",
+   "direct": {
+    "category": "ok",
+    "kind": "ok",
+    "status": 200,
+    "usable": true,
+    "ms": 316,
+    "attempts": 1,
+    "error": "",
+    "server": "cloudflare"
+   },
+   "others": {}
+  },
+  {
+   "site": "https://www.morlemlaw.com",
+   "domain": "morlemlaw.com",
+   "city": "New York",
+   "industry": "lawyer",
+   "direct": {
+    "category": "ok",
+    "kind": "ok",
+    "status": 200,
+    "usable": true,
+    "ms": 562,
+    "attempts": 1,
+    "error": "",
+    "server": "nginx"
+   },
+   "others": {}
+  },
+  {
+   "site": "https://go.booker.com/PrimpNailBoutique",
+   "domain": "booker.com",
+   "city": "San Diego",
+   "industry": "hair salon",
+   "direct": {
+    "category": "ok",
+    "kind": "ok",
+    "status": 200,
+    "usable": true,
+    "ms": 775,
+    "attempts": 1,
+    "error": "",
+    "server": "cloudflare"
+   },
+   "others": {}
+  },
+  {
+   "site": "https://www.lumerneville.com",
+   "domain": "lumerneville.com",
+   "city": "New York",
+   "industry": "lawyer",
+   "direct": {
+    "category": "ok",
+    "kind": "ok",
+    "status": 200,
+    "usable": true,
+    "ms": 1863,
+    "attempts": 1,
+    "error": "",
+    "server": "Apache"
+   },
+   "others": {}
+  },
+  {
+   "site": "https://hnouriandds.com",
+   "domain": "hnouriandds.com",
+   "city": "Los Angeles",
+   "industry": "dentist",
+   "direct": {
+    "category": "ok",
+    "kind": "ok",
+    "status": 200,
+    "usable": true,
+    "ms": 969,
+    "attempts": 1,
+    "error": "",
+    "server": "cloudflare"
+   },
+   "others": {}
+  },
+  {
+   "site": "https://ucimprovementauthority.org",
+   "domain": "ucimprovementauthority.org",
+   "city": "New York",
+   "industry": "lawyer",
+   "direct": {
+    "category": "ok",
+    "kind": "ok",
+    "status": 200,
+    "usable": true,
+    "ms": 1123,
+    "attempts": 1,
+    "error": "",
+    "server": "Apache"
+   },
+   "others": {}
+  },
+  {
+   "site": "http://www.garrisonfamilydental.com",
+   "domain": "garrisonfamilydental.com",
+   "city": "San Antonio",
+   "industry": "dentist",
+   "direct": {
+    "category": "ok",
+    "kind": "ok",
+    "status": 200,
+    "usable": true,
+    "ms": 575,
+    "attempts": 1,
+    "error": "",
+    "server": "cloudflare"
+   },
+   "others": {}
+  },
+  {
+   "site": "http://gphainc.org",
+   "domain": "gphainc.org",
+   "city": "Philadelphia",
+   "industry": "dentist",
+   "direct": {
+    "category": "ok",
+    "kind": "ok",
+    "status": 200,
+    "usable": true,
+    "ms": 751,
+    "attempts": 1,
+    "error": "",
+    "server": "cloudflare"
+   },
+   "others": {}
+  },
+  {
+   "site": "http://nelaortho.com/",
+   "domain": "nelaortho.com",
+   "city": "Los Angeles",
+   "industry": "dentist",
+   "direct": {
+    "category": "ok",
+    "kind": "ok",
+    "status": 200,
+    "usable": true,
+    "ms": 2076,
+    "attempts": 1,
+    "error": "",
+    "server": "LiteSpeed"
+   },
+   "others": {}
+  },
+  {
+   "site": "https://www.whittierdentalgroup.com",
+   "domain": "whittierdentalgroup.com",
+   "city": "Los Angeles",
+   "industry": "dentist",
+   "direct": {
+    "category": "ok",
+    "kind": "ok",
+    "status": 200,
+    "usable": true,
+    "ms": 584,
+    "attempts": 1,
+    "error": "",
+    "server": "nginx"
+   },
+   "others": {}
+  },
+  {
+   "site": "https://shop.nordstrom.com/c/anastasia-beverly-hills-services-locations",
+   "domain": "nordstrom.com",
+   "city": "San Diego",
+   "industry": "hair salon",
+   "direct": {
+    "category": "ok",
+    "kind": "ok",
+    "status": 200,
+    "usable": true,
+    "ms": 971,
+    "attempts": 1,
+    "error": "",
+    "server": null
+   },
+   "others": {}
+  },
+  {
+   "site": "http://www.philadelphiaorthodontists.com",
+   "domain": "philadelphiaorthodontists.com",
+   "city": "Philadelphia",
+   "industry": "dentist",
+   "direct": {
+    "category": "ok",
+    "kind": "ok",
+    "status": 200,
+    "usable": true,
+    "ms": 2194,
+    "attempts": 1,
+    "error": "",
+    "server": "Apache"
+   },
+   "others": {}
+  },
+  {
+   "site": "http://www.sadentalcenter.com",
+   "domain": "sadentalcenter.com",
+   "city": "San Antonio",
+   "industry": "dentist",
+   "direct": {
+    "category": "ok",
+    "kind": "ok",
+    "status": 200,
+    "usable": true,
+    "ms": 1414,
+    "attempts": 1,
+    "error": "",
+    "server": "Sucuri/Cloudproxy"
+   },
+   "others": {}
+  },
+  {
+   "site": "http://www.bodhimedspa.com/contact-us",
+   "domain": "bodhimedspa.com",
+   "city": "Orlando",
+   "industry": "med spa",
+   "direct": {
+    "category": "http_403",
+    "kind": "challenge",
+    "status": 403,
+    "usable": false,
+    "ms": 400,
+    "attempts": 1,
+    "error": "",
+    "server": null
+   },
+   "others": {}
+  },
+  {
+   "site": "http://www.westerndentalcare.net/",
+   "domain": "westerndentalcare.net",
+   "city": "San Antonio",
+   "industry": "dentist",
+   "direct": {
+    "category": "ok",
+    "kind": "ok",
+    "status": 200,
+    "usable": true,
+    "ms": 863,
+    "attempts": 1,
+    "error": "",
+    "server": "cloudflare"
+   },
+   "others": {}
+  },
+  {
+   "site": "http://www.skyperio.com/",
+   "domain": "skyperio.com",
+   "city": "Philadelphia",
+   "industry": "dentist",
+   "direct": {
+    "category": "ok",
+    "kind": "ok",
+    "status": 200,
+    "usable": true,
+    "ms": 1539,
+    "attempts": 1,
+    "error": "",
+    "server": "hcdn"
+   },
+   "others": {}
+  },
+  {
+   "site": "http://www.snaponsmile.com/",
+   "domain": "snaponsmile.com",
+   "city": "Los Angeles",
+   "industry": "dentist",
+   "direct": {
+    "category": "ok",
+    "kind": "ok",
+    "status": 200,
+    "usable": true,
+    "ms": 1583,
+    "attempts": 1,
+    "error": "",
+    "server": "cloudflare"
+   },
+   "others": {}
+  },
+  {
+   "site": "http://theyostlawfirm.com/",
+   "domain": "theyostlawfirm.com",
+   "city": "New York",
+   "industry": "lawyer",
+   "direct": {
+    "category": "ok",
+    "kind": "ok",
+    "status": 200,
+    "usable": true,
+    "ms": 561,
+    "attempts": 1,
+    "error": "",
+    "server": "cloudflare"
+   },
+   "others": {}
+  },
+  {
+   "site": "http://www.chriskurimoto.com/",
+   "domain": "chriskurimoto.com",
+   "city": "Los Angeles",
+   "industry": "dentist",
+   "direct": {
+    "category": "ok",
+    "kind": "ok",
+    "status": 200,
+    "usable": true,
+    "ms": 848,
+    "attempts": 1,
+    "error": "",
+    "server": "Microsoft-IIS/10.0"
+   },
+   "others": {}
+  },
+  {
+   "site": "http://www.celticaxethrowers.com/",
+   "domain": "celticaxethrowers.com",
+   "city": "Portland",
+   "industry": "gym",
+   "direct": {
+    "category": "ok",
+    "kind": "ok",
+    "status": 200,
+    "usable": true,
+    "ms": 642,
+    "attempts": 1,
+    "error": "",
+    "server": "Vercel"
+   },
+   "others": {}
+  },
+  {
+   "site": "http://Pacificcoastpediatricdentistry.com/",
+   "domain": "pacificcoastpediatricdentistry.com",
+   "city": "Los Angeles",
+   "industry": "dentist",
+   "direct": {
+    "category": "ok",
+    "kind": "ok",
+    "status": 200,
+    "usable": true,
+    "ms": 532,
+    "attempts": 1,
+    "error": "",
+    "server": "cloudflare"
+   },
+   "others": {}
+  },
+  {
+   "site": "http://www.KeonaSamik.com/",
+   "domain": "keonasamik.com",
+   "city": "Las Vegas",
+   "industry": "hair salon",
+   "direct": {
+    "category": "ok",
+    "kind": "ok",
+    "status": 200,
+    "usable": true,
+    "ms": 792,
+    "attempts": 1,
+    "error": "",
+    "server": "ESF"
+   },
+   "others": {}
+  },
+  {
+   "site": "http://tntstrengthandfitness.com/",
+   "domain": "tntstrengthandfitness.com",
+   "city": "Portland",
+   "industry": "gym",
+   "direct": {
+    "category": "ok",
+    "kind": "ok",
+    "status": 200,
+    "usable": true,
+    "ms": 1529,
+    "attempts": 1,
+    "error": "",
+    "server": "cloudflare"
+   },
+   "others": {}
+  },
+  {
+   "site": "https://www.synergy-laser.com/",
+   "domain": "synergy-laser.com",
+   "city": "San Diego",
+   "industry": "hair salon",
+   "direct": {
+    "category": "ok",
+    "kind": "ok",
+    "status": 200,
+    "usable": true,
+    "ms": 645,
+    "attempts": 1,
+    "error": "",
+    "server": "cloudflare"
+   },
+   "others": {}
+  },
+  {
+   "site": "http://www.goldlinesalon.com/",
+   "domain": "goldlinesalon.com",
+   "city": "San Diego",
+   "industry": "hair salon",
+   "direct": {
+    "category": "sgcaptcha",
+    "kind": "challenge",
+    "status": 202,
+    "usable": false,
+    "ms": 317,
+    "attempts": 1,
+    "error": "",
+    "server": "nginx"
+   },
+   "others": {}
+  },
+  {
+   "site": "http://www.localtoothdoctor.com/",
+   "domain": "localtoothdoctor.com",
+   "city": "Los Angeles",
+   "industry": "dentist",
+   "direct": {
+    "category": "dns",
+    "kind": "network",
+    "status": null,
+    "usable": false,
+    "ms": 12,
+    "attempts": 1,
+    "error": "blocked:dns_failure",
+    "server": null
+   },
+   "others": {
+    "scrapling": {
+     "category": "dns",
+     "usable": false,
+     "status": null,
+     "ms": 478,
+     "error": "ConnectError: [Errno -2] Name or service not known"
+    },
+    "browser": {
+     "category": "network_other",
+     "usable": false,
+     "status": null,
+     "ms": 2036,
+     "error": "Error: Page.goto: net::ERR_FAILED at http://www.localtoothdoctor.com/\nCall log:\n  - navigating to \"h"
+    }
+   }
+  },
+  {
+   "site": "https://www.nspiresalon.com",
+   "domain": "nspiresalon.com",
+   "city": "Las Vegas",
+   "industry": "hair salon",
+   "direct": {
+    "category": "dns",
+    "kind": "network",
+    "status": null,
+    "usable": false,
+    "ms": 85,
+    "attempts": 1,
+    "error": "blocked:dns_failure",
+    "server": null
+   },
+   "others": {
+    "scrapling": {
+     "category": "dns",
+     "usable": false,
+     "status": null,
+     "ms": 28,
+     "error": "ConnectError: [Errno -2] Name or service not known"
+    },
+    "browser": {
+     "category": "network_other",
+     "usable": false,
+     "status": null,
+     "ms": 2032,
+     "error": "Error: Page.goto: net::ERR_FAILED at https://www.nspiresalon.com/\nCall log:\n  - navigating to \"https"
+    }
+   }
+  },
+  {
+   "site": "http://www.attention2life.com",
+   "domain": "attention2life.com",
+   "city": "San Diego",
+   "industry": "hair salon",
+   "direct": {
+    "category": "dns",
+    "kind": "network",
+    "status": null,
+    "usable": false,
+    "ms": 60,
+    "attempts": 1,
+    "error": "blocked:dns_failure",
+    "server": null
+   },
+   "others": {
+    "scrapling": {
+     "category": "dns",
+     "usable": false,
+     "status": null,
+     "ms": 28,
+     "error": "ConnectError: [Errno -2] Name or service not known"
+    },
+    "browser": {
+     "category": "network_other",
+     "usable": false,
+     "status": null,
+     "ms": 2033,
+     "error": "Error: Page.goto: net::ERR_FAILED at http://www.attention2life.com/\nCall log:\n  - navigating to \"htt"
+    }
+   }
+  },
+  {
+   "site": "https://authenticmasters.shop/",
+   "domain": "authenticmasters.shop",
+   "city": "San Diego",
+   "industry": "hair salon",
+   "direct": {
+    "category": "dns",
+    "kind": "network",
+    "status": null,
+    "usable": false,
+    "ms": 53,
+    "attempts": 1,
+    "error": "blocked:dns_failure",
+    "server": null
+   },
+   "others": {
+    "scrapling": {
+     "category": "dns",
+     "usable": false,
+     "status": null,
+     "ms": 29,
+     "error": "ConnectError: [Errno -2] Name or service not known"
+    },
+    "browser": {
+     "category": "network_other",
+     "usable": false,
+     "status": null,
+     "ms": 2035,
+     "error": "Error: Page.goto: net::ERR_FAILED at https://authenticmasters.shop/\nCall log:\n  - navigating to \"htt"
+    }
+   }
+  },
+  {
+   "site": "https://dpdtx.com/",
+   "domain": "dpdtx.com",
+   "city": "San Antonio",
+   "industry": "dentist",
+   "direct": {
+    "category": "sgcaptcha",
+    "kind": "challenge",
+    "status": 202,
+    "usable": false,
+    "ms": 308,
+    "attempts": 1,
+    "error": "",
+    "server": "nginx"
+   },
+   "others": {}
+  },
+  {
+   "site": "http://www.nailsbyjennylv.site123.me/",
+   "domain": "nailsbyjennylv.site123.me",
+   "city": "Las Vegas",
+   "industry": "hair salon",
+   "direct": {
+    "category": "http_403",
+    "kind": "challenge",
+    "status": 403,
+    "usable": false,
+    "ms": 60,
+    "attempts": 1,
+    "error": "",
+    "server": "BunnyCDN-ASB1-925"
+   },
+   "others": {}
+  },
+  {
+   "site": "http://www.realchoiceimplants.com/",
+   "domain": "realchoiceimplants.com",
+   "city": "Philadelphia",
+   "industry": "dentist",
+   "direct": {
+    "category": "ok",
+    "kind": "ok",
+    "status": 200,
+    "usable": true,
+    "ms": 651,
+    "attempts": 1,
+    "error": "",
+    "server": null
+   },
+   "others": {}
+  },
+  {
+   "site": "http://www.bikramyogapdx.com",
+   "domain": "bikramyogapdx.com",
+   "city": "Portland",
+   "industry": "gym",
+   "direct": {
+    "category": "ok",
+    "kind": "ok",
+    "status": 200,
+    "usable": true,
+    "ms": 278,
+    "attempts": 1,
+    "error": "",
+    "server": "cloudflare"
+   },
+   "others": {}
+  },
+  {
+   "site": "http://www.bhperiodontist.com/",
+   "domain": "bhperiodontist.com",
+   "city": "Los Angeles",
+   "industry": "dentist",
+   "direct": {
+    "category": "ok",
+    "kind": "ok",
+    "status": 200,
+    "usable": true,
+    "ms": 557,
+    "attempts": 1,
+    "error": "",
+    "server": "cloudflare"
+   },
+   "others": {}
+  },
+  {
+   "site": "https://canadadentalgroup.com",
+   "domain": "canadadentalgroup.com",
+   "city": "Los Angeles",
+   "industry": "dentist",
+   "direct": {
+    "category": "js_shell",
+    "kind": "render",
+    "status": 200,
+    "usable": true,
+    "ms": 2853,
+    "attempts": 1,
+    "error": "",
+    "server": "LiteSpeed"
+   },
+   "others": {}
+  },
+  {
+   "site": "https://littlestepsdental.com/",
+   "domain": "littlestepsdental.com",
+   "city": "San Antonio",
+   "industry": "dentist",
+   "direct": {
+    "category": "sgcaptcha",
+    "kind": "challenge",
+    "status": 202,
+    "usable": false,
+    "ms": 437,
+    "attempts": 1,
+    "error": "",
+    "server": "cloudflare"
+   },
+   "others": {}
+  },
+  {
+   "site": "https://brightestsmilesdental.com/tx/san-antonio-dentist/",
+   "domain": "brightestsmilesdental.com",
+   "city": "San Antonio",
+   "industry": "dentist",
+   "direct": {
+    "category": "ok",
+    "kind": "ok",
+    "status": 200,
+    "usable": true,
+    "ms": 1449,
+    "attempts": 1,
+    "error": "",
+    "server": "LiteSpeed"
+   },
+   "others": {}
+  },
+  {
+   "site": "https://dentisteastla.com/schedulenow/",
+   "domain": "dentisteastla.com",
+   "city": "Los Angeles",
+   "industry": "dentist",
+   "direct": {
+    "category": "sgcaptcha",
+    "kind": "challenge",
+    "status": 202,
+    "usable": false,
+    "ms": 471,
+    "attempts": 1,
+    "error": "",
+    "server": "nginx"
+   },
+   "others": {}
+  },
+  {
+   "site": "http://yogawest.net",
+   "domain": "yogawest.net",
+   "city": "San Diego",
+   "industry": "hair salon",
+   "direct": {
+    "category": "ok",
+    "kind": "ok",
+    "status": 200,
+    "usable": true,
+    "ms": 556,
+    "attempts": 1,
+    "error": "",
+    "server": "cloudflare"
+   },
+   "others": {}
+  },
+  {
+   "site": "http://angeldentalgroup.com/",
+   "domain": "angeldentalgroup.com",
+   "city": "Los Angeles",
+   "industry": "dentist",
+   "direct": {
+    "category": "ok",
+    "kind": "ok",
+    "status": 200,
+    "usable": true,
+    "ms": 319,
+    "attempts": 1,
+    "error": "",
+    "server": "cloudflare"
+   },
+   "others": {}
+  },
+  {
+   "site": "http://Www.sincitylashes.com/",
+   "domain": "sincitylashes.com",
+   "city": "Las Vegas",
+   "industry": "hair salon",
+   "direct": {
+    "category": "ok",
+    "kind": "ok",
+    "status": 200,
+    "usable": true,
+    "ms": 104,
+    "attempts": 1,
+    "error": "",
+    "server": "Apache"
+   },
+   "others": {}
+  },
+  {
+   "site": "http://www.mylittleyogis.com/",
+   "domain": "mylittleyogis.com",
+   "city": "Portland",
+   "industry": "gym",
+   "direct": {
+    "category": "dns",
+    "kind": "network",
+    "status": null,
+    "usable": false,
+    "ms": 82,
+    "attempts": 1,
+    "error": "blocked:dns_failure",
+    "server": null
+   },
+   "others": {
+    "scrapling": {
+     "category": "dns",
+     "usable": false,
+     "status": null,
+     "ms": 28,
+     "error": "ConnectError: [Errno -2] Name or service not known"
+    },
+    "browser": {
+     "category": "network_other",
+     "usable": false,
+     "status": null,
+     "ms": 2357,
+     "error": "Error: Page.goto: net::ERR_FAILED at http://www.mylittleyogis.com/\nCall log:\n  - navigating to \"http"
+    }
+   }
+  },
+  {
+   "site": "http://www.thomasholmesdds.com",
+   "domain": "thomasholmesdds.com",
+   "city": "San Antonio",
+   "industry": "dentist",
+   "direct": {
+    "category": "dns",
+    "kind": "network",
+    "status": null,
+    "usable": false,
+    "ms": 75,
+    "attempts": 1,
+    "error": "blocked:dns_failure",
+    "server": null
+   },
+   "others": {
+    "scrapling": {
+     "category": "dns",
+     "usable": false,
+     "status": null,
+     "ms": 28,
+     "error": "ConnectError: [Errno -2] Name or service not known"
+    },
+    "browser": {
+     "category": "network_other",
+     "usable": false,
+     "status": null,
+     "ms": 2361,
+     "error": "Error: Page.goto: net::ERR_FAILED at http://www.thomasholmesdds.com/\nCall log:\n  - navigating to \"ht"
+    }
+   }
+  },
+  {
+   "site": "http://www.crossfit-dragonfire.com",
+   "domain": "crossfit-dragonfire.com",
+   "city": "Portland",
+   "industry": "gym",
+   "direct": {
+    "category": "dns",
+    "kind": "network",
+    "status": null,
+    "usable": false,
+    "ms": 75,
+    "attempts": 1,
+    "error": "blocked:dns_failure",
+    "server": null
+   },
+   "others": {
+    "scrapling": {
+     "category": "dns",
+     "usable": false,
+     "status": null,
+     "ms": 28,
+     "error": "ConnectError: [Errno -2] Name or service not known"
+    },
+    "browser": {
+     "category": "network_other",
+     "usable": false,
+     "status": null,
+     "ms": 2363,
+     "error": "Error: Page.goto: net::ERR_FAILED at http://www.crossfit-dragonfire.com/\nCall log:\n  - navigating to"
+    }
+   }
+  },
+  {
+   "site": "http://www.ryanreynoldsinc.com",
+   "domain": "ryanreynoldsinc.com",
+   "city": "Nashville",
+   "industry": "plumber",
+   "direct": {
+    "category": "dns",
+    "kind": "network",
+    "status": null,
+    "usable": false,
+    "ms": 106,
+    "attempts": 1,
+    "error": "blocked:dns_failure",
+    "server": null
+   },
+   "others": {
+    "scrapling": {
+     "category": "dns",
+     "usable": false,
+     "status": null,
+     "ms": 27,
+     "error": "ConnectError: [Errno -2] Name or service not known"
+    },
+    "browser": {
+     "category": "network_other",
+     "usable": false,
+     "status": null,
+     "ms": 2365,
+     "error": "Error: Page.goto: net::ERR_FAILED at http://www.ryanreynoldsinc.com/\nCall log:\n  - navigating to \"ht"
+    }
+   }
+  },
+  {
+   "site": "https://www.appealtech.com",
+   "domain": "appealtech.com",
+   "city": "New York",
+   "industry": "lawyer",
+   "direct": {
+    "category": "ok",
+    "kind": "ok",
+    "status": 200,
+    "usable": true,
+    "ms": 409,
+    "attempts": 1,
+    "error": "",
+    "server": "cloudflare"
+   },
+   "others": {}
+  },
+  {
+   "site": "http://gmlawny.com/",
+   "domain": "gmlawny.com",
+   "city": "New York",
+   "industry": "lawyer",
+   "direct": {
+    "category": "ok",
+    "kind": "ok",
+    "status": 200,
+    "usable": true,
+    "ms": 1400,
+    "attempts": 1,
+    "error": "",
+    "server": "cloudflare"
+   },
+   "others": {}
+  },
+  {
+   "site": "http://www.themanesalon.com/",
+   "domain": "themanesalon.com",
+   "city": "San Diego",
+   "industry": "hair salon",
+   "direct": {
+    "category": "js_shell",
+    "kind": "render",
+    "status": 200,
+    "usable": true,
+    "ms": 448,
+    "attempts": 1,
+    "error": "",
+    "server": "Squarespace"
+   },
+   "others": {}
+  },
+  {
+   "site": "https://www.timberwooddental.com/",
+   "domain": "timberwooddental.com",
+   "city": "San Antonio",
+   "industry": "dentist",
+   "direct": {
+    "category": "ok",
+    "kind": "ok",
+    "status": 200,
+    "usable": true,
+    "ms": 148,
+    "attempts": 1,
+    "error": "",
+    "server": "AmazonS3"
+   },
+   "others": {}
+  },
+  {
+   "site": "http://thepediatricdentalteam.com/",
+   "domain": "thepediatricdentalteam.com",
+   "city": "Philadelphia",
+   "industry": "dentist",
+   "direct": {
+    "category": "ok",
+    "kind": "ok",
+    "status": 200,
+    "usable": true,
+    "ms": 2561,
+    "attempts": 1,
+    "error": "",
+    "server": "Apache"
+   },
+   "others": {}
+  },
+  {
+   "site": "https://www.emergencydental.com/sanantonio",
+   "domain": "emergencydental.com",
+   "city": "San Antonio",
+   "industry": "dentist",
+   "direct": {
+    "category": "ok",
+    "kind": "ok",
+    "status": 200,
+    "usable": true,
+    "ms": 802,
+    "attempts": 1,
+    "error": "",
+    "server": "nginx"
+   },
+   "others": {}
+  },
+  {
+   "site": "http://www.thecourtsinbeaverton.com/",
+   "domain": "thecourtsinbeaverton.com",
+   "city": "Portland",
+   "industry": "gym",
+   "direct": {
+    "category": "js_shell",
+    "kind": "render",
+    "status": 200,
+    "usable": true,
+    "ms": 320,
+    "attempts": 1,
+    "error": "",
+    "server": null
+   },
+   "others": {}
+  },
+  {
+   "site": "http://nailorylv.com/",
+   "domain": "nailorylv.com",
+   "city": "Las Vegas",
+   "industry": "hair salon",
+   "direct": {
+    "category": "ok",
+    "kind": "ok",
+    "status": 200,
+    "usable": true,
+    "ms": 1157,
+    "attempts": 1,
+    "error": "",
+    "server": "cloudflare"
+   },
+   "others": {}
+  },
+  {
+   "site": "https://www.milanidental.com/",
+   "domain": "milanidental.com",
+   "city": "San Antonio",
+   "industry": "dentist",
+   "direct": {
+    "category": "ok",
+    "kind": "ok",
+    "status": 200,
+    "usable": true,
+    "ms": 388,
+    "attempts": 1,
+    "error": "",
+    "server": "cloudflare"
+   },
+   "others": {}
+  },
+  {
+   "site": "http://micumillerortholab.com",
+   "domain": "micumillerortholab.com",
+   "city": "Philadelphia",
+   "industry": "dentist",
+   "direct": {
+    "category": "ok",
+    "kind": "ok",
+    "status": 200,
+    "usable": true,
+    "ms": 642,
+    "attempts": 1,
+    "error": "",
+    "server": "Apache"
+   },
+   "others": {}
+  },
+  {
+   "site": "http://www.brightsmilesdentalstudio.com/",
+   "domain": "brightsmilesdentalstudio.com",
+   "city": "Los Angeles",
+   "industry": "dentist",
+   "direct": {
+    "category": "ok",
+    "kind": "ok",
+    "status": 200,
+    "usable": true,
+    "ms": 545,
+    "attempts": 1,
+    "error": "",
+    "server": "cloudflare"
+   },
+   "others": {}
+  },
+  {
+   "site": "http://latinosbeautysalon.placeweb.site",
+   "domain": "latinosbeautysalon.placeweb.site",
+   "city": "Las Vegas",
+   "industry": "hair salon",
+   "direct": {
+    "category": "js_shell",
+    "kind": "render",
+    "status": 200,
+    "usable": true,
+    "ms": 639,
+    "attempts": 1,
+    "error": "",
+    "server": "Apache"
+   },
+   "others": {}
+  },
+  {
+   "site": "http://www.tierrabarberandshave.com",
+   "domain": "tierrabarberandshave.com",
+   "city": "San Diego",
+   "industry": "hair salon",
+   "direct": {
+    "category": "dns",
+    "kind": "network",
+    "status": null,
+    "usable": false,
+    "ms": 89,
+    "attempts": 1,
+    "error": "blocked:dns_failure",
+    "server": null
+   },
+   "others": {
+    "scrapling": {
+     "category": "dns",
+     "usable": false,
+     "status": null,
+     "ms": 27,
+     "error": "ConnectError: [Errno -2] Name or service not known"
+    },
+    "browser": {
+     "category": "network_other",
+     "usable": false,
+     "status": null,
+     "ms": 2854,
+     "error": "Error: Page.goto: net::ERR_FAILED at http://www.tierrabarberandshave.com/\nCall log:\n  - navigating t"
+    }
+   }
+  },
+  {
+   "site": "http://www.redrocknailsalon.com",
+   "domain": "redrocknailsalon.com",
+   "city": "Las Vegas",
+   "industry": "hair salon",
+   "direct": {
+    "category": "dns",
+    "kind": "network",
+    "status": null,
+    "usable": false,
+    "ms": 240,
+    "attempts": 1,
+    "error": "blocked:dns_failure",
+    "server": null
+   },
+   "others": {
+    "scrapling": {
+     "category": "dns",
+     "usable": false,
+     "status": null,
+     "ms": 162,
+     "error": "ConnectError: [Errno -2] Name or service not known"
+    },
+    "browser": {
+     "category": "network_other",
+     "usable": false,
+     "status": null,
+     "ms": 2014,
+     "error": "Error: Page.goto: net::ERR_FAILED at http://www.redrocknailsalon.com/\nCall log:\n  - navigating to \"h"
+    }
+   }
+  },
+  {
+   "site": "https://amaradental.com/locations/cherry-hill-dentist-office/",
+   "domain": "amaradental.com",
+   "city": "Philadelphia",
+   "industry": "dentist",
+   "direct": {
+    "category": "ok",
+    "kind": "ok",
+    "status": 200,
+    "usable": true,
+    "ms": 206,
+    "attempts": 1,
+    "error": "",
+    "server": "nginx"
+   },
+   "others": {}
+  },
+  {
+   "site": "https://www.lucentorthodonticssanantonio.com/",
+   "domain": "lucentorthodonticssanantonio.com",
+   "city": "San Antonio",
+   "industry": "dentist",
+   "direct": {
+    "category": "ok",
+    "kind": "ok",
+    "status": 200,
+    "usable": true,
+    "ms": 147,
+    "attempts": 1,
+    "error": "",
+    "server": "nginx"
+   },
+   "others": {}
+  },
+  {
+   "site": "http://www.shinekidswla.com/",
+   "domain": "shinekidswla.com",
+   "city": "Los Angeles",
+   "industry": "dentist",
+   "direct": {
+    "category": "ok",
+    "kind": "ok",
+    "status": 200,
+    "usable": true,
+    "ms": 576,
+    "attempts": 1,
+    "error": "",
+    "server": "Squarespace"
+   },
+   "others": {}
+  },
+  {
+   "site": "http://www.sandiegoharley.com/rebel-pit-hair-and-tattoo.htm",
+   "domain": "sandiegoharley.com",
+   "city": "San Diego",
+   "industry": "hair salon",
+   "direct": {
+    "category": "cloudflare",
+    "kind": "challenge",
+    "status": 403,
+    "usable": false,
+    "ms": 233,
+    "attempts": 1,
+    "error": "",
+    "server": "cloudflare"
+   },
+   "others": {}
+  },
+  {
+   "site": "http://www.sundentalorthodontics.com",
+   "domain": "sundentalorthodontics.com",
+   "city": "Philadelphia",
+   "industry": "dentist",
+   "direct": {
+    "category": "ok",
+    "kind": "ok",
+    "status": 200,
+    "usable": true,
+    "ms": 615,
+    "attempts": 1,
+    "error": "",
+    "server": "cloudflare"
+   },
+   "others": {}
+  },
+  {
+   "site": "http://thaliafeilen.com",
+   "domain": "thaliafeilen.com",
+   "city": "New York",
+   "industry": "lawyer",
+   "direct": {
+    "category": "ok",
+    "kind": "ok",
+    "status": 200,
+    "usable": true,
+    "ms": 217,
+    "attempts": 1,
+    "error": "",
+    "server": "LiteSpeed"
+   },
+   "others": {}
+  },
+  {
+   "site": "http://www.awareskinholisticstudio.com",
+   "domain": "awareskinholisticstudio.com",
+   "city": "Orlando",
+   "industry": "med spa",
+   "direct": {
+    "category": "ok",
+    "kind": "ok",
+    "status": 200,
+    "usable": true,
+    "ms": 358,
+    "attempts": 1,
+    "error": "",
+    "server": "cloudflare"
+   },
+   "others": {}
+  },
+  {
+   "site": "https://www.flirtsalonsd.com/",
+   "domain": "flirtsalonsd.com",
+   "city": "San Diego",
+   "industry": "hair salon",
+   "direct": {
+    "category": "js_shell",
+    "kind": "render",
+    "status": 200,
+    "usable": true,
+    "ms": 506,
+    "attempts": 1,
+    "error": "",
+    "server": "Squarespace"
+   },
+   "others": {}
+  },
+  {
+   "site": "https://www.alanfriedmanlawyer.com",
+   "domain": "alanfriedmanlawyer.com",
+   "city": "New York",
+   "industry": "lawyer",
+   "direct": {
+    "category": "cloudflare",
+    "kind": "challenge",
+    "status": 403,
+    "usable": false,
+    "ms": 214,
+    "attempts": 1,
+    "error": "",
+    "server": "cloudflare"
+   },
+   "others": {}
+  },
+  {
+   "site": "https://www.mdage.com/",
+   "domain": "mdage.com",
+   "city": "Orlando",
+   "industry": "med spa",
+   "direct": {
+    "category": "ok",
+    "kind": "ok",
+    "status": 200,
+    "usable": true,
+    "ms": 2532,
+    "attempts": 1,
+    "error": "",
+    "server": "Apache"
+   },
+   "others": {}
+  },
+  {
+   "site": "https://torrancedentalspa.com",
+   "domain": "torrancedentalspa.com",
+   "city": "Los Angeles",
+   "industry": "dentist",
+   "direct": {
+    "category": "ok",
+    "kind": "ok",
+    "status": 200,
+    "usable": true,
+    "ms": 335,
+    "attempts": 1,
+    "error": "",
+    "server": "Vercel"
+   },
+   "others": {}
+  },
+  {
+   "site": "http://fiorelawyer.com",
+   "domain": "fiorelawyer.com",
+   "city": "New York",
+   "industry": "lawyer",
+   "direct": {
+    "category": "ok",
+    "kind": "ok",
+    "status": 200,
+    "usable": true,
+    "ms": 107,
+    "attempts": 1,
+    "error": "",
+    "server": "Flywheel/5.1.0"
+   },
+   "others": {}
+  },
+  {
+   "site": "http://www.rockinhairbykimberly.com",
+   "domain": "rockinhairbykimberly.com",
+   "city": "San Diego",
+   "industry": "hair salon",
+   "direct": {
+    "category": "dns",
+    "kind": "network",
+    "status": null,
+    "usable": false,
+    "ms": 158,
+    "attempts": 1,
+    "error": "blocked:dns_failure",
+    "server": null
+   },
+   "others": {
+    "scrapling": {
+     "category": "dns",
+     "usable": false,
+     "status": null,
+     "ms": 21,
+     "error": "ConnectError: [Errno -2] Name or service not known"
+    },
+    "browser": {
+     "category": "network_other",
+     "usable": false,
+     "status": null,
+     "ms": 2326,
+     "error": "Error: Page.goto: net::ERR_FAILED at http://www.rockinhairbykimberly.com/\nCall log:\n  - navigating t"
+    }
+   }
+  },
+  {
+   "site": "http://www.greaterphiladelphiaoralsurgery.com/",
+   "domain": "greaterphiladelphiaoralsurgery.com",
+   "city": "Philadelphia",
+   "industry": "dentist",
+   "direct": {
+    "category": "ok",
+    "kind": "ok",
+    "status": 200,
+    "usable": true,
+    "ms": 2217,
+    "attempts": 1,
+    "error": "",
+    "server": "Apache"
+   },
+   "others": {}
+  },
+  {
+   "site": "http://www.bonitadolcesalon.com/",
+   "domain": "bonitadolcesalon.com",
+   "city": "San Diego",
+   "industry": "hair salon",
+   "direct": {
+    "category": "js_shell",
+    "kind": "render",
+    "status": 200,
+    "usable": true,
+    "ms": 1737,
+    "attempts": 1,
+    "error": "",
+    "server": null
+   },
+   "others": {}
+  },
+  {
+   "site": "http://www.nicecaredental.com/",
+   "domain": "nicecaredental.com",
+   "city": "Philadelphia",
+   "industry": "dentist",
+   "direct": {
+    "category": "ok",
+    "kind": "ok",
+    "status": 200,
+    "usable": true,
+    "ms": 403,
+    "attempts": 1,
+    "error": "",
+    "server": "Microsoft-IIS/10.0"
+   },
+   "others": {}
+  },
+  {
+   "site": "http://www.fulcrumfitness.com/locations/west-burnside",
+   "domain": "fulcrumfitness.com",
+   "city": "Portland",
+   "industry": "gym",
+   "direct": {
+    "category": "ok",
+    "kind": "ok",
+    "status": 200,
+    "usable": true,
+    "ms": 165,
+    "attempts": 2,
+    "error": "",
+    "server": "Squarespace"
+   },
+   "others": {}
+  },
+  {
+   "site": "http://sterlingsmobile.com",
+   "domain": "sterlingsmobile.com",
+   "city": "San Diego",
+   "industry": "hair salon",
+   "direct": {
+    "category": "js_shell",
+    "kind": "render",
+    "status": 200,
+    "usable": true,
+    "ms": 1171,
+    "attempts": 1,
+    "error": "",
+    "server": "LiteSpeed"
+   },
+   "others": {}
+  },
+  {
+   "site": "https://regenerativesportspineandspa.com/",
+   "domain": "regenerativesportspineandspa.com",
+   "city": "Orlando",
+   "industry": "med spa",
+   "direct": {
+    "category": "ok",
+    "kind": "ok",
+    "status": 200,
+    "usable": true,
+    "ms": 179,
+    "attempts": 1,
+    "error": "",
+    "server": "cloudflare"
+   },
+   "others": {}
+  },
+  {
+   "site": "http://www.littledentalpediatricdentistry.com/",
+   "domain": "littledentalpediatricdentistry.com",
+   "city": "San Antonio",
+   "industry": "dentist",
+   "direct": {
+    "category": "ok",
+    "kind": "ok",
+    "status": 200,
+    "usable": true,
+    "ms": 575,
+    "attempts": 1,
+    "error": "",
+    "server": "Apache"
+   },
+   "others": {}
+  },
+  {
+   "site": "http://www.360MedSpaCollective.com/",
+   "domain": "360medspacollective.com",
+   "city": "Orlando",
+   "industry": "med spa",
+   "direct": {
+    "category": "ok",
+    "kind": "ok",
+    "status": 200,
+    "usable": true,
+    "ms": 258,
+    "attempts": 1,
+    "error": "",
+    "server": "cloudflare"
+   },
+   "others": {}
+  },
+  {
+   "site": "https://www.pamelanigro.com",
+   "domain": "pamelanigro.com",
+   "city": "San Diego",
+   "industry": "hair salon",
+   "direct": {
+    "category": "cloudflare",
+    "kind": "challenge",
+    "status": 403,
+    "usable": false,
+    "ms": 562,
+    "attempts": 1,
+    "error": "",
+    "server": "cloudflare"
+   },
+   "others": {}
+  },
+  {
+   "site": "https://www.7to7dental.com/blanco-road-dentist",
+   "domain": "7to7dental.com",
+   "city": "San Antonio",
+   "industry": "dentist",
+   "direct": {
+    "category": "ok",
+    "kind": "ok",
+    "status": 200,
+    "usable": true,
+    "ms": 97,
+    "attempts": 1,
+    "error": "",
+    "server": "Squarespace"
+   },
+   "others": {}
+  },
+  {
+   "site": "https://www.drseguin-dentist.com",
+   "domain": "drseguin-dentist.com",
+   "city": "San Antonio",
+   "industry": "dentist",
+   "direct": {
+    "category": "ok",
+    "kind": "ok",
+    "status": 200,
+    "usable": true,
+    "ms": 512,
+    "attempts": 2,
+    "error": "",
+    "server": "nginx/1.30.6"
+   },
+   "others": {}
+  },
+  {
+   "site": "http://www.kidschoicedentalcare.com/",
+   "domain": "kidschoicedentalcare.com",
+   "city": "Los Angeles",
+   "industry": "dentist",
+   "direct": {
+    "category": "ok",
+    "kind": "ok",
+    "status": 200,
+    "usable": true,
+    "ms": 198,
+    "attempts": 1,
+    "error": "",
+    "server": "Sucuri/Cloudproxy"
+   },
+   "others": {}
+  },
+  {
+   "site": "http://www.portlandyogaarts.com",
+   "domain": "portlandyogaarts.com",
+   "city": "Portland",
+   "industry": "gym",
+   "direct": {
+    "category": "cloudflare",
+    "kind": "challenge",
+    "status": 403,
+    "usable": false,
+    "ms": 521,
+    "attempts": 1,
+    "error": "",
+    "server": "cloudflare"
+   },
+   "others": {}
+  },
+  {
+   "site": "http://www.dentalimplantsofsa.com/",
+   "domain": "dentalimplantsofsa.com",
+   "city": "San Antonio",
+   "industry": "dentist",
+   "direct": {
+    "category": "cloudflare",
+    "kind": "challenge",
+    "status": 403,
+    "usable": false,
+    "ms": 108,
+    "attempts": 1,
+    "error": "",
+    "server": "cloudflare"
+   },
+   "others": {}
+  },
+  {
+   "site": "http://www.piofit.com/",
+   "domain": "piofit.com",
+   "city": "Portland",
+   "industry": "gym",
+   "direct": {
+    "category": "http_403",
+    "kind": "challenge",
+    "status": 403,
+    "usable": false,
+    "ms": 27,
+    "attempts": 1,
+    "error": "",
+    "server": null
+   },
+   "others": {}
+  },
+  {
+   "site": "http://www.tailoredhair.com/",
+   "domain": "tailoredhair.com",
+   "city": "San Diego",
+   "industry": "hair salon",
+   "direct": {
+    "category": "js_shell",
+    "kind": "render",
+    "status": 200,
+    "usable": true,
+    "ms": 716,
+    "attempts": 1,
+    "error": "",
+    "server": "nginx/1.21.6"
+   },
+   "others": {}
+  },
+  {
+   "site": "http://www.magicdentalcamden.com",
+   "domain": "magicdentalcamden.com",
+   "city": "Philadelphia",
+   "industry": "dentist",
+   "direct": {
+    "category": "js_shell",
+    "kind": "render",
+    "status": 200,
+    "usable": true,
+    "ms": 72,
+    "attempts": 1,
+    "error": "",
+    "server": "nginx"
+   },
+   "others": {}
+  },
+  {
+   "site": "http://www.liveoak-ortho.com/",
+   "domain": "liveoak-ortho.com",
+   "city": "San Antonio",
+   "industry": "dentist",
+   "direct": {
+    "category": "ok",
+    "kind": "ok",
+    "status": 200,
+    "usable": true,
+    "ms": 1489,
+    "attempts": 1,
+    "error": "",
+    "server": "Apache"
+   },
+   "others": {}
+  },
+  {
+   "site": "https://bj-nail-spa.hub.biz",
+   "domain": "bj-nail-spa.hub.biz",
+   "city": "San Diego",
+   "industry": "hair salon",
+   "direct": {
+    "category": "cloudflare",
+    "kind": "challenge",
+    "status": 403,
+    "usable": false,
+    "ms": 125,
+    "attempts": 1,
+    "error": "",
+    "server": "cloudflare"
+   },
+   "others": {}
+  },
+  {
+   "site": "http://www.braziliaskincare.com/",
+   "domain": "braziliaskincare.com",
+   "city": "San Diego",
+   "industry": "hair salon",
+   "direct": {
+    "category": "ok",
+    "kind": "ok",
+    "status": 200,
+    "usable": true,
+    "ms": 2090,
+    "attempts": 1,
+    "error": "",
+    "server": "nginx/1.31.9"
+   },
+   "others": {}
+  },
+  {
+   "site": "http://www.bodybalancetechniques.com",
+   "domain": "bodybalancetechniques.com",
+   "city": "Portland",
+   "industry": "gym",
+   "direct": {
+    "category": "parked",
+    "kind": "parked",
+    "status": 200,
+    "usable": false,
+    "ms": 978,
+    "attempts": 1,
+    "error": "",
+    "server": "nginx"
+   },
+   "others": {
+    "scrapling": {
+     "category": "parked",
+     "usable": false,
+     "status": 200,
+     "ms": 879,
+     "error": ""
+    },
+    "browser": {
+     "category": "parked",
+     "usable": false,
+     "status": 200,
+     "ms": 2911,
+     "error": ""
+    }
+   }
+  },
+  {
+   "site": "http://www.harborcitydental.com/",
+   "domain": "harborcitydental.com",
+   "city": "Los Angeles",
+   "industry": "dentist",
+   "direct": {
+    "category": "ok",
+    "kind": "ok",
+    "status": 200,
+    "usable": true,
+    "ms": 474,
+    "attempts": 1,
+    "error": "",
+    "server": "Squarespace"
+   },
+   "others": {}
+  },
+  {
+   "site": "http://www.gardenridgedentistry.com/",
+   "domain": "gardenridgedentistry.com",
+   "city": "San Antonio",
+   "industry": "dentist",
+   "direct": {
+    "category": "ok",
+    "kind": "ok",
+    "status": 200,
+    "usable": true,
+    "ms": 1218,
+    "attempts": 1,
+    "error": "",
+    "server": "nginx"
+   },
+   "others": {}
+  },
+  {
+   "site": "http://familydentistrysa.com/",
+   "domain": "familydentistrysa.com",
+   "city": "San Antonio",
+   "industry": "dentist",
+   "direct": {
+    "category": "ok",
+    "kind": "ok",
+    "status": 200,
+    "usable": true,
+    "ms": 381,
+    "attempts": 1,
+    "error": "",
+    "server": "nginx/1.18.0 (Ubuntu)"
+   },
+   "others": {}
+  },
+  {
+   "site": "http://honoramongthieves.net",
+   "domain": "honoramongthieves.net",
+   "city": "San Diego",
+   "industry": "hair salon",
+   "direct": {
+    "category": "js_shell",
+    "kind": "render",
+    "status": 200,
+    "usable": true,
+    "ms": 496,
+    "attempts": 1,
+    "error": "",
+    "server": "Apache"
+   },
+   "others": {}
+  },
+  {
+   "site": "http://www.marvizicosmeticdentist.com/",
+   "domain": "marvizicosmeticdentist.com",
+   "city": "Los Angeles",
+   "industry": "dentist",
+   "direct": {
+    "category": "ok",
+    "kind": "ok",
+    "status": 200,
+    "usable": true,
+    "ms": 651,
+    "attempts": 1,
+    "error": "",
+    "server": "Sucuri/Cloudproxy"
+   },
+   "others": {}
+  },
+  {
+   "site": "https://kathysnailsandspa.com",
+   "domain": "kathysnailsandspa.com",
+   "city": "San Diego",
+   "industry": "hair salon",
+   "direct": {
+    "category": "ok",
+    "kind": "ok",
+    "status": 200,
+    "usable": true,
+    "ms": 849,
+    "attempts": 1,
+    "error": "",
+    "server": "cloudflare"
+   },
+   "others": {}
+  },
+  {
+   "site": "https://www.hairinthecity.com/",
+   "domain": "hairinthecity.com",
+   "city": "San Diego",
+   "industry": "hair salon",
+   "direct": {
+    "category": "ok",
+    "kind": "ok",
+    "status": 200,
+    "usable": true,
+    "ms": 61,
+    "attempts": 1,
+    "error": "",
+    "server": "nginx"
+   },
+   "others": {}
+  },
+  {
+   "site": "http://barbiigirlnails.mytime.com/",
+   "domain": "mytime.com",
+   "city": "Las Vegas",
+   "industry": "hair salon",
+   "direct": {
+    "category": "http_404",
+    "kind": "http",
+    "status": 404,
+    "usable": false,
+    "ms": 859,
+    "attempts": 1,
+    "error": "",
+    "server": "nginx"
+   },
+   "others": {
+    "scrapling": {
+     "category": "http_404",
+     "usable": false,
+     "status": 404,
+     "ms": 868,
+     "error": ""
+    },
+    "browser": {
+     "category": "http_404",
+     "usable": false,
+     "status": 404,
+     "ms": 3472,
+     "error": ""
+    }
+   }
+  },
+  {
+   "site": "http://www.northridgeendodontics.com",
+   "domain": "northridgeendodontics.com",
+   "city": "Los Angeles",
+   "industry": "dentist",
+   "direct": {
+    "category": "cloudflare",
+    "kind": "challenge",
+    "status": 403,
+    "usable": false,
+    "ms": 173,
+    "attempts": 1,
+    "error": "",
+    "server": "cloudflare"
+   },
+   "others": {}
+  },
+  {
+   "site": "https://www.mysmilesalon.com",
+   "domain": "mysmilesalon.com",
+   "city": "San Antonio",
+   "industry": "dentist",
+   "direct": {
+    "category": "connect",
+    "kind": "network",
+    "status": null,
+    "usable": false,
+    "ms": 204,
+    "attempts": 2,
+    "error": "ConnectError: ",
+    "server": null
+   },
+   "others": {
+    "scrapling": {
+     "category": "connect",
+     "usable": false,
+     "status": null,
+     "ms": 235,
+     "error": "ConnectError: "
+    },
+    "browser": {
+     "category": "network_other",
+     "usable": false,
+     "status": null,
+     "ms": 3321,
+     "error": "Error: Page.goto: net::ERR_CONNECTION_RESET at https://www.mysmilesalon.com/\nCall log:\n  - navigatin"
+    }
+   }
+  },
+  {
+   "site": "https://abeeraminlaw.com",
+   "domain": "abeeraminlaw.com",
+   "city": "New York",
+   "industry": "lawyer",
+   "direct": {
+    "category": "ok",
+    "kind": "ok",
+    "status": 200,
+    "usable": true,
+    "ms": 73,
+    "attempts": 1,
+    "error": "",
+    "server": "cloudflare"
+   },
+   "others": {}
+  },
+  {
+   "site": "https://galleriadentalcare.com",
+   "domain": "galleriadentalcare.com",
+   "city": "Los Angeles",
+   "industry": "dentist",
+   "direct": {
+    "category": "ok",
+    "kind": "ok",
+    "status": 200,
+    "usable": true,
+    "ms": 319,
+    "attempts": 2,
+    "error": "",
+    "server": "nginx"
+   },
+   "others": {}
+  },
+  {
+   "site": "http://getenergized.com",
+   "domain": "getenergized.com",
+   "city": "Portland",
+   "industry": "gym",
+   "direct": {
+    "category": "redirect_stub",
+    "kind": "redirect",
+    "status": 200,
+    "usable": false,
+    "ms": 1076,
+    "attempts": 2,
+    "error": "",
+    "server": null
+   },
+   "others": {
+    "scrapling": {
+     "category": "redirect_stub",
+     "usable": false,
+     "status": 200,
+     "ms": 235,
+     "error": ""
+    },
+    "browser": {
+     "category": "ok",
+     "usable": true,
+     "status": 200,
+     "ms": 3590,
+     "error": ""
+    }
+   }
+  },
+  {
+   "site": "http://www.fwppc.org/",
+   "domain": "fwppc.org",
+   "city": "Philadelphia",
+   "industry": "dentist",
+   "direct": {
+    "category": "ok",
+    "kind": "ok",
+    "status": 200,
+    "usable": true,
+    "ms": 1264,
+    "attempts": 1,
+    "error": "",
+    "server": "cloudflare"
+   },
+   "others": {}
+  },
+  {
+   "site": "https://thebeautybar402.com",
+   "domain": "thebeautybar402.com",
+   "city": "San Diego",
+   "industry": "hair salon",
+   "direct": {
+    "category": "ok",
+    "kind": "ok",
+    "status": 200,
+    "usable": true,
+    "ms": 255,
+    "attempts": 1,
+    "error": "",
+    "server": "cloudflare"
+   },
+   "others": {}
+  },
+  {
+   "site": "https://www.myrongoldbergdentistry.com",
+   "domain": "myrongoldbergdentistry.com",
+   "city": "Philadelphia",
+   "industry": "dentist",
+   "direct": {
+    "category": "tls",
+    "kind": "network",
+    "status": null,
+    "usable": false,
+    "ms": 971,
+    "attempts": 2,
+    "error": "ConnectError: [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: certificate has expired (_ssl.c:1016)",
+    "server": null
+   },
+   "others": {
+    "scrapling": {
+     "category": "tls",
+     "usable": false,
+     "status": null,
+     "ms": 488,
+     "error": "ConnectError: [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: certificate has expired (_"
+    },
+    "browser": {
+     "category": "network_other",
+     "usable": false,
+     "status": null,
+     "ms": 3587,
+     "error": "Error: Page.goto: net::ERR_CERT_DATE_INVALID at https://www.myrongoldbergdentistry.com/\nCall log:\n  "
+    }
+   }
+  },
+  {
+   "site": "https://ephratafamilydentistry.com",
+   "domain": "ephratafamilydentistry.com",
+   "city": "Philadelphia",
+   "industry": "dentist",
+   "direct": {
+    "category": "ok",
+    "kind": "ok",
+    "status": 200,
+    "usable": true,
+    "ms": 1722,
+    "attempts": 1,
+    "error": "",
+    "server": "hws"
+   },
+   "others": {}
+  },
+  {
+   "site": "http://www.jobsactlawyer.com",
+   "domain": "jobsactlawyer.com",
+   "city": "New York",
+   "industry": "lawyer",
+   "direct": {
+    "category": "ok",
+    "kind": "ok",
+    "status": 200,
+    "usable": true,
+    "ms": 705,
+    "attempts": 1,
+    "error": "",
+    "server": "Apache"
+   },
+   "others": {}
+  },
+  {
+   "site": "http://www.studio508.org",
+   "domain": "studio508.org",
+   "city": "Portland",
+   "industry": "gym",
+   "direct": {
+    "category": "dns",
+    "kind": "network",
+    "status": null,
+    "usable": false,
+    "ms": 106,
+    "attempts": 1,
+    "error": "blocked:dns_failure",
+    "server": null
+   },
+   "others": {
+    "scrapling": {
+     "category": "dns",
+     "usable": false,
+     "status": null,
+     "ms": 104,
+     "error": "ConnectError: [Errno -2] Name or service not known"
+    },
+    "browser": {
+     "category": "network_other",
+     "usable": false,
+     "status": null,
+     "ms": 3666,
+     "error": "Error: Page.goto: net::ERR_FAILED at http://www.studio508.org/\nCall log:\n  - navigating to \"http://w"
+    }
+   }
+  },
+  {
+   "site": "http://www.rosabiancalaw.com/contact",
+   "domain": "rosabiancalaw.com",
+   "city": "New York",
+   "industry": "lawyer",
+   "direct": {
+    "category": "dns",
+    "kind": "network",
+    "status": null,
+    "usable": false,
+    "ms": 106,
+    "attempts": 1,
+    "error": "blocked:dns_failure",
+    "server": null
+   },
+   "others": {
+    "scrapling": {
+     "category": "dns",
+     "usable": false,
+     "status": null,
+     "ms": 104,
+     "error": "ConnectError: [Errno -2] Name or service not known"
+    },
+    "browser": {
+     "category": "network_other",
+     "usable": false,
+     "status": null,
+     "ms": 3707,
+     "error": "Error: Page.goto: net::ERR_FAILED at http://www.rosabiancalaw.com/contact\nCall log:\n  - navigating t"
+    }
+   }
+  },
+  {
+   "site": "https://avocado-nails.hub.biz",
+   "domain": "avocado-nails.hub.biz",
+   "city": "San Diego",
+   "industry": "hair salon",
+   "direct": {
+    "category": "cloudflare",
+    "kind": "challenge",
+    "status": 403,
+    "usable": false,
+    "ms": 30,
+    "attempts": 1,
+    "error": "",
+    "server": "cloudflare"
+   },
+   "others": {}
+  },
+  {
+   "site": "http://caribbeandayspa.com/",
+   "domain": "caribbeandayspa.com",
+   "city": "Las Vegas",
+   "industry": "hair salon",
+   "direct": {
+    "category": "dns",
+    "kind": "network",
+    "status": null,
+    "usable": false,
+    "ms": 71,
+    "attempts": 1,
+    "error": "blocked:dns_failure",
+    "server": null
+   },
+   "others": {
+    "scrapling": {
+     "category": "dns",
+     "usable": false,
+     "status": null,
+     "ms": 50,
+     "error": "ConnectError: [Errno -2] Name or service not known"
+    },
+    "browser": {
+     "category": "network_other",
+     "usable": false,
+     "status": null,
+     "ms": 3702,
+     "error": "Error: Page.goto: net::ERR_FAILED at http://caribbeandayspa.com/\nCall log:\n  - navigating to \"http:/"
+    }
+   }
+  },
+  {
+   "site": "https://braidedup.as.me/",
+   "domain": "as.me",
+   "city": "Las Vegas",
+   "industry": "hair salon",
+   "direct": {
+    "category": "ok",
+    "kind": "ok",
+    "status": 200,
+    "usable": true,
+    "ms": 1432,
+    "attempts": 1,
+    "error": "",
+    "server": "Apache"
+   },
+   "others": {}
+  },
+  {
+   "site": "http://irinasahakidds.com/",
+   "domain": "irinasahakidds.com",
+   "city": "Los Angeles",
+   "industry": "dentist",
+   "direct": {
+    "category": "js_shell",
+    "kind": "render",
+    "status": 200,
+    "usable": true,
+    "ms": 216,
+    "attempts": 1,
+    "error": "",
+    "server": null
+   },
+   "others": {}
+  },
+  {
+   "site": "http://www.napelonidental.com/",
+   "domain": "napelonidental.com",
+   "city": "Los Angeles",
+   "industry": "dentist",
+   "direct": {
+    "category": "ok",
+    "kind": "ok",
+    "status": 200,
+    "usable": true,
+    "ms": 4948,
+    "attempts": 1,
+    "error": "",
+    "server": "hcdn"
+   },
+   "others": {}
+  },
+  {
+   "site": "http://beautyandspaescondido.com/",
+   "domain": "beautyandspaescondido.com",
+   "city": "San Diego",
+   "industry": "hair salon",
+   "direct": {
+    "category": "dns",
+    "kind": "network",
+    "status": null,
+    "usable": false,
+    "ms": 71,
+    "attempts": 1,
+    "error": "blocked:dns_failure",
+    "server": null
+   },
+   "others": {
+    "scrapling": {
+     "category": "dns",
+     "usable": false,
+     "status": null,
+     "ms": 24,
+     "error": "ConnectError: [Errno -2] Name or service not known"
+    },
+    "browser": {
+     "category": "network_other",
+     "usable": false,
+     "status": null,
+     "ms": 3806,
+     "error": "Error: Page.goto: net::ERR_FAILED at http://beautyandspaescondido.com/\nCall log:\n  - navigating to \""
+    }
+   }
+  },
+  {
+   "site": "https://www.stephanieghair.com",
+   "domain": "stephanieghair.com",
+   "city": "San Diego",
+   "industry": "hair salon",
+   "direct": {
+    "category": "ok",
+    "kind": "ok",
+    "status": 200,
+    "usable": true,
+    "ms": 103,
+    "attempts": 1,
+    "error": "",
+    "server": "cloudflare"
+   },
+   "others": {}
+  },
+  {
+   "site": "http://www.lonefir.fitness/",
+   "domain": "lonefir.fitness",
+   "city": "Portland",
+   "industry": "gym",
+   "direct": {
+    "category": "js_shell",
+    "kind": "render",
+    "status": 200,
+    "usable": true,
+    "ms": 285,
+    "attempts": 1,
+    "error": "",
+    "server": "Squarespace"
+   },
+   "others": {}
+  },
+  {
+   "site": "http://www.dentistinredondobeach.com/",
+   "domain": "dentistinredondobeach.com",
+   "city": "Los Angeles",
+   "industry": "dentist",
+   "direct": {
+    "category": "sgcaptcha",
+    "kind": "challenge",
+    "status": 202,
+    "usable": false,
+    "ms": 233,
+    "attempts": 1,
+    "error": "",
+    "server": "nginx"
+   },
+   "others": {}
+  },
+  {
+   "site": "http://NWFighting.com/",
+   "domain": "nwfighting.com",
+   "city": "Portland",
+   "industry": "gym",
+   "direct": {
+    "category": "ok",
+    "kind": "ok",
+    "status": 200,
+    "usable": true,
+    "ms": 251,
+    "attempts": 1,
+    "error": "",
+    "server": "Sucuri/Cloudproxy"
+   },
+   "others": {}
+  },
+  {
+   "site": "https://www.ivansaperstein.com",
+   "domain": "ivansaperstein.com",
+   "city": "New York",
+   "industry": "lawyer",
+   "direct": {
+    "category": "ok",
+    "kind": "ok",
+    "status": 200,
+    "usable": true,
+    "ms": 196,
+    "attempts": 1,
+    "error": "",
+    "server": "Squarespace"
+   },
+   "others": {}
+  },
+  {
+   "site": "http://www.responsive.plumbing/",
+   "domain": "responsive.plumbing",
+   "city": "Nashville",
+   "industry": "plumber",
+   "direct": {
+    "category": "ok",
+    "kind": "ok",
+    "status": 200,
+    "usable": true,
+    "ms": 292,
+    "attempts": 1,
+    "error": "",
+    "server": "Squarespace"
+   },
+   "others": {}
+  },
+  {
+   "site": "https://airbornearts.com/retreats/fabric-flow-2027",
+   "domain": "airbornearts.com",
+   "city": "Portland",
+   "industry": "gym",
+   "direct": {
+    "category": "ok",
+    "kind": "ok",
+    "status": 200,
+    "usable": true,
+    "ms": 509,
+    "attempts": 1,
+    "error": "",
+    "server": "cloudflare"
+   },
+   "others": {}
+  },
+  {
+   "site": "http://ChyyBeautyStudios.com/",
+   "domain": "chyybeautystudios.com",
+   "city": "Las Vegas",
+   "industry": "hair salon",
+   "direct": {
+    "category": "ok",
+    "kind": "ok",
+    "status": 200,
+    "usable": true,
+    "ms": 672,
+    "attempts": 1,
+    "error": "",
+    "server": "cloudflare"
+   },
+   "others": {}
+  },
+  {
+   "site": "https://blancocrossingdental.com",
+   "domain": "blancocrossingdental.com",
+   "city": "San Antonio",
+   "industry": "dentist",
+   "direct": {
+    "category": "cloudflare",
+    "kind": "challenge",
+    "status": 403,
+    "usable": false,
+    "ms": 68,
+    "attempts": 1,
+    "error": "",
+    "server": "cloudflare"
+   },
+   "others": {}
+  },
+  {
+   "site": "https://www.alamooms.com/",
+   "domain": "alamooms.com",
+   "city": "San Antonio",
+   "industry": "dentist",
+   "direct": {
+    "category": "ok",
+    "kind": "ok",
+    "status": 200,
+    "usable": true,
+    "ms": 292,
+    "attempts": 1,
+    "error": "",
+    "server": "nginx"
+   },
+   "others": {}
+  },
+  {
+   "site": "http://www.shebahdental.com",
+   "domain": "shebahdental.com",
+   "city": "San Antonio",
+   "industry": "dentist",
+   "direct": {
+    "category": "ok",
+    "kind": "ok",
+    "status": 200,
+    "usable": true,
+    "ms": 806,
+    "attempts": 1,
+    "error": "",
+    "server": "cloudflare"
+   },
+   "others": {}
+  },
+  {
+   "site": "http://sunbeltnetwork.com",
+   "domain": "sunbeltnetwork.com",
+   "city": "Los Angeles",
+   "industry": "dentist",
+   "direct": {
+    "category": "ok",
+    "kind": "ok",
+    "status": 200,
+    "usable": true,
+    "ms": 348,
+    "attempts": 1,
+    "error": "",
+    "server": "cloudflare"
+   },
+   "others": {}
+  },
+  {
+   "site": "http://www.stevenaltendds.com",
+   "domain": "stevenaltendds.com",
+   "city": "Philadelphia",
+   "industry": "dentist",
+   "direct": {
+    "category": "ok",
+    "kind": "ok",
+    "status": 200,
+    "usable": true,
+    "ms": 528,
+    "attempts": 1,
+    "error": "",
+    "server": "Microsoft-IIS/10.0"
+   },
+   "others": {}
+  },
+  {
+   "site": "https://www.legendzbarbershop.com/",
+   "domain": "legendzbarbershop.com",
+   "city": "San Diego",
+   "industry": "hair salon",
+   "direct": {
+    "category": "js_shell",
+    "kind": "render",
+    "status": 200,
+    "usable": true,
+    "ms": 165,
+    "attempts": 1,
+    "error": "",
+    "server": "Squarespace"
+   },
+   "others": {}
+  },
+  {
+   "site": "http://www.apkjrlaw.com",
+   "domain": "apkjrlaw.com",
+   "city": "New York",
+   "industry": "lawyer",
+   "direct": {
+    "category": "ok",
+    "kind": "ok",
+    "status": 200,
+    "usable": true,
+    "ms": 66,
+    "attempts": 1,
+    "error": "",
+    "server": "LiteSpeed"
+   },
+   "others": {}
+  },
+  {
+   "site": "http://www.friedfrank.com",
+   "domain": "friedfrank.com",
+   "city": "New York",
+   "industry": "lawyer",
+   "direct": {
+    "category": "ok",
+    "kind": "ok",
+    "status": 200,
+    "usable": true,
+    "ms": 70,
+    "attempts": 1,
+    "error": "",
+    "server": "nginx"
+   },
+   "others": {}
+  },
+  {
+   "site": "http://www.fordentistry.com",
+   "domain": "fordentistry.com",
+   "city": "Philadelphia",
+   "industry": "dentist",
+   "direct": {
+    "category": "cloudflare",
+    "kind": "challenge",
+    "status": 403,
+    "usable": false,
+    "ms": 81,
+    "attempts": 1,
+    "error": "",
+    "server": "cloudflare"
+   },
+   "others": {}
+  },
+  {
+   "site": "https://g.co/kgs/6PkHoz",
+   "domain": "g.co",
+   "city": "Las Vegas",
+   "industry": "hair salon",
+   "direct": {
+    "category": "ok",
+    "kind": "ok",
+    "status": 200,
+    "usable": true,
+    "ms": 476,
+    "attempts": 1,
+    "error": "",
+    "server": "gws"
+   },
+   "others": {}
+  },
+  {
+   "site": "https://www.myhonoluludental.com/",
+   "domain": "myhonoluludental.com",
+   "city": "Los Angeles",
+   "industry": "dentist",
+   "direct": {
+    "category": "cloudflare",
+    "kind": "challenge",
+    "status": 403,
+    "usable": false,
+    "ms": 86,
+    "attempts": 1,
+    "error": "",
+    "server": "cloudflare"
+   },
+   "others": {}
+  },
+  {
+   "site": "http://www.familydentalcenter.org/",
+   "domain": "familydentalcenter.org",
+   "city": "Los Angeles",
+   "industry": "dentist",
+   "direct": {
+    "category": "ok",
+    "kind": "ok",
+    "status": 200,
+    "usable": true,
+    "ms": 129,
+    "attempts": 1,
+    "error": "",
+    "server": "nginx"
+   },
+   "others": {}
+  },
+  {
+   "site": "http://www.irvingcohen.com",
+   "domain": "irvingcohen.com",
+   "city": "New York",
+   "industry": "lawyer",
+   "direct": {
+    "category": "ok",
+    "kind": "ok",
+    "status": 200,
+    "usable": true,
+    "ms": 781,
+    "attempts": 1,
+    "error": "",
+    "server": "Apache"
+   },
+   "others": {}
+  },
+  {
+   "site": "http://drpaulzau.com",
+   "domain": "drpaulzau.com",
+   "city": "Los Angeles",
+   "industry": "dentist",
+   "direct": {
+    "category": "ok",
+    "kind": "ok",
+    "status": 200,
+    "usable": true,
+    "ms": 89,
+    "attempts": 1,
+    "error": "",
+    "server": "cloudflare"
+   },
+   "others": {}
+  },
+  {
+   "site": "http://www.smileworks.com",
+   "domain": "smileworks.com",
+   "city": "Los Angeles",
+   "industry": "dentist",
+   "direct": {
+    "category": "ok",
+    "kind": "ok",
+    "status": 200,
+    "usable": true,
+    "ms": 525,
+    "attempts": 1,
+    "error": "",
+    "server": "Apache"
+   },
+   "others": {}
+  },
+  {
+   "site": "http://blissfuljoystudio.com/",
+   "domain": "blissfuljoystudio.com",
+   "city": "Orlando",
+   "industry": "med spa",
+   "direct": {
+    "category": "redirect_stub",
+    "kind": "redirect",
+    "status": 200,
+    "usable": false,
+    "ms": 1248,
+    "attempts": 2,
+    "error": "",
+    "server": null
+   },
+   "others": {
+    "scrapling": {
+     "category": "redirect_stub",
+     "usable": false,
+     "status": 200,
+     "ms": 173,
+     "error": ""
+    },
+    "browser": {
+     "category": "ok",
+     "usable": true,
+     "status": 200,
+     "ms": 4838,
+     "error": ""
+    }
+   }
+  },
+  {
+   "site": "http://www.bellagrandelasvegas.com/services/facial",
+   "domain": "bellagrandelasvegas.com",
+   "city": "Las Vegas",
+   "industry": "hair salon",
+   "direct": {
+    "category": "dns",
+    "kind": "network",
+    "status": null,
+    "usable": false,
+    "ms": 6,
+    "attempts": 1,
+    "error": "blocked:dns_failure",
+    "server": null
+   },
+   "others": {
+    "scrapling": {
+     "category": "dns",
+     "usable": false,
+     "status": null,
+     "ms": 23,
+     "error": "ConnectError: [Errno -2] Name or service not known"
+    },
+    "browser": {
+     "category": "network_other",
+     "usable": false,
+     "status": null,
+     "ms": 4560,
+     "error": "Error: Page.goto: net::ERR_FAILED at http://www.bellagrandelasvegas.com/services/facial\nCall log:\n  "
+    }
+   }
+  },
+  {
+   "site": "http://steviesbarriologan.com/",
+   "domain": "steviesbarriologan.com",
+   "city": "San Diego",
+   "industry": "hair salon",
+   "direct": {
+    "category": "dns",
+    "kind": "network",
+    "status": null,
+    "usable": false,
+    "ms": 49,
+    "attempts": 1,
+    "error": "blocked:dns_failure",
+    "server": null
+   },
+   "others": {
+    "scrapling": {
+     "category": "dns",
+     "usable": false,
+     "status": null,
+     "ms": 6,
+     "error": "ConnectError: [Errno -2] Name or service not known"
+    },
+    "browser": {
+     "category": "network_other",
+     "usable": false,
+     "status": null,
+     "ms": 4590,
+     "error": "Error: Page.goto: net::ERR_FAILED at http://steviesbarriologan.com/\nCall log:\n  - navigating to \"htt"
+    }
+   }
+  },
+  {
+   "site": "http://www.crossfitfortvancouver.com/",
+   "domain": "crossfitfortvancouver.com",
+   "city": "Portland",
+   "industry": "gym",
+   "direct": {
+    "category": "ok",
+    "kind": "ok",
+    "status": 200,
+    "usable": true,
+    "ms": 2089,
+    "attempts": 1,
+    "error": "",
+    "server": "cloudflare"
+   },
+   "others": {}
+  },
+  {
+   "site": "https://www.solerdental.com",
+   "domain": "solerdental.com",
+   "city": "Los Angeles",
+   "industry": "dentist",
+   "direct": {
+    "category": "ok",
+    "kind": "ok",
+    "status": 200,
+    "usable": true,
+    "ms": 10,
+    "attempts": 2,
+    "error": "",
+    "server": "Apache"
+   },
+   "others": {}
+  },
+  {
+   "site": "http://instylenailsSD.com/",
+   "domain": "instylenailssd.com",
+   "city": "San Diego",
+   "industry": "hair salon",
+   "direct": {
+    "category": "ok",
+    "kind": "ok",
+    "status": 200,
+    "usable": true,
+    "ms": 334,
+    "attempts": 1,
+    "error": "",
+    "server": "openresty/1.31.1.1"
+   },
+   "others": {}
+  },
+  {
+   "site": "http://www.oasisdentalteam.com/",
+   "domain": "oasisdentalteam.com",
+   "city": "Philadelphia",
+   "industry": "dentist",
+   "direct": {
+    "category": "ok",
+    "kind": "ok",
+    "status": 200,
+    "usable": true,
+    "ms": 176,
+    "attempts": 1,
+    "error": "",
+    "server": "nginx"
+   },
+   "others": {}
+  },
+  {
+   "site": "http://lashxesthetic.glossgenius.com/",
+   "domain": "lashxesthetic.glossgenius.com",
+   "city": "Las Vegas",
+   "industry": "hair salon",
+   "direct": {
+    "category": "ok",
+    "kind": "ok",
+    "status": 200,
+    "usable": true,
+    "ms": 298,
+    "attempts": 1,
+    "error": "",
+    "server": "nginx"
+   },
+   "others": {}
+  },
+  {
+   "site": "https://www.allelemed.com",
+   "domain": "allelemed.com",
+   "city": "Orlando",
+   "industry": "med spa",
+   "direct": {
+    "category": "ok",
+    "kind": "ok",
+    "status": 200,
+    "usable": true,
+    "ms": 348,
+    "attempts": 1,
+    "error": "",
+    "server": "Netlify"
+   },
+   "others": {}
+  },
+  {
+   "site": "http://www.megaburnfitness.com",
+   "domain": "megaburnfitness.com",
+   "city": "Portland",
+   "industry": "gym",
+   "direct": {
+    "category": "ok",
+    "kind": "ok",
+    "status": 200,
+    "usable": true,
+    "ms": 766,
+    "attempts": 1,
+    "error": "",
+    "server": "None"
+   },
+   "others": {}
+  },
+  {
+   "site": "http://www.manuelmoseslaw.com/",
+   "domain": "manuelmoseslaw.com",
+   "city": "New York",
+   "industry": "lawyer",
+   "direct": {
+    "category": "ok",
+    "kind": "ok",
+    "status": 200,
+    "usable": true,
+    "ms": 228,
+    "attempts": 1,
+    "error": "",
+    "server": "Sucuri/Cloudproxy"
+   },
+   "others": {}
+  },
+  {
+   "site": "https://www.pearlsmiles.com",
+   "domain": "pearlsmiles.com",
+   "city": "Philadelphia",
+   "industry": "dentist",
+   "direct": {
+    "category": "ok",
+    "kind": "ok",
+    "status": 200,
+    "usable": true,
+    "ms": 62,
+    "attempts": 1,
+    "error": "",
+    "server": "cloudflare"
+   },
+   "others": {}
+  },
+  {
+   "site": "http://www.dentistsanpedro.com/",
+   "domain": "dentistsanpedro.com",
+   "city": "Los Angeles",
+   "industry": "dentist",
+   "direct": {
+    "category": "js_shell",
+    "kind": "render",
+    "status": 200,
+    "usable": true,
+    "ms": 1301,
+    "attempts": 1,
+    "error": "",
+    "server": "Apache"
+   },
+   "others": {}
+  },
+  {
+   "site": "http://Mindfulbeauty.org/",
+   "domain": "mindfulbeauty.org",
+   "city": "Orlando",
+   "industry": "med spa",
+   "direct": {
+    "category": "js_shell",
+    "kind": "render",
+    "status": 200,
+    "usable": true,
+    "ms": 34,
+    "attempts": 2,
+    "error": "",
+    "server": "openresty"
+   },
+   "others": {}
+  },
+  {
+   "site": "https://nail2000plus.com/",
+   "domain": "nail2000plus.com",
+   "city": "San Diego",
+   "industry": "hair salon",
+   "direct": {
+    "category": "sgcaptcha",
+    "kind": "challenge",
+    "status": 202,
+    "usable": false,
+    "ms": 318,
+    "attempts": 1,
+    "error": "",
+    "server": "nginx"
+   },
+   "others": {}
+  },
+  {
+   "site": "http://www.toothbudphilly.com/",
+   "domain": "toothbudphilly.com",
+   "city": "Philadelphia",
+   "industry": "dentist",
+   "direct": {
+    "category": "ok",
+    "kind": "ok",
+    "status": 200,
+    "usable": true,
+    "ms": 84,
+    "attempts": 1,
+    "error": "",
+    "server": "cloudflare"
+   },
+   "others": {}
+  },
+  {
+   "site": "http://www.carolefollettedds.com/",
+   "domain": "carolefollettedds.com",
+   "city": "Los Angeles",
+   "industry": "dentist",
+   "direct": {
+    "category": "ok",
+    "kind": "ok",
+    "status": 200,
+    "usable": true,
+    "ms": 691,
+    "attempts": 1,
+    "error": "",
+    "server": "nginx"
+   },
+   "others": {}
+  },
+  {
+   "site": "http://www.bracesbraces.com/",
+   "domain": "bracesbraces.com",
+   "city": "Philadelphia",
+   "industry": "dentist",
+   "direct": {
+    "category": "ok",
+    "kind": "ok",
+    "status": 200,
+    "usable": true,
+    "ms": 129,
+    "attempts": 1,
+    "error": "",
+    "server": "Vercel"
+   },
+   "others": {}
+  },
+  {
+   "site": "http://crossfitimmense.com/",
+   "domain": "crossfitimmense.com",
+   "city": "Portland",
+   "industry": "gym",
+   "direct": {
+    "category": "ok",
+    "kind": "ok",
+    "status": 200,
+    "usable": true,
+    "ms": 8188,
+    "attempts": 1,
+    "error": "",
+    "server": "cloudflare"
+   },
+   "others": {}
+  },
+  {
+   "site": "http://www.edwardrosendds.com/",
+   "domain": "edwardrosendds.com",
+   "city": "Los Angeles",
+   "industry": "dentist",
+   "direct": {
+    "category": "ok",
+    "kind": "ok",
+    "status": 200,
+    "usable": true,
+    "ms": 378,
+    "attempts": 1,
+    "error": "",
+    "server": "Apache"
+   },
+   "others": {}
+  },
+  {
+   "site": "http://www.portlandoregon.gov/parks/finder/index.cfm?action=ViewPark&PropertyID=90",
+   "domain": "portlandoregon.gov",
+   "city": "Portland",
+   "industry": "gym",
+   "direct": {
+    "category": "ok",
+    "kind": "ok",
+    "status": 200,
+    "usable": true,
+    "ms": 738,
+    "attempts": 1,
+    "error": "",
+    "server": "nginx"
+   },
+   "others": {}
+  },
+  {
+   "site": "http://skinlabwpv.com/",
+   "domain": "skinlabwpv.com",
+   "city": "Orlando",
+   "industry": "med spa",
+   "direct": {
+    "category": "ok",
+    "kind": "ok",
+    "status": 200,
+    "usable": true,
+    "ms": 91,
+    "attempts": 1,
+    "error": "",
+    "server": "nginx"
+   },
+   "others": {}
+  },
+  {
+   "site": "https://davislawcenterllc.business.site",
+   "domain": "davislawcenterllc.business.site",
+   "city": "New York",
+   "industry": "lawyer",
+   "direct": {
+    "category": "http_404",
+    "kind": "http",
+    "status": 404,
+    "usable": false,
+    "ms": 313,
+    "attempts": 1,
+    "error": "",
+    "server": "ESF"
+   },
+   "others": {
+    "scrapling": {
+     "category": "http_404",
+     "usable": false,
+     "status": 404,
+     "ms": 199,
+     "error": ""
+    },
+    "browser": {
+     "category": "http_404",
+     "usable": false,
+     "status": 404,
+     "ms": 5597,
+     "error": ""
+    }
+   }
+  },
+  {
+   "site": "http://www.beautifulskinbycarmen.com",
+   "domain": "beautifulskinbycarmen.com",
+   "city": "Orlando",
+   "industry": "med spa",
+   "direct": {
+    "category": "cloudflare",
+    "kind": "challenge",
+    "status": 403,
+    "usable": false,
+    "ms": 316,
+    "attempts": 1,
+    "error": "",
+    "server": "cloudflare"
+   },
+   "others": {}
+  },
+  {
+   "site": "http://cielodentalsa.com",
+   "domain": "cielodentalsa.com",
+   "city": "San Antonio",
+   "industry": "dentist",
+   "direct": {
+    "category": "ok",
+    "kind": "ok",
+    "status": 200,
+    "usable": true,
+    "ms": 184,
+    "attempts": 1,
+    "error": "",
+    "server": "nginx"
+   },
+   "others": {}
+  },
+  {
+   "site": "http://www.sandlakemedspa.net/",
+   "domain": "sandlakemedspa.net",
+   "city": "Orlando",
+   "industry": "med spa",
+   "direct": {
+    "category": "dns",
+    "kind": "network",
+    "status": null,
+    "usable": false,
+    "ms": 50,
+    "attempts": 1,
+    "error": "blocked:dns_failure",
+    "server": null
+   },
+   "others": {
+    "scrapling": {
+     "category": "dns",
+     "usable": false,
+     "status": null,
+     "ms": 134,
+     "error": "ConnectError: [Errno -2] Name or service not known"
+    },
+    "browser": {
+     "category": "network_other",
+     "usable": false,
+     "status": null,
+     "ms": 5628,
+     "error": "Error: Page.goto: net::ERR_FAILED at http://www.sandlakemedspa.net/\nCall log:\n  - navigating to \"htt"
+    }
+   }
+  },
+  {
+   "site": "http://ehrlichgayner.com",
+   "domain": "ehrlichgayner.com",
+   "city": "New York",
+   "industry": "lawyer",
+   "direct": {
+    "category": "ok",
+    "kind": "ok",
+    "status": 200,
+    "usable": true,
+    "ms": 103,
+    "attempts": 1,
+    "error": "",
+    "server": "cloudflare"
+   },
+   "others": {}
+  },
+  {
+   "site": "https://www.bellarydentalstudio.com/",
+   "domain": "bellarydentalstudio.com",
+   "city": "Philadelphia",
+   "industry": "dentist",
+   "direct": {
+    "category": "ok",
+    "kind": "ok",
+    "status": 200,
+    "usable": true,
+    "ms": 98,
+    "attempts": 1,
+    "error": "",
+    "server": "cloudflare"
+   },
+   "others": {}
+  },
+  {
+   "site": "http://www.curves.com",
+   "domain": "curves.com",
+   "city": "Portland",
+   "industry": "gym",
+   "direct": {
+    "category": "ok",
+    "kind": "ok",
+    "status": 200,
+    "usable": true,
+    "ms": 203,
+    "attempts": 1,
+    "error": "",
+    "server": "cloudflare"
+   },
+   "others": {}
+  },
+  {
+   "site": "http://www.angelahoffmandds.com",
+   "domain": "angelahoffmandds.com",
+   "city": "Los Angeles",
+   "industry": "dentist",
+   "direct": {
+    "category": "ok",
+    "kind": "ok",
+    "status": 200,
+    "usable": true,
+    "ms": 289,
+    "attempts": 1,
+    "error": "",
+    "server": "Microsoft-IIS/10.0"
+   },
+   "others": {}
+  },
+  {
+   "site": "http://serpentsaloncreative.com/",
+   "domain": "serpentsaloncreative.com",
+   "city": "San Diego",
+   "industry": "hair salon",
+   "direct": {
+    "category": "dns",
+    "kind": "network",
+    "status": null,
+    "usable": false,
+    "ms": 14,
+    "attempts": 1,
+    "error": "blocked:dns_failure",
+    "server": null
+   },
+   "others": {
+    "scrapling": {
+     "category": "dns",
+     "usable": false,
+     "status": null,
+     "ms": 12,
+     "error": "ConnectError: [Errno -2] Name or service not known"
+    },
+    "browser": {
+     "category": "network_other",
+     "usable": false,
+     "status": null,
+     "ms": 5676,
+     "error": "Error: Page.goto: net::ERR_FAILED at http://serpentsaloncreative.com/\nCall log:\n  - navigating to \"h"
+    }
+   }
+  },
+  {
+   "site": "https://www.thediorhairstudio.com",
+   "domain": "thediorhairstudio.com",
+   "city": "Orlando",
+   "industry": "med spa",
+   "direct": {
+    "category": "dns",
+    "kind": "network",
+    "status": null,
+    "usable": false,
+    "ms": 47,
+    "attempts": 1,
+    "error": "blocked:dns_failure",
+    "server": null
+   },
+   "others": {
+    "scrapling": {
+     "category": "dns",
+     "usable": false,
+     "status": null,
+     "ms": 11,
+     "error": "ConnectError: [Errno -2] Name or service not known"
+    },
+    "browser": {
+     "category": "network_other",
+     "usable": false,
+     "status": null,
+     "ms": 5588,
+     "error": "Error: Page.goto: net::ERR_FAILED at https://www.thediorhairstudio.com/\nCall log:\n  - navigating to "
+    }
+   }
+  },
+  {
+   "site": "http://www.egoscue.com/beverlyhills.php",
+   "domain": "egoscue.com",
+   "city": "Los Angeles",
+   "industry": "dentist",
+   "direct": {
+    "category": "cloudflare",
+    "kind": "challenge",
+    "status": 403,
+    "usable": false,
+    "ms": 1820,
+    "attempts": 1,
+    "error": "",
+    "server": "cloudflare"
+   },
+   "others": {}
+  },
+  {
+   "site": "http://www.dotpiper.com/",
+   "domain": "dotpiper.com",
+   "city": "Portland",
+   "industry": "gym",
+   "direct": {
+    "category": "ok",
+    "kind": "ok",
+    "status": 200,
+    "usable": true,
+    "ms": 203,
+    "attempts": 1,
+    "error": "",
+    "server": "cloudflare"
+   },
+   "others": {}
+  },
+  {
+   "site": "http://www.menchacadental.com/",
+   "domain": "menchacadental.com",
+   "city": "San Antonio",
+   "industry": "dentist",
+   "direct": {
+    "category": "js_shell",
+    "kind": "render",
+    "status": 200,
+    "usable": true,
+    "ms": 292,
+    "attempts": 1,
+    "error": "",
+    "server": "deno, deployd"
+   },
+   "others": {}
+  },
+  {
+   "site": "http://embracedentalandortho.com/",
+   "domain": "embracedentalandortho.com",
+   "city": "Los Angeles",
+   "industry": "dentist",
+   "direct": {
+    "category": "ok",
+    "kind": "ok",
+    "status": 200,
+    "usable": true,
+    "ms": 1461,
+    "attempts": 1,
+    "error": "",
+    "server": "LiteSpeed"
+   },
+   "others": {}
+  },
+  {
+   "site": "http://gillenlegal.com",
+   "domain": "gillenlegal.com",
+   "city": "New York",
+   "industry": "lawyer",
+   "direct": {
+    "category": "ok",
+    "kind": "ok",
+    "status": 200,
+    "usable": true,
+    "ms": 808,
+    "attempts": 1,
+    "error": "",
+    "server": "Apache"
+   },
+   "others": {}
+  },
+  {
+   "site": "https://teo-s-barber-shop.hub.biz",
+   "domain": "teo-s-barber-shop.hub.biz",
+   "city": "San Diego",
+   "industry": "hair salon",
+   "direct": {
+    "category": "cloudflare",
+    "kind": "challenge",
+    "status": 403,
+    "usable": false,
+    "ms": 38,
+    "attempts": 1,
+    "error": "",
+    "server": "cloudflare"
+   },
+   "others": {}
+  },
+  {
+   "site": "https://www.StoneOakModernDentistry.com/?sc_cid=Facebook%3AO%3AGP%3A729%3ASocial%3AGeneral%3Ana&_vsrefdom=organic_social&y_source=1_MTEwMjk0Mi01NTktbG9jYXRpb24ud2Vic2l0ZQ%3D%3D",
+   "domain": "stoneoakmoderndentistry.com",
+   "city": "San Antonio",
+   "industry": "dentist",
+   "direct": {
+    "category": "ok",
+    "kind": "ok",
+    "status": 200,
+    "usable": true,
+    "ms": 58,
+    "attempts": 1,
+    "error": "",
+    "server": null
+   },
+   "others": {}
+  },
+  {
+   "site": "http://www.risioathletics.com/",
+   "domain": "risioathletics.com",
+   "city": "Portland",
+   "industry": "gym",
+   "direct": {
+    "category": "js_shell",
+    "kind": "render",
+    "status": 200,
+    "usable": true,
+    "ms": 247,
+    "attempts": 1,
+    "error": "",
+    "server": "Squarespace"
+   },
+   "others": {}
+  },
+  {
+   "site": "http://www.barbercraftsd.com/",
+   "domain": "barbercraftsd.com",
+   "city": "San Diego",
+   "industry": "hair salon",
+   "direct": {
+    "category": "ok",
+    "kind": "ok",
+    "status": 200,
+    "usable": true,
+    "ms": 687,
+    "attempts": 1,
+    "error": "",
+    "server": "cloudflare"
+   },
+   "others": {}
+  },
+  {
+   "site": "https://vinnysbarbershop.square.site",
+   "domain": "vinnysbarbershop.square.site",
+   "city": "San Diego",
+   "industry": "hair salon",
+   "direct": {
+    "category": "js_shell",
+    "kind": "render",
+    "status": 200,
+    "usable": true,
+    "ms": 903,
+    "attempts": 1,
+    "error": "",
+    "server": "cloudflare"
+   },
+   "others": {}
+  },
+  {
+   "site": "http://ultimatedentalcaresa.com/index.html",
+   "domain": "ultimatedentalcaresa.com",
+   "city": "San Antonio",
+   "industry": "dentist",
+   "direct": {
+    "category": "ok",
+    "kind": "ok",
+    "status": 200,
+    "usable": true,
+    "ms": 157,
+    "attempts": 1,
+    "error": "",
+    "server": "Microsoft-IIS/10.0"
+   },
+   "others": {}
+  },
+  {
+   "site": "https://mathewsdentalgroup.com/",
+   "domain": "mathewsdentalgroup.com",
+   "city": "Los Angeles",
+   "industry": "dentist",
+   "direct": {
+    "category": "js_shell",
+    "kind": "render",
+    "status": 200,
+    "usable": true,
+    "ms": 285,
+    "attempts": 1,
+    "error": "",
+    "server": "Squarespace"
+   },
+   "others": {}
+  },
+  {
+   "site": "http://bff-salon.com/",
+   "domain": "bff-salon.com",
+   "city": "San Diego",
+   "industry": "hair salon",
+   "direct": {
+    "category": "js_shell",
+    "kind": "render",
+    "status": 200,
+    "usable": true,
+    "ms": 177,
+    "attempts": 1,
+    "error": "",
+    "server": null
+   },
+   "others": {}
+  },
+  {
+   "site": "http://ds-dds.com/",
+   "domain": "ds-dds.com",
+   "city": "Los Angeles",
+   "industry": "dentist",
+   "direct": {
+    "category": "ok",
+    "kind": "ok",
+    "status": 200,
+    "usable": true,
+    "ms": 996,
+    "attempts": 1,
+    "error": "",
+    "server": "nginx/1.20.2"
+   },
+   "others": {}
+  },
+  {
+   "site": "https://schertzdentalgroup.com/",
+   "domain": "schertzdentalgroup.com",
+   "city": "San Antonio",
+   "industry": "dentist",
+   "direct": {
+    "category": "sgcaptcha",
+    "kind": "challenge",
+    "status": 202,
+    "usable": false,
+    "ms": 124,
+    "attempts": 1,
+    "error": "",
+    "server": "nginx"
+   },
+   "others": {}
+  },
+  {
+   "site": "https://www.smileboutiquegroup.com",
+   "domain": "smileboutiquegroup.com",
+   "city": "Los Angeles",
+   "industry": "dentist",
+   "direct": {
+    "category": "ok",
+    "kind": "ok",
+    "status": 200,
+    "usable": true,
+    "ms": 154,
+    "attempts": 1,
+    "error": "",
+    "server": "cloudflare"
+   },
+   "others": {}
+  },
+  {
+   "site": "http://gottliebjaney.com",
+   "domain": "gottliebjaney.com",
+   "city": "New York",
+   "industry": "lawyer",
+   "direct": {
+    "category": "ok",
+    "kind": "ok",
+    "status": 200,
+    "usable": true,
+    "ms": 1127,
+    "attempts": 1,
+    "error": "",
+    "server": "nginx"
+   },
+   "others": {}
+  },
+  {
+   "site": "https://law-office-of-james-medows.business.site",
+   "domain": "law-office-of-james-medows.business.site",
+   "city": "New York",
+   "industry": "lawyer",
+   "direct": {
+    "category": "http_404",
+    "kind": "http",
+    "status": 404,
+    "usable": false,
+    "ms": 181,
+    "attempts": 1,
+    "error": "",
+    "server": "ESF"
+   },
+   "others": {
+    "scrapling": {
+     "category": "http_404",
+     "usable": false,
+     "status": 404,
+     "ms": 316,
+     "error": ""
+    },
+    "browser": {
+     "category": "http_404",
+     "usable": false,
+     "status": 404,
+     "ms": 6383,
+     "error": ""
+    }
+   }
+  },
+  {
+   "site": "http://www.rklawny.com",
+   "domain": "rklawny.com",
+   "city": "New York",
+   "industry": "lawyer",
+   "direct": {
+    "category": "ok",
+    "kind": "ok",
+    "status": 200,
+    "usable": true,
+    "ms": 70,
+    "attempts": 1,
+    "error": "",
+    "server": "Sucuri/Cloudproxy"
+   },
+   "others": {}
+  },
+  {
+   "site": "http://EARNTHOSECARBS.COM/",
+   "domain": "earnthosecarbs.com",
+   "city": "Portland",
+   "industry": "gym",
+   "direct": {
+    "category": "ok",
+    "kind": "ok",
+    "status": 200,
+    "usable": true,
+    "ms": 2358,
+    "attempts": 1,
+    "error": "",
+    "server": "Apache"
+   },
+   "others": {}
+  },
+  {
+   "site": "http://www.currolaw.com",
+   "domain": "currolaw.com",
+   "city": "New York",
+   "industry": "lawyer",
+   "direct": {
+    "category": "ok",
+    "kind": "ok",
+    "status": 200,
+    "usable": true,
+    "ms": 157,
+    "attempts": 2,
+    "error": "",
+    "server": "hcdn"
+   },
+   "others": {}
+  },
+  {
+   "site": "http://www.evolutionesthetics.com/",
+   "domain": "evolutionesthetics.com",
+   "city": "Orlando",
+   "industry": "med spa",
+   "direct": {
+    "category": "ok",
+    "kind": "ok",
+    "status": 200,
+    "usable": true,
+    "ms": 83,
+    "attempts": 1,
+    "error": "",
+    "server": null
+   },
+   "others": {}
+  },
+  {
+   "site": "http://Alittletlcsalon.glossgenius.com/",
+   "domain": "alittletlcsalon.glossgenius.com",
+   "city": "Las Vegas",
+   "industry": "hair salon",
+   "direct": {
+    "category": "ok",
+    "kind": "ok",
+    "status": 200,
+    "usable": true,
+    "ms": 569,
+    "attempts": 1,
+    "error": "",
+    "server": null
+   },
+   "others": {}
+  },
+  {
+   "site": "http://all-infitness.com/",
+   "domain": "all-infitness.com",
+   "city": "Portland",
+   "industry": "gym",
+   "direct": {
+    "category": "js_shell",
+    "kind": "render",
+    "status": 200,
+    "usable": true,
+    "ms": 155,
+    "attempts": 1,
+    "error": "",
+    "server": "Squarespace"
+   },
+   "others": {}
+  },
+  {
+   "site": "https://www.formula3fit.com/",
+   "domain": "formula3fit.com",
+   "city": "Portland",
+   "industry": "gym",
+   "direct": {
+    "category": "ok",
+    "kind": "ok",
+    "status": 200,
+    "usable": true,
+    "ms": 204,
+    "attempts": 1,
+    "error": "",
+    "server": "cloudflare"
+   },
+   "others": {}
+  },
+  {
+   "site": "https://www.evansfd.com/",
+   "domain": "evansfd.com",
+   "city": "San Antonio",
+   "industry": "dentist",
+   "direct": {
+    "category": "ok",
+    "kind": "ok",
+    "status": 200,
+    "usable": true,
+    "ms": 528,
+    "attempts": 1,
+    "error": "",
+    "server": "cloudflare"
+   },
+   "others": {}
+  },
+  {
+   "site": "https://nails-u-love-nv.hub.biz/",
+   "domain": "nails-u-love-nv.hub.biz",
+   "city": "Las Vegas",
+   "industry": "hair salon",
+   "direct": {
+    "category": "cloudflare",
+    "kind": "challenge",
+    "status": 403,
+    "usable": false,
+    "ms": 20,
+    "attempts": 1,
+    "error": "",
+    "server": "cloudflare"
+   },
+   "others": {}
+  },
+  {
+   "site": "https://merionfamilydentistry.com",
+   "domain": "merionfamilydentistry.com",
+   "city": "Philadelphia",
+   "industry": "dentist",
+   "direct": {
+    "category": "ok",
+    "kind": "ok",
+    "status": 200,
+    "usable": true,
+    "ms": 1696,
+    "attempts": 1,
+    "error": "",
+    "server": "cloudflare"
+   },
+   "others": {}
+  },
+  {
+   "site": "https://www.northridgeadvanceddentistry.com",
+   "domain": "northridgeadvanceddentistry.com",
+   "city": "Los Angeles",
+   "industry": "dentist",
+   "direct": {
+    "category": "js_shell",
+    "kind": "render",
+    "status": 200,
+    "usable": true,
+    "ms": 557,
+    "attempts": 1,
+    "error": "",
+    "server": "Apache"
+   },
+   "others": {}
+  },
+  {
+   "site": "http://www.excellentperiodontist.com",
+   "domain": "excellentperiodontist.com",
+   "city": "San Antonio",
+   "industry": "dentist",
+   "direct": {
+    "category": "ok",
+    "kind": "ok",
+    "status": 200,
+    "usable": true,
+    "ms": 3575,
+    "attempts": 1,
+    "error": "",
+    "server": "cloudflare"
+   },
+   "others": {}
+  },
+  {
+   "site": "http://www.acumendental.com/",
+   "domain": "acumendental.com",
+   "city": "Philadelphia",
+   "industry": "dentist",
+   "direct": {
+    "category": "ok",
+    "kind": "ok",
+    "status": 200,
+    "usable": true,
+    "ms": 546,
+    "attempts": 1,
+    "error": "",
+    "server": "Apache"
+   },
+   "others": {}
+  },
+  {
+   "site": "http://www.kivlaw.com/",
+   "domain": "kivlaw.com",
+   "city": "New York",
+   "industry": "lawyer",
+   "direct": {
+    "category": "ok",
+    "kind": "ok",
+    "status": 200,
+    "usable": true,
+    "ms": 173,
+    "attempts": 1,
+    "error": "",
+    "server": "cloudflare"
+   },
+   "others": {}
+  },
+  {
+   "site": "https://www.ferguson.com/store/tn/nashville/plumbingpvf-1159",
+   "domain": "ferguson.com",
+   "city": "Nashville",
+   "industry": "plumber",
+   "direct": {
+    "category": "ok",
+    "kind": "ok",
+    "status": 200,
+    "usable": true,
+    "ms": 1375,
+    "attempts": 1,
+    "error": "",
+    "server": "cloudflare"
+   },
+   "others": {}
+  },
+  {
+   "site": "https://www.leporelaw.com",
+   "domain": "leporelaw.com",
+   "city": "New York",
+   "industry": "lawyer",
+   "direct": {
+    "category": "ok",
+    "kind": "ok",
+    "status": 200,
+    "usable": true,
+    "ms": 1152,
+    "attempts": 1,
+    "error": "",
+    "server": "cloudflare"
+   },
+   "others": {}
+  },
+  {
+   "site": "https://rosewayyoga.com",
+   "domain": "rosewayyoga.com",
+   "city": "Portland",
+   "industry": "gym",
+   "direct": {
+    "category": "js_shell",
+    "kind": "render",
+    "status": 200,
+    "usable": true,
+    "ms": 2266,
+    "attempts": 1,
+    "error": "",
+    "server": "openresty"
+   },
+   "others": {}
+  },
+  {
+   "site": "https://www.merakiloungesd.com/",
+   "domain": "merakiloungesd.com",
+   "city": "San Diego",
+   "industry": "hair salon",
+   "direct": {
+    "category": "js_shell",
+    "kind": "render",
+    "status": 200,
+    "usable": true,
+    "ms": 989,
+    "attempts": 1,
+    "error": "",
+    "server": "Apache"
+   },
+   "others": {}
+  },
+  {
+   "site": "http://www.shellystephenson.com/",
+   "domain": "shellystephenson.com",
+   "city": "Portland",
+   "industry": "gym",
+   "direct": {
+    "category": "ok",
+    "kind": "ok",
+    "status": 200,
+    "usable": true,
+    "ms": 3277,
+    "attempts": 1,
+    "error": "",
+    "server": "Apache"
+   },
+   "others": {}
+  },
+  {
+   "site": "http://www.coolcuts4kids.com/salondetail/default.asp?salonid=66041",
+   "domain": "coolcuts4kids.com",
+   "city": "Las Vegas",
+   "industry": "hair salon",
+   "direct": {
+    "category": "ok",
+    "kind": "ok",
+    "status": 200,
+    "usable": true,
+    "ms": 127,
+    "attempts": 1,
+    "error": "",
+    "server": "Squarespace"
+   },
+   "others": {}
+  },
+  {
+   "site": "http://mrdentist1.placeweb.site",
+   "domain": "mrdentist1.placeweb.site",
+   "city": "San Antonio",
+   "industry": "dentist",
+   "direct": {
+    "category": "js_shell",
+    "kind": "render",
+    "status": 200,
+    "usable": true,
+    "ms": 733,
+    "attempts": 1,
+    "error": "",
+    "server": "Apache"
+   },
+   "others": {}
+  },
+  {
+   "site": "http://www.drralphkaye.com",
+   "domain": "drralphkaye.com",
+   "city": "Philadelphia",
+   "industry": "dentist",
+   "direct": {
+    "category": "ok",
+    "kind": "ok",
+    "status": 200,
+    "usable": true,
+    "ms": 108,
+    "attempts": 1,
+    "error": "",
+    "server": "cloudflare"
+   },
+   "others": {}
+  },
+  {
+   "site": "http://www.manetainsalon.com/",
+   "domain": "manetainsalon.com",
+   "city": "San Diego",
+   "industry": "hair salon",
+   "direct": {
+    "category": "ok",
+    "kind": "ok",
+    "status": 200,
+    "usable": true,
+    "ms": 180,
+    "attempts": 1,
+    "error": "",
+    "server": "cloudflare"
+   },
+   "others": {}
+  },
+  {
+   "site": "https://prodentcare.com",
+   "domain": "prodentcare.com",
+   "city": "Los Angeles",
+   "industry": "dentist",
+   "direct": {
+    "category": "ok",
+    "kind": "ok",
+    "status": 200,
+    "usable": true,
+    "ms": 574,
+    "attempts": 1,
+    "error": "",
+    "server": "nginx"
+   },
+   "others": {}
+  },
+  {
+   "site": "https://www.dashbooking.com/salon/aroma-nail-spa",
+   "domain": "dashbooking.com",
+   "city": "Las Vegas",
+   "industry": "hair salon",
+   "direct": {
+    "category": "ok",
+    "kind": "ok",
+    "status": 200,
+    "usable": true,
+    "ms": 156,
+    "attempts": 1,
+    "error": "",
+    "server": "cloudflare"
+   },
+   "others": {}
+  },
+  {
+   "site": "http://www.lasercenteroforlando.com/",
+   "domain": "lasercenteroforlando.com",
+   "city": "Orlando",
+   "industry": "med spa",
+   "direct": {
+    "category": "ok",
+    "kind": "ok",
+    "status": 200,
+    "usable": true,
+    "ms": 283,
+    "attempts": 1,
+    "error": "",
+    "server": "LiteSpeed"
+   },
+   "others": {}
+  },
+  {
+   "site": "http://www.perrydentalhealth.com/",
+   "domain": "perrydentalhealth.com",
+   "city": "San Antonio",
+   "industry": "dentist",
+   "direct": {
+    "category": "ok",
+    "kind": "ok",
+    "status": 200,
+    "usable": true,
+    "ms": 336,
+    "attempts": 1,
+    "error": "",
+    "server": "cloudflare"
+   },
+   "others": {}
+  },
+  {
+   "site": "http://www.twinpalmsdental.com/",
+   "domain": "twinpalmsdental.com",
+   "city": "Los Angeles",
+   "industry": "dentist",
+   "direct": {
+    "category": "ok",
+    "kind": "ok",
+    "status": 200,
+    "usable": true,
+    "ms": 479,
+    "attempts": 1,
+    "error": "",
+    "server": "cloudflare"
+   },
+   "others": {}
+  },
+  {
+   "site": "https://purealchemybeautylv.com/",
+   "domain": "purealchemybeautylv.com",
+   "city": "Las Vegas",
+   "industry": "hair salon",
+   "direct": {
+    "category": "disconnect",
+    "kind": "network",
+    "status": null,
+    "usable": false,
+    "ms": 165,
+    "attempts": 2,
+    "error": "RemoteProtocolError: Server disconnected without sending a response.",
+    "server": null
+   },
+   "others": {
+    "scrapling": {
+     "category": "connect",
+     "usable": false,
+     "status": null,
+     "ms": 76,
+     "error": "ConnectError: "
+    },
+    "browser": {
+     "category": "network_other",
+     "usable": false,
+     "status": null,
+     "ms": 32586,
+     "error": "Error: Page.goto: net::ERR_TIMED_OUT at https://purealchemybeautylv.com/\nCall log:\n  - navigating to"
+    }
+   }
+  },
+  {
+   "site": "https://gilmerlegal.com",
+   "domain": "gilmerlegal.com",
+   "city": "New York",
+   "industry": "lawyer",
+   "direct": {
+    "category": "tls",
+    "kind": "network",
+    "status": null,
+    "usable": false,
+    "ms": 169,
+    "attempts": 2,
+    "error": "ConnectError: [SSL: SSLV3_ALERT_HANDSHAKE_FAILURE] ssl/tls alert handshake failure (_ssl.c:1016)",
+    "server": null
+   },
+   "others": {
+    "scrapling": {
+     "category": "tls",
+     "usable": false,
+     "status": null,
+     "ms": 23,
+     "error": "ConnectError: [SSL: SSLV3_ALERT_HANDSHAKE_FAILURE] ssl/tls alert handshake failure (_ssl.c:1016)"
+    },
+    "browser": {
+     "category": "tls",
+     "usable": false,
+     "status": null,
+     "ms": 30061,
+     "error": "Error: Page.goto: net::ERR_SSL_VERSION_OR_CIPHER_MISMATCH at https://gilmerlegal.com/\nCall log:\n  - "
+    }
+   }
+  },
+  {
+   "site": "http://www.naturalartsdental.com/",
+   "domain": "naturalartsdental.com",
+   "city": "San Antonio",
+   "industry": "dentist",
+   "direct": {
+    "category": "redirect_stub",
+    "kind": "redirect",
+    "status": 200,
+    "usable": false,
+    "ms": 162,
+    "attempts": 2,
+    "error": "",
+    "server": "Apache"
+   },
+   "others": {
+    "scrapling": {
+     "category": "redirect_stub",
+     "usable": false,
+     "status": 200,
+     "ms": 210,
+     "error": ""
+    },
+    "browser": {
+     "category": "parked",
+     "usable": false,
+     "status": 200,
+     "ms": 30549,
+     "error": ""
+    }
+   }
+  },
+  {
+   "site": "http://imperialnails.com",
+   "domain": "imperialnails.com",
+   "city": "San Diego",
+   "industry": "hair salon",
+   "direct": {
+    "category": "redirect_stub",
+    "kind": "redirect",
+    "status": 200,
+    "usable": false,
+    "ms": 600,
+    "attempts": 2,
+    "error": "",
+    "server": null
+   },
+   "others": {
+    "scrapling": {
+     "category": "redirect_stub",
+     "usable": false,
+     "status": 200,
+     "ms": 81,
+     "error": ""
+    },
+    "browser": {
+     "category": "ok",
+     "usable": true,
+     "status": 200,
+     "ms": 31285,
+     "error": ""
+    }
+   }
+  },
+  {
+   "site": "http://www.aihonglaw.com",
+   "domain": "aihonglaw.com",
+   "city": "New York",
+   "industry": "lawyer",
+   "direct": {
+    "category": "disconnect",
+    "kind": "network",
+    "status": null,
+    "usable": false,
+    "ms": 113,
+    "attempts": 2,
+    "error": "RemoteProtocolError: Server disconnected without sending a response.",
+    "server": null
+   },
+   "others": {
+    "scrapling": {
+     "category": "disconnect",
+     "usable": false,
+     "status": null,
+     "ms": 136,
+     "error": "RemoteProtocolError: Server disconnected without sending a response."
+    },
+    "browser": {
+     "category": "timeout",
+     "usable": false,
+     "status": null,
+     "ms": 37420,
+     "error": "TimeoutError: Page.goto: Timeout 35000ms exceeded.\nCall log:\n  - navigating to \"http://www.aihonglaw"
+    }
+   }
+  },
+  {
+   "site": "https://www.threebrothersmechanical.com/?utm_source=GMBlisting&utm_medium=organic",
+   "domain": "threebrothersmechanical.com",
+   "city": "Nashville",
+   "industry": "plumber",
+   "direct": {
+    "category": "dns",
+    "kind": "network",
+    "status": null,
+    "usable": false,
+    "ms": 74,
+    "attempts": 1,
+    "error": "blocked:dns_failure",
+    "server": null
+   },
+   "others": {
+    "scrapling": {
+     "category": "dns",
+     "usable": false,
+     "status": null,
+     "ms": 3,
+     "error": "ConnectError: [Errno -2] Name or service not known"
+    },
+    "browser": {
+     "category": "network_other",
+     "usable": false,
+     "status": null,
+     "ms": 34520,
+     "error": "Error: Page.goto: net::ERR_FAILED at https://www.threebrothersmechanical.com/?utm_source=GMBlisting&"
+    }
+   }
+  },
+  {
+   "site": "https://drcarmonafamilydental.com/",
+   "domain": "drcarmonafamilydental.com",
+   "city": "Los Angeles",
+   "industry": "dentist",
+   "direct": {
+    "category": "redirect_stub",
+    "kind": "redirect",
+    "status": 200,
+    "usable": false,
+    "ms": 397,
+    "attempts": 2,
+    "error": "",
+    "server": null
+   },
+   "others": {
+    "scrapling": {
+     "category": "redirect_stub",
+     "usable": false,
+     "status": 200,
+     "ms": 119,
+     "error": ""
+    },
+    "browser": {
+     "category": "ok",
+     "usable": true,
+     "status": 200,
+     "ms": 35061,
+     "error": ""
+    }
+   }
+  },
+  {
+   "site": "https://www.drcheryldavis.com/index.html",
+   "domain": "drcheryldavis.com",
+   "city": "San Antonio",
+   "industry": "dentist",
+   "direct": {
+    "category": "http_404",
+    "kind": "http",
+    "status": 404,
+    "usable": false,
+    "ms": 11,
+    "attempts": 2,
+    "error": "",
+    "server": "nginx"
+   },
+   "others": {
+    "scrapling": {
+     "category": "http_404",
+     "usable": false,
+     "status": 404,
+     "ms": 149,
+     "error": ""
+    },
+    "browser": {
+     "category": "http_404",
+     "usable": false,
+     "status": 404,
+     "ms": 35449,
+     "error": ""
+    }
+   }
+  },
+  {
+   "site": "http://www.fontanashairstudio.com",
+   "domain": "fontanashairstudio.com",
+   "city": "San Diego",
+   "industry": "hair salon",
+   "direct": {
+    "category": "disconnect",
+    "kind": "network",
+    "status": null,
+    "usable": false,
+    "ms": 236,
+    "attempts": 2,
+    "error": "RemoteProtocolError: Server disconnected without sending a response.",
+    "server": null
+   },
+   "others": {
+    "scrapling": {
+     "category": "disconnect",
+     "usable": false,
+     "status": null,
+     "ms": 212,
+     "error": "RemoteProtocolError: Server disconnected without sending a response."
+    },
+    "browser": {
+     "category": "timeout",
+     "usable": false,
+     "status": null,
+     "ms": 38366,
+     "error": "TimeoutError: Page.goto: Timeout 35000ms exceeded.\nCall log:\n  - navigating to \"http://www.fontanash"
+    }
+   }
+  },
+  {
+   "site": "http://www.procutsbarbershop.com/",
+   "domain": "procutsbarbershop.com",
+   "city": "Las Vegas",
+   "industry": "hair salon",
+   "direct": {
+    "category": "http_404",
+    "kind": "http",
+    "status": 404,
+    "usable": false,
+    "ms": 395,
+    "attempts": 1,
+    "error": "",
+    "server": "cloudflare"
+   },
+   "others": {
+    "scrapling": {
+     "category": "http_404",
+     "usable": false,
+     "status": 404,
+     "ms": 296,
+     "error": ""
+    },
+    "browser": {
+     "category": "http_404",
+     "usable": false,
+     "status": 404,
+     "ms": 36238,
+     "error": ""
+    }
+   }
+  },
+  {
+   "site": "http://WAFDental.com/",
+   "domain": "wafdental.com",
+   "city": "San Antonio",
+   "industry": "dentist",
+   "direct": {
+    "category": "redirect_stub",
+    "kind": "redirect",
+    "status": 200,
+    "usable": false,
+    "ms": 398,
+    "attempts": 2,
+    "error": "",
+    "server": null
+   },
+   "others": {
+    "scrapling": {
+     "category": "redirect_stub",
+     "usable": false,
+     "status": 200,
+     "ms": 15,
+     "error": ""
+    },
+    "browser": {
+     "category": "ok",
+     "usable": true,
+     "status": 200,
+     "ms": 36871,
+     "error": ""
+    }
+   }
+  },
+  {
+   "site": "http://smilesaver.net",
+   "domain": "smilesaver.net",
+   "city": "Philadelphia",
+   "industry": "dentist",
+   "direct": {
+    "category": "dns",
+    "kind": "network",
+    "status": null,
+    "usable": false,
+    "ms": 713,
+    "attempts": 1,
+    "error": "blocked:dns_failure",
+    "server": null
+   },
+   "others": {
+    "scrapling": {
+     "category": "dns",
+     "usable": false,
+     "status": null,
+     "ms": 455,
+     "error": "ConnectError: [Errno -2] Name or service not known"
+    },
+    "browser": {
+     "category": "network_other",
+     "usable": false,
+     "status": null,
+     "ms": 37331,
+     "error": "Error: Page.goto: net::ERR_FAILED at http://smilesaver.net/\nCall log:\n  - navigating to \"http://smil"
+    }
+   }
+  },
+  {
+   "site": "http://www.lasvegasnailbarllc.com",
+   "domain": "lasvegasnailbarllc.com",
+   "city": "Las Vegas",
+   "industry": "hair salon",
+   "direct": {
+    "category": "dns",
+    "kind": "network",
+    "status": null,
+    "usable": false,
+    "ms": 8,
+    "attempts": 1,
+    "error": "blocked:dns_failure",
+    "server": null
+   },
+   "others": {
+    "scrapling": {
+     "category": "dns",
+     "usable": false,
+     "status": null,
+     "ms": 5,
+     "error": "ConnectError: [Errno -2] Name or service not known"
+    },
+    "browser": {
+     "category": "network_other",
+     "usable": false,
+     "status": null,
+     "ms": 37064,
+     "error": "Error: Page.goto: net::ERR_FAILED at http://www.lasvegasnailbarllc.com/\nCall log:\n  - navigating to "
+    }
+   }
+  },
+  {
+   "site": "http://wwwfacebook.com/lisashairdesignlv&target=website",
+   "domain": "wwwfacebook.com",
+   "city": "Las Vegas",
+   "industry": "hair salon",
+   "direct": {
+    "category": "http_4xx",
+    "kind": "http",
+    "status": 400,
+    "usable": false,
+    "ms": 287,
+    "attempts": 1,
+    "error": "",
+    "server": null
+   },
+   "others": {
+    "scrapling": {
+     "category": "http_4xx",
+     "usable": false,
+     "status": 400,
+     "ms": 289,
+     "error": ""
+    },
+    "browser": {
+     "category": "ok",
+     "usable": true,
+     "status": 200,
+     "ms": 37492,
+     "error": ""
+    }
+   }
+  },
+  {
+   "site": "https://toothfairydentists.com",
+   "domain": "toothfairydentists.com",
+   "city": "Los Angeles",
+   "industry": "dentist",
+   "direct": {
+    "category": "dns",
+    "kind": "network",
+    "status": null,
+    "usable": false,
+    "ms": 12,
+    "attempts": 1,
+    "error": "blocked:dns_failure",
+    "server": null
+   },
+   "others": {
+    "scrapling": {
+     "category": "dns",
+     "usable": false,
+     "status": null,
+     "ms": 3,
+     "error": "ConnectError: [Errno -2] Name or service not known"
+    },
+    "browser": {
+     "category": "network_other",
+     "usable": false,
+     "status": null,
+     "ms": 37042,
+     "error": "Error: Page.goto: net::ERR_FAILED at https://toothfairydentists.com/\nCall log:\n  - navigating to \"ht"
+    }
+   }
+  },
+  {
+   "site": "http://Mrbdabarber1.com/",
+   "domain": "mrbdabarber1.com",
+   "city": "Las Vegas",
+   "industry": "hair salon",
+   "direct": {
+    "category": "dns",
+    "kind": "network",
+    "status": null,
+    "usable": false,
+    "ms": 9,
+    "attempts": 1,
+    "error": "blocked:dns_failure",
+    "server": null
+   },
+   "others": {
+    "scrapling": {
+     "category": "dns",
+     "usable": false,
+     "status": null,
+     "ms": 4,
+     "error": "ConnectError: [Errno -2] Name or service not known"
+    },
+    "browser": {
+     "category": "network_other",
+     "usable": false,
+     "status": null,
+     "ms": 36698,
+     "error": "Error: Page.goto: net::ERR_FAILED at http://mrbdabarber1.com/\nCall log:\n  - navigating to \"http://mr"
+    }
+   }
+  },
+  {
+   "site": "https://nailtopslasvegasnv.com/",
+   "domain": "nailtopslasvegasnv.com",
+   "city": "Las Vegas",
+   "industry": "hair salon",
+   "direct": {
+    "category": "redirect_stub",
+    "kind": "redirect",
+    "status": 200,
+    "usable": false,
+    "ms": 177,
+    "attempts": 2,
+    "error": "",
+    "server": "cloudflare"
+   },
+   "others": {
+    "scrapling": {
+     "category": "redirect_stub",
+     "usable": false,
+     "status": 200,
+     "ms": 408,
+     "error": ""
+    },
+    "browser": {
+     "category": "parked",
+     "usable": false,
+     "status": 200,
+     "ms": 37810,
+     "error": ""
+    }
+   }
+  },
+  {
+   "site": "https://www.thebeautybungalow.salon/",
+   "domain": "thebeautybungalow.salon",
+   "city": "San Diego",
+   "industry": "hair salon",
+   "direct": {
+    "category": "dns",
+    "kind": "network",
+    "status": null,
+    "usable": false,
+    "ms": 29,
+    "attempts": 1,
+    "error": "blocked:dns_failure",
+    "server": null
+   },
+   "others": {
+    "scrapling": {
+     "category": "dns",
+     "usable": false,
+     "status": null,
+     "ms": 3,
+     "error": "ConnectError: [Errno -2] Name or service not known"
+    },
+    "browser": {
+     "category": "network_other",
+     "usable": false,
+     "status": null,
+     "ms": 37796,
+     "error": "Error: Page.goto: net::ERR_FAILED at https://www.thebeautybungalow.salon/\nCall log:\n  - navigating t"
+    }
+   }
+  },
+  {
+   "site": "http://www.appledentaltx.com/",
+   "domain": "appledentaltx.com",
+   "city": "San Antonio",
+   "industry": "dentist",
+   "direct": {
+    "category": "redirect_stub",
+    "kind": "redirect",
+    "status": 200,
+    "usable": false,
+    "ms": 144,
+    "attempts": 2,
+    "error": "",
+    "server": null
+   },
+   "others": {
+    "scrapling": {
+     "category": "redirect_stub",
+     "usable": false,
+     "status": 200,
+     "ms": 13,
+     "error": ""
+    },
+    "browser": {
+     "category": "ok",
+     "usable": true,
+     "status": 200,
+     "ms": 38429,
+     "error": ""
+    }
+   }
+  },
+  {
+   "site": "http://www.theyogaproject.org",
+   "domain": "theyogaproject.org",
+   "city": "Portland",
+   "industry": "gym",
+   "direct": {
+    "category": "disconnect",
+    "kind": "network",
+    "status": null,
+    "usable": false,
+    "ms": 109,
+    "attempts": 2,
+    "error": "ReadError: ",
+    "server": null
+   },
+   "others": {
+    "scrapling": {
+     "category": "js_shell",
+     "usable": true,
+     "status": 200,
+     "ms": 189,
+     "error": ""
+    },
+    "browser": {
+     "category": "js_shell",
+     "usable": true,
+     "status": 200,
+     "ms": 39251,
+     "error": ""
+    }
+   }
+  },
+  {
+   "site": "https://law-office-of-denise-s-siler-pc.business.site",
+   "domain": "law-office-of-denise-s-siler-pc.business.site",
+   "city": "New York",
+   "industry": "lawyer",
+   "direct": {
+    "category": "http_404",
+    "kind": "http",
+    "status": 404,
+    "usable": false,
+    "ms": 641,
+    "attempts": 1,
+    "error": "",
+    "server": "ESF"
+   },
+   "others": {
+    "scrapling": {
+     "category": "http_404",
+     "usable": false,
+     "status": 404,
+     "ms": 520,
+     "error": ""
+    },
+    "browser": {
+     "category": "http_404",
+     "usable": false,
+     "status": 404,
+     "ms": 38838,
+     "error": ""
+    }
+   }
+  },
+  {
+   "site": "http://www.smileswithangel.com/",
+   "domain": "smileswithangel.com",
+   "city": "Philadelphia",
+   "industry": "dentist",
+   "direct": {
+    "category": "dns",
+    "kind": "network",
+    "status": null,
+    "usable": false,
+    "ms": 39,
+    "attempts": 1,
+    "error": "blocked:dns_failure",
+    "server": null
+   },
+   "others": {
+    "scrapling": {
+     "category": "dns",
+     "usable": false,
+     "status": null,
+     "ms": 3,
+     "error": "ConnectError: [Errno -2] Name or service not known"
+    },
+    "browser": {
+     "category": "network_other",
+     "usable": false,
+     "status": null,
+     "ms": 38379,
+     "error": "Error: Page.goto: net::ERR_FAILED at http://www.smileswithangel.com/\nCall log:\n  - navigating to \"ht"
+    }
+   }
+  },
+  {
+   "site": "http://ascendsalons.com/",
+   "domain": "ascendsalons.com",
+   "city": "San Diego",
+   "industry": "hair salon",
+   "direct": {
+    "category": "dns",
+    "kind": "network",
+    "status": null,
+    "usable": false,
+    "ms": 44,
+    "attempts": 1,
+    "error": "blocked:dns_failure",
+    "server": null
+   },
+   "others": {
+    "scrapling": {
+     "category": "dns",
+     "usable": false,
+     "status": null,
+     "ms": 3,
+     "error": "ConnectError: [Errno -2] Name or service not known"
+    },
+    "browser": {
+     "category": "network_other",
+     "usable": false,
+     "status": null,
+     "ms": 38162,
+     "error": "Error: Page.goto: net::ERR_FAILED at http://ascendsalons.com/\nCall log:\n  - navigating to \"http://as"
+    }
+   }
+  },
+  {
+   "site": "http://darbyshairitage.com/cgi-sys/suspendedpage.cgi",
+   "domain": "darbyshairitage.com",
+   "city": "Las Vegas",
+   "industry": "hair salon",
+   "direct": {
+    "category": "dns",
+    "kind": "network",
+    "status": null,
+    "usable": false,
+    "ms": 27,
+    "attempts": 1,
+    "error": "blocked:dns_failure",
+    "server": null
+   },
+   "others": {
+    "scrapling": {
+     "category": "dns",
+     "usable": false,
+     "status": null,
+     "ms": 3,
+     "error": "ConnectError: [Errno -2] Name or service not known"
+    },
+    "browser": {
+     "category": "network_other",
+     "usable": false,
+     "status": null,
+     "ms": 37954,
+     "error": "Error: Page.goto: net::ERR_FAILED at http://darbyshairitage.com/cgi-sys/suspendedpage.cgi\nCall log:\n"
+    }
+   }
+  },
+  {
+   "site": "http://wildtrufflescatering.com",
+   "domain": "wildtrufflescatering.com",
+   "city": "Las Vegas",
+   "industry": "hair salon",
+   "direct": {
+    "category": "dns",
+    "kind": "network",
+    "status": null,
+    "usable": false,
+    "ms": 50,
+    "attempts": 1,
+    "error": "blocked:dns_failure",
+    "server": null
+   },
+   "others": {
+    "scrapling": {
+     "category": "dns",
+     "usable": false,
+     "status": null,
+     "ms": 4,
+     "error": "ConnectError: [Errno -2] Name or service not known"
+    },
+    "browser": {
+     "category": "network_other",
+     "usable": false,
+     "status": null,
+     "ms": 37198,
+     "error": "Error: Page.goto: net::ERR_FAILED at http://wildtrufflescatering.com/\nCall log:\n  - navigating to \"h"
+    }
+   }
+  },
+  {
+   "site": "http://www.kdldental.com/",
+   "domain": "kdldental.com",
+   "city": "San Antonio",
+   "industry": "dentist",
+   "direct": {
+    "category": "disconnect",
+    "kind": "network",
+    "status": null,
+    "usable": false,
+    "ms": 165,
+    "attempts": 2,
+    "error": "RemoteProtocolError: Server disconnected without sending a response.",
+    "server": null
+   },
+   "others": {
+    "scrapling": {
+     "category": "disconnect",
+     "usable": false,
+     "status": null,
+     "ms": 151,
+     "error": "RemoteProtocolError: Server disconnected without sending a response."
+    },
+    "browser": {
+     "category": "timeout",
+     "usable": false,
+     "status": null,
+     "ms": 41431,
+     "error": "TimeoutError: Page.goto: Timeout 35000ms exceeded.\nCall log:\n  - navigating to \"http://www.kdldental"
+    }
+   }
+  },
+  {
+   "site": "https://www.wfkny.com",
+   "domain": "wfkny.com",
+   "city": "New York",
+   "industry": "lawyer",
+   "direct": {
+    "category": "tls",
+    "kind": "network",
+    "status": null,
+    "usable": false,
+    "ms": 79,
+    "attempts": 2,
+    "error": "ConnectError: [SSL: TLSV1_ALERT_INTERNAL_ERROR] tlsv1 alert internal error (_ssl.c:1016)",
+    "server": null
+   },
+   "others": {
+    "scrapling": {
+     "category": "tls",
+     "usable": false,
+     "status": null,
+     "ms": 176,
+     "error": "ConnectError: [SSL: TLSV1_ALERT_INTERNAL_ERROR] tlsv1 alert internal error (_ssl.c:1016)"
+    },
+    "browser": {
+     "category": "tls",
+     "usable": false,
+     "status": null,
+     "ms": 38900,
+     "error": "Error: Page.goto: net::ERR_SSL_PROTOCOL_ERROR at https://www.wfkny.com/\nCall log:\n  - navigating to "
+    }
+   }
+  },
+  {
+   "site": "http://www.qualitysmiles.org/",
+   "domain": "qualitysmiles.org",
+   "city": "Los Angeles",
+   "industry": "dentist",
+   "direct": {
+    "category": "dns",
+    "kind": "network",
+    "status": null,
+    "usable": false,
+    "ms": 25,
+    "attempts": 1,
+    "error": "blocked:dns_failure",
+    "server": null
+   },
+   "others": {
+    "scrapling": {
+     "category": "dns",
+     "usable": false,
+     "status": null,
+     "ms": 6,
+     "error": "ConnectError: [Errno -2] Name or service not known"
+    },
+    "browser": {
+     "category": "network_other",
+     "usable": false,
+     "status": null,
+     "ms": 37017,
+     "error": "Error: Page.goto: net::ERR_FAILED at http://www.qualitysmiles.org/\nCall log:\n  - navigating to \"http"
+    }
+   }
+  },
+  {
+   "site": "https://columbiatvguide.com",
+   "domain": "columbiatvguide.com",
+   "city": "New York",
+   "industry": "lawyer",
+   "direct": {
+    "category": "dns",
+    "kind": "network",
+    "status": null,
+    "usable": false,
+    "ms": 11,
+    "attempts": 1,
+    "error": "blocked:dns_failure",
+    "server": null
+   },
+   "others": {
+    "scrapling": {
+     "category": "dns",
+     "usable": false,
+     "status": null,
+     "ms": 4,
+     "error": "ConnectError: [Errno -2] Name or service not known"
+    },
+    "browser": {
+     "category": "network_other",
+     "usable": false,
+     "status": null,
+     "ms": 36118,
+     "error": "Error: Page.goto: net::ERR_FAILED at https://columbiatvguide.com/\nCall log:\n  - navigating to \"https"
+    }
+   }
+  },
+  {
+   "site": "http://www.shabazzlawfirm.com/",
+   "domain": "shabazzlawfirm.com",
+   "city": "New York",
+   "industry": "lawyer",
+   "direct": {
+    "category": "dns",
+    "kind": "network",
+    "status": null,
+    "usable": false,
+    "ms": 12,
+    "attempts": 1,
+    "error": "blocked:dns_failure",
+    "server": null
+   },
+   "others": {
+    "scrapling": {
+     "category": "dns",
+     "usable": false,
+     "status": null,
+     "ms": 5,
+     "error": "ConnectError: [Errno -2] Name or service not known"
+    },
+    "browser": {
+     "category": "network_other",
+     "usable": false,
+     "status": null,
+     "ms": 35983,
+     "error": "Error: Page.goto: net::ERR_FAILED at http://www.shabazzlawfirm.com/\nCall log:\n  - navigating to \"htt"
+    }
+   }
+  },
+  {
+   "site": "http://www.ibracesusa.com/",
+   "domain": "ibracesusa.com",
+   "city": "San Antonio",
+   "industry": "dentist",
+   "direct": {
+    "category": "http_4xx",
+    "kind": "http",
+    "status": 409,
+    "usable": false,
+    "ms": 112,
+    "attempts": 1,
+    "error": "",
+    "server": "cloudflare"
+   },
+   "others": {
+    "scrapling": {
+     "category": "http_4xx",
+     "usable": false,
+     "status": 409,
+     "ms": 11,
+     "error": ""
+    },
+    "browser": {
+     "category": "http_4xx",
+     "usable": false,
+     "status": 409,
+     "ms": 36516,
+     "error": ""
+    }
+   }
+  },
+  {
+   "site": "https://360bodycontourspa.com",
+   "domain": "360bodycontourspa.com",
+   "city": "Orlando",
+   "industry": "med spa",
+   "direct": {
+    "category": "dns",
+    "kind": "network",
+    "status": null,
+    "usable": false,
+    "ms": 7,
+    "attempts": 1,
+    "error": "blocked:dns_failure",
+    "server": null
+   },
+   "others": {
+    "scrapling": {
+     "category": "dns",
+     "usable": false,
+     "status": null,
+     "ms": 3,
+     "error": "ConnectError: [Errno -2] Name or service not known"
+    },
+    "browser": {
+     "category": "network_other",
+     "usable": false,
+     "status": null,
+     "ms": 35469,
+     "error": "Error: Page.goto: net::ERR_FAILED at https://360bodycontourspa.com/\nCall log:\n  - navigating to \"htt"
+    }
+   }
+  },
+  {
+   "site": "http://bayviewbarbershop.com/",
+   "domain": "bayviewbarbershop.com",
+   "city": "San Diego",
+   "industry": "hair salon",
+   "direct": {
+    "category": "dns",
+    "kind": "network",
+    "status": null,
+    "usable": false,
+    "ms": 12,
+    "attempts": 1,
+    "error": "blocked:dns_failure",
+    "server": null
+   },
+   "others": {
+    "scrapling": {
+     "category": "dns",
+     "usable": false,
+     "status": null,
+     "ms": 4,
+     "error": "ConnectError: [Errno -2] Name or service not known"
+    },
+    "browser": {
+     "category": "network_other",
+     "usable": false,
+     "status": null,
+     "ms": 35143,
+     "error": "Error: Page.goto: net::ERR_FAILED at http://bayviewbarbershop.com/\nCall log:\n  - navigating to \"http"
+    }
+   }
+  },
+  {
+   "site": "https://www.snipeslaw.com",
+   "domain": "snipeslaw.com",
+   "city": "New York",
+   "industry": "lawyer",
+   "direct": {
+    "category": "redirect_stub",
+    "kind": "redirect",
+    "status": 200,
+    "usable": false,
+    "ms": 181,
+    "attempts": 2,
+    "error": "",
+    "server": null
+   },
+   "others": {
+    "scrapling": {
+     "category": "redirect_stub",
+     "usable": false,
+     "status": 200,
+     "ms": 23,
+     "error": ""
+    },
+    "browser": {
+     "category": "ok",
+     "usable": true,
+     "status": 200,
+     "ms": 36260,
+     "error": ""
+    }
+   }
+  },
+  {
+   "site": "http://serenitynailsonline.com",
+   "domain": "serenitynailsonline.com",
+   "city": "San Diego",
+   "industry": "hair salon",
+   "direct": {
+    "category": "dns",
+    "kind": "network",
+    "status": null,
+    "usable": false,
+    "ms": 42,
+    "attempts": 1,
+    "error": "blocked:dns_failure",
+    "server": null
+   },
+   "others": {
+    "scrapling": {
+     "category": "dns",
+     "usable": false,
+     "status": null,
+     "ms": 4,
+     "error": "ConnectError: [Errno -2] Name or service not known"
+    },
+    "browser": {
+     "category": "network_other",
+     "usable": false,
+     "status": null,
+     "ms": 34732,
+     "error": "Error: Page.goto: net::ERR_FAILED at http://serenitynailsonline.com/\nCall log:\n  - navigating to \"ht"
+    }
+   }
+  },
+  {
+   "site": "http://www.bigmitchdabarber.com/",
+   "domain": "bigmitchdabarber.com",
+   "city": "San Diego",
+   "industry": "hair salon",
+   "direct": {
+    "category": "http_404",
+    "kind": "http",
+    "status": 404,
+    "usable": false,
+    "ms": 143,
+    "attempts": 1,
+    "error": "",
+    "server": "cloudflare"
+   },
+   "others": {
+    "scrapling": {
+     "category": "http_404",
+     "usable": false,
+     "status": 404,
+     "ms": 45,
+     "error": ""
+    },
+    "browser": {
+     "category": "http_404",
+     "usable": false,
+     "status": 404,
+     "ms": 36166,
+     "error": ""
+    }
+   }
+  },
+  {
+   "site": "http://www.practicalapproachpediatrics.com/",
+   "domain": "practicalapproachpediatrics.com",
+   "city": "San Antonio",
+   "industry": "dentist",
+   "direct": {
+    "category": "dns",
+    "kind": "network",
+    "status": null,
+    "usable": false,
+    "ms": 26,
+    "attempts": 1,
+    "error": "blocked:dns_failure",
+    "server": null
+   },
+   "others": {
+    "scrapling": {
+     "category": "dns",
+     "usable": false,
+     "status": null,
+     "ms": 3,
+     "error": "ConnectError: [Errno -2] Name or service not known"
+    },
+    "browser": {
+     "category": "network_other",
+     "usable": false,
+     "status": null,
+     "ms": 35404,
+     "error": "Error: Page.goto: net::ERR_FAILED at http://www.practicalapproachpediatrics.com/\nCall log:\n  - navig"
+    }
+   }
+  },
+  {
+   "site": "http://www.ninanails.com",
+   "domain": "ninanails.com",
+   "city": "Las Vegas",
+   "industry": "hair salon",
+   "direct": {
+    "category": "parked",
+    "kind": "parked",
+    "status": 200,
+    "usable": false,
+    "ms": 8421,
+    "attempts": 1,
+    "error": "",
+    "server": "nginx/1.30.7"
+   },
+   "others": {
+    "scrapling": {
+     "category": "parked",
+     "usable": false,
+     "status": 200,
+     "ms": 4085,
+     "error": ""
+    },
+    "browser": {
+     "category": "parked",
+     "usable": false,
+     "status": 200,
+     "ms": 34257,
+     "error": ""
+    }
+   }
+  },
+  {
+   "site": "http://accessdentaltx.com",
+   "domain": "accessdentaltx.com",
+   "city": "San Antonio",
+   "industry": "dentist",
+   "direct": {
+    "category": "parked",
+    "kind": "parked",
+    "status": 200,
+    "usable": false,
+    "ms": 395,
+    "attempts": 1,
+    "error": "",
+    "server": "Parking/1.0"
+   },
+   "others": {
+    "scrapling": {
+     "category": "parked",
+     "usable": false,
+     "status": 200,
+     "ms": 327,
+     "error": ""
+    },
+    "browser": {
+     "category": "js_shell",
+     "usable": true,
+     "status": 200,
+     "ms": 37123,
+     "error": ""
+    }
+   }
+  },
+  {
+   "site": "http://www.modernhairnails.com",
+   "domain": "modernhairnails.com",
+   "city": "Las Vegas",
+   "industry": "hair salon",
+   "direct": {
+    "category": "parked",
+    "kind": "parked",
+    "status": 200,
+    "usable": false,
+    "ms": 8114,
+    "attempts": 1,
+    "error": "",
+    "server": "nginx/1.30.7"
+   },
+   "others": {
+    "scrapling": {
+     "category": "parked",
+     "usable": false,
+     "status": 200,
+     "ms": 4188,
+     "error": ""
+    },
+    "browser": {
+     "category": "parked",
+     "usable": false,
+     "status": 200,
+     "ms": 28263,
+     "error": ""
+    }
+   }
+  },
+  {
+   "site": "http://shagencinitas.com",
+   "domain": "shagencinitas.com",
+   "city": "San Diego",
+   "industry": "hair salon",
+   "direct": {
+    "category": "disconnect",
+    "kind": "network",
+    "status": null,
+    "usable": false,
+    "ms": 20009,
+    "attempts": 2,
+    "error": "RemoteProtocolError: Server disconnected without sending a response.",
+    "server": null
+   },
+   "others": {
+    "scrapling": {
+     "category": "disconnect",
+     "usable": false,
+     "status": null,
+     "ms": 221,
+     "error": "RemoteProtocolError: Server disconnected without sending a response."
+    },
+    "browser": {
+     "category": "network_other",
+     "usable": false,
+     "status": null,
+     "ms": 25123,
+     "error": "Error: Page.goto: net::ERR_EMPTY_RESPONSE at http://shagencinitas.com/\nCall log:\n  - navigating to \""
+    }
+   }
+  },
+  {
+   "site": "http://www.comptonfamilydentistry.com/",
+   "domain": "comptonfamilydentistry.com",
+   "city": "Los Angeles",
+   "industry": "dentist",
+   "direct": {
+    "category": "parked",
+    "kind": "parked",
+    "status": 200,
+    "usable": false,
+    "ms": 2491,
+    "attempts": 1,
+    "error": "",
+    "server": "nginx/1.28.3"
+   },
+   "others": {
+    "scrapling": {
+     "category": "parked",
+     "usable": false,
+     "status": 200,
+     "ms": 1859,
+     "error": ""
+    },
+    "browser": {
+     "category": "parked",
+     "usable": false,
+     "status": 200,
+     "ms": 41645,
+     "error": ""
+    }
+   }
+  },
+  {
+   "site": "http://medcenterdentalsa.com/",
+   "domain": "medcenterdentalsa.com",
+   "city": "San Antonio",
+   "industry": "dentist",
+   "direct": {
+    "category": "timeout",
+    "kind": "network",
+    "status": null,
+    "usable": false,
+    "ms": 20020,
+    "attempts": 1,
+    "error": "ReadTimeout: ",
+    "server": null
+   },
+   "others": {
+    "scrapling": {
+     "category": "timeout",
+     "usable": false,
+     "status": null,
+     "ms": 20033,
+     "error": "ReadTimeout: "
+    },
+    "browser": {
+     "category": "network_other",
+     "usable": false,
+     "status": null,
+     "ms": 3903,
+     "error": "Error: Page.goto: net::ERR_EMPTY_RESPONSE at http://medcenterdentalsa.com/\nCall log:\n  - navigating "
+    }
+   }
+  },
+  {
+   "site": "http://www.sweetscienceboxing.org",
+   "domain": "sweetscienceboxing.org",
+   "city": "Portland",
+   "industry": "gym",
+   "direct": {
+    "category": "http_5xx",
+    "kind": "http",
+    "status": 522,
+    "usable": false,
+    "ms": 20498,
+    "attempts": 1,
+    "error": "",
+    "server": "cloudflare"
+   },
+   "others": {
+    "scrapling": {
+     "category": "ok",
+     "usable": true,
+     "status": 200,
+     "ms": 3128,
+     "error": ""
+    },
+    "browser": {
+     "category": "ok",
+     "usable": true,
+     "status": 200,
+     "ms": 15205,
+     "error": ""
+    }
+   }
+  },
+  {
+   "site": "http://www.awebsitecomingsoon.com",
+   "domain": "awebsitecomingsoon.com",
+   "city": "San Diego",
+   "industry": "hair salon",
+   "direct": {
+    "category": "http_5xx",
+    "kind": "http",
+    "status": 500,
+    "usable": false,
+    "ms": 4134,
+    "attempts": 1,
+    "error": "",
+    "server": "cloudflare"
+   },
+   "others": {
+    "scrapling": {
+     "category": "ok",
+     "usable": true,
+     "status": 200,
+     "ms": 8188,
+     "error": ""
+    },
+    "browser": {
+     "category": "ok",
+     "usable": true,
+     "status": 200,
+     "ms": 38699,
+     "error": ""
+    }
+   }
+  },
+  {
+   "site": "http://www.keyserlawpc.com/",
+   "domain": "keyserlawpc.com",
+   "city": "New York",
+   "industry": "lawyer",
+   "direct": {
+    "category": "disconnect",
+    "kind": "network",
+    "status": null,
+    "usable": false,
+    "ms": 92,
+    "attempts": 2,
+    "error": "RemoteProtocolError: Server disconnected without sending a response.",
+    "server": null
+   },
+   "others": {
+    "scrapling": {
+     "category": "disconnect",
+     "usable": false,
+     "status": null,
+     "ms": 46,
+     "error": "RemoteProtocolError: Server disconnected without sending a response."
+    },
+    "browser": {
+     "category": "timeout",
+     "usable": false,
+     "status": null,
+     "ms": 66315,
+     "error": "TimeoutError: Page.goto: Timeout 35000ms exceeded.\nCall log:\n  - navigating to \"http://www.keyserlaw"
+    }
+   }
+  },
+  {
+   "site": "http://www.toothtownnj.com/",
+   "domain": "toothtownnj.com",
+   "city": "Philadelphia",
+   "industry": "dentist",
+   "direct": {
+    "category": "timeout",
+    "kind": "network",
+    "status": null,
+    "usable": false,
+    "ms": 20028,
+    "attempts": 1,
+    "error": "ReadTimeout: ",
+    "server": null
+   },
+   "others": {
+    "scrapling": {
+     "category": "timeout",
+     "usable": false,
+     "status": null,
+     "ms": 20007,
+     "error": "ReadTimeout: "
+    },
+    "browser": {
+     "category": "timeout",
+     "usable": false,
+     "status": null,
+     "ms": 35035,
+     "error": "TimeoutError: Page.goto: Timeout 35000ms exceeded.\nCall log:\n  - navigating to \"http://www.toothtown"
+    }
+   }
+  }
+ ]
+}

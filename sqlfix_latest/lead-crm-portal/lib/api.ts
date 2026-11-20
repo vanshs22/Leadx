@@ -1210,3 +1210,51 @@ export const crmMissions = {
   tick: (tenantId: string, missionId: string) => api<any>(`/crm/${tenantId}/agent-missions/${missionId}/tick`, { method: "POST" }),
   cancel: (tenantId: string, missionId: string) => api<any>(`/crm/${tenantId}/agent-missions/${missionId}/cancel`, { method: "POST" }),
 };
+
+/** Lead tools: natural-language search, data quality, duplicates and merge, website change detection. */
+export const crmTools = {
+  nlSearch: (tenantId: string, query: string, limit = 50) =>
+    api<{ interpreted_as: Record<string, unknown>; explanation: string[]; total: number; leads: LeadCard[] }>(
+      `/crm/${tenantId}/leads/nl-search`, { method: "POST", body: JSON.stringify({ query, limit }) }),
+  dataQuality: (tenantId: string, assignmentId: string) =>
+    api<{ completeness: number; confidence: number; grade: string; missing: string[]; recommendations: { field: string; recovery_order: { provider: string; paid: boolean; cost: number }[] }[] }>(
+      `/crm/${tenantId}/leads/${assignmentId}/data-quality`),
+  duplicates: (tenantId: string, entity: "companies" | "contacts") =>
+    api<{ scanned: number; duplicate_records: number; groups: { suggested_keep: string; reasons: string[]; records: Record<string, any>[] }[] }>(
+      `/crm/${tenantId}/duplicates?entity=${entity}`),
+  merge: (tenantId: string, entity: "companies" | "contacts", keepId: string, mergeIds: string[]) =>
+    api<{ kept: string; merged: string[]; re_pointed: Record<string, number> }>(
+      `/crm/${tenantId}/${entity}/merge`, { method: "POST", body: JSON.stringify({ keep_id: keepId, merge_ids: mergeIds }) }),
+  saveSearch: (tenantId: string, name: string, query: string, alert = true) =>
+    api<{ explanation: string[] }>(`/crm/${tenantId}/saved-searches`, { method: "POST", body: JSON.stringify({ name, query, alert }) }),
+  savedSearches: (tenantId: string) => api<{ saved_searches: { id: string; name: string; filters: { query?: string; alert?: boolean; last_new_matches?: number } }[] }>(`/crm/${tenantId}/saved-searches`),
+  runSavedSearch: (tenantId: string, id: string) => api<{ new_matches: number; total: number }>(`/crm/${tenantId}/saved-searches/${id}/run`, { method: "POST" }),
+  committee: (tenantId: string, companyId: string) =>
+    api<{ coverage_score: number; members: { name: string; title?: string; role: string; reachable: boolean }[]; gaps: { role: string; look_for: string }[] }>(`/crm/${tenantId}/companies/${companyId}/buying-committee`),
+  outreachDraft: (tenantId: string, assignmentId: string, offer?: string) =>
+    api<{ note: string; drafts: { angle: string; subject: string; body_text: string; words: number; evidence: string[] }[] }>(`/crm/${tenantId}/leads/${assignmentId}/outreach-draft`, { method: "POST", body: JSON.stringify(offer ? { offer } : {}) }),
+  refreshCheck: (tenantId: string, assignmentId: string, allowPaid = false) =>
+    api<{ lane: string; free: boolean; baseline: boolean; changed: boolean; changes: { type: string; detail: unknown }[] }>(
+      `/crm/${tenantId}/leads/${assignmentId}/refresh-check`, { method: "POST", body: JSON.stringify({ allow_paid: allowPaid }) }),
+};
+
+export type FetchingMetrics = {
+  websites_attempted: number; successful_fetches: number; fetch_success_pct: number | null; captcha_blocked: number; challenge_breakdown: Record<string, number>;
+  http_failures: number; timeout_failures: number; dns_failures: number; other_network_failures: number; failure_categories: Record<string, number>;
+  alt_source_recoveries: number; hint_only: number; acquisition_success_pct: number | null; avg_extraction_completeness_pct: number | null; avg_fetch_seconds: number | null;
+  cost: { total_credits: number; avg_per_enriched_lead: number | null; enriched_leads: number }; ai_tokens: number; needs_human_verification: number; sources: string[];
+  by_provider: Record<string, { attempts: number; ok: number; success_rate_pct: number | null; avg_ms: number | null; cost: number }>;
+  problem_domains: { domain: string; attempts: number; failures: number; last_category: string | null }[];
+};
+export type FetchVerification = { id: string; domain: string; category: string; challenge: string | null; created_at: string; lead_key: string | null };
+
+export const crmFetching = {
+  metrics: (tenantId: string, f: { date_from?: string; date_to?: string; provider?: string; category?: string; source?: string } = {}) => {
+    const q = new URLSearchParams();
+    Object.entries(f).forEach(([k, v]) => { if (v) q.set(k, v); });
+    return api<{ ok: boolean } & FetchingMetrics>(`/crm/${tenantId}/engine/fetching?${q.toString()}`);
+  },
+  verification: (tenantId: string) => api<{ ok: boolean; items: FetchVerification[] }>(`/crm/${tenantId}/engine/fetching/verification`),
+  resolve: (tenantId: string, id: string, action: "resolved" | "dismissed" | "retry") =>
+    api<{ ok: boolean }>(`/crm/${tenantId}/engine/fetching/verification/${id}`, { method: "POST", body: JSON.stringify({ action }) }),
+};

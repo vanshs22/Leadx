@@ -3,6 +3,7 @@ Shared production helpers: phone, domain, fingerprint, email validation, logging
 """
 from __future__ import annotations
 
+from functools import lru_cache
 import html as _html
 import hashlib
 import logging
@@ -13,7 +14,7 @@ from urllib.parse import unquote
 logger = logging.getLogger("lead_engine")
 
 EMAIL_RE = re.compile(r"^[A-Za-z0-9!#$%&'*+\-/=?^_`{|}~]+(?:\.[A-Za-z0-9!#$%&'*+\-/=?^_`{|}~]+)*@(?:[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?\.)+[A-Za-z]{2,63}$")
-PHONE_EXTRACT_RE = re.compile(r"(\+?[0-9][0-9().\-\s]{6,}[0-9])")
+PHONE_EXTRACT_RE = re.compile(r"(\+?\(?[0-9][0-9().\-\s]{6,}[0-9])")
 EMAIL_EXTRACT_RE = re.compile(r"(?i)(?:mailto:)?[A-Z0-9.!#$%&'*+/=?^_`{|}~-]+@[A-Z0-9-]+(?:\.[A-Z0-9-]+)+")
 
 DISPOSABLE_DOMAINS = {
@@ -31,6 +32,12 @@ def _email_candidate(value: str) -> str:
     return v
 
 
+def normalize_email(email: Optional[str]) -> Optional[str]:
+    """The storable form of an email (scheme/markup stripped, lower-cased) or None when it is not a valid address."""
+    value = _email_candidate(email or "").lower()
+    return value if is_valid_email(value) else None
+
+
 def is_valid_email(email: Optional[str]) -> bool:
     value = _email_candidate(email or "")
     if not EMAIL_RE.fullmatch(value):
@@ -38,7 +45,7 @@ def is_valid_email(email: Optional[str]) -> bool:
     # URL paths (including social profile URLs) can contain a valid-looking
     # `@domain.tld` suffix. They are never email addresses for LeadX contact
     # delivery and must be rejected before persistence.
-    if any(marker in value for marker in ("/", "\\\\", "://")):
+    if any(marker in value for marker in ("/", "\\\\", "://", "*")):  # "*" = masked address from a search snippet
         return False
     local, domain = value.rsplit("@", 1)
     local_l, domain_l = local.lower(), domain.lower().rstrip(".")
@@ -112,6 +119,7 @@ def _fallback_phone(phone: Optional[str], default_country: str = "1") -> Optiona
     return str(default_country).lstrip("+") + digits
 
 
+@lru_cache(maxsize=50_000)  # pure; the same numbers recur across pages and pipeline stages
 def normalize_phone(phone: Optional[str]) -> Optional[str]:
     """Return validated E.164 digits without '+'. Defaults to US for bare numbers."""
     parsed, lib = _parse_phone(phone, "US")
@@ -141,7 +149,7 @@ def extract_domain(url: Optional[str]) -> Optional[str]:
 
 def fingerprint(name: str, phone: Optional[str], website: Optional[str]) -> str:
     raw = f"{(name or '').lower().strip()}|{normalize_phone(phone) or ''}|{extract_domain(website) or ''}"
-    return hashlib.md5(raw.encode()).hexdigest()
+    return hashlib.md5(raw.encode(), usedforsecurity=False).hexdigest()
 
 
 def extract_phones(html: str) -> list[str]:

@@ -266,7 +266,7 @@ def test_discovery_paid_lanes_are_gated_behind_free_stage():
 def test_enrichment_runs_free_crawl_before_paid_and_only_for_contact_fields():
     layer = _t("app/layers/enrichment_layer.py")
     assert "paid_fallback=False" in layer
-    assert layer.index("enrich_batch(mesh_rows") < layer.index("asyncio.gather(*(paid(x)")
+    assert layer.index("enrich_batch(") < layer.index("lambda: _paid_pass(")
     mesh = _t("app/integrations/prod/enrichment_mesh.py")
     assert "paid_enrich_fields()" in mesh and 'paid_fallback_mode() != "never"' in mesh
     enr = _t("app/integrations/prod/enricher.py")

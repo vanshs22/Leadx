@@ -1,4 +1,4 @@
-﻿"""
+"""
 Lead Engine - managed service entrypoint.
   uvicorn app.app_service:app --host 0.0.0.0 --port 8000
 """
@@ -43,18 +43,32 @@ logging.basicConfig(
     format="%(asctime)s %(levelname)s [%(name)s] %(message)s",
 )
 logger = logging.getLogger("lead_engine.service")
+# httpx logs full request URLs at INFO, which includes PostgREST filters such as key_value=eq.<api key>.
+for _noisy in ("httpx", "httpcore"):
+    logging.getLogger(_noisy).setLevel(logging.WARNING)
+
 
 from app.api.prod import competitive_api
+from app.api.prod import engine_api
 from app.api.prod import session_api
 from app.api.prod import platform_api
 
+from app.services.http_tuning import install as _install_http_tuning
+_install_http_tuning()
+
+# Interactive docs and the schema list every route; keep them out of production and staging.
+_PUBLIC_DOCS = os.getenv("ENVIRONMENT", "development").lower() not in {"production", "prod", "staging"} or os.getenv("LEADX_PUBLIC_API_DOCS") == "1"
 app = FastAPI(
     title="Automiqo Lead Service",
     version="15.8.1",
     description="Managed lead generation - operator API + client CRM",
+    docs_url="/docs" if _PUBLIC_DOCS else None,
+    redoc_url="/redoc" if _PUBLIC_DOCS else None,
+    openapi_url="/openapi.json" if _PUBLIC_DOCS else None,
 )
 
 app.include_router(competitive_api.router)
+app.include_router(engine_api.router)
 app.include_router(session_api.router)
 app.include_router(platform_api.router)
 
@@ -129,6 +143,17 @@ async def csrf_middleware(request: Request, call_next):
     return await call_next(request)
 
 
+def _strip_nul(value):
+    """PostgreSQL text/jsonb cannot hold U+0000; drop it from anything we persist."""
+    if isinstance(value, str):
+        return value.replace("\x00", "")
+    if isinstance(value, dict):
+        return {_strip_nul(k): _strip_nul(v) for k, v in value.items()}
+    if isinstance(value, list):
+        return [_strip_nul(v) for v in value]
+    return value
+
+
 @app.middleware("http")
 async def idempotency_middleware(request: Request, call_next):
     """Durable idempotency for mutating JSON requests.
@@ -188,7 +213,16 @@ async def idempotency_middleware(request: Request, call_next):
             except Exception:
                 parsed = {"ok": True, "raw": body_out.decode("utf-8", "replace")[:2000]}
             stored = {"status_code": response.status_code, "body": parsed}
-            await offload(finish_idempotency, key, operation, stored, "completed", scope_hash=scope_hash, request_hash=body_hash)
+            try:
+                await offload(finish_idempotency, key, operation, _strip_nul(stored), "completed", scope_hash=scope_hash, request_hash=body_hash)
+            except Exception as exc:
+                # The mutation already succeeded. Failing to store the replay record must not turn it into a 500
+                # (the client would retry and repeat the side effect); release the claim and return the real result.
+                emit_telemetry(logger, logging.WARNING, "idempotency.finish_failed", status="degraded", dependency="database", outcome="replay_not_stored", error_code=telemetry_error_code(exc))
+                try:
+                    await offload(release_idempotency, key, operation, scope_hash=scope_hash)
+                except Exception:
+                    logger.debug("idempotency release after failed finish also failed", exc_info=True)
             return Response(content=body_out, status_code=response.status_code, headers=dict(response.headers), media_type=response.media_type)
 
         await offload(release_idempotency, key, operation, scope_hash=scope_hash)
@@ -246,6 +280,8 @@ async def request_id_middleware(request: Request, call_next):
             tenant_authorized=bool(getattr(request.state, "tenant", None)),
             error_code=telemetry_error_code(exc), dependency="api",
         )
+        if os.getenv("LEADX_DEBUG_TRACEBACKS") == "1" and os.getenv("ENVIRONMENT", "development").lower() not in {"production", "prod", "staging"}:
+            logger.error("debug traceback request_id=%s", request_id, exc_info=exc)  # never enabled in prod/staging
         response = JSONResponse(
             status_code=500,
             content={"ok": False, "error": "Internal server error", "request_id": request_id},
@@ -908,6 +944,8 @@ try:
     app.include_router(upgrade_router)
     app.include_router(upgrade_agency)
     app.include_router(revenue_os_router)
+    from app.api.prod.lead_tools_api import router as lead_tools_router
+    app.include_router(lead_tools_router)
     logger.info("Mounted upgrade API (scoreboard, CRM sync, why-now, waterfall, agency)")
 except Exception as e:
     emit_telemetry(logger, logging.ERROR, "startup.module_mount_failed", status="degraded", dependency="upgrade_api", outcome="module_unavailable", error_code=telemetry_error_code(e))
@@ -1118,7 +1156,7 @@ try:
                     q = sb.table("crm_lead_cards").select("*", count="exact").eq("tenant_id", tid)
                     if stage: q = q.eq("stage_slug", stage)
                     if tier: q = q.eq("tier", tier.upper())
-                    if search: q = q.ilike("company_name", f"%{search}%")
+                    if search: q = q.ilike("company_name", f"*{search}*")
                     r = q.order("delivered_at", desc=True).range(offset, offset + limit - 1).execute()
                     return {"total": r.count if getattr(r, "count", None) is not None else len(r.data or []), "limit": limit, "offset": offset, "leads": r.data or []}
                 except Exception:

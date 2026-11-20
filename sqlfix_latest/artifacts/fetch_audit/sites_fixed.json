@@ -1,0 +1,6103 @@
+[
+ {
+  "name": "CrossFit Immense",
+  "website": "http://crossfitimmense.com/",
+  "city": "Portland",
+  "region": "OR",
+  "phone": "+19713346654",
+  "email": "crossfit.immense@gmail.com",
+  "address": "11520 SE 82nd Ave D, Happy Valley, US-OR, 97086",
+  "category": "gym",
+  "source": "overture",
+  "industry": "gym",
+  "socials": [
+   "https://www.facebook.com/204943159650182"
+  ],
+  "dns_ok": true
+ },
+ {
+  "name": "VudoHair",
+  "website": "http://VudohairJ.com/",
+  "city": "Denver",
+  "region": "CO",
+  "phone": "+13038857130",
+  "email": "vudohair@gmail.com",
+  "address": "10620 Melody Dr, Northglenn, US-CO, 80234-4140",
+  "category": "hair_salon",
+  "source": "overture",
+  "industry": "hair salon",
+  "socials": [
+   "https://www.facebook.com/1014745618391444"
+  ],
+  "dns_ok": true
+ },
+ {
+  "name": "Clifford Levenson, Attorney At Law",
+  "website": "https://legalhelpontheway.com",
+  "city": "Phoenix",
+  "region": "AZ",
+  "phone": "+16022588989",
+  "email": null,
+  "address": "5119 N 19th Ave  Ste K, Phoenix, US-AZ, 85015-3221",
+  "category": "attorney_or_law_firm",
+  "source": "overture",
+  "industry": "lawyer",
+  "socials": [],
+  "dns_ok": true
+ },
+ {
+  "name": "R&r Studio Hair And Makeup",
+  "website": "https://rr-studio-hair-and-makeup.business.site",
+  "city": "San Diego",
+  "region": "CA",
+  "phone": "+17602130440",
+  "email": null,
+  "address": "200 E Via Rancho Pkwy  Ste 135, Escondido, US-CA, 92025-8007",
+  "category": "beauty_salon",
+  "source": "overture",
+  "industry": "hair salon",
+  "socials": [],
+  "dns_ok": true
+ },
+ {
+  "name": "Tn Multisports",
+  "website": "https://tnmultisports.com",
+  "city": "Seattle",
+  "region": "WA",
+  "phone": "+12068189591",
+  "email": null,
+  "address": "911 Western Ave, Seattle, US-WA, 98104-3605",
+  "category": "fitness_trainer",
+  "source": "overture",
+  "industry": "gym",
+  "socials": [],
+  "dns_ok": true
+ },
+ {
+  "name": "Eleva Hair Studio",
+  "website": "https://www.hairbyidalia.com/",
+  "city": "Denver",
+  "region": "CO",
+  "phone": "+19707035070",
+  "email": "hairbyidalia@gmail.com",
+  "address": "10620 Melody Dr Unit F Suite 117, Northglenn, US-CO, 80234",
+  "category": "beauty_salon",
+  "source": "overture",
+  "industry": "hair salon",
+  "socials": [
+   "https://www.facebook.com/110637307084998"
+  ],
+  "dns_ok": false
+ },
+ {
+  "name": "Rayos Permanent Make Up",
+  "website": "http://www.rayospermanentmakeup.com/",
+  "city": "Las Vegas",
+  "region": "NV",
+  "phone": "+17027390020",
+  "email": "info@rayospermanentmakeup.com",
+  "address": "1098 E Sahara Ave, Las Vegas, US-NV, 89104-3220",
+  "category": "hair_salon",
+  "source": "overture",
+  "industry": "hair salon",
+  "socials": [
+   "https://www.facebook.com/511058152369173"
+  ],
+  "dns_ok": false
+ },
+ {
+  "name": "Shag Salon Encinitas",
+  "website": "http://shagencinitas.com",
+  "city": "San Diego",
+  "region": "CA",
+  "phone": "+17608155741",
+  "email": "shagencinitas@gmail.com",
+  "address": "205 S El Camino Real # C, Encinitas, US-CA, 92024",
+  "category": "hair_salon",
+  "source": "overture",
+  "industry": "hair salon",
+  "socials": [
+   "https://www.facebook.com/110307006983605"
+  ],
+  "dns_ok": true
+ },
+ {
+  "name": "Mynt Dental of Franklin Park",
+  "website": "http://www.myntdental.com/",
+  "city": "Chicago",
+  "region": "IL",
+  "phone": "+13129999995",
+  "email": "franklinpark@myntdental.com",
+  "address": "2731 Mannheim Rd, Franklin Park, US-IL, 60131",
+  "category": "general_dentistry",
+  "source": "overture",
+  "industry": "dentist",
+  "socials": [
+   "https://www.facebook.com/1495783420726410"
+  ],
+  "dns_ok": true
+ },
+ {
+  "name": "Arizona Attorneys For Criminal",
+  "website": "https://www.aacj.org",
+  "city": "Phoenix",
+  "region": "AZ",
+  "phone": null,
+  "email": null,
+  "address": "645 N 4th Ave, Phoenix, US-AZ, 85003-1595",
+  "category": "legal_service",
+  "source": "overture",
+  "industry": "lawyer",
+  "socials": [],
+  "dns_ok": true
+ },
+ {
+  "name": "Dwyer And Taglia",
+  "website": "https://dwyertaglia.com",
+  "city": "New York",
+  "region": "NY",
+  "phone": null,
+  "email": null,
+  "address": "111 John St Ste 620, New York, US-NY, 10038-3102",
+  "category": "legal_service",
+  "source": "overture",
+  "industry": "lawyer",
+  "socials": [],
+  "dns_ok": true
+ },
+ {
+  "name": "Stern Gregory a DDS",
+  "website": "http://www.gregorysterndds.com",
+  "city": "Los Angeles",
+  "region": "CA",
+  "phone": "+18445782719",
+  "email": "gregorysterndds@gmail.com",
+  "address": "10921 Wilshire Blvd Unit 1201, Los Angeles, US-CA, 90024",
+  "category": "general_dentistry",
+  "source": "overture",
+  "industry": "dentist",
+  "socials": [
+   "https://www.facebook.com/147787725639754"
+  ],
+  "dns_ok": true
+ },
+ {
+  "name": "Atmosphere Salon",
+  "website": "http://atmospheredenver.com/",
+  "city": "Denver",
+  "region": "CO",
+  "phone": "+13034954582",
+  "email": "rayna@atmospheredenver.com",
+  "address": "4155 E Jewell Ave #1106, Denver, US-CO, 80222",
+  "category": "hair_salon",
+  "source": "overture",
+  "industry": "hair salon",
+  "socials": [
+   "https://www.facebook.com/506191515900441"
+  ],
+  "dns_ok": true
+ },
+ {
+  "name": "Hudson County Bar Association",
+  "website": "https://hcbalaw.com",
+  "city": "New York",
+  "region": "NY",
+  "phone": null,
+  "email": null,
+  "address": "583 Newark Ave, Jersey City, US-NJ, 07306-2301",
+  "category": "legal_service",
+  "source": "overture",
+  "industry": "lawyer",
+  "socials": [],
+  "dns_ok": true
+ },
+ {
+  "name": "Leslie Cole",
+  "website": "http://lesliemystylist.com/",
+  "city": "San Diego",
+  "region": "CA",
+  "phone": "+16195207077",
+  "email": "lesliemystylist@gmail.com",
+  "address": "4028 Wabaska Dr, San Diego, US-CA, 92107-1812",
+  "category": "hair_salon",
+  "source": "overture",
+  "industry": "hair salon",
+  "socials": [
+   "https://www.facebook.com/234094317342679"
+  ],
+  "dns_ok": true
+ },
+ {
+  "name": "Alicia Med Spa",
+  "website": "https://www.alicia-spa.com/",
+  "city": "Miami",
+  "region": "FL",
+  "phone": "+17868141670",
+  "email": "usabeautician@gmail.com",
+  "address": "1100 Biscayne Blvd, Miami, US-FL, 33132",
+  "category": "medical_spa",
+  "source": "overture",
+  "industry": "med spa",
+  "socials": [
+   "https://www.facebook.com/578064392060093"
+  ],
+  "dns_ok": true
+ },
+ {
+  "name": "Encanto Law, Llc",
+  "website": "http://www.encantolaw.com",
+  "city": "Phoenix",
+  "region": "AZ",
+  "phone": "+16028480207",
+  "email": null,
+  "address": "20 E Thomas Rd  Ste 2200, Phoenix, US-AZ, 85012-3133",
+  "category": "attorney_or_law_firm",
+  "source": "overture",
+  "industry": "lawyer",
+  "socials": [],
+  "dns_ok": true
+ },
+ {
+  "name": "Appealtech",
+  "website": "https://www.appealtech.com",
+  "city": "New York",
+  "region": "NY",
+  "phone": "+12122133222",
+  "email": null,
+  "address": "7 W 36th St  Fl 10, New York, US-NY, 10018-7157",
+  "category": "legal_service",
+  "source": "overture",
+  "industry": "lawyer",
+  "socials": [],
+  "dns_ok": true
+ },
+ {
+  "name": "Aiello Dental Excellence",
+  "website": "http://www.smilesculpture.com",
+  "city": "Chicago",
+  "region": "IL",
+  "phone": "+17083453440",
+  "email": "info@aiellodentist.com",
+  "address": "927 S Mannheim Rd, Westchester, US-IL, 60154",
+  "category": "general_dentistry",
+  "source": "overture",
+  "industry": "dentist",
+  "socials": [
+   "https://www.facebook.com/328663973971348"
+  ],
+  "dns_ok": true
+ },
+ {
+  "name": "Lavish Lox",
+  "website": "http://www.lavishloxstudio.vpweb.com",
+  "city": "Denver",
+  "region": "CO",
+  "phone": "+17209876256",
+  "email": null,
+  "address": "5220 Wadsworth Byp, Arvada, US-CO, 80002",
+  "category": "hair_salon",
+  "source": "overture",
+  "industry": "hair salon",
+  "socials": [],
+  "dns_ok": true
+ },
+ {
+  "name": "Nani Beauty Salon",
+  "website": "http://nanibeautysalon.placeweb.site",
+  "city": "San Diego",
+  "region": "CA",
+  "phone": "+16195850252",
+  "email": null,
+  "address": "1177 3rd Ave, Chula Vista, US-CA, 91911-3171",
+  "category": "beauty_salon",
+  "source": "overture",
+  "industry": "hair salon",
+  "socials": [
+   "https://www.facebook.com/168036216547062"
+  ],
+  "dns_ok": true
+ },
+ {
+  "name": "Live Fit Studios",
+  "website": "http://livefitstudiospnw.com/",
+  "city": "Portland",
+  "region": "OR",
+  "phone": "+13605243744",
+  "email": "livefitstudiospnw@gmail.com",
+  "address": "2115 SE 192nd Ave Ste. 106B, Vancouver, US-WA, 98607",
+  "category": "gym",
+  "source": "overture",
+  "industry": "gym",
+  "socials": [
+   "https://www.facebook.com/1654161664649709"
+  ],
+  "dns_ok": true
+ },
+ {
+  "name": "Flawless Hair and Nail Studio",
+  "website": "http://www.blackstylists.com",
+  "city": "Las Vegas",
+  "region": "NV",
+  "phone": "+17026380188",
+  "email": null,
+  "address": "3231 N Decatur Blvd, Las Vegas, US-NV, 89130",
+  "category": "hair_salon",
+  "source": "overture",
+  "industry": "hair salon",
+  "socials": [
+   "https://www.facebook.com/136455023119093"
+  ],
+  "dns_ok": true
+ },
+ {
+  "name": "Susan Ellison Dentistry & Cosmetics",
+  "website": "https://www.susanellisondds.com/",
+  "city": "Houston",
+  "region": "TX",
+  "phone": "+12819498560",
+  "email": null,
+  "address": "12850 Jones Rd, Houston, US-TX, 77070",
+  "category": "dental_clinic",
+  "source": "overture",
+  "industry": "dentist",
+  "socials": [
+   "https://www.facebook.com/923363727782469"
+  ],
+  "dns_ok": true
+ },
+ {
+  "name": "Pioneer Title Agency",
+  "website": "http://www.PioneerTitleAgency.com/",
+  "city": "Phoenix",
+  "region": "AZ",
+  "phone": "+16238158700",
+  "email": "mickey.garcia@ptaaz.com",
+  "address": "9015 W Union Hills Dr, Peoria, US-AZ, 85382-3106",
+  "category": "legal_service",
+  "source": "overture",
+  "industry": "lawyer",
+  "socials": [
+   "https://www.facebook.com/809522852528747"
+  ],
+  "dns_ok": true
+ },
+ {
+  "name": "Classy Cuts and Hair Beauty Salon",
+  "website": "https://classy-cuts-hair-beauty-salon.hub.biz/",
+  "city": "Denver",
+  "region": "CO",
+  "phone": "+13039371500",
+  "email": null,
+  "address": "79 Knox Ct, Denver, US-CO, 80219",
+  "category": "beauty_salon",
+  "source": "overture",
+  "industry": "hair salon",
+  "socials": [
+   "https://www.facebook.com/141926455853306"
+  ],
+  "dns_ok": true
+ },
+ {
+  "name": "King Endodontics",
+  "website": "http://www.kingendo.com/",
+  "city": "Chicago",
+  "region": "IL",
+  "phone": "+18475887890",
+  "email": "kingendo@kingendo.com",
+  "address": "6769 N Milwaukee Ave, Niles, US-IL, 60714-4418",
+  "category": "dental_clinic",
+  "source": "overture",
+  "industry": "dentist",
+  "socials": [
+   "https://www.facebook.com/186581804722508"
+  ],
+  "dns_ok": true
+ },
+ {
+  "name": "Smith and Co Botox Specialist",
+  "website": "http://smithandco.co/",
+  "city": "Miami",
+  "region": "FL",
+  "phone": "+13053932311",
+  "email": "smith@smithandco.co",
+  "address": "1410 20th St, Miami Beach, US-FL, 33139",
+  "category": "medical_spa",
+  "source": "overture",
+  "industry": "med spa",
+  "socials": [
+   "https://www.facebook.com/112477826986197"
+  ],
+  "dns_ok": true
+ },
+ {
+  "name": "Commercial Roofing Contractor - Exposed Roofing",
+  "website": "http://www.commercialroofingindallas.com",
+  "city": "Dallas",
+  "region": "TX",
+  "phone": "+12148100302",
+  "email": null,
+  "address": "2467 Fabens Rd, Dallas, US-TX, 75229-4549",
+  "category": "roofing",
+  "source": "overture",
+  "industry": "roofer",
+  "socials": [],
+  "dns_ok": true
+ },
+ {
+  "name": "The Implant Learning Center",
+  "website": "http://www.theimplantlearningcenter.com/",
+  "city": "Chicago",
+  "region": "IL",
+  "phone": "+13126249322",
+  "email": null,
+  "address": "30 N Michigan Ave Ste 1220, Chicago, US-IL, 60602",
+  "category": "dentistry_school",
+  "source": "overture",
+  "industry": "dentist",
+  "socials": [],
+  "dns_ok": false
+ },
+ {
+  "name": "Ortega Law Group LLC",
+  "website": "https://www.ortegalawgroupllc.com/",
+  "city": "Phoenix",
+  "region": "AZ",
+  "phone": "+16026107697",
+  "email": "info@ortegalawgroupllc.com",
+  "address": "3838 N Central Ave Ste 1750, Phoenix, US-AZ, 85012",
+  "category": "attorney_or_law_firm",
+  "source": "overture",
+  "industry": "lawyer",
+  "socials": [
+   "https://www.facebook.com/108354625301079"
+  ],
+  "dns_ok": true
+ },
+ {
+  "name": "Kelsey Seybold Clinic",
+  "website": "https://www.kelsey-seybold.com/find-a-houston-doctor/elmira-rakhmatulina-family-medicine",
+  "city": "Houston",
+  "region": "TX",
+  "phone": "+17134429100",
+  "email": null,
+  "address": "11555 University Blvd, Sugar Land, US-TX, 77478",
+  "category": "pediatric_dentistry",
+  "source": "overture",
+  "industry": "dentist",
+  "socials": [],
+  "dns_ok": true
+ },
+ {
+  "name": "Rosacci Law Firm PC",
+  "website": "http://www.rosaccilawfirm.com/",
+  "city": "Phoenix",
+  "region": "AZ",
+  "phone": "+16029541300",
+  "email": "vbellomo@rosaccilawfirm.com",
+  "address": "11120 N Tatum Blvd, Phoenix, US-AZ, 85028-1628",
+  "category": "attorney_or_law_firm",
+  "source": "overture",
+  "industry": "lawyer",
+  "socials": [
+   "https://www.facebook.com/146283082083255"
+  ],
+  "dns_ok": true
+ },
+ {
+  "name": "Robert's Salon",
+  "website": "http://robertssalons.com",
+  "city": "San Diego",
+  "region": "CA",
+  "phone": "+16192870351",
+  "email": null,
+  "address": "5144 Waring Rd, San Diego, US-CA, 92120",
+  "category": "beauty_salon",
+  "source": "overture",
+  "industry": "hair salon",
+  "socials": [
+   "https://www.facebook.com/2365341247026438"
+  ],
+  "dns_ok": false
+ },
+ {
+  "name": "Benjamin E. Rafail, Dds",
+  "website": "https://heartland.com",
+  "city": "Houston",
+  "region": "TX",
+  "phone": "+12812259906",
+  "email": null,
+  "address": "12320 Barker Cypress Rd Ste 800, Cypress, US-TX, 77429-8330",
+  "category": "general_dentistry",
+  "source": "overture",
+  "industry": "dentist",
+  "socials": [],
+  "dns_ok": true
+ },
+ {
+  "name": "Prowire Orthodontic Laboratory",
+  "website": "https://prowire-orthodontic-laboratory.business.site",
+  "city": "Los Angeles",
+  "region": "CA",
+  "phone": "+18189579900",
+  "email": null,
+  "address": "3712 Park Pl, Montrose, US-CA, 91020-1623",
+  "category": "b2b_dental_lab",
+  "source": "overture",
+  "industry": "dentist",
+  "socials": [],
+  "dns_ok": true
+ },
+ {
+  "name": "De Legal Docs",
+  "website": "https://delegaldocs.com",
+  "city": "Phoenix",
+  "region": "AZ",
+  "phone": "+16026267577",
+  "email": null,
+  "address": "3106 W Thomas Rd Ste 1112, Phoenix, US-AZ, 85017-5305",
+  "category": "legal_service",
+  "source": "overture",
+  "industry": "lawyer",
+  "socials": [],
+  "dns_ok": true
+ },
+ {
+  "name": "Dumond Law Firm, Pllc",
+  "website": "https://dumondlawaz.com",
+  "city": "Phoenix",
+  "region": "AZ",
+  "phone": "+16028034975",
+  "email": null,
+  "address": "340 E Palm Ln  Ste A100, Phoenix, US-AZ, 85004-4603",
+  "category": "attorney_or_law_firm",
+  "source": "overture",
+  "industry": "lawyer",
+  "socials": [],
+  "dns_ok": true
+ },
+ {
+  "name": "Gallery West Hair Salon",
+  "website": "https://www.westhair.salon",
+  "city": "San Diego",
+  "region": "CA",
+  "phone": "+16195012068",
+  "email": null,
+  "address": "3975 5th Ave, San Diego, US-CA, 92103-3101",
+  "category": "beauty_salon",
+  "source": "overture",
+  "industry": "hair salon",
+  "socials": [
+   "https://www.facebook.com/1768704170056137"
+  ],
+  "dns_ok": true
+ },
+ {
+  "name": "The Weiler Law Firm",
+  "website": "http://www.weilerlawfirm.com/",
+  "city": "Phoenix",
+  "region": "AZ",
+  "phone": "+16027147810",
+  "email": "aweiler@weilerlawfirm.com",
+  "address": "7600 N 15th St, Phoenix, US-AZ, 85020-4305",
+  "category": "attorney_or_law_firm",
+  "source": "overture",
+  "industry": "lawyer",
+  "socials": [
+   "https://www.facebook.com/401339510004243"
+  ],
+  "dns_ok": true
+ },
+ {
+  "name": "Consumer Protection Law Group",
+  "website": "https://247lemonlaw.com",
+  "city": "Phoenix",
+  "region": "AZ",
+  "phone": "+14804709918",
+  "email": "frgalaw12@gmail.com",
+  "address": "3101 N Central Ave Ste 301, Phoenix, AZ, 85012",
+  "category": "attorney_or_law_firm",
+  "source": "overture",
+  "industry": "lawyer",
+  "socials": [
+   "https://www.facebook.com/217390788307039"
+  ],
+  "dns_ok": true
+ },
+ {
+  "name": "Hovekian Dental Studio Inc",
+  "website": "https://www.hovekianlab.com",
+  "city": "Los Angeles",
+  "region": "CA",
+  "phone": "+18185995030",
+  "email": null,
+  "address": "18401 Burbank Blvd  Ste 110, Tarzana, US-CA, 91356-2878",
+  "category": "b2b_dental_lab",
+  "source": "overture",
+  "industry": "dentist",
+  "socials": [],
+  "dns_ok": true
+ },
+ {
+  "name": "Plumb Quick",
+  "website": "http://www.plumbquickinc.com/",
+  "city": "Austin",
+  "region": "TX",
+  "phone": "+15122467440",
+  "email": "christine@pqmechanical.com",
+  "address": "3905 Prairie Ln, Austin, US-TX, 78728",
+  "category": "plumbing",
+  "source": "overture",
+  "industry": "plumber",
+  "socials": [
+   "https://www.facebook.com/1222527651115762"
+  ],
+  "dns_ok": true
+ },
+ {
+  "name": "Pollock Cohen Llp",
+  "website": "https://www.pollockcohen.com",
+  "city": "New York",
+  "region": "NY",
+  "phone": "+12123375361",
+  "email": null,
+  "address": "111 Broadway  Rm 1804, New York, US-NY, 10006-0014",
+  "category": "attorney_or_law_firm",
+  "source": "overture",
+  "industry": "lawyer",
+  "socials": [],
+  "dns_ok": true
+ },
+ {
+  "name": "Breath Body And Soul",
+  "website": "http://breathbodyandsoul.com",
+  "city": "Seattle",
+  "region": "WA",
+  "phone": null,
+  "email": null,
+  "address": "618 W McGraw St, Seattle, US-WA, 98119-2837",
+  "category": "yoga_studio",
+  "source": "overture",
+  "industry": "gym",
+  "socials": [],
+  "dns_ok": false
+ },
+ {
+  "name": "Dental Planet",
+  "website": "http://www.ourdentalplanet.com",
+  "city": "Los Angeles",
+  "region": "CA",
+  "phone": "+18185062977",
+  "email": "dentalplanetnh@officeliveusers.com",
+  "address": "11507 Oxnard St A, Los Angeles, US-CA, 91606",
+  "category": "general_dentistry",
+  "source": "overture",
+  "industry": "dentist",
+  "socials": [
+   "https://www.facebook.com/1231508856945058"
+  ],
+  "dns_ok": true
+ },
+ {
+  "name": "Mordowitz & Lemberg",
+  "website": "https://www.morlemlaw.com",
+  "city": "New York",
+  "region": "NY",
+  "phone": "+12126833750",
+  "email": "blem@morlemlaw.com",
+  "address": "147 Lexington Ave, New York, US-NY, 10016",
+  "category": "attorney_or_law_firm",
+  "source": "overture",
+  "industry": "lawyer",
+  "socials": [
+   "https://www.facebook.com/1724302084491218"
+  ],
+  "dns_ok": true
+ },
+ {
+  "name": "San Antonio TMJ and Sleep Apnea",
+  "website": "http://www.sanantoniotmjandsleepapnea.com/",
+  "city": "San Antonio",
+  "region": "TX",
+  "phone": "+12103088228",
+  "email": "diane@sanantoniotmjandsleepapnea.com",
+  "address": "7551 Callaghan Rd, San Antonio, US-TX, 78229-2859",
+  "category": "dental_clinic",
+  "source": "overture",
+  "industry": "dentist",
+  "socials": [
+   "https://www.facebook.com/1431975997039243"
+  ],
+  "dns_ok": true
+ },
+ {
+  "name": "Barkley Timothy P DDS",
+  "website": "http://www.timbarkleydds.com",
+  "city": "Houston",
+  "region": "TX",
+  "phone": "+12813749490",
+  "email": "timbarkleydds@aol.com",
+  "address": "8678 Louetta Rd B, Spring, US-TX, 77379",
+  "category": "cosmetic_dentistry",
+  "source": "overture",
+  "industry": "dentist",
+  "socials": [
+   "https://www.facebook.com/160176123996840"
+  ],
+  "dns_ok": true
+ },
+ {
+  "name": "Salvatore Storniolo Dental",
+  "website": "https://drsaldds.com",
+  "city": "Chicago",
+  "region": "IL",
+  "phone": "+17084560800",
+  "email": null,
+  "address": "8524 W Lawrence Ave, Norridge, US-IL, 60706-2956",
+  "category": "dental_clinic",
+  "source": "overture",
+  "industry": "dentist",
+  "socials": [],
+  "dns_ok": true
+ },
+ {
+  "name": "Camp Law Plc",
+  "website": "https://camplawplc.com",
+  "city": "Phoenix",
+  "region": "AZ",
+  "phone": "+16025963033",
+  "email": null,
+  "address": "8902 N Central Ave  Ste 4, Phoenix, US-AZ, 85020-2889",
+  "category": "attorney_or_law_firm",
+  "source": "overture",
+  "industry": "lawyer",
+  "socials": [],
+  "dns_ok": true
+ },
+ {
+  "name": "Aztec Documents",
+  "website": "http://www.bankruptcyordivorcephoenix.com",
+  "city": "Phoenix",
+  "region": "AZ",
+  "phone": "+16022535292",
+  "email": "info@aztecdocuments.com",
+  "address": "723 W Polk St, Phoenix, US-AZ, 85007",
+  "category": "legal_service",
+  "source": "overture",
+  "industry": "lawyer",
+  "socials": [
+   "https://www.facebook.com/1434014810244740"
+  ],
+  "dns_ok": false
+ },
+ {
+  "name": "Haralson, Miller, Pitt, Feldman and McAnally",
+  "website": "http://www.phoenix-personalinjuryattorney.com",
+  "city": "Phoenix",
+  "region": "AZ",
+  "phone": "+16022665557",
+  "email": null,
+  "address": "2800 N Central Ave, Phoenix, US-AZ, 85004-1007",
+  "category": "attorney_or_law_firm",
+  "source": "overture",
+  "industry": "lawyer",
+  "socials": [
+   "https://www.facebook.com/2204334979887661"
+  ],
+  "dns_ok": true
+ },
+ {
+  "name": "Windy City Orthodontics",
+  "website": "http://www.windycityortho.com/",
+  "city": "Chicago",
+  "region": "IL",
+  "phone": "+17736978038",
+  "email": "info@windycityortho.com",
+  "address": "2921 N Lincoln Ave, Chicago, US-IL, 60657",
+  "category": "orthodontics",
+  "source": "overture",
+  "industry": "dentist",
+  "socials": [
+   "https://www.facebook.com/103155066438609"
+  ],
+  "dns_ok": true
+ },
+ {
+  "name": "SoulCycle",
+  "website": "http://www.soul-cycle.com/",
+  "city": "Seattle",
+  "region": "WA",
+  "phone": "+12068099940",
+  "email": null,
+  "address": "2694 NE 49th St, Seattle, US-WA, 98105-5010",
+  "category": "gym",
+  "source": "overture",
+  "industry": "gym",
+  "socials": [
+   "https://www.facebook.com/107698547272203"
+  ],
+  "dns_ok": true
+ },
+ {
+  "name": "Inglewood Dental & Orthodontics",
+  "website": "https://inglewooddentalandorthodontics.com/",
+  "city": "Los Angeles",
+  "region": "CA",
+  "phone": "+13106743322",
+  "email": "info@inglewoodfamilydentalcare.com",
+  "address": "400 E Regent St, Inglewood, US-CA, 90301",
+  "category": "dental_clinic",
+  "source": "overture",
+  "industry": "dentist",
+  "socials": [
+   "https://www.facebook.com/202061220610254"
+  ],
+  "dns_ok": true
+ },
+ {
+  "name": "Bluerose Natural Nail Spa",
+  "website": "https://www.bluerosenaturalnailspa.com",
+  "city": "Las Vegas",
+  "region": "NV",
+  "phone": "+17028482808",
+  "email": "702bluerose@gmail.com",
+  "address": "1171 S Buffalo Dr, Las Vegas, US-NV, 89117-8316",
+  "category": "nail_salon",
+  "source": "overture",
+  "industry": "hair salon",
+  "socials": [
+   "https://www.facebook.com/114167583331978"
+  ],
+  "dns_ok": true
+ },
+ {
+  "name": "Embrace Dental and Orthodontics",
+  "website": "http://embracedentalandortho.com/",
+  "city": "Los Angeles",
+  "region": "CA",
+  "phone": "+15626307777",
+  "email": "embracedental1@gmail.com",
+  "address": "12009 Garfield Ave, South Gate, US-CA, 90280",
+  "category": "dental_clinic",
+  "source": "overture",
+  "industry": "dentist",
+  "socials": [
+   "https://www.facebook.com/1248723355303762"
+  ],
+  "dns_ok": true
+ },
+ {
+  "name": "Rockmoor Roofing Systems",
+  "website": "https://www.rockmoorroofing.com/",
+  "city": "Dallas",
+  "region": "TX",
+  "phone": "+12142336210",
+  "email": "jrader@rockmoorroofing.com",
+  "address": "16950 Dallas Pkwy, Dallas, US-TX, 75248",
+  "category": "roofing",
+  "source": "overture",
+  "industry": "roofer",
+  "socials": [
+   "https://www.facebook.com/102396932521396"
+  ],
+  "dns_ok": true
+ },
+ {
+  "name": "Halea Yoga",
+  "website": "http://haleayoga.com/",
+  "city": "Seattle",
+  "region": "WA",
+  "phone": "+12064026772",
+  "email": "info@haleayoga.com",
+  "address": "7110 Woodlawn Ave NE, Seattle, US-WA, 98115",
+  "category": "yoga_studio",
+  "source": "overture",
+  "industry": "gym",
+  "socials": [
+   "https://www.facebook.com/720372811322776"
+  ],
+  "dns_ok": true
+ },
+ {
+  "name": "Smiles on Elston",
+  "website": "http://www.SmilesOnElston.com/",
+  "city": "Chicago",
+  "region": "IL",
+  "phone": "+17737637434",
+  "email": "smilesonelston@gmail.com",
+  "address": "5780 N Elston Ave, Chicago, US-IL, 60646",
+  "category": "dental_clinic",
+  "source": "overture",
+  "industry": "dentist",
+  "socials": [
+   "https://www.facebook.com/363270080435365"
+  ],
+  "dns_ok": true
+ },
+ {
+  "name": "Grand Lakes Dental Group and Orthodontics",
+  "website": "https://www.GrandLakesDentalGroup.com/?sc_cid=Facebook%3AO%3AGP%3A645%3ASocial%3AGeneral%3Ana&_vsrefdom=organic_social&y_source=1_MTEwMjkxNS01NTktbG9jYXRpb24ud2Vic2l0ZQ%3D%3D",
+  "city": "Houston",
+  "region": "TX",
+  "phone": "+12815745005",
+  "email": "grandlakesdentalgroup@smilegeneration.com",
+  "address": "6501 S Fry Rd Ste 800, Katy, US-TX, 77494",
+  "category": "dental_clinic",
+  "source": "overture",
+  "industry": "dentist",
+  "socials": [
+   "https://www.facebook.com/598419286848106"
+  ],
+  "dns_ok": true
+ },
+ {
+  "name": "Chrysalis Shelter",
+  "website": "https://www.chrysalis-shelter.org",
+  "city": "Phoenix",
+  "region": "AZ",
+  "phone": null,
+  "email": null,
+  "address": "1110 E Missouri Ave Ste 720, Phoenix, US-AZ, 85014-2706",
+  "category": "legal_service",
+  "source": "overture",
+  "industry": "lawyer",
+  "socials": [],
+  "dns_ok": true
+ },
+ {
+  "name": "Titlebaum Richard Dmd",
+  "website": "http://smilesaver.net",
+  "city": "Philadelphia",
+  "region": "PA",
+  "phone": "+12152331163",
+  "email": null,
+  "address": "813 Bethlehem Pike, Erdenheim, US-PA, 19038-8100",
+  "category": "general_dentistry",
+  "source": "overture",
+  "industry": "dentist",
+  "socials": [],
+  "dns_ok": false
+ },
+ {
+  "name": "Allure Hair Studio",
+  "website": "https://allurehairstudio.com",
+  "city": "Denver",
+  "region": "CO",
+  "phone": "+13037151000",
+  "email": null,
+  "address": "44 Cook St  Ste 200 Unit 29, Denver, US-CO, 80206-5832",
+  "category": "beauty_salon",
+  "source": "overture",
+  "industry": "hair salon",
+  "socials": [],
+  "dns_ok": true
+ },
+ {
+  "name": "Higdon's Hair Studio",
+  "website": "http://www.higdonshairstudio.com/",
+  "city": "Denver",
+  "region": "CO",
+  "phone": "+13034555208",
+  "email": "istyle520@msn.com",
+  "address": "1636 Boulder St, Denver, US-CO, 80211",
+  "category": "hair_salon",
+  "source": "overture",
+  "industry": "hair salon",
+  "socials": [
+   "https://www.facebook.com/365477456889612"
+  ],
+  "dns_ok": true
+ },
+ {
+  "name": "The Parlour",
+  "website": "http://www.theparlour101.com",
+  "city": "San Diego",
+  "region": "CA",
+  "phone": "+17607532500",
+  "email": "theparlour101@yahoo.com",
+  "address": "345 S Coast Hwy 101, Encinitas, US-CA, 92024",
+  "category": "hair_salon",
+  "source": "overture",
+  "industry": "hair salon",
+  "socials": [
+   "https://www.facebook.com/439374792877614"
+  ],
+  "dns_ok": false
+ },
+ {
+  "name": "Lone Star Family Dental",
+  "website": "https://lonestarfamilydentistry.com/",
+  "city": "Houston",
+  "region": "TX",
+  "phone": "+13463880505",
+  "email": "lsfdental1@outlook.com",
+  "address": "3701 Shaver St, Pasadena, US-TX, 77504",
+  "category": "dental_clinic",
+  "source": "overture",
+  "industry": "dentist",
+  "socials": [
+   "https://www.facebook.com/106019658401840"
+  ],
+  "dns_ok": true
+ },
+ {
+  "name": "Kindred Hair Salon",
+  "website": "https://kindredstudiolv.com/",
+  "city": "Las Vegas",
+  "region": "NV",
+  "phone": "+17023399383",
+  "email": "sherrihiggins@kindredstudiolv.com",
+  "address": "8975 W Charleston Blvd, Las Vegas, US-NV, 89117",
+  "category": "hair_salon",
+  "source": "overture",
+  "industry": "hair salon",
+  "socials": [
+   "https://www.facebook.com/103334897859314"
+  ],
+  "dns_ok": true
+ },
+ {
+  "name": "Who's Next Barber Shop",
+  "website": "http://www.whosnextlajolla.com",
+  "city": "San Diego",
+  "region": "CA",
+  "phone": "+18585877979",
+  "email": null,
+  "address": "3251 Holiday Ct, San Diego, US-CA, 92037",
+  "category": "barber",
+  "source": "overture",
+  "industry": "hair salon",
+  "socials": [
+   "https://www.facebook.com/143966795633675"
+  ],
+  "dns_ok": true
+ },
+ {
+  "name": "Oak Lawn Lower Extremity Associates, P.C.",
+  "website": "http://www.olleapc.com/",
+  "city": "Chicago",
+  "region": "IL",
+  "phone": "+17084254950",
+  "email": "info@olleapc.com",
+  "address": "4701 W 95th St, Oak Lawn, US-IL, 60453-2515",
+  "category": "dental_clinic",
+  "source": "overture",
+  "industry": "dentist",
+  "socials": [
+   "https://www.facebook.com/988334147973620"
+  ],
+  "dns_ok": false
+ },
+ {
+  "name": "Skin...by Beverly Lynn",
+  "website": "http://Skinbybeverlylynn.skincaretherapy.net/",
+  "city": "Las Vegas",
+  "region": "NV",
+  "phone": "+17024100282",
+  "email": "blc23@outlook.com",
+  "address": "10300 W Charleston Blvd, Las Vegas, US-NV, 89135-1037",
+  "category": "beauty_salon",
+  "source": "overture",
+  "industry": "hair salon",
+  "socials": [
+   "https://www.facebook.com/165993487065517"
+  ],
+  "dns_ok": true
+ },
+ {
+  "name": "Advanced Family Dental Care",
+  "website": "http://advancedfamilydental.net/",
+  "city": "Philadelphia",
+  "region": "PA",
+  "phone": "+12156631223",
+  "email": "afdc327@gmail.com",
+  "address": "327 Township Line Rd, Elkins Park, US-PA, 19027-2222",
+  "category": "dental_clinic",
+  "source": "overture",
+  "industry": "dentist",
+  "socials": [
+   "https://www.facebook.com/148695955151089"
+  ],
+  "dns_ok": false
+ },
+ {
+  "name": "Fade + Feather",
+  "website": "https://www.fadeandfeather.co",
+  "city": "Denver",
+  "region": "CO",
+  "phone": null,
+  "email": null,
+  "address": "2496 S University Blvd, Denver, US-CO, 80210-5408",
+  "category": "beauty_salon",
+  "source": "overture",
+  "industry": "hair salon",
+  "socials": [],
+  "dns_ok": true
+ },
+ {
+  "name": "Dr. Dani Benyaminy",
+  "website": "http://drdanib.com/",
+  "city": "Los Angeles",
+  "region": "CA",
+  "phone": "+13109109950",
+  "email": "info@drdanib.com",
+  "address": "10700 Santa Monica Blvd, Los Angeles, US-CA, 90025-4715",
+  "category": "cosmetic_dentistry",
+  "source": "overture",
+  "industry": "dentist",
+  "socials": [
+   "https://www.facebook.com/582614328420357"
+  ],
+  "dns_ok": true
+ },
+ {
+  "name": "Obaisi Orthodontics",
+  "website": "http://www.obaisiortho.com/",
+  "city": "Chicago",
+  "region": "IL",
+  "phone": "+17735889200",
+  "email": "info@obaisiortho.com",
+  "address": "3334 W Peterson Ave, Chicago, US-IL, 60659",
+  "category": "orthodontics",
+  "source": "overture",
+  "industry": "dentist",
+  "socials": [
+   "https://www.facebook.com/510571025649140"
+  ],
+  "dns_ok": true
+ },
+ {
+  "name": "Jewel Yoga",
+  "website": "http://www.jewelyogapdx.com/",
+  "city": "Portland",
+  "region": "OR",
+  "phone": "+15032275524",
+  "email": "jewelyogapdx@gmail.com",
+  "address": "1020 SW Taylor St #780, Portland, US-OR, 97205",
+  "category": "yoga_studio",
+  "source": "overture",
+  "industry": "gym",
+  "socials": [
+   "https://www.facebook.com/106789736365"
+  ],
+  "dns_ok": true
+ },
+ {
+  "name": "Wheeler Law",
+  "website": "http://www.amwheelerlaw.com/",
+  "city": "Phoenix",
+  "region": "AZ",
+  "phone": "+16025865625",
+  "email": "alicia@amwheelerlaw.com",
+  "address": "7227 N 16th St Ste 195, Phoenix, US-AZ, 85020",
+  "category": "attorney_or_law_firm",
+  "source": "overture",
+  "industry": "lawyer",
+  "socials": [
+   "https://www.facebook.com/102726871273163"
+  ],
+  "dns_ok": true
+ },
+ {
+  "name": "Quentel Orthodontics",
+  "website": "https://www.quentelorthodontics.com/",
+  "city": "Houston",
+  "region": "TX",
+  "phone": "+12544923045",
+  "email": null,
+  "address": "16903 W Lake Houston Pkwy, Humble, US-TX, 77346-4733",
+  "category": "orthodontics",
+  "source": "overture",
+  "industry": "dentist",
+  "socials": [
+   "https://www.facebook.com/178353028860118"
+  ],
+  "dns_ok": true
+ },
+ {
+  "name": "Lisa Gao",
+  "website": "http://westwoodlaorthodontics.com",
+  "city": "Los Angeles",
+  "region": "CA",
+  "phone": "+13102086333",
+  "email": "contactus@westwoodlaorthodontics.com",
+  "address": "1033 Gayley Ave #106, Los Angeles, CA, 90024",
+  "category": "orthodontics",
+  "source": "overture",
+  "industry": "dentist",
+  "socials": [
+   "https://www.facebook.com/759250293940437"
+  ],
+  "dns_ok": true
+ },
+ {
+  "name": "Smile Architects",
+  "website": "https://www.smilearchitectsofhouston.com",
+  "city": "Houston",
+  "region": "TX",
+  "phone": "+12814981100",
+  "email": null,
+  "address": "11322 Bellaire Blvd  Ste 112, Houston, US-TX, 77072-5700",
+  "category": "dental_clinic",
+  "source": "overture",
+  "industry": "dentist",
+  "socials": [],
+  "dns_ok": true
+ },
+ {
+  "name": "Picklr Fremont",
+  "website": "https://thepicklr.com/location/fremont/",
+  "city": "Seattle",
+  "region": "WA",
+  "phone": "+12063855782",
+  "email": "fremont.wa@thepicklrfranchise.com",
+  "address": "124 N 35th St, Seattle, US-WA, 98103",
+  "category": "sport_or_fitness_facility",
+  "source": "overture",
+  "industry": "gym",
+  "socials": [
+   "https://www.facebook.com/549943101537189"
+  ],
+  "dns_ok": true
+ },
+ {
+  "name": "Heart Centered Dentistry",
+  "website": "https://www.draudreyboros.com",
+  "city": "Los Angeles",
+  "region": "CA",
+  "phone": "+13102645557",
+  "email": null,
+  "address": "1244 7th St  Ste 102, Santa Monica, US-CA, 90401-1648",
+  "category": "dental_clinic",
+  "source": "overture",
+  "industry": "dentist",
+  "socials": [],
+  "dns_ok": true
+ },
+ {
+  "name": "Moya Dentistry \"My Denitst\"",
+  "website": "http://www.moyadentistry.com/",
+  "city": "San Antonio",
+  "region": "TX",
+  "phone": "+12103376834",
+  "email": null,
+  "address": "3630 SE Military Dr Ste 114, San Antonio, US-TX, 78223",
+  "category": "dental_clinic",
+  "source": "overture",
+  "industry": "dentist",
+  "socials": [],
+  "dns_ok": false
+ },
+ {
+  "name": "Dr John Lenz DDS",
+  "website": "http://www.johnlenzdds.com",
+  "city": "Chicago",
+  "region": "IL",
+  "phone": "+17084428787",
+  "email": null,
+  "address": "8917 Cermak Rd, North Riverside, IL, 60546",
+  "category": "dental_clinic",
+  "source": "overture",
+  "industry": "dentist",
+  "socials": [
+   "https://www.facebook.com/121891504535744"
+  ],
+  "dns_ok": true
+ },
+ {
+  "name": "Houston Dental Implants",
+  "website": "http://dentalimplantshoustontx.com/",
+  "city": "Houston",
+  "region": "TX",
+  "phone": "+12814469157",
+  "email": "office@dentalimplantshoustontx.com",
+  "address": "19502 McKay Dr, Humble, US-TX, 77338-5718",
+  "category": "dental_clinic",
+  "source": "overture",
+  "industry": "dentist",
+  "socials": [
+   "https://www.facebook.com/345610028881459"
+  ],
+  "dns_ok": true
+ },
+ {
+  "name": "Endodontics at La Cantera",
+  "website": "http://www.lacanteraendo.com/",
+  "city": "San Antonio",
+  "region": "TX",
+  "phone": "+12106907668",
+  "email": "office@lacanteraendo.com",
+  "address": "15900 La Cantera Pkwy #20240, San Antonio, US-TX, 78256",
+  "category": "endodontics",
+  "source": "overture",
+  "industry": "dentist",
+  "socials": [
+   "https://www.facebook.com/208913505980396"
+  ],
+  "dns_ok": true
+ },
+ {
+  "name": "Fred de la Cotera, DDS",
+  "website": "http://www.fredjdelacoteradds.com",
+  "city": "Chicago",
+  "region": "IL",
+  "phone": "+17084567282",
+  "email": null,
+  "address": "7518 W North Ave, Elmwood Park, US-IL, 60707",
+  "category": "dental_clinic",
+  "source": "overture",
+  "industry": "dentist",
+  "socials": [],
+  "dns_ok": true
+ },
+ {
+  "name": "Diana Cheng",
+  "website": "https://atoothcompany.com/our-team-1",
+  "city": "Chicago",
+  "region": "IL",
+  "phone": "+13127911829",
+  "email": null,
+  "address": "2165A S China Pl, Chicago, US-IL, 60616-1536",
+  "category": "dental_clinic",
+  "source": "overture",
+  "industry": "dentist",
+  "socials": [],
+  "dns_ok": true
+ },
+ {
+  "name": "Smile Theory at Millennium Park",
+  "website": "http://www.smiletheorymp.com/",
+  "city": "Chicago",
+  "region": "IL",
+  "phone": "+13122630880",
+  "email": "info@smiletheorymp.com",
+  "address": "30 N Michigan Ave, Chicago, US-IL, 60602-3400",
+  "category": "dental_clinic",
+  "source": "overture",
+  "industry": "dentist",
+  "socials": [
+   "https://www.facebook.com/103198084459904"
+  ],
+  "dns_ok": true
+ },
+ {
+  "name": "Mann & Associate, Pllc., Attorneys At Law",
+  "website": "http://mannlawny.com",
+  "city": "New York",
+  "region": "NY",
+  "phone": "+12129411888",
+  "email": null,
+  "address": "401 Broadway  Ste 306, New York, US-NY, 10013-3005",
+  "category": "attorney_or_law_firm",
+  "source": "overture",
+  "industry": "lawyer",
+  "socials": [],
+  "dns_ok": true
+ },
+ {
+  "name": "Kashi Dental",
+  "website": "http://kashidental.com/",
+  "city": "San Antonio",
+  "region": "TX",
+  "phone": "+12109718989",
+  "email": "kashidental@sonivahq.com",
+  "address": "9163 FM78, Converse, US-TX, 78109",
+  "category": "dental_clinic",
+  "source": "overture",
+  "industry": "dentist",
+  "socials": [
+   "https://www.facebook.com/300749966963381"
+  ],
+  "dns_ok": true
+ },
+ {
+  "name": "Paradise Tans, Inc.",
+  "website": "http://paradise-tans.com",
+  "city": "Denver",
+  "region": "CO",
+  "phone": "+13039209949",
+  "email": "paradisetans2001@wmconnect.com",
+  "address": "3972 E 104th Ave, Thornton, US-CO, 80233",
+  "category": "hair_salon",
+  "source": "overture",
+  "industry": "hair salon",
+  "socials": [],
+  "dns_ok": false
+ },
+ {
+  "name": "Oaklane Law Firm",
+  "website": "http://lawfirm.com/",
+  "city": "New York",
+  "region": "NY",
+  "phone": "+19172680380",
+  "email": "lawfirm@hp.com",
+  "address": "99 Lafayette St, New York, US-NY, 10013",
+  "category": "attorney_or_law_firm",
+  "source": "overture",
+  "industry": "lawyer",
+  "socials": [
+   "https://www.facebook.com/358558017344503"
+  ],
+  "dns_ok": true
+ },
+ {
+  "name": "Gigi's Nails & Spa",
+  "website": "http://www.gigishair.com",
+  "city": "San Diego",
+  "region": "CA",
+  "phone": "+16197181002",
+  "email": "benstran@yahoo.com",
+  "address": "5945 Mission Gorge Rd, San Diego, US-CA, 92120-4020",
+  "category": "hair_salon",
+  "source": "overture",
+  "industry": "hair salon",
+  "socials": [
+   "https://www.facebook.com/187414981638838"
+  ],
+  "dns_ok": true
+ },
+ {
+  "name": "Cedar Springs Dental",
+  "website": "https://www.cedarspringsdentaltx.com/",
+  "city": "San Antonio",
+  "region": "TX",
+  "phone": "+12104681981",
+  "email": "info@cedarspringsdentaltx.com",
+  "address": "9708 Business Pkwy Suites 120, Helotes, US-TX, 78023",
+  "category": "general_dentistry",
+  "source": "overture",
+  "industry": "dentist",
+  "socials": [
+   "https://www.facebook.com/109663638731677"
+  ],
+  "dns_ok": true
+ },
+ {
+  "name": "Suzuki Law Offices",
+  "website": "https://www.suzukilawoffices.com/contact/",
+  "city": "Phoenix",
+  "region": "AZ",
+  "phone": "+16026100752",
+  "email": null,
+  "address": "2929 E Camelback Rd, Phoenix, US-AZ, 85016",
+  "category": "attorney_or_law_firm",
+  "source": "overture",
+  "industry": "lawyer",
+  "socials": [
+   "https://www.facebook.com/64349452389"
+  ],
+  "dns_ok": true
+ },
+ {
+  "name": "Rk Law, Pc",
+  "website": "http://www.rklawny.com",
+  "city": "New York",
+  "region": "NY",
+  "phone": "+19178333998",
+  "email": null,
+  "address": "40 Wall St Ste 2500, New York, US-NY, 10005-1487",
+  "category": "legal_service",
+  "source": "overture",
+  "industry": "lawyer",
+  "socials": [],
+  "dns_ok": true
+ },
+ {
+  "name": "American Board of Periodontology",
+  "website": "https://www.abperio.org/",
+  "city": "Chicago",
+  "region": "IL",
+  "phone": "+13126820919",
+  "email": "staff@abperio.org",
+  "address": "737 N Michigan Ave, Chicago, US-IL, 60611",
+  "category": "dental_clinic",
+  "source": "overture",
+  "industry": "dentist",
+  "socials": [
+   "https://www.facebook.com/115038764862614"
+  ],
+  "dns_ok": true
+ },
+ {
+  "name": "Fair Oaks Dental",
+  "website": "https://fairoaksdentaltx.com/",
+  "city": "San Antonio",
+  "region": "TX",
+  "phone": "+12106989100",
+  "email": "fairoaksdental@yahoo.com",
+  "address": "9091 Fair Oaks Pkwy #304, Boerne, US-TX, 78015",
+  "category": "dental_clinic",
+  "source": "overture",
+  "industry": "dentist",
+  "socials": [
+   "https://www.facebook.com/965884286617301"
+  ],
+  "dns_ok": true
+ },
+ {
+  "name": "Mutt Puddles",
+  "website": "http://www.muttpuddles.net",
+  "city": "Denver",
+  "region": "CO",
+  "phone": "+13032557611",
+  "email": "info@muttpuddles.net",
+  "address": "3740 E 120th Ave, Thornton, US-CO, 80233",
+  "category": "hair_salon",
+  "source": "overture",
+  "industry": "hair salon",
+  "socials": [],
+  "dns_ok": false
+ },
+ {
+  "name": "Dr J Anti-Aging Clinic",
+  "website": "https://drjantiagingclinic.com/",
+  "city": "Orlando",
+  "region": "FL",
+  "phone": "+14079721197",
+  "email": null,
+  "address": "7300 Sandlake Commons Blvd., Ste 227 L, Orlando, US-FL, 32819",
+  "category": "medical_spa",
+  "source": "overture",
+  "industry": "med spa",
+  "socials": [],
+  "dns_ok": true
+ },
+ {
+  "name": "Nspire Salon",
+  "website": "https://www.nspiresalon.com",
+  "city": "Las Vegas",
+  "region": "NV",
+  "phone": "+17028706767",
+  "email": null,
+  "address": "5243 W Charleston Blvd, Las Vegas, US-NV, 89146-1366",
+  "category": "hair_salon",
+  "source": "overture",
+  "industry": "hair salon",
+  "socials": [],
+  "dns_ok": false
+ },
+ {
+  "name": "Dr. Amruta Patel",
+  "website": "https://allaboutsmilessa.com",
+  "city": "San Antonio",
+  "region": "TX",
+  "phone": "+12103422000",
+  "email": null,
+  "address": "8261 Fredericksburg Rd, San Antonio, US-TX, 78229-3357",
+  "category": "dental_clinic",
+  "source": "overture",
+  "industry": "dentist",
+  "socials": [],
+  "dns_ok": true
+ },
+ {
+  "name": "Salon Del Rey",
+  "website": "http://salondelrey.com",
+  "city": "San Diego",
+  "region": "CA",
+  "phone": "+16192286604",
+  "email": null,
+  "address": "3517 Del Rey St  Ste 113, San Diego, US-CA, 92109-5759",
+  "category": "hair_salon",
+  "source": "overture",
+  "industry": "hair salon",
+  "socials": [],
+  "dns_ok": true
+ },
+ {
+  "name": "GS2Law",
+  "website": "http://gs2law.com/",
+  "city": "New York",
+  "region": "NY",
+  "phone": "+12123803623",
+  "email": "team@gs2law.com",
+  "address": "164 W 25th St, New York, US-NY, 10001-7400",
+  "category": "legal_service",
+  "source": "overture",
+  "industry": "lawyer",
+  "socials": [
+   "https://www.facebook.com/309789648537"
+  ],
+  "dns_ok": true
+ },
+ {
+  "name": "Nelson Healey",
+  "website": "https://www.nelsonhealey.com",
+  "city": "Phoenix",
+  "region": "AZ",
+  "phone": null,
+  "email": null,
+  "address": "1440 E Missouri Ave, Phoenix, US-AZ, 85014-2458",
+  "category": "legal_service",
+  "source": "overture",
+  "industry": "lawyer",
+  "socials": [],
+  "dns_ok": false
+ },
+ {
+  "name": "Pearlman & Miranda Llc",
+  "website": "https://www.pearlmanmiranda.com",
+  "city": "New York",
+  "region": "NY",
+  "phone": null,
+  "email": null,
+  "address": "110 Edison Pl Ste 301, Newark, US-NJ, 07102-4908",
+  "category": "legal_service",
+  "source": "overture",
+  "industry": "lawyer",
+  "socials": [],
+  "dns_ok": true
+ },
+ {
+  "name": "Nail 2000 Plus and spa",
+  "website": "https://nail2000plus.com/",
+  "city": "San Diego",
+  "region": "CA",
+  "phone": "+18585302880",
+  "email": "billypham123@sbcglobal.net",
+  "address": "8155 Mira Mesa Blvd, San Diego, US-CA, 92126",
+  "category": "nail_salon",
+  "source": "overture",
+  "industry": "hair salon",
+  "socials": [
+   "https://www.facebook.com/426272470859228"
+  ],
+  "dns_ok": true
+ },
+ {
+  "name": "Amor Kids Dentistry",
+  "website": "https://www.amorkidsdentistry.com",
+  "city": "Los Angeles",
+  "region": "CA",
+  "phone": "+13237591523",
+  "email": "dsmetdental@gmail.com",
+  "address": "5877 S Vermont Ave, Los Angeles, US-CA, 90044",
+  "category": "pediatric_dentistry",
+  "source": "overture",
+  "industry": "dentist",
+  "socials": [
+   "https://www.facebook.com/107974548172109"
+  ],
+  "dns_ok": true
+ },
+ {
+  "name": "Town & Country Dental of Oak Park",
+  "website": "http://www.AHealthySmile.com/",
+  "city": "Chicago",
+  "region": "IL",
+  "phone": "+17083830330",
+  "email": "staff@ahealthysmile.com",
+  "address": "1144 Lake St #213, Oak Park, US-IL, 60301",
+  "category": "dental_clinic",
+  "source": "overture",
+  "industry": "dentist",
+  "socials": [
+   "https://www.facebook.com/85681268729"
+  ],
+  "dns_ok": true
+ },
+ {
+  "name": "Ripple Yoga",
+  "website": "http://rippleyoga.com",
+  "city": "Seattle",
+  "region": "WA",
+  "phone": "+12066230444",
+  "email": null,
+  "address": "1311 Republican St, Seattle, US-WA, 98109",
+  "category": "yoga_studio",
+  "source": "overture",
+  "industry": "gym",
+  "socials": [
+   "https://www.twitter.com/rippleyoga"
+  ],
+  "dns_ok": true
+ },
+ {
+  "name": "TNT Strength and Fitness",
+  "website": "http://tntstrengthandfitness.com/",
+  "city": "Portland",
+  "region": "OR",
+  "phone": "+15034770661",
+  "email": "tyler.n.tuck@gmail.com",
+  "address": "7742 SW Nimbus Ave, Beaverton, US-OR, 97008",
+  "category": "gym",
+  "source": "overture",
+  "industry": "gym",
+  "socials": [
+   "https://www.facebook.com/859862314177987"
+  ],
+  "dns_ok": true
+ },
+ {
+  "name": "Assurance Roofing & Construction",
+  "website": "http://www.assurancedfw.com/",
+  "city": "Dallas",
+  "region": "TX",
+  "phone": "+12149265008",
+  "email": "info@assurancedfw.com",
+  "address": "5704 Worth St, Dallas, TX, 75214",
+  "category": "roofing",
+  "source": "overture",
+  "industry": "roofer",
+  "socials": [
+   "https://www.facebook.com/538052146061878"
+  ],
+  "dns_ok": true
+ },
+ {
+  "name": "MUV Fitness SE Portland",
+  "website": "https://www.muvfitness.com/southeast-portland/",
+  "city": "Portland",
+  "region": "OR",
+  "phone": "+15037195731",
+  "email": "muvfitnessclubs@gmail.com",
+  "address": "10414 SE Washington St, Portland, US-OR, 97216",
+  "category": "gym",
+  "source": "overture",
+  "industry": "gym",
+  "socials": [
+   "https://www.facebook.com/243948176347955"
+  ],
+  "dns_ok": true
+ },
+ {
+  "name": "Dental Care Houston",
+  "website": "http://www.dentalcarehouston.com",
+  "city": "Houston",
+  "region": "TX",
+  "phone": "+17138638888",
+  "email": null,
+  "address": "234 Westcott St, Houston, US-TX, 77007-7004",
+  "category": "general_dentistry",
+  "source": "overture",
+  "industry": "dentist",
+  "socials": [],
+  "dns_ok": true
+ },
+ {
+  "name": "Luxury Lash Boutique",
+  "website": "https://www.luxurylashboutique.net/",
+  "city": "San Diego",
+  "region": "CA",
+  "phone": "+18585312545",
+  "email": "receptionist@luxurylashboutique.com",
+  "address": "7660 Fay Ave M, San Diego, US-CA, 92037",
+  "category": "beauty_salon",
+  "source": "overture",
+  "industry": "hair salon",
+  "socials": [
+   "https://www.facebook.com/501695096576193"
+  ],
+  "dns_ok": true
+ },
+ {
+  "name": "Hair In The City",
+  "website": "https://www.hairinthecity.com/",
+  "city": "San Diego",
+  "region": "CA",
+  "phone": "+16198230777",
+  "email": "info@hairinthecity.com",
+  "address": "404 Camino del Rio S Ste 100-4 Ste. 101 Studio 4, San Diego, US-CA, 92108",
+  "category": "hair_salon",
+  "source": "overture",
+  "industry": "hair salon",
+  "socials": [
+   "https://www.facebook.com/197693751901"
+  ],
+  "dns_ok": true
+ },
+ {
+  "name": "Irving Cohen",
+  "website": "http://www.irvingcohen.com",
+  "city": "New York",
+  "region": "NY",
+  "phone": null,
+  "email": null,
+  "address": "233 Broadway Rm 2701, New York, US-NY, 10279-2701",
+  "category": "legal_service",
+  "source": "overture",
+  "industry": "lawyer",
+  "socials": [],
+  "dns_ok": true
+ },
+ {
+  "name": "Procuts",
+  "website": "http://www.procuts.com/salondetail/default.asp?salonid=68525",
+  "city": "Denver",
+  "region": "CO",
+  "phone": "+13037569187",
+  "email": null,
+  "address": "3970 E Butchtel Blvd University Park, Denver, US-CO, 80210",
+  "category": "hair_salon",
+  "source": "overture",
+  "industry": "hair salon",
+  "socials": [],
+  "dns_ok": true
+ },
+ {
+  "name": "Modern Mediation",
+  "website": "https://www.modernmediationaz.com/",
+  "city": "Phoenix",
+  "region": "AZ",
+  "phone": "+14807803798",
+  "email": null,
+  "address": "7878 N 16th St Ste 130-15a, Phoenix, US-AZ, 85020",
+  "category": "legal_service",
+  "source": "overture",
+  "industry": "lawyer",
+  "socials": [
+   "https://www.facebook.com/106977639053913"
+  ],
+  "dns_ok": true
+ },
+ {
+  "name": "Woodslawn Fitness",
+  "website": "http://crossfitwoodslawn.com/",
+  "city": "Portland",
+  "region": "OR",
+  "phone": "+14134277264",
+  "email": "crossfitwoodslawn@gmail.com",
+  "address": "4356 SW Multnomah Blvd, Portland, US-OR, 97219",
+  "category": "gym",
+  "source": "overture",
+  "industry": "gym",
+  "socials": [
+   "https://www.facebook.com/375432953204084"
+  ],
+  "dns_ok": true
+ },
+ {
+  "name": "Lawrence & Jecmen Pllc",
+  "website": "http://ljfamilylaw.com",
+  "city": "Phoenix",
+  "region": "AZ",
+  "phone": "+16028071400",
+  "email": null,
+  "address": "4835 E Cactus Rd  Ste 240, Scottsdale, US-AZ, 85254-4197",
+  "category": "legal_service",
+  "source": "overture",
+  "industry": "lawyer",
+  "socials": [],
+  "dns_ok": true
+ },
+ {
+  "name": "Ikigai spa",
+  "website": "http://ikigaispa52.booksy.com/",
+  "city": "Orlando",
+  "region": "FL",
+  "phone": "+14078006337",
+  "email": "jennylugonuevayork@gmail.com",
+  "address": "13550 Village Park Dr, Orlando, US-FL, 32837",
+  "category": "day_spa",
+  "source": "overture",
+  "industry": "med spa",
+  "socials": [
+   "https://www.facebook.com/111886658433028"
+  ],
+  "dns_ok": true
+ },
+ {
+  "name": "Salon Bodhi",
+  "website": "http://www.salonbodhi.com/",
+  "city": "Denver",
+  "region": "CO",
+  "phone": "+13033257676",
+  "email": "info@salonbodhi.com",
+  "address": "563 Detroit St, Denver, CO, 80206-4313",
+  "category": "beauty_salon",
+  "source": "overture",
+  "industry": "hair salon",
+  "socials": [
+   "https://www.facebook.com/346586755539"
+  ],
+  "dns_ok": true
+ },
+ {
+  "name": "Medspa and Wellness Center",
+  "website": "http://medspa-wellness.com/",
+  "city": "Orlando",
+  "region": "FL",
+  "phone": "+14077048069",
+  "email": "care@ercarecfl.com",
+  "address": "7780 Lake Underhill Rd Ste 111, Orlando, US-FL, 32822",
+  "category": "medical_spa",
+  "source": "overture",
+  "industry": "med spa",
+  "socials": [
+   "https://www.facebook.com/160946457083484"
+  ],
+  "dns_ok": true
+ },
+ {
+  "name": "Chicago Pediatric Dentistry & Orthodontics",
+  "website": "http://www.chicagopedoortho.com/",
+  "city": "Chicago",
+  "region": "IL",
+  "phone": "+13127660995",
+  "email": "admin@chicagopedoortho.com",
+  "address": "1136 S Delano Ct b202, Chicago, US-IL, 60605",
+  "category": "pediatric_dentistry",
+  "source": "overture",
+  "industry": "dentist",
+  "socials": [
+   "https://www.facebook.com/1996349780680832"
+  ],
+  "dns_ok": true
+ },
+ {
+  "name": "Bright Braces",
+  "website": "https://www.brightbraces.com/",
+  "city": "Houston",
+  "region": "TX",
+  "phone": "+12815991155",
+  "email": "info@brightbraces.com",
+  "address": "810 S Mason Rd #290, Katy, US-TX, 77450",
+  "category": "orthodontics",
+  "source": "overture",
+  "industry": "dentist",
+  "socials": [
+   "https://www.facebook.com/133012086795617"
+  ],
+  "dns_ok": true
+ },
+ {
+  "name": "Merion Family Dentistry",
+  "website": "https://merionfamilydentistry.com",
+  "city": "Philadelphia",
+  "region": "PA",
+  "phone": "+14842784441",
+  "email": null,
+  "address": "352 Montgomery Ave, Merion Station, US-PA, 19066-1202",
+  "category": "dental_clinic",
+  "source": "overture",
+  "industry": "dentist",
+  "socials": [],
+  "dns_ok": true
+ },
+ {
+  "name": "Lifesmiles By Randy Mitchmore, Dds",
+  "website": "https://lifesmiles.us",
+  "city": "Houston",
+  "region": "TX",
+  "phone": "+17135929300",
+  "email": null,
+  "address": "1722 W Alabama St, Houston, US-TX, 77098-2808",
+  "category": "dental_clinic",
+  "source": "overture",
+  "industry": "dentist",
+  "socials": [],
+  "dns_ok": true
+ },
+ {
+  "name": "Gregory & Reed",
+  "website": "http://www.gregoryreedlaw.com",
+  "city": "New York",
+  "region": "NY",
+  "phone": "+12126082629",
+  "email": null,
+  "address": "111 Broadway Rm 2101, New York, US-NY, 10006",
+  "category": "attorney_or_law_firm",
+  "source": "overture",
+  "industry": "lawyer",
+  "socials": [],
+  "dns_ok": false
+ },
+ {
+  "name": "K C Hair Productions",
+  "website": "http://www.awebsitecomingsoon.com",
+  "city": "San Diego",
+  "region": "CA",
+  "phone": "+16196980068",
+  "email": "jame.justatrim@gmail.com",
+  "address": "4818 Cypress St, La Mesa, US-CA, 91942",
+  "category": "hair_salon",
+  "source": "overture",
+  "industry": "hair salon",
+  "socials": [
+   "https://www.facebook.com/104125258780236"
+  ],
+  "dns_ok": true
+ },
+ {
+  "name": "J26 Glass Services",
+  "website": "https://www.j26-glass-services.business.site",
+  "city": "Phoenix",
+  "region": "AZ",
+  "phone": "+16023964397",
+  "email": null,
+  "address": "2517 W Mcdowell Rd  Ste 111, Phoenix, US-AZ, 85009-2935",
+  "category": "legal_service",
+  "source": "overture",
+  "industry": "lawyer",
+  "socials": [],
+  "dns_ok": true
+ },
+ {
+  "name": "Thurm Dental Group",
+  "website": "https://www.thurmdental.com/",
+  "city": "Philadelphia",
+  "region": "PA",
+  "phone": "+18562290814",
+  "email": "thurmdentalofc@dentalcarealliance.com",
+  "address": "925 Haddon Ave, Collingswood, US-NJ, 08108",
+  "category": "general_dentistry",
+  "source": "overture",
+  "industry": "dentist",
+  "socials": [
+   "https://www.facebook.com/188659494511742"
+  ],
+  "dns_ok": true
+ },
+ {
+  "name": "MDRN Dental of Westchase Houston",
+  "website": "https://www.mdrn-dental.com/",
+  "city": "Houston",
+  "region": "TX",
+  "phone": "+17135886215",
+  "email": "mdrndental@gmail.com",
+  "address": "10777 Westheimer Rd #390, Houston, US-TX, 77042",
+  "category": "dental_clinic",
+  "source": "overture",
+  "industry": "dentist",
+  "socials": [
+   "https://www.facebook.com/471578983266358"
+  ],
+  "dns_ok": true
+ },
+ {
+  "name": "Calismiles",
+  "website": "http://Www.calismiles.com/",
+  "city": "Los Angeles",
+  "region": "CA",
+  "phone": "+13109288208",
+  "email": "calismilesdentalgroup@gmail.com",
+  "address": "1600 W Redondo Beach Blvd #406, Gardena, US-CA, 90247",
+  "category": "cosmetic_dentistry",
+  "source": "overture",
+  "industry": "dentist",
+  "socials": [
+   "https://www.facebook.com/106088392500516"
+  ],
+  "dns_ok": true
+ },
+ {
+  "name": "Serenity Nails",
+  "website": "https://m.facebook.com/pages/Serenity-Nails/161495333866434",
+  "city": "Las Vegas",
+  "region": "NV",
+  "phone": "+17024372566",
+  "email": null,
+  "address": "2345 E Centennial Pkwy, North Las Vegas, US-NV, 89081",
+  "category": "nail_salon",
+  "source": "overture",
+  "industry": "hair salon",
+  "socials": [
+   "https://www.facebook.com/161495333866434"
+  ],
+  "dns_ok": true
+ },
+ {
+  "name": "Oregon Rhythmic Gymnastics And Dance Academy",
+  "website": "http://www.orgdacademy.com",
+  "city": "Portland",
+  "region": "OR",
+  "phone": "+19717082527",
+  "email": null,
+  "address": "5805 SW 107th Ave, Beaverton, US-OR, 97005-4389",
+  "category": "gymnastics_center",
+  "source": "overture",
+  "industry": "gym",
+  "socials": [],
+  "dns_ok": true
+ },
+ {
+  "name": "Ruggerio Mark A Dmd",
+  "website": "http://drmarkruggerio.com",
+  "city": "Philadelphia",
+  "region": "PA",
+  "phone": "+18564281712",
+  "email": null,
+  "address": "265 Kings Hwy E  Ste B, Haddonfield, US-NJ, 08033-1983",
+  "category": "periodontics",
+  "source": "overture",
+  "industry": "dentist",
+  "socials": [],
+  "dns_ok": true
+ },
+ {
+  "name": "Icon Dental Center",
+  "website": "http://www.icondentalcenter.com/",
+  "city": "Houston",
+  "region": "TX",
+  "phone": "+17132662929",
+  "email": "office@icondentalhtx.com",
+  "address": "6776 Southwest Fwy, Houston, TX, 77074",
+  "category": "dental_clinic",
+  "source": "overture",
+  "industry": "dentist",
+  "socials": [
+   "https://www.facebook.com/151292468243615"
+  ],
+  "dns_ok": true
+ },
+ {
+  "name": "Lorber, Greenfield & Olsen, Llp",
+  "website": "https://www.lorberlaw.com",
+  "city": "Phoenix",
+  "region": "AZ",
+  "phone": "+18002913062",
+  "email": null,
+  "address": "3930 E Ray Rd, Phoenix, US-AZ, 85044-7171",
+  "category": "legal_service",
+  "source": "overture",
+  "industry": "lawyer",
+  "socials": [],
+  "dns_ok": true
+ },
+ {
+  "name": "Suh Raymond DDS",
+  "website": "https://dr-suh-northridge-dental-office.hub.biz/",
+  "city": "Los Angeles",
+  "region": "CA",
+  "phone": "+18185769990",
+  "email": "mindymcho@yahoo.com",
+  "address": "8345 Reseda Blvd, Northridge, US-CA, 91324-4621",
+  "category": "general_dentistry",
+  "source": "overture",
+  "industry": "dentist",
+  "socials": [
+   "https://www.facebook.com/175129145830883"
+  ],
+  "dns_ok": true
+ },
+ {
+  "name": "Integral Commercial Roofing",
+  "website": "https://integral-commercial.com",
+  "city": "Dallas",
+  "region": "TX",
+  "phone": "+12144593222",
+  "email": null,
+  "address": "100 Crescent Ct, Dallas, US-TX, 75201-6900",
+  "category": "roofing",
+  "source": "overture",
+  "industry": "roofer",
+  "socials": [],
+  "dns_ok": true
+ },
+ {
+  "name": "TruSmile Dentistry",
+  "website": "http://TruSmileDentistry.com/",
+  "city": "San Antonio",
+  "region": "TX",
+  "phone": "+18302835612",
+  "email": "appointments@trusmiledentistry.com",
+  "address": "1207 TX-1604-LOOP, San Antonio, US-TX, 78258-4628",
+  "category": "general_dentistry",
+  "source": "overture",
+  "industry": "dentist",
+  "socials": [
+   "https://www.facebook.com/144996215563789"
+  ],
+  "dns_ok": true
+ },
+ {
+  "name": "First Legal",
+  "website": "https://www.firstlegal.com",
+  "city": "Phoenix",
+  "region": "AZ",
+  "phone": "+16022489700",
+  "email": null,
+  "address": "3737 N 7th St  Ste 209, Phoenix, US-AZ, 85014-5069",
+  "category": "legal_service",
+  "source": "overture",
+  "industry": "lawyer",
+  "socials": [],
+  "dns_ok": true
+ },
+ {
+  "name": "Functional Fitness",
+  "website": "https://functionalfitnesspdx.com/",
+  "city": "Portland",
+  "region": "OR",
+  "phone": "+19712883719",
+  "email": "jennfunctionalfitness@gmail.com",
+  "address": "40 NE 63rd Ave, Portland, US-OR, 97213",
+  "category": "gym",
+  "source": "overture",
+  "industry": "gym",
+  "socials": [
+   "https://www.facebook.com/104157228145538"
+  ],
+  "dns_ok": true
+ },
+ {
+  "name": "Ralph Kaye",
+  "website": "http://www.drralphkaye.com",
+  "city": "Philadelphia",
+  "region": "PA",
+  "phone": "+12153351889",
+  "email": "office@drralphkaye.com",
+  "address": "3541 Ryan Ave, Philadelphia, US-PA, 19136-4313",
+  "category": "periodontics",
+  "source": "overture",
+  "industry": "dentist",
+  "socials": [
+   "https://www.facebook.com/919698581417115"
+  ],
+  "dns_ok": true
+ },
+ {
+  "name": "Estelle J Roond, Esq., Pc",
+  "website": "http://www.estelleroond.com",
+  "city": "New York",
+  "region": "NY",
+  "phone": "+17185964800",
+  "email": null,
+  "address": "16 Court St  # 3301, Brooklyn, US-NY, 11241-0102",
+  "category": "attorney_or_law_firm",
+  "source": "overture",
+  "industry": "lawyer",
+  "socials": [],
+  "dns_ok": true
+ },
+ {
+  "name": "Raj Law Pllc",
+  "website": "https://raj-law-pllc.business.site",
+  "city": "Phoenix",
+  "region": "AZ",
+  "phone": "+16025795555",
+  "email": null,
+  "address": "5050 N 40th St  Ste 220, Phoenix, US-AZ, 85018-2152",
+  "category": "attorney_or_law_firm",
+  "source": "overture",
+  "industry": "lawyer",
+  "socials": [],
+  "dns_ok": true
+ },
+ {
+  "name": "Cochran Orthodontics",
+  "website": "https://cochranorthodontics.com/",
+  "city": "San Antonio",
+  "region": "TX",
+  "phone": "+12107966229",
+  "email": null,
+  "address": "999 E Basse Rd Ste 155, San Antonio, US-TX, 78209",
+  "category": "orthodontics",
+  "source": "overture",
+  "industry": "dentist",
+  "socials": [],
+  "dns_ok": true
+ },
+ {
+  "name": "Babooshka",
+  "website": "http://babooskahair.simplybook.vip/v2/",
+  "city": "Denver",
+  "region": "CO",
+  "phone": "+13039912850",
+  "email": "babooshkahairco@gmail.com",
+  "address": "3343 E Colfax Ave, Denver, US-CO, 80206",
+  "category": "hair_salon",
+  "source": "overture",
+  "industry": "hair salon",
+  "socials": [
+   "https://www.facebook.com/306935929342772"
+  ],
+  "dns_ok": true
+ },
+ {
+  "name": "Style Vegas & Santoyo Barbershop",
+  "website": "https://barberlasvegas.com/",
+  "city": "Las Vegas",
+  "region": "NV",
+  "phone": "+17029553782",
+  "email": null,
+  "address": "3620 W Sahara Ave Ste W-5, Las Vegas, US-NV, 89102",
+  "category": "barber",
+  "source": "overture",
+  "industry": "hair salon",
+  "socials": [],
+  "dns_ok": true
+ },
+ {
+  "name": "Arvada Hair Co",
+  "website": "http://arvadahaircompany.com",
+  "city": "Denver",
+  "region": "CO",
+  "phone": "+13034206655",
+  "email": "info@arvadahaircompany.com",
+  "address": "7314 W 57th Ave, Arvada, US-CO, 80002-2502",
+  "category": "hair_salon",
+  "source": "overture",
+  "industry": "hair salon",
+  "socials": [
+   "https://www.facebook.com/118752824843883"
+  ],
+  "dns_ok": false
+ },
+ {
+  "name": "Dr. Myron B. Goldberg, Dds",
+  "website": "https://www.myrongoldbergdentistry.com",
+  "city": "Philadelphia",
+  "region": "PA",
+  "phone": "+12157320505",
+  "email": null,
+  "address": "1528 Walnut St  Ste 1725, Philadelphia, US-PA, 19102-3605",
+  "category": "dental_clinic",
+  "source": "overture",
+  "industry": "dentist",
+  "socials": [],
+  "dns_ok": true
+ },
+ {
+  "name": "Dental 360",
+  "website": "https://dental360usa.com/locations/dental-360-berwyn/",
+  "city": "Chicago",
+  "region": "IL",
+  "phone": "+17089567759",
+  "email": "info@dental360usa.com",
+  "address": "7039 W Roosevelt Rd, Berwyn, US-IL, 60402",
+  "category": "general_dentistry",
+  "source": "overture",
+  "industry": "dentist",
+  "socials": [
+   "https://www.facebook.com/100466418046612"
+  ],
+  "dns_ok": true
+ },
+ {
+  "name": "Dr Thair Orthodontist",
+  "website": "http://coolbraces.com.com",
+  "city": "Chicago",
+  "region": "IL",
+  "phone": "+17086369000",
+  "email": "drtahir@coolbraces.com",
+  "address": "9501 Central Ave, Oak Lawn, US-IL, 60453",
+  "category": "dental_clinic",
+  "source": "overture",
+  "industry": "dentist",
+  "socials": [],
+  "dns_ok": true
+ },
+ {
+  "name": "Krupa Dental Care",
+  "website": "https://www.krupadentalcare.com/",
+  "city": "Chicago",
+  "region": "IL",
+  "phone": "+17088395529",
+  "email": null,
+  "address": "8240 Wolf Rd, Willow Springs, US-IL, 60480",
+  "category": "endodontics",
+  "source": "overture",
+  "industry": "dentist",
+  "socials": [],
+  "dns_ok": true
+ },
+ {
+  "name": "Talu Salon",
+  "website": "http://Talusalon.com/",
+  "city": "San Diego",
+  "region": "CA",
+  "phone": "+16195925449",
+  "email": "talusalon@gmail.com",
+  "address": "1295 W Morena Blvd, San Diego, US-CA, 92110-3837",
+  "category": "hair_salon",
+  "source": "overture",
+  "industry": "hair salon",
+  "socials": [
+   "https://www.facebook.com/148507521687920"
+  ],
+  "dns_ok": true
+ },
+ {
+  "name": "Heritage Dental Center",
+  "website": "http://www.heritagedentalcenter.info",
+  "city": "Chicago",
+  "region": "IL",
+  "phone": "+18476797651",
+  "email": null,
+  "address": "7366 N Lincoln Ave  Ste 103, Lincolnwood, US-IL, 60712-1738",
+  "category": "dental_clinic",
+  "source": "overture",
+  "industry": "dentist",
+  "socials": [],
+  "dns_ok": true
+ },
+ {
+  "name": "Fremont Ship Canal.",
+  "website": "http://www.seattle.gov/transportation/shipcanalOpenings.htm",
+  "city": "Seattle",
+  "region": "WA",
+  "phone": null,
+  "email": null,
+  "address": "Seattle, US-WA",
+  "category": "sport_or_fitness_facility",
+  "source": "overture",
+  "industry": "gym",
+  "socials": [
+   "https://www.facebook.com/224850604583859"
+  ],
+  "dns_ok": true
+ },
+ {
+  "name": "Sand Lake MedSpa",
+  "website": "http://www.sandlakemedspa.net/",
+  "city": "Orlando",
+  "region": "FL",
+  "phone": "+13213472687",
+  "email": "info@sandlakemedspa.com",
+  "address": "7575 Kingspointe Pkwy Ste 15, Orlando, US-FL, 32819",
+  "category": "medical_spa",
+  "source": "overture",
+  "industry": "med spa",
+  "socials": [
+   "https://www.facebook.com/101540021674604"
+  ],
+  "dns_ok": false
+ },
+ {
+  "name": "R & R Exteriors",
+  "website": "http://www.rrexteriors.com/",
+  "city": "Dallas",
+  "region": "TX",
+  "phone": "+19724465959",
+  "email": null,
+  "address": "1611 N Interstate 35e #420, Carrollton, US-TX, 75006",
+  "category": "roofing",
+  "source": "overture",
+  "industry": "roofer",
+  "socials": [],
+  "dns_ok": false
+ },
+ {
+  "name": "Vanessa Black Law Firm",
+  "website": "https://www.abogadavanessa.com",
+  "city": "Phoenix",
+  "region": "AZ",
+  "phone": "+16029001881",
+  "email": null,
+  "address": "11811 N Tatum Blvd  Ste 3031, Phoenix, US-AZ, 85028-1621",
+  "category": "legal_service",
+  "source": "overture",
+  "industry": "lawyer",
+  "socials": [],
+  "dns_ok": true
+ },
+ {
+  "name": "Redhawk Center",
+  "website": "https://www.seattleu.edu/recreation/facilities",
+  "city": "Seattle",
+  "region": "WA",
+  "phone": "+12062966441",
+  "email": null,
+  "address": "550 14th Ave, Seattle, US-WA, 98112",
+  "category": "sport_or_fitness_facility",
+  "source": "overture",
+  "industry": "gym",
+  "socials": [
+   "https://www.facebook.com/306456093291605"
+  ],
+  "dns_ok": true
+ },
+ {
+  "name": "La Muse Beauty Bar",
+  "website": "https://lamusebeautybar.com/",
+  "city": "Denver",
+  "region": "CO",
+  "phone": "+13032800770",
+  "email": null,
+  "address": "10078 Grant St, Thornton, US-CO, 80229",
+  "category": "nail_salon",
+  "source": "overture",
+  "industry": "hair salon",
+  "socials": [
+   "https://www.facebook.com/787878214418952"
+  ],
+  "dns_ok": true
+ },
+ {
+  "name": "Beautiful Skin by Carmen",
+  "website": "http://www.beautifulskinbycarmen.com",
+  "city": "Orlando",
+  "region": "FL",
+  "phone": "+14079998988",
+  "email": "carmen@beautifulskinbycarmen.com",
+  "address": "722 W Smith St, Orlando, US-FL, 32804",
+  "category": "skin_care_and_makeup",
+  "source": "overture",
+  "industry": "med spa",
+  "socials": [
+   "https://www.twitter.com/beautifulskinby",
+   "https://www.facebook.com/111468525562798"
+  ],
+  "dns_ok": true
+ },
+ {
+  "name": "Perfect Ten Nails & Spa",
+  "website": "https://www.perfecttennailsandspa.com",
+  "city": "Denver",
+  "region": "CO",
+  "phone": "+13034565270",
+  "email": null,
+  "address": "7355 Ralston Rd, Arvada, US-CO, 80002-2574",
+  "category": "nail_salon",
+  "source": "overture",
+  "industry": "hair salon",
+  "socials": [],
+  "dns_ok": true
+ },
+ {
+  "name": "Perry Dental Health",
+  "website": "http://www.perrydentalhealth.com/",
+  "city": "San Antonio",
+  "region": "TX",
+  "phone": "+12103773779",
+  "email": null,
+  "address": "15900 La Cantera Pkwy Ste 26245, San Antonio, US-TX, 78256",
+  "category": "cosmetic_dentistry",
+  "source": "overture",
+  "industry": "dentist",
+  "socials": [],
+  "dns_ok": true
+ },
+ {
+  "name": "Lisa Nails",
+  "website": "https://kubiti.wpcomstaging.com",
+  "city": "Denver",
+  "region": "CO",
+  "phone": "+13037422184",
+  "email": null,
+  "address": "1460 S Federal Blvd, Denver, US-CO, 80219-4721",
+  "category": "nail_salon",
+  "source": "overture",
+  "industry": "hair salon",
+  "socials": [],
+  "dns_ok": true
+ },
+ {
+  "name": "Garden Ridge Center for Dentistry",
+  "website": "http://www.gardenridgedentistry.com/",
+  "city": "San Antonio",
+  "region": "TX",
+  "phone": "+12106515100",
+  "email": "appointments@gardenridgedentistry.com",
+  "address": "19295 FM 2252, Garden Ridge, US-TX, 78266",
+  "category": "general_dentistry",
+  "source": "overture",
+  "industry": "dentist",
+  "socials": [
+   "https://www.facebook.com/167729296575394"
+  ],
+  "dns_ok": true
+ },
+ {
+  "name": "Laughlin Dental",
+  "website": "https://www.laughlindental.com/",
+  "city": "Houston",
+  "region": "TX",
+  "phone": "+18322714502",
+  "email": "laughlindental@gmail.com",
+  "address": "4500 East Sam Houston Pkwy S #200, Pasadena, US-TX, 77505",
+  "category": "general_dentistry",
+  "source": "overture",
+  "industry": "dentist",
+  "socials": [
+   "https://www.facebook.com/272231756186803"
+  ],
+  "dns_ok": true
+ },
+ {
+  "name": "Sola Salon Studios",
+  "website": "http://solanaskincarestudio.glossgenius.com/",
+  "city": "San Diego",
+  "region": "CA",
+  "phone": "+18583300177",
+  "email": "aurora.solana16@gmail.com",
+  "address": "166 Solana Hills Dr, Solana Beach, US-CA, 92075",
+  "category": "hair_salon",
+  "source": "overture",
+  "industry": "hair salon",
+  "socials": [
+   "https://www.facebook.com/109898857519077"
+  ],
+  "dns_ok": true
+ },
+ {
+  "name": "Rouse Signature Dentistry Jeffrey Rouse Dds And Lisa Rouse Dds",
+  "website": "https://rousedds.com",
+  "city": "San Antonio",
+  "region": "TX",
+  "phone": "+12108283334",
+  "email": null,
+  "address": "555 E Basse Rd  Ste 200, San Antonio, US-TX, 78209-8329",
+  "category": "dental_clinic",
+  "source": "overture",
+  "industry": "dentist",
+  "socials": [],
+  "dns_ok": true
+ },
+ {
+  "name": "Boeing 737 Factory, Renton, Wash.",
+  "website": "http://www.boeing.com",
+  "city": "Seattle",
+  "region": "WA",
+  "phone": "+12066551131",
+  "email": null,
+  "address": "10500 E Marginal Way S, Tukwila, US-WA, 98168",
+  "category": "gym",
+  "source": "overture",
+  "industry": "gym",
+  "socials": [
+   "https://www.facebook.com/2284375341794919"
+  ],
+  "dns_ok": true
+ },
+ {
+  "name": "Dr. Aline Ekizian, Dds",
+  "website": "https://www.balboadentalgroup.com",
+  "city": "Los Angeles",
+  "region": "CA",
+  "phone": "+18183601946",
+  "email": null,
+  "address": "11850 Balboa Blvd, Granada Hills, US-CA, 91344-2753",
+  "category": "dental_clinic",
+  "source": "overture",
+  "industry": "dentist",
+  "socials": [],
+  "dns_ok": true
+ },
+ {
+  "name": "McGowan Family Dental",
+  "website": "http://www.mcgowanfamilydental.com/",
+  "city": "Chicago",
+  "region": "IL",
+  "phone": "+17732325383",
+  "email": "mcgowanfamilydental@gmail.com",
+  "address": "3250 W 111th St, Chicago, US-IL, 60655",
+  "category": "general_dentistry",
+  "source": "overture",
+  "industry": "dentist",
+  "socials": [
+   "https://www.facebook.com/101310005095629"
+  ],
+  "dns_ok": true
+ },
+ {
+  "name": "Skin Care",
+  "website": "https://www.skincareinc.co.uk",
+  "city": "Miami",
+  "region": "FL",
+  "phone": "+13056436928",
+  "email": null,
+  "address": "110 SW 27th Ave, Miami, US-FL, 33135-1429",
+  "category": "skin_care_and_makeup",
+  "source": "overture",
+  "industry": "med spa",
+  "socials": [],
+  "dns_ok": true
+ },
+ {
+  "name": "Urbach Pediatric Dentistry",
+  "website": "https://urbachpediatricdentistry.com/",
+  "city": "Houston",
+  "region": "TX",
+  "phone": "+17135745890",
+  "email": "info@urbachpediatricdentistry.com",
+  "address": "4101 Greenbriar Dr #120, Houston, US-TX, 77098",
+  "category": "pediatric_dentistry",
+  "source": "overture",
+  "industry": "dentist",
+  "socials": [
+   "https://www.facebook.com/400195596723176"
+  ],
+  "dns_ok": true
+ },
+ {
+  "name": "Galleria Dental Care: Maria Amparo Romano Dds Inc",
+  "website": "https://galleriadentalcare.com",
+  "city": "Los Angeles",
+  "region": "CA",
+  "phone": "+13103701586",
+  "email": null,
+  "address": "2772 Artesia Blvd  Ste 103, Redondo Beach, US-CA, 90278-3370",
+  "category": "dental_clinic",
+  "source": "overture",
+  "industry": "dentist",
+  "socials": [],
+  "dns_ok": true
+ },
+ {
+  "name": "Village Park Family Dental",
+  "website": "https://vpfamilydental.com/",
+  "city": "Houston",
+  "region": "TX",
+  "phone": "+12813764444",
+  "email": "villageparkfamilydental@gmail.com",
+  "address": "12617 Louetta Rd suit #204, Houston, US-TX, 77429",
+  "category": "general_dentistry",
+  "source": "overture",
+  "industry": "dentist",
+  "socials": [
+   "https://www.facebook.com/773678329368513"
+  ],
+  "dns_ok": true
+ },
+ {
+  "name": "Haus of Stylez Beauty Salon",
+  "website": "http://www.haus-of-stylez.com",
+  "city": "Las Vegas",
+  "region": "NV",
+  "phone": "+17029699263",
+  "email": "hausofstylezz@gmail.com",
+  "address": "1200 S 4th St, Las Vegas, US-NV, 89104",
+  "category": "beauty_salon",
+  "source": "overture",
+  "industry": "hair salon",
+  "socials": [
+   "https://www.facebook.com/101415241285050"
+  ],
+  "dns_ok": true
+ },
+ {
+  "name": "Cinco Meadows Dental",
+  "website": "http://www.cincomeadowsdental.com/",
+  "city": "Houston",
+  "region": "TX",
+  "phone": "+12813471993",
+  "email": "info@cincomeadowsdental.com",
+  "address": "25900 Cinco Ranch Blvd, Katy, US-TX, 77494-2988",
+  "category": "general_dentistry",
+  "source": "overture",
+  "industry": "dentist",
+  "socials": [
+   "https://www.facebook.com/135716399811513"
+  ],
+  "dns_ok": true
+ },
+ {
+  "name": "Potranco Dentistry",
+  "website": "https://www.PotrancoDentistry.com/?sc_cid=Facebook%3AO%3AGP%3A790%3ASocial%3AGeneral%3Ana&_vsrefdom=organic_social&y_source=1_MTM1NDAwNTQtNTU5LWxvY2F0aW9uLndlYnNpdGU%3D",
+  "city": "San Antonio",
+  "region": "TX",
+  "phone": "+12104694235",
+  "email": "potrancodentistry@smilegeneration.com",
+  "address": "10538 Potranco Rd Ste 206, San Antonio, US-TX, 78251",
+  "category": "general_dentistry",
+  "source": "overture",
+  "industry": "dentist",
+  "socials": [
+   "https://www.facebook.com/112404520169584"
+  ],
+  "dns_ok": true
+ },
+ {
+  "name": "Classic NAILS",
+  "website": "http://rockvillemd.gov",
+  "city": "Denver",
+  "region": "CO",
+  "phone": "+13038563288",
+  "email": null,
+  "address": "1350 N Chambers Rd, Aurora, US-CO, 80011-7126",
+  "category": "beauty_salon",
+  "source": "overture",
+  "industry": "hair salon",
+  "socials": [
+   "https://www.facebook.com/1569305686651372"
+  ],
+  "dns_ok": true
+ },
+ {
+  "name": "Dr Justin Washington, Sr. - Dentist",
+  "website": "http://washingtondentist77004.com",
+  "city": "Houston",
+  "region": "TX",
+  "phone": "+17137571948",
+  "email": null,
+  "address": "5009 Caroline St Ste 201, Houston, US-TX, 77004",
+  "category": "dental_clinic",
+  "source": "overture",
+  "industry": "dentist",
+  "socials": [],
+  "dns_ok": false
+ },
+ {
+  "name": "Ramus Studio Salon",
+  "website": "http://www.RamusStudioSalon.com/",
+  "city": "Denver",
+  "region": "CO",
+  "phone": "+13039171641",
+  "email": "ramusstudiosalon@gmail.com",
+  "address": "3615 S Tamarac Dr #220, Denver, US-CO, 80237",
+  "category": "beauty_salon",
+  "source": "overture",
+  "industry": "hair salon",
+  "socials": [
+   "https://www.facebook.com/449840695115384"
+  ],
+  "dns_ok": false
+ },
+ {
+  "name": "Sleep Apnea Doctor Los Angeles | Gorman Health & Wellness",
+  "website": "https://mgormandental.com",
+  "city": "Los Angeles",
+  "region": "CA",
+  "phone": "+18183909509",
+  "email": null,
+  "address": "5363 Balboa Blvd  Ste 446, Encino, US-CA, 91316-2845",
+  "category": "dental_clinic",
+  "source": "overture",
+  "industry": "dentist",
+  "socials": [],
+  "dns_ok": true
+ },
+ {
+  "name": "360 MedSpa Collective",
+  "website": "http://www.360MedSpaCollective.com/",
+  "city": "Orlando",
+  "region": "FL",
+  "phone": "+13217954964",
+  "email": null,
+  "address": "650 Wymore Rd Ste 203, Winter Park, US-FL, 32789",
+  "category": "medical_spa",
+  "source": "overture",
+  "industry": "med spa",
+  "socials": [
+   "https://www.facebook.com/292558547285125"
+  ],
+  "dns_ok": true
+ },
+ {
+  "name": "Dr. Peter M. Caldarola",
+  "website": "https://www.stoneoakfamilydentist.com/",
+  "city": "San Antonio",
+  "region": "TX",
+  "phone": "+12105452707",
+  "email": "dr.petercaldarola@yahoo.com",
+  "address": "540 Madison Oak Dr STE #441, San Antonio, US-TX, 78258",
+  "category": "general_dentistry",
+  "source": "overture",
+  "industry": "dentist",
+  "socials": [
+   "https://www.facebook.com/297953993554043"
+  ],
+  "dns_ok": true
+ },
+ {
+  "name": "Young Forever Laser Spa",
+  "website": "https://youngforeverspa.com/",
+  "city": "Miami",
+  "region": "FL",
+  "phone": "+13054000814",
+  "email": "info@youngforeverspa.com",
+  "address": "1150 NW 72nd Ave, Miami, US-FL, 33126-1906",
+  "category": "medical_spa",
+  "source": "overture",
+  "industry": "med spa",
+  "socials": [
+   "https://www.facebook.com/235460220532557"
+  ],
+  "dns_ok": true
+ },
+ {
+  "name": "Golden Care Dentistry",
+  "website": "https://www.goldencaredentistry.com/about#!",
+  "city": "Los Angeles",
+  "region": "CA",
+  "phone": "+18187859944",
+  "email": "info@goldencaredentistry.com",
+  "address": "6330 Van Nuys Blvd b, Los Angeles, US-CA, 91401",
+  "category": "dental_clinic",
+  "source": "overture",
+  "industry": "dentist",
+  "socials": [
+   "https://www.facebook.com/686114278259207"
+  ],
+  "dns_ok": true
+ },
+ {
+  "name": "Meghan Kelly Hair",
+  "website": "http://www.seasidewestdelmar.com/",
+  "city": "San Diego",
+  "region": "CA",
+  "phone": "+16192085680",
+  "email": null,
+  "address": "1555 Camino del Mar, Del Mar, US-CA, 92014-2401",
+  "category": "beauty_salon",
+  "source": "overture",
+  "industry": "hair salon",
+  "socials": [
+   "https://www.facebook.com/973268686043229"
+  ],
+  "dns_ok": true
+ },
+ {
+  "name": "Ernest P Miller Jr., Dds",
+  "website": "http://blvdental.com",
+  "city": "San Antonio",
+  "region": "TX",
+  "phone": "+12106999761",
+  "email": null,
+  "address": "5138 Utsa Blvd Ste 116, San Antonio, US-TX, 78249-3537",
+  "category": "general_dentistry",
+  "source": "overture",
+  "industry": "dentist",
+  "socials": [],
+  "dns_ok": false
+ },
+ {
+  "name": "Concierge Dentistry",
+  "website": "http://www.conciergedentistry.com/",
+  "city": "Los Angeles",
+  "region": "CA",
+  "phone": "+13108200123",
+  "email": "info@conciergedentistry.com",
+  "address": "11980 San Vicente Blvd, Los Angeles, US-CA, 90049-5012",
+  "category": "cosmetic_dentistry",
+  "source": "overture",
+  "industry": "dentist",
+  "socials": [
+   "https://www.facebook.com/235958233178783"
+  ],
+  "dns_ok": true
+ },
+ {
+  "name": "Chicago Dentist PC",
+  "website": "http://www.chicagodentistpc.com/",
+  "city": "Chicago",
+  "region": "IL",
+  "phone": "+17732822077",
+  "email": "accdds1@yahoo.com",
+  "address": "3325 N Pulaski Rd, Chicago, US-IL, 60641",
+  "category": "general_dentistry",
+  "source": "overture",
+  "industry": "dentist",
+  "socials": [
+   "https://www.facebook.com/1016595108395980"
+  ],
+  "dns_ok": true
+ },
+ {
+  "name": "John R. Treinen, Dds",
+  "website": "https://johntreinendds.com",
+  "city": "Los Angeles",
+  "region": "CA",
+  "phone": "+18187842002",
+  "email": null,
+  "address": "5363 Balboa Blvd  Ste 533, Encino, US-CA, 91316-2849",
+  "category": "dental_clinic",
+  "source": "overture",
+  "industry": "dentist",
+  "socials": [],
+  "dns_ok": true
+ },
+ {
+  "name": "Uptown Oral Surgery & Dental Implants",
+  "website": "http://www.uptowndentalimplants.com",
+  "city": "Houston",
+  "region": "TX",
+  "phone": "+12819980288",
+  "email": null,
+  "address": "6429 Fairmont Pkwy Ste 102, Pasadena, US-TX, 77505",
+  "category": "dental_clinic",
+  "source": "overture",
+  "industry": "dentist",
+  "socials": [],
+  "dns_ok": false
+ },
+ {
+  "name": "DiFranco Dental Specialists",
+  "website": "https://difrancodentalspecialists.com/",
+  "city": "Chicago",
+  "region": "IL",
+  "phone": "+18473180066",
+  "email": "doctors@difrancoperiodontics.com",
+  "address": "511 W Talcott Rd, Park Ridge, US-IL, 60068-5338",
+  "category": "periodontics",
+  "source": "overture",
+  "industry": "dentist",
+  "socials": [
+   "https://www.facebook.com/302041643333602"
+  ],
+  "dns_ok": true
+ },
+ {
+  "name": "Greater Houston Pediatric Dentistry - Humble",
+  "website": "https://www.greaterhoustonpediatricdentistry.com/",
+  "city": "Houston",
+  "region": "TX",
+  "phone": "+12818521191",
+  "email": null,
+  "address": "7810 FM 1960, Ste 101, Humble, US-TX, 77346",
+  "category": "pediatric_dentistry",
+  "source": "overture",
+  "industry": "dentist",
+  "socials": [],
+  "dns_ok": true
+ },
+ {
+  "name": "Salon Mirror Mirror",
+  "website": "http://www.salonmirrormirrorco.com/",
+  "city": "Denver",
+  "region": "CO",
+  "phone": "+17205156302",
+  "email": "salonmirrormirrorco@gmail.com",
+  "address": "7275 W 88th Ave, Westminster, US-CO, 80021-7031",
+  "category": "hair_salon",
+  "source": "overture",
+  "industry": "hair salon",
+  "socials": [
+   "https://www.facebook.com/222131374997462"
+  ],
+  "dns_ok": true
+ },
+ {
+  "name": "Patrick Mclain",
+  "website": "https://www.patrickmclainlaw.com",
+  "city": "New York",
+  "region": "NY",
+  "phone": null,
+  "email": null,
+  "address": "100 Montgomery St, Jersey City, US-NJ, 07302-3716",
+  "category": "legal_service",
+  "source": "overture",
+  "industry": "lawyer",
+  "socials": [],
+  "dns_ok": true
+ },
+ {
+  "name": "Pmr Roofing",
+  "website": "http://pmrroofing.com",
+  "city": "Dallas",
+  "region": "TX",
+  "phone": "+14694097663",
+  "email": null,
+  "address": "710 Presidential Dr  Ste 218, Richardson, US-TX, 75081-2929",
+  "category": "roofing",
+  "source": "overture",
+  "industry": "roofer",
+  "socials": [],
+  "dns_ok": true
+ },
+ {
+  "name": "Andras G Haris, Dmd & Associates",
+  "website": "http://andrasgharisdmd.com",
+  "city": "Philadelphia",
+  "region": "PA",
+  "phone": "+16106645658",
+  "email": null,
+  "address": "101 Bala Ave, Bala Cynwyd, US-PA, 19004-3307",
+  "category": "dental_clinic",
+  "source": "overture",
+  "industry": "dentist",
+  "socials": [],
+  "dns_ok": false
+ },
+ {
+  "name": "Regenerative Sport Spine and Spa",
+  "website": "https://regenerativesportspineandspa.com/",
+  "city": "Orlando",
+  "region": "FL",
+  "phone": "+18885575682",
+  "email": "info@regens3.com",
+  "address": "10920 Moss Park Rd, Orlando, US-FL, 32832-6086",
+  "category": "medical_spa",
+  "source": "overture",
+  "industry": "med spa",
+  "socials": [
+   "https://www.facebook.com/1681998448775921"
+  ],
+  "dns_ok": true
+ },
+ {
+  "name": "Conover Law Offices",
+  "website": "https://www.conoverlaw.com",
+  "city": "New York",
+  "region": "NY",
+  "phone": "+12125889080",
+  "email": null,
+  "address": "345 7th Ave, New York, US-NY, 10001-5006",
+  "category": "legal_service",
+  "source": "overture",
+  "industry": "lawyer",
+  "socials": [],
+  "dns_ok": true
+ },
+ {
+  "name": "Skyline Smiles",
+  "website": "https://skylinesmiles.com/",
+  "city": "Chicago",
+  "region": "IL",
+  "phone": "+13127591120",
+  "email": "deepakneduvelil@gmail.com",
+  "address": "1017 W Madison St, Chicago, US-IL, 60607-2007",
+  "category": "dental_clinic",
+  "source": "overture",
+  "industry": "dentist",
+  "socials": [
+   "https://www.facebook.com/111356371341523"
+  ],
+  "dns_ok": true
+ },
+ {
+  "name": "UT Dentistry",
+  "website": "https://uthscsa.edu/dental/",
+  "city": "San Antonio",
+  "region": "TX",
+  "phone": "+12104503700",
+  "email": "socialmedia@uthscsa.edu",
+  "address": "8210 Floyd Curl Dr, San Antonio, US-TX, 78229",
+  "category": "general_dentistry",
+  "source": "overture",
+  "industry": "dentist",
+  "socials": [
+   "https://www.facebook.com/416426941883940"
+  ],
+  "dns_ok": true
+ },
+ {
+  "name": "Mother Yoga",
+  "website": "https://www.motheryogaseattle.com/",
+  "city": "Seattle",
+  "region": "WA",
+  "phone": "+12064820952",
+  "email": "mother.yoga.seattle@gmail.com",
+  "address": "511 Maynard Aly S, Seattle, US-WA, 98104-2915",
+  "category": "yoga_studio",
+  "source": "overture",
+  "industry": "gym",
+  "socials": [
+   "https://www.facebook.com/104202854858220"
+  ],
+  "dns_ok": true
+ },
+ {
+  "name": "Cody J Jess",
+  "website": "https://www.law-msh.com",
+  "city": "Phoenix",
+  "region": "AZ",
+  "phone": "+16026042141",
+  "email": null,
+  "address": "1850 N Central Ave  Ste 1100, Phoenix, US-AZ, 85004-4541",
+  "category": "legal_service",
+  "source": "overture",
+  "industry": "lawyer",
+  "socials": [],
+  "dns_ok": true
+ },
+ {
+  "name": "Windy City Implant And Dental Centers",
+  "website": "https://www.windycityimplantsanddentalcenters.com",
+  "city": "Chicago",
+  "region": "IL",
+  "phone": "+17735421916",
+  "email": null,
+  "address": "3302 Grove Ave, Berwyn, US-IL, 60402",
+  "category": "dental_clinic",
+  "source": "overture",
+  "industry": "dentist",
+  "socials": [
+   "https://www.facebook.com/111079368535708"
+  ],
+  "dns_ok": true
+ },
+ {
+  "name": "Oscar's Classic Barber Shop",
+  "website": "https://incho.top/oscar-s-classic-barber-shop-6tgcmcq",
+  "city": "Las Vegas",
+  "region": "NV",
+  "phone": "+17028788737",
+  "email": "oscarsbarbershop702@gmail.com",
+  "address": "612 S Decatur Blvd, Las Vegas, US-NV, 89107",
+  "category": "barber",
+  "source": "overture",
+  "industry": "hair salon",
+  "socials": [
+   "https://www.facebook.com/168128489892022"
+  ],
+  "dns_ok": true
+ },
+ {
+  "name": "Dominion Dental Spa",
+  "website": "http://www.dominiondentalspa.com/",
+  "city": "San Antonio",
+  "region": "TX",
+  "phone": "+12106871150",
+  "email": "info@dominiondentalspa.com",
+  "address": "4 Dominion Dr Bldg 5, Ste 250, San Antonio, US-TX, 78257",
+  "category": "dental_clinic",
+  "source": "overture",
+  "industry": "dentist",
+  "socials": [
+   "https://www.facebook.com/123107347715161"
+  ],
+  "dns_ok": true
+ },
+ {
+  "name": "Macqueen & Gottlieb, Plc",
+  "website": "http://www.mandglawgroup.com",
+  "city": "Phoenix",
+  "region": "AZ",
+  "phone": "+14806209217",
+  "email": null,
+  "address": "2 N Central Ave Ste 1800, Phoenix, US-AZ, 85004-2139",
+  "category": "legal_service",
+  "source": "overture",
+  "industry": "lawyer",
+  "socials": [],
+  "dns_ok": true
+ },
+ {
+  "name": "Donald F. Doyle, D.D.S.",
+  "website": "http://www.donalddoyledds.com/",
+  "city": "Chicago",
+  "region": "IL",
+  "phone": "+17732330771",
+  "email": null,
+  "address": "10601 S Western Ave, Chicago, US-IL, 60643-3100",
+  "category": "dental_clinic",
+  "source": "overture",
+  "industry": "dentist",
+  "socials": [
+   "https://www.facebook.com/135221459880745"
+  ],
+  "dns_ok": false
+ },
+ {
+  "name": "Aston Dental Center",
+  "website": "http://bigfoot.com",
+  "city": "Houston",
+  "region": "TX",
+  "phone": "+12819706555",
+  "email": null,
+  "address": "Houston, US-TX, 77065",
+  "category": "dental_clinic",
+  "source": "overture",
+  "industry": "dentist",
+  "socials": [
+   "https://www.facebook.com/117798678281213"
+  ],
+  "dns_ok": true
+ },
+ {
+  "name": "John M Chaves DDS",
+  "website": "https://www.woodlandhillsdentist.org",
+  "city": "Los Angeles",
+  "region": "CA",
+  "phone": "+18184917294",
+  "email": "drchavesinthevalley@gmail.com",
+  "address": "5312 Comercio Ln Suite A, Woodland Hills, los Angeles, US-CA, 91364",
+  "category": "dental_clinic",
+  "source": "overture",
+  "industry": "dentist",
+  "socials": [
+   "https://www.instagram.com/drjohnchaves"
+  ],
+  "dns_ok": true
+ },
+ {
+  "name": "Lee Orthodontics Dr. Sandra Lee",
+  "website": "http://www.braceschicago.com",
+  "city": "Chicago",
+  "region": "IL",
+  "phone": "+17736979593",
+  "email": null,
+  "address": "2315 W Belmont Ave, Chicago, US-IL, 60618-6422",
+  "category": "orthodontics",
+  "source": "overture",
+  "industry": "dentist",
+  "socials": [],
+  "dns_ok": true
+ },
+ {
+  "name": "Law Offices Of Paula Hannah, Plc",
+  "website": "https://www.paulahannahlaw.com",
+  "city": "Phoenix",
+  "region": "AZ",
+  "phone": "+16029224010",
+  "email": null,
+  "address": "4742 N 24th St  Ste 300, Phoenix, US-AZ, 85016-9107",
+  "category": "legal_service",
+  "source": "overture",
+  "industry": "lawyer",
+  "socials": [],
+  "dns_ok": true
+ },
+ {
+  "name": "Celtic Axe Throwing",
+  "website": "http://www.celticaxethrowers.com/",
+  "city": "Portland",
+  "region": "OR",
+  "phone": "+15038472293",
+  "email": "mark@celticaxethrowers.com",
+  "address": "2944 SE Powell Blvd, Portland, US-OR, 97202-2054",
+  "category": "sport_or_fitness_facility",
+  "source": "overture",
+  "industry": "gym",
+  "socials": [
+   "https://www.facebook.com/103952655518176"
+  ],
+  "dns_ok": true
+ },
+ {
+  "name": "Phenomenal Beauty Salon",
+  "website": "https://phenomenalbeautysalon.glossgenius.com/",
+  "city": "Denver",
+  "region": "CO",
+  "phone": "+13035235038",
+  "email": "phenomenalbeautysalon15@gmail.com",
+  "address": "5150 E 34th Ave, Denver, US-CO, 80207-1953",
+  "category": "beauty_salon",
+  "source": "overture",
+  "industry": "hair salon",
+  "socials": [
+   "https://www.facebook.com/371124811012"
+  ],
+  "dns_ok": true
+ },
+ {
+  "name": "Yoga Bhoga",
+  "website": "http://www.yogabhoga.com",
+  "city": "Portland",
+  "region": "OR",
+  "phone": "+15032415058",
+  "email": null,
+  "address": "1401 SE Morrison St Ste 105, Portland, US-OR, 97214",
+  "category": "yoga_studio",
+  "source": "overture",
+  "industry": "gym",
+  "socials": [],
+  "dns_ok": true
+ },
+ {
+  "name": "Passion Beauty Salon",
+  "website": "https://g.co/kgs/6PkHoz",
+  "city": "Las Vegas",
+  "region": "NV",
+  "phone": "+17025313600",
+  "email": null,
+  "address": "871 N Nellis Blvd #3, Las Vegas, US-NV, 89110",
+  "category": "beauty_salon",
+  "source": "overture",
+  "industry": "hair salon",
+  "socials": [
+   "https://www.facebook.com/380958422536637"
+  ],
+  "dns_ok": true
+ },
+ {
+  "name": "Magnolia Yoga and Healing Arts",
+  "website": "https://magnoliayogaandhealingarts.com/",
+  "city": "Seattle",
+  "region": "WA",
+  "phone": "+12064129360",
+  "email": "magnoliayogaandhealingarts@gmail.com",
+  "address": "3150 W Government Way, Seattle, US-WA, 98199-1459",
+  "category": "yoga_studio",
+  "source": "overture",
+  "industry": "gym",
+  "socials": [
+   "https://www.facebook.com/109658341716533"
+  ],
+  "dns_ok": true
+ },
+ {
+  "name": "Vivint Smart Home",
+  "website": "https://www.vivint.com/stores/city/phoenix-arizona?exid=200163",
+  "city": "Phoenix",
+  "region": "AZ",
+  "phone": "+14807181787",
+  "email": "customersupport@vivint.com",
+  "address": "5051 E Ray Rd, Phoenix, US-AZ, 85044-6407",
+  "category": "legal_service",
+  "source": "overture",
+  "industry": "lawyer",
+  "socials": [
+   "https://www.facebook.com/224432708308035"
+  ],
+  "dns_ok": true
+ },
+ {
+  "name": "Cutthroat Barbers And Anglers",
+  "website": "http://cocutthroat.com",
+  "city": "Denver",
+  "region": "CO",
+  "phone": "+13035059165",
+  "email": null,
+  "address": "6814 W 38th Ave, Wheat Ridge, US-CO, 80033-4964",
+  "category": "barber",
+  "source": "overture",
+  "industry": "hair salon",
+  "socials": [],
+  "dns_ok": true
+ },
+ {
+  "name": "360 Body Contour & Spa",
+  "website": "https://360bodycontourspa.com",
+  "city": "Orlando",
+  "region": "FL",
+  "phone": "+14077041700",
+  "email": null,
+  "address": "6100 Lake Ellenor Dr  Ste 171, Orlando, US-FL, 32809-4632",
+  "category": "medical_spa",
+  "source": "overture",
+  "industry": "med spa",
+  "socials": [],
+  "dns_ok": false
+ },
+ {
+  "name": "Kim's Dental Lab",
+  "website": "https://www.skdentallab.com",
+  "city": "Los Angeles",
+  "region": "CA",
+  "phone": "+12133868989",
+  "email": null,
+  "address": "2525 W 8th St Ste 305, Los Angeles, US-CA, 90057",
+  "category": "dental_clinic",
+  "source": "overture",
+  "industry": "dentist",
+  "socials": [],
+  "dns_ok": true
+ },
+ {
+  "name": "Western Dental Kids",
+  "website": "https://www.westerndentalkids.com/find-a-location/california/los-angeles/3015-crenshaw-blvd",
+  "city": "Los Angeles",
+  "region": "CA",
+  "phone": "+13236622143",
+  "email": "customerservice@kidsdentalkare.com",
+  "address": "3015 Crenshaw Blvd, Los Angeles, US-CA, 90016",
+  "category": "pediatric_dentistry",
+  "source": "overture",
+  "industry": "dentist",
+  "socials": [
+   "https://www.facebook.com/887286311386777"
+  ],
+  "dns_ok": true
+ },
+ {
+  "name": "Braverman Law Pc",
+  "website": "https://www.bravermanlawfirm.com",
+  "city": "New York",
+  "region": "NY",
+  "phone": "+12122068166",
+  "email": null,
+  "address": "450 7th Ave  Ste 1308, New York, US-NY, 10123-1308",
+  "category": "legal_service",
+  "source": "overture",
+  "industry": "lawyer",
+  "socials": [],
+  "dns_ok": true
+ },
+ {
+  "name": "Sahara NAILS BAR",
+  "website": "http://www.saharanailsbar.com/",
+  "city": "Las Vegas",
+  "region": "NV",
+  "phone": "+17029987788",
+  "email": "saharanailsbar@gmail.com",
+  "address": "8565 W Sahara Ave, Las Vegas, US-NV, 89117-1869",
+  "category": "nail_salon",
+  "source": "overture",
+  "industry": "hair salon",
+  "socials": [
+   "https://www.facebook.com/617995398063662"
+  ],
+  "dns_ok": true
+ },
+ {
+  "name": "BSFit",
+  "website": "http://Bsfitpdx.com/",
+  "city": "Portland",
+  "region": "OR",
+  "phone": "+15414907557",
+  "email": "bsfitpdx@gmail.com",
+  "address": "7742 SW Nimbus Ave, Beaverton, US-OR, 97008",
+  "category": "fitness_trainer",
+  "source": "overture",
+  "industry": "gym",
+  "socials": [
+   "https://www.facebook.com/101564561776426"
+  ],
+  "dns_ok": true
+ },
+ {
+  "name": "EZ Dental Clinic Houston",
+  "website": "http://www.ezdentalclinic.com/",
+  "city": "Houston",
+  "region": "TX",
+  "phone": "+12814982929",
+  "email": "ezdentaldds@gmail.com",
+  "address": "6732 S Texas 6, Houston, US-TX, 77083",
+  "category": "general_dentistry",
+  "source": "overture",
+  "industry": "dentist",
+  "socials": [
+   "https://www.facebook.com/356100984837094"
+  ],
+  "dns_ok": true
+ },
+ {
+  "name": "Sparks Law Group\u2019s",
+  "website": "http://www.sparkslg.com/",
+  "city": "Phoenix",
+  "region": "AZ",
+  "phone": "+16025293339",
+  "email": null,
+  "address": "4742 N 24th St Ste 340, Phoenix, US-AZ, 85016",
+  "category": "civil_rights_lawyer",
+  "source": "overture",
+  "industry": "lawyer",
+  "socials": [],
+  "dns_ok": true
+ },
+ {
+  "name": "The Dental Practice of Lincoln Park",
+  "website": "http://thedentalpractice.com",
+  "city": "Chicago",
+  "region": "IL",
+  "phone": "+17739359818",
+  "email": null,
+  "address": "1439 W Fullerton Ave, Chicago, US-IL, 60614",
+  "category": "dental_clinic",
+  "source": "overture",
+  "industry": "dentist",
+  "socials": [],
+  "dns_ok": true
+ },
+ {
+  "name": "Serenity Nails",
+  "website": "http://serenitynailsonline.com",
+  "city": "San Diego",
+  "region": "CA",
+  "phone": "+18586570298",
+  "email": "cashbaugh@charter.net",
+  "address": "8915 Towne Centre Dr, San Diego, US-CA, 92122",
+  "category": "nail_salon",
+  "source": "overture",
+  "industry": "hair salon",
+  "socials": [],
+  "dns_ok": false
+ },
+ {
+  "name": "Imor Hair Studio",
+  "website": "http://imorhairstudio.com/",
+  "city": "San Diego",
+  "region": "CA",
+  "phone": "+16196540330",
+  "email": "irmamoran2350@gmail.com",
+  "address": "9724 Campo Rd, Spring Valley, US-CA, 91977-1415",
+  "category": "hair_salon",
+  "source": "overture",
+  "industry": "hair salon",
+  "socials": [
+   "https://www.facebook.com/295388334198598"
+  ],
+  "dns_ok": true
+ },
+ {
+  "name": "Zavala Dental",
+  "website": "http://Zavaladental.com/",
+  "city": "Chicago",
+  "region": "IL",
+  "phone": "+17084776207",
+  "email": null,
+  "address": "5805 W 35th St, Cicero, US-IL, 60804",
+  "category": "general_dentistry",
+  "source": "overture",
+  "industry": "dentist",
+  "socials": [
+   "https://www.facebook.com/103069355290428"
+  ],
+  "dns_ok": true
+ },
+ {
+  "name": "Richard A. Rosenzweig, Esq. P.c.",
+  "website": "http://litigationlawyerstatenisland.com/contact",
+  "city": "New York",
+  "region": "NY",
+  "phone": "+19173011868",
+  "email": null,
+  "address": "57 Beach St  Fl 3, Staten Island, US-NY, 10304-2799",
+  "category": "attorney_or_law_firm",
+  "source": "overture",
+  "industry": "lawyer",
+  "socials": [],
+  "dns_ok": true
+ },
+ {
+  "name": "Fort Washington Periodontics",
+  "website": "http://www.fwppc.org/",
+  "city": "Philadelphia",
+  "region": "PA",
+  "phone": "+12156436889",
+  "email": "fwperio@gmail.com",
+  "address": "467 Pennsylvania Ave, Fort Washington, US-PA, 19034-3420",
+  "category": "periodontics",
+  "source": "overture",
+  "industry": "dentist",
+  "socials": [
+   "https://www.facebook.com/728723610605373"
+  ],
+  "dns_ok": true
+ },
+ {
+  "name": "Houston Dental Partners",
+  "website": "https://www.houstondentalpartners.com/",
+  "city": "Houston",
+  "region": "TX",
+  "phone": "+17135280377",
+  "email": null,
+  "address": "5311 Kirby Dr Ste 207, Houston, US-TX, 77005",
+  "category": "dental_clinic",
+  "source": "overture",
+  "industry": "dentist",
+  "socials": [],
+  "dns_ok": true
+ },
+ {
+  "name": "Southern Charm Dental",
+  "website": "https://www.southerncharmdental.com/",
+  "city": "Houston",
+  "region": "TX",
+  "phone": "+18323445424",
+  "email": "info@southerncharmdental.com",
+  "address": "7119 FM 1464 Ste 312, Richmond, US-TX, 77407",
+  "category": "dental_clinic",
+  "source": "overture",
+  "industry": "dentist",
+  "socials": [
+   "https://www.facebook.com/100955158498344"
+  ],
+  "dns_ok": true
+ },
+ {
+  "name": "Berchelmann Family Dental",
+  "website": "https://www.sanantoniofamilydental.com/",
+  "city": "San Antonio",
+  "region": "TX",
+  "phone": "+12103368478",
+  "email": "dr.berchelmann@yahoo.com",
+  "address": "608 Fair Ave, San Antonio, US-TX, 78223",
+  "category": "dental_clinic",
+  "source": "overture",
+  "industry": "dentist",
+  "socials": [
+   "https://www.facebook.com/544641029002775"
+  ],
+  "dns_ok": true
+ },
+ {
+  "name": "Limberakis Family Dentistry",
+  "website": "http://www.limberakisdental.com",
+  "city": "Philadelphia",
+  "region": "PA",
+  "phone": "+12158868866",
+  "email": null,
+  "address": "500 Old York Road, Suite 106, Jenkintown, US-PA, 19046",
+  "category": "dental_clinic",
+  "source": "overture",
+  "industry": "dentist",
+  "socials": [
+   "https://www.facebook.com/1010198389019656"
+  ],
+  "dns_ok": true
+ },
+ {
+  "name": "Frank Parker DDS",
+  "website": "http://frankparkerdds.com/",
+  "city": "Los Angeles",
+  "region": "CA",
+  "phone": "+13105431655",
+  "email": null,
+  "address": "3556 Torrance Blvd Ste C, Torrance, US-CA, 90503",
+  "category": "cosmetic_dentistry",
+  "source": "overture",
+  "industry": "dentist",
+  "socials": [],
+  "dns_ok": false
+ },
+ {
+  "name": "Formula3 Fitness - Portland, OR",
+  "website": "https://www.formula3fit.com/",
+  "city": "Portland",
+  "region": "OR",
+  "phone": "+15039878997",
+  "email": "social@formula3fit.com",
+  "address": "1785 NW Front Ave, Portland, US-OR, 97209",
+  "category": "gym",
+  "source": "overture",
+  "industry": "gym",
+  "socials": [
+   "https://www.facebook.com/638822423251506"
+  ],
+  "dns_ok": true
+ },
+ {
+  "name": "Tiva's Hair Glam & Beauty Supplies",
+  "website": "https://www.tivashairglam.net",
+  "city": "Las Vegas",
+  "region": "NV",
+  "phone": "+17022203939",
+  "email": "tivashairglam@gmail.com",
+  "address": "2300 N Rainbow Blvd Unit 101, Las Vegas, US-NV, 89108",
+  "category": "hair_salon",
+  "source": "overture",
+  "industry": "hair salon",
+  "socials": [],
+  "dns_ok": false
+ },
+ {
+  "name": "Alexis Lauren",
+  "website": "https://alexislauren.com/",
+  "city": "Miami",
+  "region": "FL",
+  "phone": "+13056863393",
+  "email": "info@alexislauren.com",
+  "address": "4203 Ponce de Leon Blvd, Coral Gables, US-FL, 33146-1802",
+  "category": "medical_spa",
+  "source": "overture",
+  "industry": "med spa",
+  "socials": [
+   "https://www.facebook.com/156520711029743"
+  ],
+  "dns_ok": true
+ },
+ {
+  "name": "Dentistry For Special People",
+  "website": "http://www.dentistryforspecialpeople.com/",
+  "city": "Philadelphia",
+  "region": "PA",
+  "phone": "+18564245955",
+  "email": "info@dentistryforspecialpeople.com",
+  "address": "1910 NJ-70 #9, Cherry Hill, US-NJ, 08003",
+  "category": "pediatric_dentistry",
+  "source": "overture",
+  "industry": "dentist",
+  "socials": [
+   "https://www.facebook.com/155725791134702"
+  ],
+  "dns_ok": true
+ },
+ {
+  "name": "The Rossi Legal Organization, Inc",
+  "website": "https://www.rossiorg.legal",
+  "city": "New York",
+  "region": "NY",
+  "phone": "+12124807510",
+  "email": null,
+  "address": "40 Wall St  Fl 28, New York, US-NY, 10005-1486",
+  "category": "legal_service",
+  "source": "overture",
+  "industry": "lawyer",
+  "socials": [],
+  "dns_ok": true
+ },
+ {
+  "name": "Miranda's Color & Cuts",
+  "website": "http://www.mirandascolorncuts.com/",
+  "city": "Denver",
+  "region": "CO",
+  "phone": "+13037788125",
+  "email": null,
+  "address": "2011 S Acoma St, Denver, US-CO, 80223-3932",
+  "category": "beauty_salon",
+  "source": "overture",
+  "industry": "hair salon",
+  "socials": [
+   "https://www.facebook.com/495160997183544"
+  ],
+  "dns_ok": false
+ },
+ {
+  "name": "Goddard Law Office",
+  "website": "http://www.terrygoddard.com/",
+  "city": "Phoenix",
+  "region": "AZ",
+  "phone": "+16022541514",
+  "email": null,
+  "address": "502 W Roosevelt St, Phoenix, US-AZ, 85003",
+  "category": "attorney_or_law_firm",
+  "source": "overture",
+  "industry": "lawyer",
+  "socials": [
+   "https://www.facebook.com/125441220843762"
+  ],
+  "dns_ok": true
+ },
+ {
+  "name": "Gershenzon Dental",
+  "website": "http://www.gershenzondental.com",
+  "city": "Chicago",
+  "region": "IL",
+  "phone": "+13123728538",
+  "email": null,
+  "address": "30 N Michigan Ave  Ste 904, Chicago, US-IL, 60602-3501",
+  "category": "dental_clinic",
+  "source": "overture",
+  "industry": "dentist",
+  "socials": [],
+  "dns_ok": true
+ },
+ {
+  "name": "Upbeats",
+  "website": "http://www.upbeatsfitness.com/",
+  "city": "Seattle",
+  "region": "WA",
+  "phone": "+12064661452",
+  "email": "info@upbeatsfitness.com",
+  "address": "928 NW Leary Way, Seattle, US-WA, 98107-4642",
+  "category": "gym",
+  "source": "overture",
+  "industry": "gym",
+  "socials": [
+   "https://www.facebook.com/1866606970070785"
+  ],
+  "dns_ok": false
+ },
+ {
+  "name": "Dr. John C Skreko Dentistry",
+  "website": "http://www.drskreko.com/",
+  "city": "Chicago",
+  "region": "IL",
+  "phone": "+17082461263",
+  "email": "jskreko1@comcast.net",
+  "address": "6961 Vine St, Indian Head Park, US-IL, 60525-4304",
+  "category": "dental_clinic",
+  "source": "overture",
+  "industry": "dentist",
+  "socials": [
+   "https://www.facebook.com/652238291518933"
+  ],
+  "dns_ok": true
+ },
+ {
+  "name": "The Smile Studio",
+  "website": "http://thesmilestudiodentist.com/",
+  "city": "Los Angeles",
+  "region": "CA",
+  "phone": "+13106743232",
+  "email": null,
+  "address": "3300 W Manchester Blvd, Inglewood, US-CA, 90305",
+  "category": "cosmetic_dentistry",
+  "source": "overture",
+  "industry": "dentist",
+  "socials": [],
+  "dns_ok": true
+ },
+ {
+  "name": "J. L. Moore Construction Roofing",
+  "website": "https://jlmooreroofing.com",
+  "city": "Dallas",
+  "region": "TX",
+  "phone": "+14693722001",
+  "email": null,
+  "address": "500 E Arapaho Rd  Ste 610, Richardson, US-TX, 75081-2767",
+  "category": "roofing",
+  "source": "overture",
+  "industry": "roofer",
+  "socials": [],
+  "dns_ok": true
+ },
+ {
+  "name": "SIN Yin Yoga",
+  "website": "https://www.yinyogaspace.com/copy-of-about-1",
+  "city": "Portland",
+  "region": "OR",
+  "phone": "+19713477208",
+  "email": "info@yinyogaspace.com",
+  "address": "32 NE 7th Ave, Portland, US-OR, 97232-2981",
+  "category": "yoga_studio",
+  "source": "overture",
+  "industry": "gym",
+  "socials": [
+   "https://www.facebook.com/118154304556384"
+  ],
+  "dns_ok": true
+ },
+ {
+  "name": "Landman Dental Associates",
+  "website": "http://www.landmandental.com/",
+  "city": "Chicago",
+  "region": "IL",
+  "phone": "+13122666480",
+  "email": "office@landmandental.com",
+  "address": "737 N Michigan Ave, Chicago, US-IL, 60611-2615",
+  "category": "general_dentistry",
+  "source": "overture",
+  "industry": "dentist",
+  "socials": [
+   "https://www.facebook.com/760331550726296"
+  ],
+  "dns_ok": true
+ },
+ {
+  "name": "Metro Dental",
+  "website": "http://www.ridemetro.org",
+  "city": "Houston",
+  "region": "TX",
+  "phone": "+17137237855",
+  "email": null,
+  "address": "7515 W Bellfort Ave, Houston, US-TX, 77071",
+  "category": "dental_clinic",
+  "source": "overture",
+  "industry": "dentist",
+  "socials": [
+   "https://www.facebook.com/101712129898713"
+  ],
+  "dns_ok": true
+ },
+ {
+  "name": "Timberwood Dental",
+  "website": "https://www.timberwooddental.com/",
+  "city": "San Antonio",
+  "region": "TX",
+  "phone": "+18302226366",
+  "email": "hello@timberwooddental.com",
+  "address": "502 E Borgfeld Dr, San Antonio, US-TX, 78260",
+  "category": "general_dentistry",
+  "source": "overture",
+  "industry": "dentist",
+  "socials": [
+   "https://www.facebook.com/220211084515522"
+  ],
+  "dns_ok": true
+ },
+ {
+  "name": "Hair Sensation",
+  "website": "http://hairsensation.net/",
+  "city": "San Diego",
+  "region": "CA",
+  "phone": "+16199942581",
+  "email": "hairsensation1@gmail.com",
+  "address": "1110 Torrey Pines Rd, La Jolla, US-CA, 92037-4504",
+  "category": "hair_salon",
+  "source": "overture",
+  "industry": "hair salon",
+  "socials": [
+   "https://www.facebook.com/103745554505459"
+  ],
+  "dns_ok": true
+ },
+ {
+  "name": "Allure Nails & Spa",
+  "website": "https://allurenails6963.github.io/allure-nails-spa",
+  "city": "San Diego",
+  "region": "CA",
+  "phone": "+16198257768",
+  "email": "allurenail13@gmail.com",
+  "address": "6963 Broadway, Lemon Grove, US-CA, 91945",
+  "category": "nail_salon",
+  "source": "overture",
+  "industry": "hair salon",
+  "socials": [
+   "https://www.facebook.com/506274996373407"
+  ],
+  "dns_ok": true
+ },
+ {
+  "name": "Superrrr-Face Skin Provisions",
+  "website": "http://superrrr-face.square.site/",
+  "city": "Miami",
+  "region": "FL",
+  "phone": "+19013879730",
+  "email": "rachel@superrrrface.com",
+  "address": "1400 Alton Rd, Miami Beach, US-FL, 33139-3814",
+  "category": "skin_care_and_makeup",
+  "source": "overture",
+  "industry": "med spa",
+  "socials": [
+   "https://www.facebook.com/104279575884769"
+  ],
+  "dns_ok": true
+ },
+ {
+  "name": "Vibe Dentistry Spring",
+  "website": "https://myvibedentistry.com/?utm_source=facebook&utm_medium=social_media",
+  "city": "Houston",
+  "region": "TX",
+  "phone": "+18329686115",
+  "email": null,
+  "address": "3784 Rayford Rd #400, Spring, US-TX, 77386",
+  "category": "general_dentistry",
+  "source": "overture",
+  "industry": "dentist",
+  "socials": [
+   "https://www.facebook.com/103192879388134"
+  ],
+  "dns_ok": true
+ },
+ {
+  "name": "Kevin M. Chin DDS",
+  "website": "https://kevin-m-chin-dds-pc.hub.biz/",
+  "city": "Philadelphia",
+  "region": "PA",
+  "phone": "+12156989292",
+  "email": null,
+  "address": "2000 Grant Ave STE 200, Philadelphia, US-PA, 19115",
+  "category": "dental_clinic",
+  "source": "overture",
+  "industry": "dentist",
+  "socials": [
+   "https://www.facebook.com/163499793675004"
+  ],
+  "dns_ok": true
+ },
+ {
+  "name": "MINT Dentistry",
+  "website": "https://easthouston.mintdentistry.com/",
+  "city": "Houston",
+  "region": "TX",
+  "phone": "+18322201800",
+  "email": "easthouston@mintdentistry.com",
+  "address": "414 Uvalde Rd, Houston, US-TX, 77015",
+  "category": "dental_clinic",
+  "source": "overture",
+  "industry": "dentist",
+  "socials": [
+   "https://www.facebook.com/1036621319746044"
+  ],
+  "dns_ok": true
+ },
+ {
+  "name": "Feinberg & Feinberg",
+  "website": "https://www.feinbergandfeinberg.com",
+  "city": "New York",
+  "region": "NY",
+  "phone": "+19733788886",
+  "email": null,
+  "address": "76 S Orange Ave  Ste 201, South Orange, US-NJ, 07079-1923",
+  "category": "attorney_or_law_firm",
+  "source": "overture",
+  "industry": "lawyer",
+  "socials": [],
+  "dns_ok": true
+ },
+ {
+  "name": "The Law Office Of Dara F. Scott, P.c.",
+  "website": "https://attydarascott.com",
+  "city": "New York",
+  "region": "NY",
+  "phone": "+13479470231",
+  "email": null,
+  "address": "26 Court St  Ste 1406, Brooklyn, US-NY, 11242-1114",
+  "category": "attorney_or_law_firm",
+  "source": "overture",
+  "industry": "lawyer",
+  "socials": [],
+  "dns_ok": true
+ },
+ {
+  "name": "Privai Spa Orlando",
+  "website": "http://www.privaispa.com/",
+  "city": "Orlando",
+  "region": "FL",
+  "phone": "+14072487428",
+  "email": null,
+  "address": "6677 Sea Harbor Dr, Orlando, US-FL, 32821",
+  "category": "day_spa",
+  "source": "overture",
+  "industry": "med spa",
+  "socials": [],
+  "dns_ok": true
+ },
+ {
+  "name": "Smiles Pediatric Dentistry",
+  "website": "http://www.smileswestloop.com/?utm_source=google&utm_medium=local&utm_campaign=GMB&y_source=1_ODY1ODI2Ni03MTUtbG9jYXRpb24ud2Vic2l0ZQ%3D%3D",
+  "city": "Chicago",
+  "region": "IL",
+  "phone": "+13124871787",
+  "email": "info@smileswestloop.com",
+  "address": "1229 W Washington Blvd, Chicago, US-IL, 60607",
+  "category": "pediatric_dentistry",
+  "source": "overture",
+  "industry": "dentist",
+  "socials": [
+   "https://www.facebook.com/1402866033342000"
+  ],
+  "dns_ok": true
+ },
+ {
+  "name": "Trendy Chic Beauty Salon",
+  "website": "http://Trendychicstyles.com/",
+  "city": "San Diego",
+  "region": "CA",
+  "phone": "+16194772139",
+  "email": "contact@trendychicstyles.com",
+  "address": "3030 Plaza Bonita Rd Unit 1336 S-144, National City, US-CA, 91950",
+  "category": "hair_salon",
+  "source": "overture",
+  "industry": "hair salon",
+  "socials": [
+   "https://www.facebook.com/153207538040423"
+  ],
+  "dns_ok": true
+ },
+ {
+  "name": "Affinity Dental",
+  "website": "https://affinitydentalchicago.com/",
+  "city": "Chicago",
+  "region": "IL",
+  "phone": "+17739047079",
+  "email": "info@affinitydentalchicago.com",
+  "address": "2015 W Irving Park Rd, Chicago, US-IL, 60618",
+  "category": "dental_clinic",
+  "source": "overture",
+  "industry": "dentist",
+  "socials": [
+   "https://www.facebook.com/380414848687460"
+  ],
+  "dns_ok": true
+ },
+ {
+  "name": "US Barbershop",
+  "website": "http://www.thebarbershops.com/",
+  "city": "San Diego",
+  "region": "CA",
+  "phone": "+18585987391",
+  "email": "tlam858@yahoo.com",
+  "address": "3381 El Cajon Blvd, San Diego, US-CA, 92104-1428",
+  "category": "barber",
+  "source": "overture",
+  "industry": "hair salon",
+  "socials": [
+   "https://www.facebook.com/151141464912727"
+  ],
+  "dns_ok": true
+ },
+ {
+  "name": "Rutgers Race & the Law Review",
+  "website": "http://www.rutgersuniversitylawreview.com/",
+  "city": "New York",
+  "region": "NY",
+  "phone": "+19733531079",
+  "email": "rutgersuniversity.lawreview@gmail.com",
+  "address": "123 Washington St, Newark, US-NJ, 07102-3026",
+  "category": "legal_service",
+  "source": "overture",
+  "industry": "lawyer",
+  "socials": [
+   "https://www.facebook.com/270232063006713"
+  ],
+  "dns_ok": true
+ },
+ {
+  "name": "Dr. Paul Bahn",
+  "website": "https://www.pediatricdentalassociates.com",
+  "city": "Philadelphia",
+  "region": "PA",
+  "phone": "+12152828000",
+  "email": null,
+  "address": "2301 E Allegheny Ave  Ste 201, Philadelphia, US-PA, 19134-4427",
+  "category": "dental_clinic",
+  "source": "overture",
+  "industry": "dentist",
+  "socials": [],
+  "dns_ok": true
+ },
+ {
+  "name": "Salon Serendipity",
+  "website": "http://www.yoursalonserendipity.com",
+  "city": "San Diego",
+  "region": "CA",
+  "phone": "+16192841330",
+  "email": "setqueennana@aol.com",
+  "address": "4689 Marlborough Dr, San Diego, US-CA, 92116",
+  "category": "hair_salon",
+  "source": "overture",
+  "industry": "hair salon",
+  "socials": [],
+  "dns_ok": false
+ },
+ {
+  "name": "Nancy R DiPietro DDS and Steven D Danzig DDS",
+  "website": "http://www.ddfamilydental.com/",
+  "city": "Philadelphia",
+  "region": "PA",
+  "phone": "+16108966361",
+  "email": "contact@ddfamilydental.com",
+  "address": "2 Rolling Rd, Wynnewood, US-PA, 19096-3527",
+  "category": "dental_clinic",
+  "source": "overture",
+  "industry": "dentist",
+  "socials": [
+   "https://www.facebook.com/300137900004369"
+  ],
+  "dns_ok": true
+ },
+ {
+  "name": "Josie Day RiNo",
+  "website": "http://www.itsajosieday.com/",
+  "city": "Denver",
+  "region": "CO",
+  "phone": "+17205084165",
+  "email": "josie_gonzalez@rocketmail.com",
+  "address": "3047 Larimer St, Denver, US-CO, 80205",
+  "category": "hair_salon",
+  "source": "overture",
+  "industry": "hair salon",
+  "socials": [
+   "https://www.facebook.com/820673158092267"
+  ],
+  "dns_ok": true
+ },
+ {
+  "name": "Elite Hair Salon",
+  "website": "http://myeliteride.com",
+  "city": "Las Vegas",
+  "region": "NV",
+  "phone": "+17028808800",
+  "email": null,
+  "address": "3839 W Sahara Ave, Las Vegas, US-NV, 89102-0538",
+  "category": "hair_salon",
+  "source": "overture",
+  "industry": "hair salon",
+  "socials": [
+   "https://www.facebook.com/126188094131222"
+  ],
+  "dns_ok": true
+ },
+ {
+  "name": "Dew Anti Aging And Medspa",
+  "website": "https://dewantiagingmedspa.com",
+  "city": "Orlando",
+  "region": "FL",
+  "phone": "+14079630125",
+  "email": null,
+  "address": "7300 Sandlake Commons Blvd  Ste 315 Bldg A, Orlando, US-FL, 32819-8011",
+  "category": "medical_spa",
+  "source": "overture",
+  "industry": "med spa",
+  "socials": [],
+  "dns_ok": true
+ },
+ {
+  "name": "Western Dental",
+  "website": "https://www.westerndental.com/en-us/find-a-location/california/gardena/15515-s-normandie-ave",
+  "city": "Los Angeles",
+  "region": "CA",
+  "phone": "+13109530902",
+  "email": null,
+  "address": "15515 Normandie Ave, Gardena, US-CA, 90247",
+  "category": "dental_clinic",
+  "source": "overture",
+  "industry": "dentist",
+  "socials": [
+   "https://www.facebook.com/688765171562201"
+  ],
+  "dns_ok": true
+ },
+ {
+  "name": "Irina Sahaki DDS Inc.",
+  "website": "http://irinasahakidds.com/",
+  "city": "Los Angeles",
+  "region": "CA",
+  "phone": "+18182412424",
+  "email": null,
+  "address": "520 E Broadway, Unit 402, Glendale, US-CA, 91205",
+  "category": "general_dentistry",
+  "source": "overture",
+  "industry": "dentist",
+  "socials": [],
+  "dns_ok": true
+ },
+ {
+  "name": "H-Town Dental",
+  "website": "https://htowndental.com/premiere-dental-care/social/",
+  "city": "Houston",
+  "region": "TX",
+  "phone": "+18327675614",
+  "email": "managerhtowndental@gmail.com",
+  "address": "13447 East Fwy, Houston, US-TX, 77015",
+  "category": "dental_clinic",
+  "source": "overture",
+  "industry": "dentist",
+  "socials": [
+   "https://www.facebook.com/148996431913130"
+  ],
+  "dns_ok": true
+ },
+ {
+  "name": "Salon Therapy",
+  "website": "http://www.salon-therapy.com/",
+  "city": "Denver",
+  "region": "CO",
+  "phone": "+18066209099",
+  "email": "christi.canada@gmail.com",
+  "address": "1704 E 6th Ave, Denver, US-CO, 80218",
+  "category": "beauty_salon",
+  "source": "overture",
+  "industry": "hair salon",
+  "socials": [
+   "https://www.facebook.com/101336708685063"
+  ],
+  "dns_ok": true
+ },
+ {
+  "name": "Donlon And Associates Pc",
+  "website": "http://donlonlaw.blogspot.com",
+  "city": "New York",
+  "region": "NY",
+  "phone": null,
+  "email": null,
+  "address": "11 Broadway Ste 615, New York, US-NY, 10004-1490",
+  "category": "legal_service",
+  "source": "overture",
+  "industry": "lawyer",
+  "socials": [],
+  "dns_ok": true
+ },
+ {
+  "name": "Dr. Rohi Atassi D.d.s.",
+  "website": "https://chicagodentalboutique.com",
+  "city": "Chicago",
+  "region": "IL",
+  "phone": "+13128680301",
+  "email": null,
+  "address": "333 E Benton Pl, Chicago, US-IL, 60601-7412",
+  "category": "dental_clinic",
+  "source": "overture",
+  "industry": "dentist",
+  "socials": [],
+  "dns_ok": true
+ },
+ {
+  "name": "Lush Lashes",
+  "website": "https://lushlashes19.glossgenius.com/",
+  "city": "Denver",
+  "region": "CO",
+  "phone": "+17202980821",
+  "email": "lushlashes19@hotmail.com",
+  "address": "10201 Quentin Ct, Commerce City, US-CO, 80022",
+  "category": "beauty_salon",
+  "source": "overture",
+  "industry": "hair salon",
+  "socials": [
+   "https://www.facebook.com/1838904549754887"
+  ],
+  "dns_ok": true
+ },
+ {
+  "name": "Jeffrey Gaule DDS",
+  "website": "http://www.jeffreygauledds.com/",
+  "city": "Chicago",
+  "region": "IL",
+  "phone": "+17732817550",
+  "email": "jeffreygaule@sbcglobal.net",
+  "address": "1105 W Belmont Ave, Chicago, US-IL, 60657",
+  "category": "general_dentistry",
+  "source": "overture",
+  "industry": "dentist",
+  "socials": [
+   "https://www.facebook.com/1544262919236847"
+  ],
+  "dns_ok": true
+ },
+ {
+  "name": "The Secret Barbershop",
+  "website": "https://thesecrret.com/",
+  "city": "San Diego",
+  "region": "CA",
+  "phone": "+16193106678",
+  "email": "thesecrret@gmail.com",
+  "address": "1226 University Ave, San Diego, US-CA, 92103",
+  "category": "barber",
+  "source": "overture",
+  "industry": "hair salon",
+  "socials": [
+   "https://www.facebook.com/162473143615442"
+  ],
+  "dns_ok": true
+ },
+ {
+  "name": "Paul Englander Plc",
+  "website": "https://www.paulenglander.com",
+  "city": "Phoenix",
+  "region": "AZ",
+  "phone": "+16022667986",
+  "email": null,
+  "address": "1440 E Missouri Ave Ste 265, Phoenix, US-AZ, 85014-2462",
+  "category": "attorney_or_law_firm",
+  "source": "overture",
+  "industry": "lawyer",
+  "socials": [],
+  "dns_ok": true
+ },
+ {
+  "name": "McDowell Dental & Aesthetics",
+  "website": "http://www.mcdowelldental.com/",
+  "city": "Philadelphia",
+  "region": "PA",
+  "phone": "+12158850555",
+  "email": "info@mcdowelldental.com",
+  "address": "1077 Rydal Rd #300, Abington Twp, US-PA, 19046",
+  "category": "cosmetic_dentistry",
+  "source": "overture",
+  "industry": "dentist",
+  "socials": [
+   "https://www.facebook.com/139652102770117"
+  ],
+  "dns_ok": true
+ },
+ {
+  "name": "Schroyer Dental",
+  "website": "http://SchroyerDental.com/",
+  "city": "Chicago",
+  "region": "IL",
+  "phone": "+17082464320",
+  "email": "office@schroyerdental.com",
+  "address": "4365 Lawn Ave Ste 3, Western Springs, US-IL, 60558",
+  "category": "general_dentistry",
+  "source": "overture",
+  "industry": "dentist",
+  "socials": [
+   "https://www.facebook.com/732150936995079"
+  ],
+  "dns_ok": true
+ },
+ {
+  "name": "Kingwood Endodontics",
+  "website": "http://www.kingwoodendo.com/",
+  "city": "Houston",
+  "region": "TX",
+  "phone": "+12813593636",
+  "email": "burkedds2000@hotmail.com",
+  "address": "2606 Green Oak Dr Ste B, Houston, US-TX, 77339",
+  "category": "endodontics",
+  "source": "overture",
+  "industry": "dentist",
+  "socials": [
+   "https://www.facebook.com/1688004504787350"
+  ],
+  "dns_ok": true
+ },
+ {
+  "name": "Main Line Dental Health Associates",
+  "website": "http://www.mainlinedentistry.com/",
+  "city": "Philadelphia",
+  "region": "PA",
+  "phone": "+16106426965",
+  "email": null,
+  "address": "100 E Lancaster Ave, Wynnewood, US-PA, 19096",
+  "category": "cosmetic_dentistry",
+  "source": "overture",
+  "industry": "dentist",
+  "socials": [],
+  "dns_ok": true
+ },
+ {
+  "name": "Michael A De George DDS PC",
+  "website": "http://www.wishpromo.com/",
+  "city": "Philadelphia",
+  "region": "PA",
+  "phone": "+12158364722",
+  "email": null,
+  "address": "1521 Bethlehem Pike, Flourtown, US-PA, 19031-1900",
+  "category": "cosmetic_dentistry",
+  "source": "overture",
+  "industry": "dentist",
+  "socials": [
+   "https://www.facebook.com/250345768441833"
+  ],
+  "dns_ok": true
+ },
+ {
+  "name": "Little Nail & Spa",
+  "website": "https://www.littlenailandspa.com/",
+  "city": "San Diego",
+  "region": "CA",
+  "phone": "+16193718278",
+  "email": "littlenailspa1@gmail.com",
+  "address": "2431 National City Blvd, National City, US-CA, 91950",
+  "category": "nail_salon",
+  "source": "overture",
+  "industry": "hair salon",
+  "socials": [
+   "https://www.facebook.com/171361149390201"
+  ],
+  "dns_ok": true
+ },
+ {
+  "name": "Law Office Of Mary T. Dempsey, P.c",
+  "website": "http://www.hamtinilaw.com",
+  "city": "New York",
+  "region": "NY",
+  "phone": null,
+  "email": null,
+  "address": "40 Wall St Fl 28, New York, US-NY, 10005-1486",
+  "category": "legal_service",
+  "source": "overture",
+  "industry": "lawyer",
+  "socials": [],
+  "dns_ok": true
+ },
+ {
+  "name": "A-1 Family Dental Care PC",
+  "website": "http://www.myfamilydentalcare.com",
+  "city": "Philadelphia",
+  "region": "PA",
+  "phone": "+12153425750",
+  "email": null,
+  "address": "8355 Loretto Ave, Philadelphia, US-PA, 19152-1853",
+  "category": "dental_clinic",
+  "source": "overture",
+  "industry": "dentist",
+  "socials": [
+   "https://www.facebook.com/337606753029748"
+  ],
+  "dns_ok": true
+ },
+ {
+  "name": "Russian gel manicure Denver",
+  "website": "https://nailshousebybonati.com/",
+  "city": "Denver",
+  "region": "CO",
+  "phone": "+17209995655",
+  "email": null,
+  "address": "350 S Garfield St , Denver, US-CO, 80209",
+  "category": "nail_salon",
+  "source": "overture",
+  "industry": "hair salon",
+  "socials": [
+   "https://www.facebook.com/347737772522395"
+  ],
+  "dns_ok": true
+ },
+ {
+  "name": "Law Offices Of Michelle Bell, Pllc",
+  "website": "http://michellebelllaw.com",
+  "city": "Phoenix",
+  "region": "AZ",
+  "phone": "+16024567889",
+  "email": null,
+  "address": "2375 E Camelback Rd  Ste 600, Phoenix, US-AZ, 85016-3493",
+  "category": "attorney_or_law_firm",
+  "source": "overture",
+  "industry": "lawyer",
+  "socials": [],
+  "dns_ok": true
+ },
+ {
+  "name": "Portland Team Fitness",
+  "website": "https://www.portlandteamfitness.com",
+  "city": "Portland",
+  "region": "OR",
+  "phone": "+15038900257",
+  "email": null,
+  "address": "3311 NE M L King Blvd, Portland, US-OR, 97212-2086",
+  "category": "fitness_trainer",
+  "source": "overture",
+  "industry": "gym",
+  "socials": [],
+  "dns_ok": true
+ },
+ {
+  "name": "Hatha Yoga Center",
+  "website": "http://hathayogacenter.com/",
+  "city": "Seattle",
+  "region": "WA",
+  "phone": "+12066321443",
+  "email": "info@hathayogacenter.com",
+  "address": "1020 NE 112th St, Seattle, US-WA, 98125",
+  "category": "yoga_studio",
+  "source": "overture",
+  "industry": "gym",
+  "socials": [
+   "https://www.facebook.com/186916304663348"
+  ],
+  "dns_ok": true
+ },
+ {
+  "name": "Arizona Interlocks West",
+  "website": "http://arizonainterlocks.com",
+  "city": "Phoenix",
+  "region": "AZ",
+  "phone": "+16025963668",
+  "email": null,
+  "address": "3334 W Wilshire Dr  Ste 43, Phoenix, US-AZ, 85009-1455",
+  "category": "legal_service",
+  "source": "overture",
+  "industry": "lawyer",
+  "socials": [],
+  "dns_ok": true
+ },
+ {
+  "name": "New Athlete",
+  "website": "https://newathlete.com/",
+  "city": "Portland",
+  "region": "OR",
+  "phone": "+13605670553",
+  "email": "newathletephysicaltherapy@gmail.com",
+  "address": "300 Grand Blvd, Vancouver, US-WA, 98661-4930",
+  "category": "gym",
+  "source": "overture",
+  "industry": "gym",
+  "socials": [
+   "https://www.facebook.com/166544126694760"
+  ],
+  "dns_ok": true
+ },
+ {
+  "name": "Moore Kuehn, Pllc",
+  "website": "http://moorekuehn.com",
+  "city": "New York",
+  "region": "NY",
+  "phone": "+12127098245",
+  "email": null,
+  "address": "30 Wall St  # 8fl, New York, US-NY, 10005-2201",
+  "category": "attorney_or_law_firm",
+  "source": "overture",
+  "industry": "lawyer",
+  "socials": [],
+  "dns_ok": true
+ },
+ {
+  "name": "Advanced Family Smiles",
+  "website": "https://www.afspc.com/philadelphia-dentist-office/",
+  "city": "Philadelphia",
+  "region": "PA",
+  "phone": "+12676680063",
+  "email": "info@afspc.com",
+  "address": "10501 Academy Rd, Philadelphia, US-PA, 19114-1137",
+  "category": "general_dentistry",
+  "source": "overture",
+  "industry": "dentist",
+  "socials": [
+   "https://www.facebook.com/472034599562358"
+  ],
+  "dns_ok": true
+ },
+ {
+  "name": "A Barber's Touch",
+  "website": "http://barbasfades.booksy.com/",
+  "city": "Denver",
+  "region": "CO",
+  "phone": "+13038352961",
+  "email": "touchtru08@gmail.com",
+  "address": "500 W 84th Ave, Denver, US-CO, 80260-4400",
+  "category": "barber",
+  "source": "overture",
+  "industry": "hair salon",
+  "socials": [
+   "https://www.facebook.com/103556939058198"
+  ],
+  "dns_ok": true
+ },
+ {
+  "name": "Dark Rose Club",
+  "website": "http://darkroseclub.com/",
+  "city": "Denver",
+  "region": "CO",
+  "phone": "+17206366772",
+  "email": "contact@darkroseclub.com",
+  "address": "1041 S Gaylord St Unit B, Denver, US-CO, 80209",
+  "category": "barber",
+  "source": "overture",
+  "industry": "hair salon",
+  "socials": [
+   "https://www.facebook.com/112591710125846"
+  ],
+  "dns_ok": true
+ },
+ {
+  "name": "Darby's Hairitage Salon",
+  "website": "http://darbyshairitage.com/cgi-sys/suspendedpage.cgi",
+  "city": "Las Vegas",
+  "region": "NV",
+  "phone": "+17024625030",
+  "email": "darbyshairitage@yahoo.com",
+  "address": "101 S Rainbow Blvd #23, Las Vegas, US-NV, 89145",
+  "category": "hair_salon",
+  "source": "overture",
+  "industry": "hair salon",
+  "socials": [
+   "https://www.facebook.com/121633487920442"
+  ],
+  "dns_ok": false
+ },
+ {
+  "name": "Tatia D. Barnes, Esq.",
+  "website": "http://www.tdbarneslaw.com",
+  "city": "New York",
+  "region": "NY",
+  "phone": "+12125374069",
+  "email": null,
+  "address": "48 Wall Street, 11th Floor, New York, US-NY, 10005",
+  "category": "attorney_or_law_firm",
+  "source": "overture",
+  "industry": "lawyer",
+  "socials": [
+   "https://www.twitter.com/tdbarneslaw",
+   "https://www.facebook.com/121628887908719"
+  ],
+  "dns_ok": true
+ },
+ {
+  "name": "The Law Office of Sofia Balile",
+  "website": "http://www.balilelaw.com/",
+  "city": "New York",
+  "region": "NY",
+  "phone": "+16465802969",
+  "email": "sofia@balilelaw.com",
+  "address": "155 Water St 4th Floor, Suite 4-1, New York, US-NY, 11201",
+  "category": "attorney_or_law_firm",
+  "source": "overture",
+  "industry": "lawyer",
+  "socials": [
+   "https://www.facebook.com/245705465449994"
+  ],
+  "dns_ok": true
+ },
+ {
+  "name": "Steven Salzman, Dds",
+  "website": "https://stevensalzmandds.com",
+  "city": "Chicago",
+  "region": "IL",
+  "phone": "+17737776788",
+  "email": null,
+  "address": "6444 W Belmont Ave Unit A, Chicago, US-IL, 60634-4191",
+  "category": "general_dentistry",
+  "source": "overture",
+  "industry": "dentist",
+  "socials": [],
+  "dns_ok": false
+ },
+ {
+  "name": "Lumer & Neville",
+  "website": "https://www.lumerneville.com",
+  "city": "New York",
+  "region": "NY",
+  "phone": null,
+  "email": null,
+  "address": "225 Broadway Ste 2700, New York, US-NY, 10007-3082",
+  "category": "legal_service",
+  "source": "overture",
+  "industry": "lawyer",
+  "socials": [],
+  "dns_ok": true
+ },
+ {
+  "name": "Claudine  Hairstylist",
+  "website": "https://www.claudinehair.com/",
+  "city": "San Diego",
+  "region": "CA",
+  "phone": "+17605049404",
+  "email": "info@claudinehair.com",
+  "address": "111 Chesterfield Dr, Cardiff by the Sea, US-CA, 92007-1918",
+  "category": "beauty_salon",
+  "source": "overture",
+  "industry": "hair salon",
+  "socials": [
+   "https://www.facebook.com/433593726658454"
+  ],
+  "dns_ok": true
+ },
+ {
+  "name": "X3 Nails",
+  "website": "http://www.modernnails303.com",
+  "city": "Denver",
+  "region": "CO",
+  "phone": "+13037162622",
+  "email": null,
+  "address": "437 S Wadsworth Blvd, Lakewood, US-CO, 80226-3134",
+  "category": "nail_salon",
+  "source": "overture",
+  "industry": "hair salon",
+  "socials": [
+   "https://www.facebook.com/104030405145686"
+  ],
+  "dns_ok": false
+ },
+ {
+  "name": "Studio Aspetto",
+  "website": "http://deannabarth.GlossGenius.com/",
+  "city": "Denver",
+  "region": "CO",
+  "phone": "+17204804471",
+  "email": null,
+  "address": "7430 W 88th Ave Ste.115, Arvada, US-CO, 80021",
+  "category": "hair_salon",
+  "source": "overture",
+  "industry": "hair salon",
+  "socials": [
+   "https://www.facebook.com/197742383731460"
+  ],
+  "dns_ok": true
+ },
+ {
+  "name": "EON Clinics",
+  "website": "https://www.eonclinics.com/dental-implants-chicago",
+  "city": "Chicago",
+  "region": "IL",
+  "phone": "+18443657645",
+  "email": null,
+  "address": "740 N Franklin St, Chicago, US-IL, 60654",
+  "category": "general_dentistry",
+  "source": "overture",
+  "industry": "dentist",
+  "socials": [],
+  "dns_ok": true
+ },
+ {
+  "name": "Hendricks Murphy, Pllc",
+  "website": "http://www.hendricksmurphy.com",
+  "city": "Phoenix",
+  "region": "AZ",
+  "phone": "+16026042100",
+  "email": null,
+  "address": "1440 E Missouri Ave Ste C225, Phoenix, US-AZ, 85014-2482",
+  "category": "legal_service",
+  "source": "overture",
+  "industry": "lawyer",
+  "socials": [],
+  "dns_ok": true
+ },
+ {
+  "name": "Oscar Goren, Dmd Pc",
+  "website": "http://www.oscargorendmd.com",
+  "city": "Philadelphia",
+  "region": "PA",
+  "phone": "+12153325259",
+  "email": null,
+  "address": "2412 Rhawn St, Philadelphia, US-PA, 19152-3324",
+  "category": "dental_clinic",
+  "source": "overture",
+  "industry": "dentist",
+  "socials": [],
+  "dns_ok": true
+ },
+ {
+  "name": "Tooth Town Pediatric Dentistry",
+  "website": "http://www.toothtownnj.com/",
+  "city": "Philadelphia",
+  "region": "PA",
+  "phone": "+18563300461",
+  "email": "toothtownnj@gmail.com",
+  "address": "175 US-130 Ste B, Cinnaminson Twp, US-NJ, 08077",
+  "category": "pediatric_dentistry",
+  "source": "overture",
+  "industry": "dentist",
+  "socials": [
+   "https://www.facebook.com/971017122754357"
+  ],
+  "dns_ok": true
+ },
+ {
+  "name": "Armen Manssourian Dmd",
+  "website": "http://www.dentistonbrand.com",
+  "city": "Los Angeles",
+  "region": "CA",
+  "phone": "+18182422667",
+  "email": null,
+  "address": "1122 N Brand Blvd  Ste 102, Glendale, US-CA, 91202-2570",
+  "category": "dental_clinic",
+  "source": "overture",
+  "industry": "dentist",
+  "socials": [],
+  "dns_ok": true
+ },
+ {
+  "name": "Caldwell and Steinbring Dentistry for Children",
+  "website": "http://www.cskidsdds.com/",
+  "city": "Houston",
+  "region": "TX",
+  "phone": "+12815655437",
+  "email": "office@cskidsdds.com",
+  "address": "15200 Southwest Fwy #320, Sugar Land, US-TX, 77478",
+  "category": "pediatric_dentistry",
+  "source": "overture",
+  "industry": "dentist",
+  "socials": [
+   "https://www.facebook.com/166815322114"
+  ],
+  "dns_ok": true
+ },
+ {
+  "name": "Appel Orthodontics",
+  "website": "https://www.appelortho.com",
+  "city": "Philadelphia",
+  "region": "PA",
+  "phone": "+12156763070",
+  "email": null,
+  "address": "101 Old York Rd Ste 301, Jenkintown, US-PA, 19046-3931",
+  "category": "orthodontics",
+  "source": "overture",
+  "industry": "dentist",
+  "socials": [],
+  "dns_ok": true
+ },
+ {
+  "name": "S. Brett DeLawter, DDS",
+  "website": "http://www.theglendaledentist.blogspot.com/",
+  "city": "Los Angeles",
+  "region": "CA",
+  "phone": "+18182421708",
+  "email": null,
+  "address": "1025 N Brand Blvd, Glendale, US-CA, 91202-2950",
+  "category": "dental_clinic",
+  "source": "overture",
+  "industry": "dentist",
+  "socials": [
+   "https://www.facebook.com/199994196420"
+  ],
+  "dns_ok": true
+ },
+ {
+  "name": "Peek Dentistry",
+  "website": "https://peekdentistrytx.com/",
+  "city": "Houston",
+  "region": "TX",
+  "phone": "+18324094949",
+  "email": "front@peekdentistrytx.com",
+  "address": "3011 W Grand Pkwy N Ste 200, Katy, US-TX, 77449",
+  "category": "general_dentistry",
+  "source": "overture",
+  "industry": "dentist",
+  "socials": [
+   "https://www.facebook.com/110262820550821"
+  ],
+  "dns_ok": true
+ },
+ {
+  "name": "Taylor Street Dental",
+  "website": "http://taylorstreetdentalchicago.com/",
+  "city": "Chicago",
+  "region": "IL",
+  "phone": "+13122261537",
+  "email": "info@taylorstreetdentalchicago.com",
+  "address": "1259 W Taylor St, Chicago, US-IL, 60607",
+  "category": "general_dentistry",
+  "source": "overture",
+  "industry": "dentist",
+  "socials": [
+   "https://www.facebook.com/488253847713526"
+  ],
+  "dns_ok": true
+ },
+ {
+  "name": "All Smiles Dental Implant Center",
+  "website": "http://www.realchoiceimplants.com/",
+  "city": "Philadelphia",
+  "region": "PA",
+  "phone": "+12159257299",
+  "email": "patientcare@allsmiles.net",
+  "address": "501 S 4th St, Philadelphia, PA, 19147",
+  "category": "dental_clinic",
+  "source": "overture",
+  "industry": "dentist",
+  "socials": [
+   "https://www.facebook.com/657415757615496"
+  ],
+  "dns_ok": true
+ },
+ {
+  "name": "E nails and spa",
+  "website": "http://www.oplnailsalon.com/",
+  "city": "Denver",
+  "region": "CO",
+  "phone": "+13039885606",
+  "email": null,
+  "address": "3234 S Wadsworth Blvd, Lakewood, US-CO, 80227-5004",
+  "category": "nail_salon",
+  "source": "overture",
+  "industry": "hair salon",
+  "socials": [
+   "https://www.facebook.com/404627852899681"
+  ],
+  "dns_ok": false
+ },
+ {
+  "name": "Drs. Steinberg & Wegner's Office",
+  "website": "http://www.dentistryinphiladelphia.com",
+  "city": "Philadelphia",
+  "region": "PA",
+  "phone": "+12157358844",
+  "email": "dentistryinphiladelphia@gmail.com",
+  "address": "1628 Spruce St, Philadelphia, US-PA, 19103",
+  "category": "dental_clinic",
+  "source": "overture",
+  "industry": "dentist",
+  "socials": [
+   "https://www.facebook.com/207212445963559"
+  ],
+  "dns_ok": true
+ },
+ {
+  "name": "Eve African Hair Braiding",
+  "website": "http://eveafricanbraiding.com/",
+  "city": "Las Vegas",
+  "region": "NV",
+  "phone": "+17022022687",
+  "email": "eveafricanhair@gmail.com",
+  "address": "610 E Sahara Ave Suite #12, Las Vegas, US-NV, 89104",
+  "category": "hair_salon",
+  "source": "overture",
+  "industry": "hair salon",
+  "socials": [
+   "https://www.facebook.com/1633347966901005"
+  ],
+  "dns_ok": true
+ },
+ {
+  "name": "OmBase Yoga",
+  "website": "http://www.ombase.org",
+  "city": "Portland",
+  "region": "OR",
+  "phone": "+15039223100",
+  "email": "findpeace@ombase.org",
+  "address": "6357 SW Capitol Hwy, Portland, US-OR, 97239",
+  "category": "yoga_studio",
+  "source": "overture",
+  "industry": "gym",
+  "socials": [],
+  "dns_ok": true
+ },
+ {
+  "name": "Wills Barry DMD",
+  "website": "https://wills-barry-dmd.hub.biz/",
+  "city": "Philadelphia",
+  "region": "PA",
+  "phone": "+12156773030",
+  "email": "drbarrywills@aol.com",
+  "address": "10752 Bustleton Ave, Philadelphia, US-PA, 19116-3367",
+  "category": "dental_clinic",
+  "source": "overture",
+  "industry": "dentist",
+  "socials": [
+   "https://www.facebook.com/168045246544951"
+  ],
+  "dns_ok": true
+ },
+ {
+  "name": "A1 Legal Services",
+  "website": "http://www.ethicalaz.com/",
+  "city": "Phoenix",
+  "region": "AZ",
+  "phone": "+16025442222",
+  "email": "kdpickell@gmail.com",
+  "address": "5119 N 19th Ave k, Phoenix, US-AZ, 85015",
+  "category": "attorney_or_law_firm",
+  "source": "overture",
+  "industry": "lawyer",
+  "socials": [
+   "https://www.facebook.com/122771537779224"
+  ],
+  "dns_ok": true
+ },
+ {
+  "name": "Smile Salon",
+  "website": "https://www.mysmilesalon.com",
+  "city": "San Antonio",
+  "region": "TX",
+  "phone": "+12107772492",
+  "email": null,
+  "address": "1100 Broadway St  Ste 100, San Antonio, US-TX, 78215-1303",
+  "category": "orthodontics",
+  "source": "overture",
+  "industry": "dentist",
+  "socials": [],
+  "dns_ok": true
+ },
+ {
+  "name": "Center for Contemporary Dentistry",
+  "website": "http://irsenianorfleetddspc.com/",
+  "city": "Chicago",
+  "region": "IL",
+  "phone": "+17732383500",
+  "email": "irsenianorfleetddspc@yahoo.com",
+  "address": "10125 S Western Ave, Chicago, US-IL, 60643",
+  "category": "general_dentistry",
+  "source": "overture",
+  "industry": "dentist",
+  "socials": [
+   "https://www.facebook.com/262693633816771"
+  ],
+  "dns_ok": true
+ },
+ {
+  "name": "Lee's Barber Shop",
+  "website": "http://www.yellowpagesgoesgreen.org/Wheat+Ridge-CO/Big+Al's+Barber+Shop/50022",
+  "city": "Denver",
+  "region": "CO",
+  "phone": "+17209983665",
+  "email": "hyeonghlee2015@gmail.com",
+  "address": "7618 W 44th Ave, Wheat Ridge, US-CO, 80033",
+  "category": "barber",
+  "source": "overture",
+  "industry": "hair salon",
+  "socials": [
+   "https://www.facebook.com/194259804790389"
+  ],
+  "dns_ok": true
+ },
+ {
+  "name": "Paparian & Associates Llc",
+  "website": "http://www.paparianlaw.com",
+  "city": "New York",
+  "region": "NY",
+  "phone": null,
+  "email": null,
+  "address": "32 Broadway Ste 601, New York, US-NY, 10004-1689",
+  "category": "legal_service",
+  "source": "overture",
+  "industry": "lawyer",
+  "socials": [],
+  "dns_ok": true
+ },
+ {
+  "name": "Image Studios Denver",
+  "website": "https://www.imagestudios360.com",
+  "city": "Denver",
+  "region": "CO",
+  "phone": "+17206346634",
+  "email": null,
+  "address": "2496 S University Blvd, Denver, US-CO, 80210-5408",
+  "category": "beauty_salon",
+  "source": "overture",
+  "industry": "hair salon",
+  "socials": [],
+  "dns_ok": true
+ },
+ {
+  "name": "Victory Dental Care",
+  "website": "https://socaldentalcare.com",
+  "city": "Los Angeles",
+  "region": "CA",
+  "phone": "+18187663660",
+  "email": null,
+  "address": "11631 Victory Blvd #102, Los Angeles, US-CA, 91606",
+  "category": "general_dentistry",
+  "source": "overture",
+  "industry": "dentist",
+  "socials": [
+   "https://www.facebook.com/122391641431850"
+  ],
+  "dns_ok": true
+ },
+ {
+  "name": "GreatSmiles",
+  "website": "http://www.curtlangdds.com",
+  "city": "Chicago",
+  "region": "IL",
+  "phone": "+17086347400",
+  "email": "clangdds@gmail.com",
+  "address": "5208 95th St, Oak Lawn, US-IL, 60453",
+  "category": "general_dentistry",
+  "source": "overture",
+  "industry": "dentist",
+  "socials": [
+   "https://www.facebook.com/138073589591962"
+  ],
+  "dns_ok": false
+ },
+ {
+  "name": "CrossFit Iliad",
+  "website": "https://crossfitiliad.com/",
+  "city": "Portland",
+  "region": "OR",
+  "phone": "+15036861838",
+  "email": "crossfitiliad@gmail.com",
+  "address": "10120 SW Beaverton Hillsdale Hwy, Beaverton, US-OR, 97005",
+  "category": "gym",
+  "source": "overture",
+  "industry": "gym",
+  "socials": [
+   "https://www.facebook.com/114121763338313"
+  ],
+  "dns_ok": true
+ },
+ {
+  "name": "Saifee Family Dentistry",
+  "website": "http://www.dentistspring.com",
+  "city": "Houston",
+  "region": "TX",
+  "phone": "+12813505600",
+  "email": "saifeedental@yahoo.com",
+  "address": "21212 Kuykendahl Rd, Spring, US-TX, 77379-2605",
+  "category": "dental_clinic",
+  "source": "overture",
+  "industry": "dentist",
+  "socials": [
+   "https://www.facebook.com/1490970611114607"
+  ],
+  "dns_ok": true
+ },
+ {
+  "name": "Kaufman Murray S DDS MD",
+  "website": "http://www.thecenterforhealthysex.com",
+  "city": "Los Angeles",
+  "region": "CA",
+  "phone": "+13105532911",
+  "email": "kaufmandds@yahoo.com",
+  "address": "9911 W Pico Blvd, Los Angeles, US-CA, 90035",
+  "category": "dental_clinic",
+  "source": "overture",
+  "industry": "dentist",
+  "socials": [],
+  "dns_ok": true
+ },
+ {
+  "name": "Monarch Dental",
+  "website": "http://www.monarchdental.com",
+  "city": "Houston",
+  "region": "TX",
+  "phone": "+12815830888",
+  "email": null,
+  "address": "6510 FM 1960 Rd W, Houston, US-TX, 77069",
+  "category": "dental_clinic",
+  "source": "overture",
+  "industry": "dentist",
+  "socials": [
+   "https://www.twitter.com/monarchdental",
+   "https://www.facebook.com/115193901907695"
+  ],
+  "dns_ok": true
+ },
+ {
+  "name": "Northwest Dental Center",
+  "website": "https://northwestdentalcentersa.com/",
+  "city": "San Antonio",
+  "region": "TX",
+  "phone": "+18302515489",
+  "email": null,
+  "address": "9005 Grissom Rd, San Antonio, US-TX, 78251-2818",
+  "category": "general_dentistry",
+  "source": "overture",
+  "industry": "dentist",
+  "socials": [
+   "https://www.facebook.com/820210361173461"
+  ],
+  "dns_ok": true
+ },
+ {
+  "name": "Shick Law Offices",
+  "website": "https://www.shickfamilylaw.com",
+  "city": "Phoenix",
+  "region": "AZ",
+  "phone": null,
+  "email": null,
+  "address": "8751 N 51st Ave, Glendale, US-AZ, 85302-4941",
+  "category": "legal_service",
+  "source": "overture",
+  "industry": "lawyer",
+  "socials": [],
+  "dns_ok": true
+ },
+ {
+  "name": "The Beauty Brow Bar",
+  "website": "http://www.thebeautybrowbar.com/",
+  "city": "San Diego",
+  "region": "CA",
+  "phone": "+18583657441",
+  "email": null,
+  "address": "13295 Black Mountain Rd, San Diego, US-CA, 92129-2686",
+  "category": "beauty_salon",
+  "source": "overture",
+  "industry": "hair salon",
+  "socials": [
+   "https://www.facebook.com/984903234909739"
+  ],
+  "dns_ok": false
+ },
+ {
+  "name": "Eyebrow Threading & Design",
+  "website": "http://denvereyebrow.com/",
+  "city": "Denver",
+  "region": "CO",
+  "phone": "+17202128786",
+  "email": null,
+  "address": "303 16th St, Denver, US-CO, 80202-5031",
+  "category": "beauty_salon",
+  "source": "overture",
+  "industry": "hair salon",
+  "socials": [
+   "https://www.facebook.com/105624317548509"
+  ],
+  "dns_ok": false
+ },
+ {
+  "name": "Nineveh Banquet",
+  "website": "https://ninevehbanquet.com",
+  "city": "Phoenix",
+  "region": "AZ",
+  "phone": "+16027704252",
+  "email": null,
+  "address": "17334 N 63rd Ave, Glendale, US-AZ, 85308-3732",
+  "category": "legal_service",
+  "source": "overture",
+  "industry": "lawyer",
+  "socials": [],
+  "dns_ok": true
+ },
+ {
+  "name": "Ibc Law Firm",
+  "website": "https://ibclawfirm.com",
+  "city": "Phoenix",
+  "region": "AZ",
+  "phone": "+16023708592",
+  "email": null,
+  "address": "11811 N Tatum Blvd  Ste 3031, Phoenix, US-AZ, 85028-1621",
+  "category": "attorney_or_law_firm",
+  "source": "overture",
+  "industry": "lawyer",
+  "socials": [],
+  "dns_ok": true
+ },
+ {
+  "name": "Precision Dental Ltd",
+  "website": "http://www.mypdltd.com/",
+  "city": "Chicago",
+  "region": "IL",
+  "phone": "+17084840255",
+  "email": "info@mypdltd.com",
+  "address": "6725 Stanley Ave #2, Berwyn, US-IL, 60402",
+  "category": "dental_clinic",
+  "source": "overture",
+  "industry": "dentist",
+  "socials": [
+   "https://www.facebook.com/2559909620693216"
+  ],
+  "dns_ok": true
+ },
+ {
+  "name": "Gym @ Paramount",
+  "website": "http://portlandparamount.com",
+  "city": "Portland",
+  "region": "OR",
+  "phone": "+15032239900",
+  "email": null,
+  "address": "Portland, US-OR, 97204",
+  "category": "gym",
+  "source": "overture",
+  "industry": "gym",
+  "socials": [],
+  "dns_ok": true
+ },
+ {
+  "name": "The Skin Lab",
+  "website": "http://www.skinlabdenver.com/",
+  "city": "Denver",
+  "region": "CO",
+  "phone": "+17606138959",
+  "email": "tobierae.skinlab@gmail.com",
+  "address": "2130 S University Blvd, Denver, US-CO, 80210-4712",
+  "category": "beauty_salon",
+  "source": "overture",
+  "industry": "hair salon",
+  "socials": [
+   "https://www.facebook.com/149099842281008"
+  ],
+  "dns_ok": true
+ },
+ {
+  "name": "Larkin Farrell, Llc",
+  "website": "https://larkinfarrell.com",
+  "city": "New York",
+  "region": "NY",
+  "phone": "+12128885807",
+  "email": null,
+  "address": "1250 Broadway  Fl 36, New York, US-NY, 10001-3709",
+  "category": "attorney_or_law_firm",
+  "source": "overture",
+  "industry": "lawyer",
+  "socials": [],
+  "dns_ok": true
+ },
+ {
+  "name": "Dr. Kimberly Voges",
+  "website": "https://www.kvogesdds.com/",
+  "city": "San Antonio",
+  "region": "TX",
+  "phone": "+12105093611",
+  "email": "kvogesdds@gmail.com",
+  "address": "13535 Hausman Pass #102, San Antonio, US-TX, 78249",
+  "category": "dental_clinic",
+  "source": "overture",
+  "industry": "dentist",
+  "socials": [
+   "https://www.facebook.com/224993111039152"
+  ],
+  "dns_ok": true
+ },
+ {
+  "name": "Dr. Linda Y Makuta DDS PC",
+  "website": "http://www.lindaymakutadds.com/",
+  "city": "Los Angeles",
+  "region": "CA",
+  "phone": "+18189867470",
+  "email": "lindamakuta@gmail.com",
+  "address": "5400 Balboa Blvd, Encino, US-CA, 91316",
+  "category": "dental_clinic",
+  "source": "overture",
+  "industry": "dentist",
+  "socials": [
+   "https://www.facebook.com/651552734940842"
+  ],
+  "dns_ok": true
+ },
+ {
+  "name": "Frank Sisbarro Hairstylist",
+  "website": "https://a.co/d/05Tgo2fD",
+  "city": "San Diego",
+  "region": "CA",
+  "phone": "+16195901177",
+  "email": null,
+  "address": "4695 Palm Ave, La Mesa, US-CA, 91941",
+  "category": "hair_salon",
+  "source": "overture",
+  "industry": "hair salon",
+  "socials": [
+   "https://www.facebook.com/166077456773612"
+  ],
+  "dns_ok": true
+ },
+ {
+  "name": "The Wild Salon",
+  "website": "http://thewildsalon.net",
+  "city": "Denver",
+  "region": "CO",
+  "phone": "+17202435719",
+  "email": null,
+  "address": "1610 E Girard Pl Unit 101, Englewood, US-CO, 80113-3100",
+  "category": "hair_salon",
+  "source": "overture",
+  "industry": "hair salon",
+  "socials": [],
+  "dns_ok": true
+ },
+ {
+  "name": "SkinCeuticals SkinLab",
+  "website": "http://skinlabwpv.com/",
+  "city": "Orlando",
+  "region": "FL",
+  "phone": "+16893455121",
+  "email": "hello@skinlabwpv.com",
+  "address": "480 N Orlando Ave Ste c110, Winter Park, US-FL, 32789",
+  "category": "medical_spa",
+  "source": "overture",
+  "industry": "med spa",
+  "socials": [
+   "https://www.facebook.com/391177474086314"
+  ],
+  "dns_ok": true
+ },
+ {
+  "name": "Adams Cary A, Dds",
+  "website": "https://caryadamsdds.com",
+  "city": "Chicago",
+  "region": "IL",
+  "phone": "+13122636977",
+  "email": null,
+  "address": "30 N Michigan Ave Lbby, Chicago, US-IL, 60602-3402",
+  "category": "general_dentistry",
+  "source": "overture",
+  "industry": "dentist",
+  "socials": [],
+  "dns_ok": true
+ },
+ {
+  "name": "Green Dental",
+  "website": "https://www.irvinegreendental.net",
+  "city": "Los Angeles",
+  "region": "CA",
+  "phone": "+12133842864",
+  "email": null,
+  "address": "3054 W 8th St Ste 106, Los Angeles, US-CA, 90005-1895",
+  "category": "orthodontics",
+  "source": "overture",
+  "industry": "dentist",
+  "socials": [],
+  "dns_ok": true
+ },
+ {
+  "name": "Greater Houston Dental Meeting",
+  "website": "https://www.ghds.org",
+  "city": "Houston",
+  "region": "TX",
+  "phone": "+17139614337",
+  "email": null,
+  "address": "1 Greenway Plz Ste 110, Houston, US-TX, 77046-0198",
+  "category": "dental_clinic",
+  "source": "overture",
+  "industry": "dentist",
+  "socials": [],
+  "dns_ok": true
+ },
+ {
+  "name": "Carefirst",
+  "website": "https://individual.carefirst.com/individuals-families/search.page",
+  "city": "Chicago",
+  "region": "IL",
+  "phone": "+17086813434",
+  "email": null,
+  "address": "927 S Mannheim Rd, Westchester, US-IL, 60154",
+  "category": "dental_clinic",
+  "source": "overture",
+  "industry": "dentist",
+  "socials": [],
+  "dns_ok": true
+ },
+ {
+  "name": "Omega Dental Group",
+  "website": "http://Www.Omegadentist.com/",
+  "city": "Los Angeles",
+  "region": "CA",
+  "phone": "+18188836634",
+  "email": "edmonddmd@gmail.com",
+  "address": "21712 Sherman Way, Canoga Park, US-CA, 91303-1931",
+  "category": "orthodontics",
+  "source": "overture",
+  "industry": "dentist",
+  "socials": [
+   "https://www.facebook.com/103492705363041"
+  ],
+  "dns_ok": true
+ },
+ {
+  "name": "Delight Dental Studio",
+  "website": "http://www.delightdentalstudio.com/",
+  "city": "Chicago",
+  "region": "IL",
+  "phone": "+17736988752",
+  "email": "info@delightdentalstudio.com",
+  "address": "1651 N Western Ave ste b & c, Chicago, US-IL, 60647",
+  "category": "cosmetic_dentistry",
+  "source": "overture",
+  "industry": "dentist",
+  "socials": [
+   "https://www.facebook.com/1455276124713694"
+  ],
+  "dns_ok": true
+ },
+ {
+  "name": "Wentworth Dental Clinic",
+  "website": "https://wentworthdentalclinicpc.com",
+  "city": "Chicago",
+  "region": "IL",
+  "phone": "+13122255500",
+  "email": null,
+  "address": "2323 S Wentworth Ave  Ste 202, Chicago, US-IL, 60616-4616",
+  "category": "dental_clinic",
+  "source": "overture",
+  "industry": "dentist",
+  "socials": [],
+  "dns_ok": true
+ },
+ {
+  "name": "Brush Boutique Salon",
+  "website": "http://www.brushboutiquesalon.com/",
+  "city": "Las Vegas",
+  "region": "NV",
+  "phone": "+17028624577",
+  "email": "titojimysalon@hotmail.com",
+  "address": "1501 W Sahara Ave, Las Vegas, US-NV, 89102-4820",
+  "category": "beauty_salon",
+  "source": "overture",
+  "industry": "hair salon",
+  "socials": [
+   "https://www.facebook.com/311310798977532"
+  ],
+  "dns_ok": false
+ },
+ {
+  "name": "Upper Dublin Family Dentistry",
+  "website": "http://www.udfd.com/",
+  "city": "Philadelphia",
+  "region": "PA",
+  "phone": "+12157828420",
+  "email": "udfdelkinspark@gmail.com",
+  "address": "7847 Old York Rd, Elkins Park, US-PA, 19027-2508",
+  "category": "dental_clinic",
+  "source": "overture",
+  "industry": "dentist",
+  "socials": [
+   "https://www.facebook.com/225456527493057"
+  ],
+  "dns_ok": true
+ },
+ {
+  "name": "Normandy Dental",
+  "website": "https://www.normandydental.com/",
+  "city": "Houston",
+  "region": "TX",
+  "phone": "+17134518845",
+  "email": "normandydental@hotmail.com",
+  "address": "6830 East Sam Houston Pkwy N #100, Houston, US-TX, 77049",
+  "category": "orthodontics",
+  "source": "overture",
+  "industry": "dentist",
+  "socials": [
+   "https://www.facebook.com/1392899000926559"
+  ],
+  "dns_ok": true
+ },
+ {
+  "name": "Reategui Law Firm",
+  "website": "http://www.azlawfirm.us",
+  "city": "Phoenix",
+  "region": "AZ",
+  "phone": "+16238759722",
+  "email": null,
+  "address": "10240 W Bell Rd  Ste D, Sun City, US-AZ, 85351-1153",
+  "category": "attorney_or_law_firm",
+  "source": "overture",
+  "industry": "lawyer",
+  "socials": [],
+  "dns_ok": true
+ },
+ {
+  "name": "Jorge's Barber Shop",
+  "website": "https://jorge-s-barber-shop.hub.biz",
+  "city": "San Diego",
+  "region": "CA",
+  "phone": "+16192300833",
+  "email": null,
+  "address": "1927 30th St, San Diego, US-CA, 92102",
+  "category": "barber",
+  "source": "overture",
+  "industry": "hair salon",
+  "socials": [
+   "https://www.facebook.com/159081052974"
+  ],
+  "dns_ok": true
+ },
+ {
+  "name": "Conniyoga",
+  "website": "http://www.conniyoga.com/",
+  "city": "Portland",
+  "region": "OR",
+  "phone": "+15037181455",
+  "email": "info@conniyoga.com",
+  "address": "1229 SE Nehalem St, Portland, US-OR, 97202-6583",
+  "category": "yoga_studio",
+  "source": "overture",
+  "industry": "gym",
+  "socials": [
+   "https://www.facebook.com/639460446101976"
+  ],
+  "dns_ok": true
+ },
+ {
+  "name": "Law Office Of Aihong You",
+  "website": "http://www.aihonglaw.com",
+  "city": "New York",
+  "region": "NY",
+  "phone": "+19174123603",
+  "email": null,
+  "address": "99 Hudson St, New York, US-NY, 10013-2815",
+  "category": "legal_service",
+  "source": "overture",
+  "industry": "lawyer",
+  "socials": [],
+  "dns_ok": true
+ },
+ {
+  "name": "Eom Roofing",
+  "website": "https://www.eomroofing.com",
+  "city": "Dallas",
+  "region": "TX",
+  "phone": "+19726721138",
+  "email": null,
+  "address": "12830 Hillcrest Rd  Ste 111, Dallas, US-TX, 75230-1547",
+  "category": "roofing",
+  "source": "overture",
+  "industry": "roofer",
+  "socials": [],
+  "dns_ok": true
+ },
+ {
+  "name": "Elite Styles Salon and Med Spa",
+  "website": "http://Www.elitestyles.com/",
+  "city": "Miami",
+  "region": "FL",
+  "phone": "+13055717279",
+  "email": "info@elitestyles.com",
+  "address": "222 NE 25th St, Miami, US-FL, 33137-4919",
+  "category": "medical_spa",
+  "source": "overture",
+  "industry": "med spa",
+  "socials": [
+   "https://www.facebook.com/111730823527296"
+  ],
+  "dns_ok": true
+ },
+ {
+  "name": "Law Office of Andrew Friedman",
+  "website": "http://www.diamondneedle.com",
+  "city": "New York",
+  "region": "NY",
+  "phone": "+12122425903",
+  "email": "afriedman@friedmanesperanzalaw.com",
+  "address": "164 W 25th St, New York, US-NY, 10001",
+  "category": "attorney_or_law_firm",
+  "source": "overture",
+  "industry": "lawyer",
+  "socials": [
+   "https://www.facebook.com/101782171271146"
+  ],
+  "dns_ok": true
+ },
+ {
+  "name": "Skye Enterprises Roofing & Construction",
+  "website": "https://skyetx.com",
+  "city": "Dallas",
+  "region": "TX",
+  "phone": "+12142384662",
+  "email": null,
+  "address": "1420 Century Dr  Ste 200, Carrollton, US-TX, 75006-3686",
+  "category": "roofing",
+  "source": "overture",
+  "industry": "roofer",
+  "socials": [],
+  "dns_ok": false
+ },
+ {
+  "name": "Phocus Law",
+  "website": "http://www.phocuslaw.biz/",
+  "city": "Phoenix",
+  "region": "AZ",
+  "phone": "+16024572191",
+  "email": "mick@phocuscompanies.com",
+  "address": "7600 N 16th St Ste 100, Phoenix, US-AZ, 85020",
+  "category": "attorney_or_law_firm",
+  "source": "overture",
+  "industry": "lawyer",
+  "socials": [
+   "https://www.facebook.com/171352143430626"
+  ],
+  "dns_ok": true
+ },
+ {
+  "name": "Flourish Pediatric Dentistry - Katy",
+  "website": "https://www.flourishpediatricdentistry.com",
+  "city": "Houston",
+  "region": "TX",
+  "phone": "+12813942520",
+  "email": null,
+  "address": "2717 Commercial Center Blvd  Ste J220, Katy, US-TX, 77494-7824",
+  "category": "pediatric_dentistry",
+  "source": "overture",
+  "industry": "dentist",
+  "socials": [],
+  "dns_ok": true
+ },
+ {
+  "name": "Augustin Law, Pllc",
+  "website": "https://augustinlaw.com",
+  "city": "Phoenix",
+  "region": "AZ",
+  "phone": "+16027300825",
+  "email": null,
+  "address": "3200 N Central Ave  Ste 1850, Phoenix, US-AZ, 85012-2465",
+  "category": "attorney_or_law_firm",
+  "source": "overture",
+  "industry": "lawyer",
+  "socials": [],
+  "dns_ok": true
+ },
+ {
+  "name": "Pacoima Dental Center",
+  "website": "http://www.pacoimacosmeticdental.com",
+  "city": "Los Angeles",
+  "region": "CA",
+  "phone": "+18188971234",
+  "email": "pacoimadental@yahoo.com",
+  "address": "9722 Laurel Canyon Blvd, Los Angeles, US-CA, 91331",
+  "category": "dental_clinic",
+  "source": "overture",
+  "industry": "dentist",
+  "socials": [
+   "https://www.facebook.com/160392093983676"
+  ],
+  "dns_ok": true
+ },
+ {
+  "name": "Authentic Masters Barbershop",
+  "website": "https://authenticmasters.shop/",
+  "city": "San Diego",
+  "region": "CA",
+  "phone": "+16199186415",
+  "email": "davisher882@gmail.com",
+  "address": "1037 Highland Ave, National City, US-CA, 91950",
+  "category": "barber",
+  "source": "overture",
+  "industry": "hair salon",
+  "socials": [
+   "https://www.facebook.com/234387366417130"
+  ],
+  "dns_ok": false
+ },
+ {
+  "name": "Rayhan and Marvizi DDS",
+  "website": "http://www.marvizicosmeticdentist.com/",
+  "city": "Los Angeles",
+  "region": "CA",
+  "phone": "+13239313881",
+  "email": "rayhanmarvizi@yahoo.com",
+  "address": "640 S San Vicente Blvd Ste 460, Los Angeles, US-CA, 90048",
+  "category": "dental_clinic",
+  "source": "overture",
+  "industry": "dentist",
+  "socials": [
+   "https://www.facebook.com/159809044063880"
+  ],
+  "dns_ok": true
+ },
+ {
+  "name": "A Little TLC Salon",
+  "website": "http://Alittletlcsalon.glossgenius.com/",
+  "city": "Las Vegas",
+  "region": "NV",
+  "phone": "+17025785906",
+  "email": "alittletlcsalon@gmail.com",
+  "address": "2760 Lake Sahara Dr #102, Las Vegas, US-NV, 89117",
+  "category": "hair_salon",
+  "source": "overture",
+  "industry": "hair salon",
+  "socials": [
+   "https://www.facebook.com/104126961942584"
+  ],
+  "dns_ok": true
+ },
+ {
+  "name": "Azizi Orthodontics",
+  "website": "https://www.aziziorthodontics.com/",
+  "city": "Philadelphia",
+  "region": "PA",
+  "phone": "+12155766414",
+  "email": null,
+  "address": "242 N Keswick Ave, Glenside, US-PA, 19038",
+  "category": "orthodontics",
+  "source": "overture",
+  "industry": "dentist",
+  "socials": [],
+  "dns_ok": true
+ },
+ {
+  "name": "Wagner & Kwasman, Pllc",
+  "website": "http://wagnerandkwasman.com",
+  "city": "Phoenix",
+  "region": "AZ",
+  "phone": "+16026988900",
+  "email": null,
+  "address": "4643 N 24th St, Phoenix, US-AZ, 85016-5203",
+  "category": "attorney_or_law_firm",
+  "source": "overture",
+  "industry": "lawyer",
+  "socials": [],
+  "dns_ok": true
+ },
+ {
+  "name": "Beauty Zensation Aesthetics",
+  "website": "http://www.beautyzensation.com",
+  "city": "Miami",
+  "region": "FL",
+  "phone": "+13057463039",
+  "email": null,
+  "address": "2103 Coral Way  Ste 605, Miami, US-FL, 33145-2656",
+  "category": "medical_spa",
+  "source": "overture",
+  "industry": "med spa",
+  "socials": [],
+  "dns_ok": false
+ },
+ {
+  "name": "Bill's Denture & Repair Lab",
+  "website": "https://www.billsdenturerepairlab.com/",
+  "city": "Philadelphia",
+  "region": "PA",
+  "phone": "+12157252568",
+  "email": null,
+  "address": "6829 Castor Ave, Philadelphia, US-PA, 19149",
+  "category": "dental_clinic",
+  "source": "overture",
+  "industry": "dentist",
+  "socials": [],
+  "dns_ok": true
+ },
+ {
+  "name": "Arnold P Keith Jr",
+  "website": "http://www.apkjrlaw.com",
+  "city": "New York",
+  "region": "NY",
+  "phone": "+12129417105",
+  "email": "apkjr@earthlink.net",
+  "address": "305 Broadway Ste 805, New York, US-NY, 10007",
+  "category": "attorney_or_law_firm",
+  "source": "overture",
+  "industry": "lawyer",
+  "socials": [],
+  "dns_ok": true
+ },
+ {
+  "name": "Upstage Hair & Nail Studio",
+  "website": "http://tamworthnurses.org",
+  "city": "Las Vegas",
+  "region": "NV",
+  "phone": "+17028734247",
+  "email": null,
+  "address": "3900 N Rancho Dr Ste 105, Las Vegas, US-NV, 89130",
+  "category": "hair_salon",
+  "source": "overture",
+  "industry": "hair salon",
+  "socials": [],
+  "dns_ok": true
+ },
+ {
+  "name": "Salon Escape",
+  "website": "http://salonescape.net",
+  "city": "Denver",
+  "region": "CO",
+  "phone": "+13036995291",
+  "email": null,
+  "address": "5001 S Parker Rd, Aurora, CO, 80015",
+  "category": "beauty_salon",
+  "source": "overture",
+  "industry": "hair salon",
+  "socials": [
+   "https://www.facebook.com/750380438387953"
+  ],
+  "dns_ok": true
+ },
+ {
+  "name": "Bhakti Studio",
+  "website": "http://www.bhaktistudio.org/",
+  "city": "Seattle",
+  "region": "WA",
+  "phone": "+12062904114",
+  "email": null,
+  "address": "1900 N Northlake Way Ste 249, Seattle, US-WA, 98103",
+  "category": "yoga_studio",
+  "source": "overture",
+  "industry": "gym",
+  "socials": [
+   "https://www.facebook.com/643905655462106"
+  ],
+  "dns_ok": true
+ },
+ {
+  "name": "Belle & Beau Salon",
+  "website": "http://www.belleandbeausalon.com/",
+  "city": "Denver",
+  "region": "CO",
+  "phone": "+13035889098",
+  "email": "belle.beausalon@yahoo.com",
+  "address": "1735 Welton St, Denver, US-CO, 80202-3939",
+  "category": "beauty_salon",
+  "source": "overture",
+  "industry": "hair salon",
+  "socials": [
+   "https://www.facebook.com/212262325582487"
+  ],
+  "dns_ok": false
+ },
+ {
+  "name": "Lifetime Dental",
+  "website": "http://www.mylifetimedental.com/",
+  "city": "Houston",
+  "region": "TX",
+  "phone": "+12812138666",
+  "email": "reception2@mylifetimedental.com",
+  "address": "10750 Barker Cypress Rd, Cypress, US-TX, 77433-2282",
+  "category": "general_dentistry",
+  "source": "overture",
+  "industry": "dentist",
+  "socials": [
+   "https://www.facebook.com/165055010359051"
+  ],
+  "dns_ok": true
+ },
+ {
+  "name": "Stone Oak Modern Dentistry and Orthodontics",
+  "website": "https://www.StoneOakModernDentistry.com/?sc_cid=Facebook%3AO%3AGP%3A729%3ASocial%3AGeneral%3Ana&_vsrefdom=organic_social&y_source=1_MTEwMjk0Mi01NTktbG9jYXRpb24ud2Vic2l0ZQ%3D%3D",
+  "city": "San Antonio",
+  "region": "TX",
+  "phone": "+12104944488",
+  "email": "stoneoakmoderndentistry@smilegeneration.com",
+  "address": "20821 U.S. Hwy 281 N Ste 310, San Antonio, US-TX, 78258",
+  "category": "orthodontics",
+  "source": "overture",
+  "industry": "dentist",
+  "socials": [
+   "https://www.facebook.com/230454427105285"
+  ],
+  "dns_ok": true
+ },
+ {
+  "name": "Metroboom",
+  "website": "http://www.metroboom.com",
+  "city": "Denver",
+  "region": "CO",
+  "phone": "+13034779700",
+  "email": null,
+  "address": "1550 Platte St., Denver, US-CO, 80202",
+  "category": "hair_salon",
+  "source": "overture",
+  "industry": "hair salon",
+  "socials": [
+   "https://www.twitter.com/Metroboom"
+  ],
+  "dns_ok": true
+ },
+ {
+  "name": "ESPA SALON",
+  "website": "http://espansalon.com/",
+  "city": "San Diego",
+  "region": "CA",
+  "phone": "+16198822928",
+  "email": "contact@espansalon.com",
+  "address": "1924 E Palomar St, Chula Vista, US-CA, 91913",
+  "category": "beauty_salon",
+  "source": "overture",
+  "industry": "hair salon",
+  "socials": [
+   "https://www.facebook.com/1878958085757436"
+  ],
+  "dns_ok": false
+ },
+ {
+  "name": "Hong Ni",
+  "website": "http://www.nicedentalcareassociates.com/",
+  "city": "Philadelphia",
+  "region": "PA",
+  "phone": "+12153893876",
+  "email": null,
+  "address": "1320 W Ritner St, Philadelphia, US-PA, 19148",
+  "category": "dental_clinic",
+  "source": "overture",
+  "industry": "dentist",
+  "socials": [
+   "https://www.facebook.com/134346660499406"
+  ],
+  "dns_ok": true
+ },
+ {
+  "name": "WestCoast Lipo",
+  "website": "https://www.westcoastlipo.com/",
+  "city": "San Diego",
+  "region": "CA",
+  "phone": "+16195648174",
+  "email": "info@westcoastlipo.com",
+  "address": "3549 Camino del Rio S, San Diego, US-CA, 92108-4023",
+  "category": "beauty_salon",
+  "source": "overture",
+  "industry": "hair salon",
+  "socials": [
+   "https://www.facebook.com/1055447477851603"
+  ],
+  "dns_ok": true
+ },
+ {
+  "name": "Unicorn Nails",
+  "website": "http://unicornnailsspa.com",
+  "city": "Las Vegas",
+  "region": "NV",
+  "phone": "+17256009088",
+  "email": null,
+  "address": "2101 N Rainbow Blvd #101, Las Vegas, US-NV, 89108",
+  "category": "nail_salon",
+  "source": "overture",
+  "industry": "hair salon",
+  "socials": [
+   "https://www.facebook.com/1910050735966709"
+  ],
+  "dns_ok": false
+ }
+]

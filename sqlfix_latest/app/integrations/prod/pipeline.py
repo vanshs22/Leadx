@@ -9,15 +9,16 @@ from app.services.aio import aexec, to_async
 import asyncio
 import logging
 import os
+import sys
 import time
 from datetime import datetime, timezone, timedelta
-from typing import Optional
+from typing import Any, Optional
 from uuid import uuid4
 
 from app.memory.supabase_client import get_supabase
 from app.layers.discovery_layer import discover_for_pipeline as discover_leads
 from app.layers.enrichment_layer import enrich_for_pipeline as enrich_batch
-from app.layers.scoring_layer import score as score_lead, gate as passes_quality_gate
+from app.layers.scoring_layer import score as score_lead, score_detailed as score_lead_detailed, gate as passes_quality_gate
 from app.layers.persistence_layer import record_stage_transition
 from app.services.delivery import deliver_batch
 from app.integrations.prod.quality import assign_lead, quota_remaining, shared_pool_admission
@@ -68,6 +69,9 @@ def classify_run_state(run: Optional[dict], *, now: datetime | None = None) -> s
     return "running"
 
 
+_FENCE_CACHE: dict[tuple[str, str], tuple[float, bool]] = {}
+
+
 def _execution_allows_write(execution_context: Optional[dict]) -> bool:
     """Fence handler writes after cancellation, lease loss, or reset."""
     context = execution_context or {}
@@ -77,12 +81,23 @@ def _execution_allows_write(execution_context: Optional[dict]) -> bool:
     job_id = str(context.get("job_id") or "")
     if not job_id:
         return True
+    # The fence is read on every write (hundreds per run). It only changes on cancel/lease loss, so a one-second cache
+    # keeps the guarantee within a second while removing most of the reads. A False answer is final for the job.
+    key = (job_id, str(context.get("worker_id") or ""))
+    now = time.monotonic()
+    hit = _FENCE_CACHE.get(key)
+    if hit and (not hit[1] or now < hit[0]):
+        return hit[1]
     try:
         from app.integrations.prod import jobs
-        return jobs.execution_fence(job_id, worker_id=context.get("worker_id"), tenant_id=context.get("tenant_id"))
+        allowed = bool(jobs.execution_fence(job_id, worker_id=context.get("worker_id"), tenant_id=context.get("tenant_id")))
     except Exception:
         # A fence read failure must fail closed for a durable worker.
         return False
+    _FENCE_CACHE[key] = (now + float(os.getenv("LEADX_FENCE_TTL_SECONDS", "1.0")), allowed)
+    if len(_FENCE_CACHE) > 2000:
+        _FENCE_CACHE.clear()
+    return allowed
 
 
 
@@ -161,7 +176,7 @@ def _load_global_inventory_candidates(tenant_id: str, vertical: str, geo: list, 
         q = sb.table("leads_global").select("*")
         category = (vertical or "").strip().lower()
         if category:
-            q = q.ilike("category", f"%{category}%")
+            q = q.ilike("category", f"*{category}*")
         locations = geo or []
         cities, states = [], []
         for loc in locations:
@@ -301,6 +316,7 @@ async def run_pipeline_parallel_target(
     require_verified_email: bool = False,
     allow_tier_c: bool = True,
     execution_context: Optional[dict] = None,
+    campaign_mode: str = "auto",
 ) -> dict:
     """Streaming target pipeline.
 
@@ -322,7 +338,7 @@ async def run_pipeline_parallel_target(
     """
     import os
     from app.integrations.prod.agent_stage_runtime import create_context as create_agent_context, begin as begin_agent_stage, finish as finish_agent_stage, skip as skip_agent_stage, snapshot as agent_snapshot
-    from app.integrations.prod.lead_generation_orchestration import owner_for, stage_plan
+    from app.integrations.prod.lead_generation_orchestration import is_portal_delivery, owner_for, stage_plan
 
     started = datetime.now(timezone.utc)
     run_clock = time.monotonic()
@@ -337,11 +353,10 @@ async def run_pipeline_parallel_target(
         if begin is None:
             return
         end = time.monotonic()
-        stage_timings[name] = {
-            "start_ms": round(max(0.0, (begin - run_clock) * 1000), 3),
-            "end_ms": round(max(0.0, (end - run_clock) * 1000), 3),
-            "duration_ms": round(max(0.0, (end - begin) * 1000), 3),
-        }
+        start_ms = round(max(0.0, (begin - run_clock) * 1000), 3)
+        end_ms = round(max(0.0, (end - run_clock) * 1000), 3)
+        # duration comes from the rounded bounds: rounding it separately could exceed end-start by more than the validator's tolerance
+        stage_timings[name] = {"start_ms": start_ms, "end_ms": end_ms, "duration_ms": round(end_ms - start_ms, 3)}
 
     def _close_open_stages() -> None:
         for name in tuple(stage_clock):
@@ -353,7 +368,7 @@ async def run_pipeline_parallel_target(
     # These stages are already owned by the target stream's existing engines or
     # are intentionally unnecessary for portal delivery. Record that fact
     # instead of claiming that a second specialist implementation ran.
-    skipped_stages = {
+    skipped_stages = {} if campaign_mode == "quality_campaign" else {
         "outreach": "requires_explicit_outreach_request",
     }
     for contract_stage in agent_context["stage_contract"]:
@@ -361,10 +376,10 @@ async def run_pipeline_parallel_target(
         if reason:
             contract_stage["status"] = "skipped"
             contract_stage["skipped_reason"] = reason
-    for stage, reason in skipped_stages.items():
-        skip_agent_stage(agent_context, owner_for(stage), stage, reason)
     execution_context = dict(execution_context or {})
     execution_context["agent_context"] = agent_context
+    from app.integrations.prod import fetch_telemetry
+    fetch_telemetry.ctx.set({"tenant_id": str(tenant_id), "run_id": str(run_id)})  # inherited by every enrichment task this run starts
     slots_cap = max(0, min(int(target_assign), int(remaining)))
     geo = geo if isinstance(geo, list) and geo else ["New Jersey"]
     planner_context = execution_context.get("planner_context")
@@ -375,6 +390,7 @@ async def run_pipeline_parallel_target(
         parent_icp = {"id": icp_id, "offer_category": offer_category}
     sub_icps = planner_context.get("sub_icps") or execution_context.get("sub_icps")
     from app.integrations.prod.discovery_runtime import local_validation_mode
+    begin_agent_stage(agent_context, "icp", "icp_planning")
     selection_decision = build_selection_decision(
         target=slots_cap, allow_tier_b=allow_tier_b, allow_tier_c=allow_tier_c,
         rotation_key=f"{tenant_id}:{run_id}",
@@ -389,6 +405,16 @@ async def run_pipeline_parallel_target(
         max_route_cells=max_cells_per_run,
     )
     tier_a_target = int((selection_decision.get("tier_policy") or {}).get("tier_a_target") or 0)
+    finish_agent_stage(agent_context, "icp", "icp_planning", summary={
+        "tier_policy": selection_decision.get("tier_policy"),
+        "route_cells": len(selection_decision.get("route_cells") or []),
+        "tranche": (selection_decision.get("normalized_plan") or {}).get("tranche_size"),
+    })
+    # Skips come after the planner so icp_planning is recorded first.
+    if is_portal_delivery(delivery_channel):
+        skip_agent_stage(agent_context, "personalization", "outreach_context", "not_needed_for_portal_delivery")
+    for stage, reason in skipped_stages.items():
+        skip_agent_stage(agent_context, owner_for(stage), stage, reason)
     if slots_cap <= 0:
         result = {
             "pipeline": "lead_engine_v2",
@@ -403,14 +429,16 @@ async def run_pipeline_parallel_target(
     geo = geo if isinstance(geo, list) and geo else ["New Jersey"]
     try:
         enrichment_timeout_seconds = max(
-            0.05, min(300.0, float(os.getenv("TARGET_ENRICH_TIMEOUT_SECONDS", "45")))
+            0.05, min(300.0, float(os.getenv("TARGET_ENRICH_TIMEOUT_SECONDS", "20")))
         )
     except (TypeError, ValueError):
-        enrichment_timeout_seconds = 45.0
-    enrich_workers_n = max(1, min(int(max_enrich_concurrent or 3), int(os.getenv("TARGET_ENRICH_WORKERS", str(max_enrich_concurrent or 3)))))
-    assign_workers_n = max(1, min(int(os.getenv("TARGET_ASSIGN_WORKERS", "4")), 8))
+        enrichment_timeout_seconds = 20.0
+    # Enrichment is network-bound, so workers scale with the target instead of the old fixed 3.
+    # TARGET_ENRICH_WORKERS pins the number; max_enrich_concurrent from the caller is only a floor.
+    enrich_workers_n = max(1, min(64, int(os.getenv("TARGET_ENRICH_WORKERS") or max(int(max_enrich_concurrent or 3), min(48, max(12, slots_cap // 2))))))
+    assign_workers_n = max(1, min(int(os.getenv("TARGET_ASSIGN_WORKERS") or max(4, min(16, slots_cap // 8))), 16))
     queue_size = max(4, min(enrich_workers_n * 3, max(12, slots_cap * 2)))
-    candidate_multiplier = max(2, min(int(os.getenv("TARGET_DISCOVERY_MULTIPLIER", "2")), 4))
+    candidate_multiplier = max(2, min(int(os.getenv("TARGET_DISCOVERY_MULTIPLIER", "4")), 8))
     from app.integrations.prod.lead_selection_planner import adaptive_tranche_decision
     initial_tranche = min(slots_cap, max(1, int(selection_decision.get("normalized_plan", {}).get("tranche_size") or 0)))
     if not initial_tranche:
@@ -484,7 +512,13 @@ async def run_pipeline_parallel_target(
         waiters = {asyncio.create_task(stop_event.wait())}
         if cancellation_event:
             waiters.add(asyncio.create_task(cancellation_event.wait()))
-        done, _ = await asyncio.wait({task, *waiters}, return_when=asyncio.FIRST_COMPLETED)
+        try:
+            done, _ = await asyncio.wait({task, *waiters}, return_when=asyncio.FIRST_COMPLETED)
+        except asyncio.CancelledError:  # outer wait_for timeout: do not leak the inner task
+            for t in (task, *waiters):
+                t.cancel()
+            await asyncio.gather(task, *waiters, return_exceptions=True)
+            raise
         if task in done:
             for waiter in waiters:
                 waiter.cancel()
@@ -518,17 +552,71 @@ async def run_pipeline_parallel_target(
     processed_ids: set[str] = set()
     source_counts: dict[str, int] = {}
     discovery_telemetry: dict[str, Any] = {}
+    first_marks: dict[str, float] = {}  # seconds from run start to the first lead reaching each stage
+    seed_tasks: list[asyncio.Task] = []
+
+    def _mark_first(key: str) -> None:
+        first_marks.setdefault(key, round(time.monotonic() - run_clock, 2))
     reuse_counts = {"reused_count": 0, "refreshed_count": 0, "stale_count": 0}
     persisted_qualifying = 0
     persisted_contactable = 0
     stop_reason = "in_progress"
     reconciliation = {"status": "pending", "assignment_confirmed": 0, "source": "assignment_ids"}
 
+    from app.integrations.prod.tenant_policy import contact_ok as _policy_contact_ok, gate_arg as _policy_gate_arg, load_policy as _load_policy
+    tenant_pol = await asyncio.to_thread(_load_policy, tenant_id)
+
     def _has_contact(lead: dict) -> bool:
-        from app.integrations.prod.contact_state import email_level, phone_ok
+        from app.integrations.prod.contact_state import email_level
         if require_verified_email:
             return email_level(lead) == "valid"
-        return email_level(lead) is not None or phone_ok(lead)
+        return _policy_contact_ok(lead, tenant_pol)
+
+    async def _send_to_review(lead: dict, reasons: list[str]) -> None:
+        """Park a good-fit lead that failed only on contactability, instead of discarding it."""
+        from app.integrations.prod.review_queue import enqueue
+        await asyncio.to_thread(enqueue, str(tenant_id), lead, str(run_id), reasons)
+
+    latency_samples: dict[str, list[float]] = {}
+    inflight_writes: set = set()
+
+    async def _tracked(awaitable):
+        """Run a durable write so that cancelling the worker cannot orphan it, and remember it for the final reconciliation."""
+        task = asyncio.ensure_future(awaitable)
+        inflight_writes.add(task)
+        task.add_done_callback(inflight_writes.discard)
+        return await asyncio.shield(task)
+
+    async def _drain_writes() -> None:
+        if inflight_writes:
+            await asyncio.gather(*list(inflight_writes), return_exceptions=True)
+
+    async def _timed(name: str, awaitable):
+        """Await and record how long a stage took per lead; the p50/p90 land in the run's lane telemetry."""
+        t0 = time.monotonic()
+        try:
+            return await awaitable
+        finally:
+            latency_samples.setdefault(name, []).append(time.monotonic() - t0)
+
+    def _latency_summary() -> dict:
+        out = {}
+        for name, v in latency_samples.items():
+            v = sorted(v)
+            out[name] = {"n": len(v), "p50_s": round(v[len(v) // 2], 2), "p90_s": round(v[min(len(v) - 1, int(0.9 * len(v)))], 2), "total_s": round(sum(v), 1)}
+        return out
+
+    def _corroborated(lead: dict) -> bool:
+        """>=2 independent discovery sources (not counting the free lane token), a website, and the contact the tenant needs."""
+        if os.getenv("LEADX_FAST_DELIVER", "1") != "1":
+            return False
+        independent = {h for h in (lead.get("sources_hit") or []) if h not in ("osm", "osm_nominatim", "unknown")}
+        if len(independent) < 2 or not lead.get("website"):
+            return False
+        req = tenant_pol.get("contact_requirement", "either")
+        has_phone = bool(lead.get("phone_normalized") or lead.get("phone_e164"))
+        has_email = bool(lead.get("email"))
+        return has_email if req == "email" else has_phone if req == "phone" else (has_phone or has_email)
 
     async def _snapshot() -> tuple[int, int, int, int, int, int, int]:
         async with state_lock:
@@ -565,10 +653,14 @@ async def run_pipeline_parallel_target(
             stop_event.set()
         return state
 
+    last_progress_write = 0.0
+
     async def _progress(stage: str, message: str, force: bool = False) -> None:
-        nonlocal discovered_n, stored_n, enriched_n, verified_n, scored_n, gated_n, assigned_n
+        nonlocal discovered_n, stored_n, enriched_n, verified_n, scored_n, gated_n, assigned_n, last_progress_write
         d, s, e, v, sc, g, a = await _snapshot()
-        if force or a == slots_cap or a == 0 or a % 5 == 0 or e == d:
+        # Time throttle: the old count-based filter (a % 5 == 0 ...) skipped most updates, so the UI lagged by whole stages.
+        if force or a >= slots_cap or time.monotonic() - last_progress_write >= float(os.getenv("LEADX_PROGRESS_INTERVAL_S", "1")):
+            last_progress_write = time.monotonic()
             await _progress_run(
                 run_id,
                 "running",
@@ -583,6 +675,8 @@ async def run_pipeline_parallel_target(
                     "stage": stage,
                     "message": message,
                     "target": slots_cap,
+                    "effective_target": slots_cap,
+                    "crm_saved": delivery_ready_n,
                     "mode": "streaming_target",
                     "enrichment_workers": enrich_workers_n,
                     "assignment_workers": assign_workers_n,
@@ -599,17 +693,24 @@ async def run_pipeline_parallel_target(
         begin_agent_stage(agent_context, "data_quality", "quality_audit")
         begin_agent_stage(agent_context, "qualification", "quality_gate")
         nonlocal enriched_n, verified_n, scored_n, gated_n, persisted_qualifying, persisted_contactable
+        _mark_first("first_enriched_seconds")
         lid = lead.get("id")
         verification_reason = None
         try:
             from app.integrations.prod.lead6_runtime import prepare_lead
+            from app.integrations.prod.agent_pipeline_branches import record_deliverability
+            begin_agent_stage(agent_context, "icp", "icp_fit")
             lead = await prepare_lead(lead, tenant_id=tenant_id, industry=vertical, icp={"industries":[vertical]}, reps=[])
+            finish_agent_stage(agent_context, "icp", "icp_fit", summary={"score": lead.get("score")})
+            if os.getenv("LEADX_SPECIALIST_AGENTS", "deferred") != "inline":
+                record_deliverability(lead, agent_context)
             verified_n += 1
         except Exception as exc:
             # Verification remains a durable barrier even when an optional
             # intelligence adapter is unavailable; the deterministic contact
             # predicates below decide whether the lead can pass the gate.
             verification_reason = type(exc).__name__
+            finish_agent_stage(agent_context, "icp", "icp_fit", ok=False, summary={"error": verification_reason})
             logger.warning("[%s] verification adapter unavailable: %s", run_id[:8], exc)
         if lid:
             await record_stage_transition(
@@ -618,7 +719,7 @@ async def run_pipeline_parallel_target(
                 supabase=get_supabase(),
             )
         try:
-            s, t, r = score_lead(lead, vertical)
+            s, t, r, lead["score_breakdown"] = score_lead_detailed(lead, vertical)
             lead["score"], lead["tier"], lead["score_reason"] = s, t, r
         except Exception:
             s = int(lead.get("score") or 0)
@@ -642,7 +743,7 @@ async def run_pipeline_parallel_target(
         async with state_lock:
             enriched_n += 1
 
-        legacy_ok, _reason = passes_quality_gate(lead, allow_tier_b=allow_tier_b, allow_tier_c=allow_tier_c)
+        legacy_ok, _reason = passes_quality_gate(lead, allow_tier_b=allow_tier_b, allow_tier_c=allow_tier_c, require_contact=_policy_gate_arg(tenant_pol))
         intel_gate = lead.get("quality_gate") or {}
         intel_ok = bool(intel_gate.get("eligible")) if intel_gate else False
         contact_ok = _has_contact(lead)
@@ -655,6 +756,12 @@ async def run_pipeline_parallel_target(
             reason = "; ".join(str(item) for item in (why or ["quality_gate_rejected"]))
             lead["_stage_status"] = "rejected"
             lead["_stage_reason"] = reason
+            logger.info("[%s] gate rejected %r tier=%s score=%s: %s", run_id[:8], str(lead.get("name") or "")[:40], lead.get("tier"), lead.get("score"), reason)
+            from app.integrations.prod.review_queue import is_recoverable
+            if is_recoverable(score_ok=score_ok, legacy_ok=legacy_ok, legacy_reason=str(_reason), intel_ok=intel_ok,
+                              intel_reasons=list(intel_gate.get("reasons") or [])):
+                lead["_needs_review"] = True
+                await _send_to_review(lead, why or ["no_verified_contact"])
             async with state_lock:
                 for w in (why or ["unknown"]): gate_rejections[str(w)] = gate_rejections.get(str(w), 0) + 1
             if lid:
@@ -715,6 +822,12 @@ async def run_pipeline_parallel_target(
                     continue
                 if lead.get("_enrichment_reused"):
                     result = lead
+                elif _corroborated(lead):
+                    # Several independent sources agree on a reachable business: skip the slow site crawl and deliver now.
+                    result = lead
+                    result["enrichment_ok"] = True
+                    result["enrichment_method"] = "multi_source_corroborated"
+                    result["enrichment_deferred"] = True
                 elif skip_enrichment:
                     result = lead
                     result["enrichment_ok"] = bool(
@@ -723,16 +836,19 @@ async def run_pipeline_parallel_target(
                     )
                 else:
                     try:
+                        # Raced against stop/cancel: once the target is met, in-flight crawls are dropped instead of awaited.
                         done = await asyncio.wait_for(
-                            enrich_batch(
+                            _timed("enrich_site", _await_cancellable(enrich_batch(
                                 [lead],
                                 max_concurrent=1,
                                 use_crawl4ai=use_crawl4ai,
                                 use_firecrawl=use_firecrawl,
                                 execution_context=execution_context,
-                            ),
+                            ))),
                             timeout=enrichment_timeout_seconds,
                         )
+                        if done is None:
+                            continue
                         result = (done or [lead])[0]
                     except Exception as exc:
                         logger.warning("[%s] enrich worker %s failed: %s", run_id[:8], worker_id, type(exc).__name__)
@@ -765,7 +881,9 @@ async def run_pipeline_parallel_target(
                     for key in ("enrichment_ok", "enrichment_error", "enrichment_error_type", "enrichment_error_category")
                     if key in result
                 } if result.get("enrichment_ok") is False else {}
-                if not stop_event.is_set() and not _cancelled():
+                # The ten-agent specialist stage (research, social, deliverability, ...) is minutes of work per lead.
+                # It runs after delivery by default; LEADX_SPECIALIST_AGENTS=inline puts it back on the critical path.
+                if not stop_event.is_set() and not _cancelled() and os.getenv("LEADX_SPECIALIST_AGENTS", "deferred") == "inline":
                     try:
                         from app.integrations.prod.agent_pipeline_branches import enrich_lead_with_owned_agents
                         specialist_result = await asyncio.wait_for(
@@ -786,7 +904,10 @@ async def run_pipeline_parallel_target(
                             "specialist_timeout" if isinstance(exc, asyncio.TimeoutError) else "specialist_error",
                             exc,
                         )
-                gated = await _persist_and_gate(result)
+                if os.getenv("LEADX_SPECIALIST_AGENTS", "deferred") != "inline":
+                    from app.integrations.prod.agent_pipeline_branches import run_local_lead_agents
+                    run_local_lead_agents(result, str(vertical), agent_context)
+                gated = await _timed("persist_and_gate", _persist_and_gate(result))
                 if gated is not None:
                     await _queue_ready(gated)
                 await _progress("enrich", f"Lead enriched and {'gated' if gated else 'filtered'}", force=False)
@@ -813,9 +934,17 @@ async def run_pipeline_parallel_target(
                 # candidates; only release Tier B fallback after the A supply is
                 # known to be exhausted. This is a preference, never a gate bypass.
                 if str(lead.get("tier") or "C").upper() == "B" and assigned_n < tier_a_target and not discovery_done.is_set():
-                    await asyncio.sleep(0.05)
-                    await assignment_queue.put((_priority, _score, _lead_key, lead))
-                    continue
+                    # The hold is a preference for Tier A, bounded in time so a slow discovery tail never starves delivery.
+                    held_since = lead.setdefault("_tier_b_hold_since", time.monotonic())
+                    if time.monotonic() - held_since < float(os.getenv("LEADX_TIER_B_HOLD_SECONDS", "5")):
+                        await asyncio.sleep(0.05)
+                        try:
+                            # Never block here: if every worker waits to re-queue into a full queue, nobody is left to take
+                            # work off it and the run deadlocks. A full queue means there is plenty of supply, so stop holding.
+                            assignment_queue.put_nowait((_priority, _score, _lead_key, lead))
+                            continue
+                        except asyncio.QueueFull:
+                            pass
                 if stop_event.is_set() or not lead.get("id") or not _execution_allows_write(execution_context):
                     continue
 
@@ -831,9 +960,19 @@ async def run_pipeline_parallel_target(
 
                 if not _execution_allows_write(execution_context):
                     continue
+                from app.integrations.prod.lead6_runtime import final_verify_for_delivery
+                final_ok, final_reason = await final_verify_for_delivery(lead, tenant_pol, tenant_id=str(tenant_id), run_id=str(run_id))
+                if not final_ok:
+                    assignment_blockers[final_reason] = assignment_blockers.get(final_reason, 0) + 1
+                    await _send_to_review(lead, [final_reason])
+                    async with state_lock:
+                        if reservation_taken:
+                            reserved_assignments = max(0, reserved_assignments - 1)
+                            reservation_taken = False
+                    continue
                 begin_agent_stage(agent_context, "routing", "assignment_policy")
                 begin_agent_stage(agent_context, "crm", "assignment_projection")
-                result = await assign_lead(
+                result = await _timed("assign_lead", _tracked(assign_lead(
                     lead_id=str(lead["id"]),
                     tenant_id=tenant_id,
                     icp_id=icp_id,
@@ -845,7 +984,7 @@ async def run_pipeline_parallel_target(
                     discovery_request_id=discovery_request_id,
                     run_id=run_id,
                     lead=lead,
-                )
+                )))
 
                 if not _execution_allows_write(execution_context):
                     # The assignment adapter may have returned after cancellation;
@@ -875,6 +1014,7 @@ async def run_pipeline_parallel_target(
                         reserved_assignments -= 1
                         reservation_taken = False
                         assigned_n += 1
+                        _mark_first("first_assigned_seconds")
                         position = assigned_n
                         crm_saved = result.get("crm_saved", True)
                         confirmed_assignment_ids.append(assignment_id)
@@ -890,17 +1030,17 @@ async def run_pipeline_parallel_target(
                             # This is an admission-cap fence.  Terminal success
                             # still uses the selected assigned/delivered metric
                             # after durable reconciliation.
-                    await _board_upsert(
+                    await _tracked(_board_upsert(
                         run_id, str(lead["id"]), tenant_id, "assigned", lead,
                         position=position, execution_context=execution_context,
                         assignment_id=assignment_id,
-                    )
+                    ))
                     if crm_saved:
-                        await _board_upsert(
+                        await _tracked(_board_upsert(
                             run_id, str(lead["id"]), tenant_id, "crm", lead,
                             position=position, execution_context=execution_context,
                             assignment_id=assignment_id,
-                        )
+                        ))
                     else:
                         await record_stage_transition(
                             str(tenant_id), str(run_id), str(lead["id"]), "crm", "retryable",
@@ -961,9 +1101,17 @@ async def run_pipeline_parallel_target(
 
         try:
             from app.integrations.prod.suppression import filter_blocked_leads
-            fresh, _, _ = await filter_blocked_leads(tenant_id, fresh)
+            begin_agent_stage(agent_context, "compliance", "suppression_filter")
+            fresh, _suppressed, _opt_out = await filter_blocked_leads(tenant_id, fresh)
+            finish_agent_stage(agent_context, "compliance", "suppression_filter", summary={"suppressed": _suppressed, "opt_out": _opt_out})
         except Exception as exc:
+            finish_agent_stage(agent_context, "compliance", "suppression_filter", ok=False, summary={"error": type(exc).__name__})
             logger.debug("non-fatal fallback exception: %s", exc)
+        if fresh and tenant_pol.get("skip_known_crm", True):
+            from app.integrations.prod.crm_known import filter_known
+            fresh, crm_skipped = await asyncio.to_thread(filter_known, str(tenant_id), fresh)
+            if crm_skipped:
+                gate_rejections["already_in_tenant_crm"] = gate_rejections.get("already_in_tenant_crm", 0) + crm_skipped
         if not fresh or stop_event.is_set():
             return
 
@@ -986,7 +1134,7 @@ async def run_pipeline_parallel_target(
         # gated -> assigned. This makes the operator board a live funnel rather
         # than a board containing only the final assigned leads.
         await asyncio.gather(
-            *(_board_upsert(run_id, str(lead["id"]), tenant_id, "discovered", lead, position=i, execution_context=execution_context)
+            *(_board_upsert(run_id, str(lead["id"]), tenant_id, "discovered", lead, position=i, execution_context=execution_context, assume_new=True)
               for i, lead in enumerate(fresh)),
             return_exceptions=True,
         )
@@ -1029,6 +1177,7 @@ async def run_pipeline_parallel_target(
         for lead in current:
             if stop_event.is_set():
                 break
+            _mark_first("first_candidate_seconds")
             if lead.get("id") in needs_ids:
                 await enrich_queue.put(lead)
                 queue_max_depth["enrichment"] = max(queue_max_depth["enrichment"], enrich_queue.qsize())
@@ -1042,8 +1191,52 @@ async def run_pipeline_parallel_target(
             stored_n += len(current)
         await _progress("discover", f"Streaming discovery: {discovered_n} candidates; {assigned_n}/{slots_cap} assigned", force=False)
 
+    async def _fast_seed() -> None:
+        """Seed the run from the free sources that answer in seconds (open data, registries, OSM).
+
+        One call per location, all locations in parallel, then the pool is fed to enrichment in chunks sized to what
+        the target can still use. Slower sources (directories, search) are left to the normal discovery rounds.
+        """
+        if os.getenv("LEADX_FAST_SEED", "1") != "1" or os.getenv("LEADX_FREE_DISCOVERY", "1") == "0" or stop_event.is_set() or _cancelled():
+            return
+        from app.integrations.prod.free_discovery import discover_free
+        want = min(2000, max(60, slots_cap * int(os.getenv("LEADX_FAST_SEED_MULTIPLIER", "8"))))
+        t0 = time.monotonic()
+        per_loc = max(40, want // max(1, len(geo)))
+        chunk = max(queue_size, slots_cap * candidate_multiplier)
+        emitted = 0
+
+        async def _on_rows(rows: list[dict]) -> None:
+            # Each source's rows go straight to enrichment as that source finishes; slow ones keep streaming behind this.
+            nonlocal emitted
+            emitted += len(rows)
+            for i in range(0, len(rows), chunk):
+                if stop_event.is_set() or _cancelled() or not (await _target_state()).get("admit"):
+                    return
+                await _prepare_discovered_batch(rows[i:i + chunk])
+
+        async def _one(loc: str) -> None:
+            try:
+                await discover_free(vertical, loc, limit=per_loc, on_rows=_on_rows)
+            except asyncio.CancelledError:
+                raise
+            except Exception as exc:
+                logger.warning("[%s] streaming free discovery %s: %s", run_id[:8], loc, type(exc).__name__)
+
+        if not geo:
+            return
+        seed_tasks.extend(asyncio.create_task(_one(loc), name="leadx-free-stream") for loc in geo[:8])
+        # Wait only the fast-seed window; directories/OSM keep streaming until discovery ends (see _discovery_producer).
+        # A seed with no rows after the probe (country-wide "usa": no bbox answer) stops holding up the discovery rounds.
+        window = float(os.getenv("LEADX_FAST_SEED_SECONDS", "15"))
+        probe = min(window, float(os.getenv("LEADX_FAST_SEED_PROBE_SECONDS", "5")))
+        _, pending = await _await_cancellable(asyncio.wait(seed_tasks, timeout=probe)) or (None, set())
+        if emitted and pending and window > probe:
+            await _await_cancellable(asyncio.wait(pending, timeout=window - probe))
+        discovery_telemetry["fast_seed"] = {"rows": emitted, "seconds": round(time.monotonic() - t0, 1)}
+
     async def _discovery_producer() -> None:
-        nonlocal rounds_used, current_tranche, refill_used, stop_reason
+        nonlocal rounds_used, current_tranche, refill_used, stop_reason, discovery_telemetry
         _stage_begin("discovery")
         begin_agent_stage(agent_context, "prospecting", "request_normalization")
         finish_agent_stage(agent_context, "prospecting", "request_normalization", summary={"vertical": vertical, "locations": len(geo), "target": slots_cap})
@@ -1067,8 +1260,21 @@ async def run_pipeline_parallel_target(
                 tenant_id, vertical, geo, max(discover_target, queue_size)
             )
             if inventory:
-                await _prepare_discovered_batch(inventory[:discover_target])
+                # Inventory is authoritative when it covers the target with headroom for gate rejections:
+                # admit enough of it, let it drain through enrich/gate/assign, and only then discover for the shortfall.
+                authoritative = os.getenv("LEADX_INVENTORY_FIRST_AUTHORITATIVE", "1") == "1"
+                need = int(slots_cap * float(os.getenv("LEADX_INVENTORY_HEADROOM", "1.5")))
+                covers = authoritative and len(inventory) >= need
+                await _prepare_discovered_batch(inventory[:max(discover_target, need) if authoritative else discover_target])
+                if covers:
+                    try:
+                        await asyncio.wait_for(asyncio.gather(enrich_queue.join(), assignment_queue.join()),
+                                               timeout=float(os.getenv("LEADX_INVENTORY_DRAIN_SECONDS", "300")))
+                    except asyncio.TimeoutError:
+                        logger.warning("[%s] inventory drain timed out; continuing with live discovery", run_id[:8])
+                    discovery_telemetry["inventory_first"] = {"candidates": len(inventory), "covered_target": True}
 
+            await _fast_seed()
             round_limit = min(max(1, int(max_rounds or 1)), small_target_round_limit)
             for round_i in range(1, round_limit + 1):
                 state = await _target_state()
@@ -1094,6 +1300,9 @@ async def run_pipeline_parallel_target(
                         include_yelp=include_yelp,
                         include_facebook=include_facebook,
                         exhaustive=False,
+                        # The OSM lane re-runs discover_free sequentially before every other lane (up to its 90s budget).
+                        # While the fast seed is still streaming those same free sources, skip it so maps/web lanes start now.
+                        sources={"osm": False} if any(not t.done() for t in seed_tasks) else None,
                     )) or []
                 except Exception as exc:
                     logger.warning("[%s] streaming discover round %s: %s", run_id[:8], round_i, exc)
@@ -1204,6 +1413,13 @@ async def run_pipeline_parallel_target(
             _stage_end("discovery")
             finish_agent_stage(agent_context, "source_router", "source_selection", summary={"sources": list(src_flags)})
             finish_agent_stage(agent_context, "discovery_planner", "route_and_tranche_planning", summary={"rounds": rounds_used})
+            if sys.exc_info()[0] is not None or stop_event.is_set() or _cancelled():  # abnormal exit: do not wait out the 90s source budget
+                for t in seed_tasks:
+                    t.cancel()
+            elif not (await _target_state()).get("admit"):
+                for t in seed_tasks:
+                    t.cancel()
+            await asyncio.gather(*seed_tasks, return_exceptions=True)  # slow sources still streaming must land before discovery_done
             discovery_done.set()
 
     enrich_workers = [asyncio.create_task(_enrich_worker(i + 1), name=f"leadx-enrich-{i+1}") for i in range(enrich_workers_n)]
@@ -1244,6 +1460,7 @@ async def run_pipeline_parallel_target(
             if not task.done():
                 task.cancel()
         await asyncio.gather(*enrich_workers, *assignment_workers, return_exceptions=True)
+        await _drain_writes()  # assignments and board cards already in flight must land before counts are read
 
     _stage_end("enrichment")
     _stage_end("assignment")
@@ -1339,8 +1556,34 @@ async def run_pipeline_parallel_target(
     _stage_end("reconciliation")
     _stage_end("run")
     _close_open_stages()
+    discovery_telemetry["latency_samples"] = _latency_summary()
+    discovery_telemetry.update(first_marks)
+    try:
+        from app.layers.persistence_layer import flush_stage_history
+        await asyncio.to_thread(flush_stage_history)
+    except Exception as exc:
+        logger.debug("stage history flush skipped: %s", type(exc).__name__)
     elapsed = round((datetime.now(timezone.utc) - started).total_seconds(), 1)
+    # Queue independent post-delivery agents only after the persisted delivery
+    # attempt. Their durable agent.run jobs are observability/learning work and
+    # never determine the client-facing delivery result.
+    try:
+        from app.integrations.prod.post_run_agent_dispatch import dispatch_post_delivery_agents, record_dispatch_in_context
+        post_delivery_agents = await dispatch_post_delivery_agents(
+            tenant_id=str(tenant_id), run_id=str(run_id), vertical=str(vertical),
+            lead_ids=[str(lead["id"]) for lead in to_deliver if lead.get("id")],
+            assigned=int(assigned_n), delivered=int(delivered_n),
+        )
+        record_dispatch_in_context(agent_context, post_delivery_agents)
+    except Exception as exc:
+        logger.warning("post-delivery agent dispatch skipped run=%s error=%s", run_id, type(exc).__name__)
+        post_delivery_agents = []
+    from app.integrations.prod.agent_run_evidence import flush_pipeline_agent_evidence
+    agent_evidence_rows = await flush_pipeline_agent_evidence(str(tenant_id), str(run_id), agent_context, str(vertical))
     summary = {
+        "agent_execution": agent_snapshot(agent_context),
+        "agent_evidence_rows": agent_evidence_rows,
+        "post_delivery_agents": post_delivery_agents,
         "pipeline": "lead_engine_v2",
         "mode": "streaming_target",
         "run_id": run_id,
@@ -1370,6 +1613,7 @@ async def run_pipeline_parallel_target(
         "target_assignments": slots_cap,
         "target_metric": target_metric,
         "target_count": slots_cap,
+        "effective_target": slots_cap,
         "shortfall": shortfall,
         "remaining_gap": shortfall,
         "assignment_confirmed": persisted_confirmed,
@@ -1396,20 +1640,6 @@ async def run_pipeline_parallel_target(
         "assignment_blockers": assignment_blockers,
         "selection_decision": selection_decision,
     }
-    # Queue independent post-delivery agents only after the persisted delivery
-    # attempt. Their durable agent.run jobs are observability/learning work and
-    # never determine the client-facing delivery result.
-    try:
-        from app.integrations.prod.post_run_agent_dispatch import dispatch_post_delivery_agents
-        summary["post_delivery_agents"] = await dispatch_post_delivery_agents(
-            tenant_id=str(tenant_id), run_id=str(run_id), vertical=str(vertical),
-            lead_ids=[str(value) for value in assignment_ids],
-            assigned=int(assigned_n), delivered=int(delivered_n),
-        )
-    except Exception as exc:
-        logger.warning("post-delivery agent dispatch skipped run=%s error=%s", run_id, type(exc).__name__)
-        summary["post_delivery_agents"] = []
-
     # Record only observed, sanitized target-five timing metadata at the
     # existing terminal boundary. Local/static runs remain blocked for the
     # live 20-30 second claim even when their stopwatch is inside the window.
@@ -1575,7 +1805,7 @@ async def run_pipeline(
     queries: Optional[list[str]] = None,
     limit_per_location: int = 50,
     skip_enrichment: bool = False,
-    allow_tier_b: bool = False,
+    allow_tier_b: bool = True,  # tier B is in every run; exclude with allow_tier_b=False or tenant lead_policy.include_tier_b=false
     max_enrich_concurrent: int = 3,
     deliver: bool = True,
     use_crawl4ai: bool = True,
@@ -1645,6 +1875,9 @@ async def run_pipeline(
         "target_mode": requested_target > 0,
         "meta": {"stage": "starting", "message": "Pipeline started", "campaign_mode": campaign_mode},
     }
+    from app.integrations.prod.tenant_policy import gate_arg as _gate_arg, load_policy as _load_policy_legacy
+    _legacy_gate_contact = _gate_arg(await asyncio.to_thread(_load_policy_legacy, tenant_id))
+
     async def _pipeline_db(builder):
         last_error = None
         for attempt in range(3):
@@ -1772,6 +2005,12 @@ async def run_pipeline(
                 allow_tier_b = True
     except Exception as e:
         logger.warning("tenant/icp resolve: %s", e)
+    if allow_tier_b:
+        try:
+            from app.integrations.prod.tenant_policy import load_policy as _lp
+            allow_tier_b = bool((await asyncio.to_thread(_lp, tenant_id)).get("include_tier_b", True))
+        except Exception as e:
+            logger.debug("include_tier_b policy read skipped: %s", e)
 
     if not geo:
         geo = ["New Jersey"]
@@ -1866,6 +2105,7 @@ async def run_pipeline(
             require_verified_email=require_verified_email,
             allow_tier_c=allow_tier_c,
             execution_context=execution_context,
+            campaign_mode=campaign_mode,
         )
 
     # ---------- Stage 1: Reuse shared global inventory before provider spend ----------
@@ -2118,7 +2358,7 @@ async def run_pipeline(
             stage0 = "enriched" if lead.get("enrichment_ok") else "discovered"
             await _board_upsert(run_id, lead_id, tenant_id, stage0, lead, position=stored, execution_context=execution_context)
 
-            legacy_ok, reason = passes_quality_gate(lead, allow_tier_b=allow_tier_b, allow_tier_c=allow_tier_c)
+            legacy_ok, reason = passes_quality_gate(lead, allow_tier_b=allow_tier_b, allow_tier_c=allow_tier_c, require_contact=_legacy_gate_contact)
             intel_gate = lead.get("quality_gate") or {}
             intel_ok = bool(intel_gate.get("eligible")) if intel_gate else False
             if not legacy_ok or not intel_ok:
@@ -2356,7 +2596,7 @@ async def run_pipeline(
                         lead = await prepare_lead(lead, tenant_id=tenant_id, industry=vertical, icp={"industries":[vertical]}, reps=[])
                     except Exception as e:
                         logger.warning("LeadX 7.0 fill intelligence stage: %s", e)
-                    legacy_ok, reason = passes_quality_gate(lead, allow_tier_b=allow_tier_b, allow_tier_c=allow_tier_c)
+                    legacy_ok, reason = passes_quality_gate(lead, allow_tier_b=allow_tier_b, allow_tier_c=allow_tier_c, require_contact=_legacy_gate_contact)
                     intel_gate = lead.get("quality_gate") or {}
                     intel_ok = bool(intel_gate.get("eligible")) if intel_gate else False
                     if not legacy_ok or not intel_ok:
@@ -2606,7 +2846,7 @@ async def run_pipeline(
             from app.integrations.prod.post_run_agent_dispatch import dispatch_post_delivery_agents
             summary["post_delivery_agents"] = await dispatch_post_delivery_agents(
                 tenant_id=str(tenant_id), run_id=str(run_id), vertical=str(vertical),
-                lead_ids=[str(value) for value in assignment_ids],
+                lead_ids=[str(lead["id"]) for lead in to_deliver if lead.get("id")],
                 assigned=int(assigned_n), delivered=int(delivered_n),
             )
         except Exception as exc:
@@ -2736,6 +2976,7 @@ def _board_upsert(
     stage_status: str = "accepted",
     stage_reason: Optional[str] = None,
     assignment_id: Optional[str] = None,
+    assume_new: bool = False,
 ) -> None:
     """Write a compatibility card only after its durable stage barrier."""
     if not run_id or not lead_id or not _execution_allows_write(execution_context):
@@ -2748,21 +2989,8 @@ def _board_upsert(
         "discovered": "verification", "enriched": "scoring", "gated": "gating",
         "assigned": "assignment", "crm": "crm", "delivery": "delivery",
     }.get(str(stage).lower(), str(stage).lower())
-    transition = record_stage_transition.__sync__(
-        str(tenant_id or ""), str(run_id), str(lead_id), durable_stage,
-        stage_status, reason=stage_reason, assignment_id=assignment_id,
-        metadata={"board_stage": stage}, supabase=sb,
-    )
-    if not transition.get("ok"):
-        logger.warning("run board stage rejected run=%s lead=%s reason=%s", run_id, lead_id, transition.get("reason"))
-        return
     row = {
-        "run_id": run_id,
-        "lead_id": lead_id,
-        "tenant_id": tenant_id,
-        "stage": stage,
         "tier": (lead.get("tier") or None),
-        "included": stage_status == "accepted",
         "score": int(lead.get("score") or 0) if lead.get("score") is not None else None,
         "source": lead.get("source") or (lead.get("sources") or [None])[0] if isinstance(lead.get("sources"), list) else lead.get("source"),
         "name": lead.get("name") or lead.get("company_name"),
@@ -2770,18 +2998,18 @@ def _board_upsert(
         "website": lead.get("website"),
         "city": lead.get("city"),
         "position": position,
-        "updated_at": datetime.now(timezone.utc).isoformat(),
+        "stage": stage,
     }
-    if stage_reason:
-        row["stage_reason"] = str(stage_reason)[:500]
-    if assignment_id:
-        row["crm_assignment_id"] = str(assignment_id)
     if isinstance(row.get("source"), list):
         row["source"] = row["source"][0] if row["source"] else None
-    try:
-        sb.table("pipeline_run_leads").upsert(row, on_conflict="run_id,lead_id").execute()
-    except Exception as e:
-        logger.debug("board upsert failed: %s", e)
+    # One write: the transition and the board card's display columns go in the same upsert.
+    transition = record_stage_transition.__sync__(
+        str(tenant_id or ""), str(run_id), str(lead_id), durable_stage,
+        stage_status, reason=stage_reason, assignment_id=assignment_id,
+        metadata={"board_stage": stage}, supabase=sb, extra=row, assume_new=assume_new, fast=os.getenv("LEADX_STAGE_FAST", "1") == "1",
+    )
+    if not transition.get("ok"):
+        logger.warning("run board stage rejected run=%s lead=%s reason=%s", run_id, lead_id, transition.get("reason"))
 
 
 async def _authoritative_target_counts(
@@ -2797,11 +3025,18 @@ async def _authoritative_target_counts(
 
     try:
         sb = get_supabase()
-        board_rows = (await aexec(
-            sb.table("pipeline_run_leads").select("*")
-            .eq("run_id", str(run_id)).eq("tenant_id", str(tenant_id))
-            .order("updated_at", desc=False).limit(MAX_LEADS_PER_RUN)
-        )).data or []
+        # A run keeps one board card per candidate, which can exceed MAX_LEADS_PER_RUN (candidates are over-admitted). A single
+        # capped read dropped the newest cards, i.e. the assignments, and made finished runs look short. Page through all of them.
+        board_rows: list[dict] = []
+        for offset in range(0, MAX_LEADS_PER_RUN * 20, 1000):
+            page = (await aexec(
+                sb.table("pipeline_run_leads").select("*")
+                .eq("run_id", str(run_id)).eq("tenant_id", str(tenant_id))
+                .order("updated_at", desc=False).order("lead_id", desc=False).range(offset, offset + 999)
+            )).data or []
+            board_rows += page
+            if len(page) < 1000:
+                break
         board_assignment_ids = {
             str(row.get("crm_assignment_id"))
             for row in board_rows
@@ -2945,7 +3180,7 @@ def _progress_run(run_id: str, status: str = "running", **counts) -> None:
         if k in counts and counts[k] is not None:
             payload[k] = int(counts[k])
     if "meta" in counts and isinstance(counts["meta"], dict):
-        payload["meta"] = counts["meta"]
+        payload["meta"] = {**counts["meta"], "last_progress_at": datetime.now(timezone.utc).isoformat()}
     msg = (
         f"PROGRESS {run_id[:8]} status={status} "
         f"discovered={payload.get('discovered')} enriched={payload.get('enriched')} "
@@ -2963,7 +3198,7 @@ def _progress_run(run_id: str, status: str = "running", **counts) -> None:
             try:
                 sb.table("jobs").update({"updated_at": datetime.now(timezone.utc).isoformat()}).eq("id", job_id).execute()
             except Exception:
-                pass
+                __import__("logging").getLogger(__name__).debug("non-fatal error ignored", exc_info=True)
     except Exception as e:
         logger.warning("progress update failed: %s", e)
 
@@ -3080,7 +3315,7 @@ def _finish_run(run_id: str, status: str, summary: dict, error: str = "", execut
         "board_lead_ids", "target_assignments", "requested_target", "effective_target",
         "quota_limited", "assignment_blockers", "shortfall", "stop_reason", "rounds_used",
         "target_mode", "quota_remaining_after", "lane_telemetry", "coverage", "freshness",
-        "reuse_counts", "agent_execution", "post_delivery_agents", "verified_count",
+        "reuse_counts", "agent_execution", "agent_evidence_rows", "post_delivery_agents", "verified_count",
         "scored_count", "remaining_gap", "remaining", "reserved", "failed", "qualified",
         "client_visible", "assignment_confirmed", "persisted_qualifying", "persisted_contactable",
         "tranche", "reconciliation", "stop_projection", "authoritative_counts", "authoritative_scope",
@@ -3088,9 +3323,10 @@ def _finish_run(run_id: str, status: str, summary: dict, error: str = "", execut
         "queue_outcome", "provider_outcome", "cancellation_outcome", "timeout_outcome",
         "dependency_mode", "authenticated_scope", "terminal_status", "failures",
         "forbidden_action_counters", "target_speed_measurement", "target5_measurement",
-        "target5_timing_evaluation",
+        "target5_timing_evaluation", "crm_saved",
     ) if summary.get(k) is not None}
     meta["stop_reason"] = stop_reason
+    meta["last_progress_at"] = datetime.now(timezone.utc).isoformat()
     payload = {
         "status": status,
         "finished_at": datetime.now(timezone.utc).isoformat(),
@@ -3131,7 +3367,7 @@ def _finish_run(run_id: str, status: str, summary: dict, error: str = "", execut
             _finish_update(compatible_payload)
             return
         except Exception:
-            pass
+            __import__("logging").getLogger(__name__).debug("non-fatal error ignored", exc_info=True)
         try:
             fallback = {
                 "status": status if status in ("completed", "partial", "failed", "cancelled") else "failed",

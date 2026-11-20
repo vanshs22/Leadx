@@ -4,6 +4,8 @@ These agents are bounded specialists. They delegate to the existing LeadX
 engines; they do not create parallel discovery/enrichment/CRM implementations.
 """
 from __future__ import annotations
+
+import asyncio
 from typing import Any
 from app.integrations.prod.agents_support import authorize_lead_access
 from app.integrations.prod.discovery_planner import build_plan
@@ -93,7 +95,8 @@ async def execute_specialized(agent: str, data: dict[str, Any]) -> dict[str, Any
     inline = data.get("lead")
     if not requested and isinstance(inline, dict) and inline.get("id"):
         requested = [str(inline["id"])]
-    authorization = authorize_lead_access(
+    authorization = await asyncio.to_thread(  # sync DB reads: keep them off the event loop
+        authorize_lead_access,
         data.get("principal"), str(data.get("tenant_id") or ""), data.get("mission_id"),
         agent, requested, "read", capability=data.get("capability"),
     )
@@ -138,7 +141,18 @@ async def execute_specialized(agent: str, data: dict[str, Any]) -> dict[str, Any
         return {"agent":"discovery_planner","mode":"discovery_execution","industry":plan.vertical,"locations":list(plan.locations),"queries":list(plan.queries),"plan":plan.as_dict(),"selection_decision":data.get("selection_decision"),"discovered":len(persisted),"lead_ids":ids,"board_lead_ids":ids,"source_counts":{str(x.get("source") or "unknown"): sum(1 for y in persisted if y.get("source")==x.get("source")) for x in persisted}}
 
     if agent == "web_research":
-        return {"agent":agent,"research":await research_company(lead, max_pages=int(data.get("max_pages") or 12), use_firecrawl=bool(data.get("use_firecrawl",True))),"lead_ids":[str(lead["id"])] if lead.get("id") else list(data.get("lead_ids") or [])}
+        # Every authorized lead (already capped by agent_batch_limit in _load_leads), 4 at a time.
+        gate = asyncio.Semaphore(4)
+        async def one(item: dict[str, Any]) -> dict[str, Any]:
+            async with gate:
+                try:
+                    found = await research_company(item, max_pages=int(data.get("max_pages") or 12), use_firecrawl=bool(data.get("use_firecrawl", True)))
+                except Exception as exc:
+                    found = {"ok": False, "error": type(exc).__name__}
+                return {"lead_id": str(item["id"]) if item.get("id") else None, "research": found}
+        results = await asyncio.gather(*(one(x) for x in (leads or [lead])))
+        ids = [r["lead_id"] for r in results if r["lead_id"]] or list(data.get("lead_ids") or [])
+        return {"agent":agent,"research":results[0]["research"],"results":results,"count":len(results),"lead_ids":ids}
     if agent == "enrichment":
         enrichment = await enrich_fields(lead,list(data.get("fields") or ["email","phone","owner_name","linkedin_url"]),budget=float(data.get("budget") or 6))
         persisted = await _persist_enrichment(lead, enrichment)
@@ -234,7 +248,6 @@ async def execute_specialized(agent: str, data: dict[str, Any]) -> dict[str, Any
         return {"agent":agent,"ranked":sorted(ranked,key=lambda x:(x.get("cost_rank",1),x.get("name",""))),"policy":"minimize expected cost per verified field subject to quality gates"}
     if agent == "campaign_optimizer":
         from app.integrations.prod.revenue_ops import daily_brief
-        import asyncio
         return {"agent":agent,"brief":await asyncio.to_thread(daily_brief,str(data.get("tenant_id") or ""),int(data.get("days") or 30))}
     if agent == "experiment":
         return {"agent":agent,"status":"planned","experiment":data.get("experiment") or {"hypothesis":"Compare provider ordering","metric":"verified_field_rate"}}

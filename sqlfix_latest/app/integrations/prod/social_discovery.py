@@ -118,24 +118,9 @@ LOW_QUALITY = re.compile(
 
 
 async def _serper(query: str, num: int = 15) -> list[dict]:
-    async def _call(api_key: str) -> list[dict]:
-        async with httpx.AsyncClient(timeout=25) as client:
-            r = await client.post(
-                "https://google.serper.dev/search",
-                headers={"X-API-KEY": api_key, "Content-Type": "application/json"},
-                json={"q": query, "num": num},
-            )
-            r.raise_for_status()
-            return (r.json() or {}).get("organic") or []
-
-    try:
-        return await with_key_rotation("serper", _call)
-    except KeyPoolExhausted:
-        logger.warning("Serper exhausted during social discovery")
-        return []
-    except Exception as e:
-        logger.warning("Serper social discovery failed: %s", e)
-        return []
+    """Social profile search: SearXNG (all pages) first, Serper only as paid fallback."""
+    from app.integrations.prod.web_search import web_search
+    return await web_search(query)
 
 
 def _company_slug_quality(slug: str) -> bool:

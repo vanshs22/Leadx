@@ -93,7 +93,7 @@ class _Query:
         return self
 
     def ilike(self, col: str, pattern: str) -> "_Query":
-        needle = (pattern or "").strip("%").lower()
+        needle = (pattern or "").strip("%*").lower()
         self._rows = [r for r in self._rows if needle in str(r.get(col) or "").lower()]
         return self
 

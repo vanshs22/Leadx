@@ -152,16 +152,12 @@ def test_bug_condition_handoffs_wait_for_durable_predecessors_and_overlap_indepe
 
 def test_bug_condition_enrichment_rejects_social_urls_as_email_and_requires_field_evidence():
     """Contact type validation must run before a field becomes usable."""
-    lead = {
-        "email": "https://instagram.com/glowmedspa",
-        "email_status": "valid",
-        "usable_contact": True,
-        "field_provenance": {},
-    }
-    assert "//" not in lead["email"]
-    assert lead["email_status"] != "valid"
-    assert lead["usable_contact"] is False
-    assert lead["field_provenance"].get("email", {}).get("source")
+    from app.orchestration.field_evidence import classify_contact, make_field_evidence
+    status, reason = classify_contact("https://instagram.com/glowmedspa", verified=True)
+    assert status == "invalid" and reason
+    ev = make_field_evidence("email", "owner@glowmedspa.com", source="https://glowmedspa.com/contact", provider="first_party_web", observed_at="2026-01-01T00:00:00+00:00", retrieved_at="2026-01-01T00:00:00+00:00", confidence=0.9)
+    assert ev.source
+
 
 
 def test_bug_condition_target_five_stops_route_admission_after_assignment_confirmations():

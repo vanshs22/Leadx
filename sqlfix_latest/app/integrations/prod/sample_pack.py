@@ -34,7 +34,7 @@ def build_sample_pack(
             "id, name, phone_e164, phone_normalized, website, city, state, address, "
             "google_rating, review_count, category, business_status"
         )
-        .ilike("category", f"%{vertical}%")
+        .ilike("category", f"*{vertical}*")
         .limit(200)
         .execute()
         .data

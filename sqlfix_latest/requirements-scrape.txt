@@ -15,8 +15,5 @@
 -r requirements.txt
 
 scrapling==0.2.9
-crawl4ai==0.4.24
-playwright==1.49.1
-litellm==1.53.1
-browserforge==1.2.4
+crawl4ai==0.9.5
 instaloader==4.12.1

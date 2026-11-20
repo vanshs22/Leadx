@@ -265,6 +265,12 @@ async def _autonomous_campaign_run(payload: dict) -> dict:
     from app.integrations.prod.autonomous_campaigns import run
     return await run(payload["campaign_id"], execution_context=dict(payload.get("_job_context") or {}))
 
+@register("inbound.imap_poll")
+async def _inbound_imap_poll(payload: dict) -> dict:
+    from app.integrations.prod.imap_inbound import poll
+    return await poll(limit=int(payload.get("limit") or 50))
+
+
 @register("webhooks.deliver")
 async def _webhooks_deliver(payload: dict) -> dict:
     from app.integrations.prod.webhooks import deliver_due
@@ -346,14 +352,20 @@ async def _agent_run(payload: dict) -> dict:
         from app.integrations.prod import jobs
         mission_task = (await aexec(get_supabase().table("agent_mission_tasks").select("mission_id").eq("agent_run_id", str(run["id"])).eq("tenant_id", tenant_id).limit(1))).data or []
         if mission_task:
-            mission_payload = {"tenant_id": tenant_id, "mission_id": str(mission_task[0]["mission_id"])}
+            # The idempotency key is derived from the payload. Without a per-run component every tick of a mission shared one key,
+            # the second submit was a "replay" of the first, and a mission never progressed past its first task.
+            mission_payload = {"tenant_id": tenant_id, "mission_id": str(mission_task[0]["mission_id"]), "after_run_id": str(run["id"])}
             handoff = jobs.submit(
                 "agent.mission.tick", mission_payload, tenant_id=tenant_id,
                 idempotency_key=jobs.derived_idempotency_key(tenant_id, "agent.mission.tick", mission_payload),
                 operation_kind="agent.mission.tick", priority=1, created_by="gtm-mission",
                 provider_required=True,
             )
-            jobs.accepted_job_id(handoff)
+            try:
+                jobs.accepted_job_id(handoff)
+            except jobs.DurableJobRejected as rejected:
+                if str(rejected.result.get("outcome")) not in {"in_progress", "replay"}:  # a tick for this mission is already queued: fine
+                    raise
     except Exception as exc:
         emit_telemetry(
             logger, logging.WARNING, "job.mission_completion_hook_failed",
@@ -423,3 +435,23 @@ async def _approvals_expire(payload: dict) -> dict:
     from app.integrations.prod.discovery_requests import expire_pending_requests
     from app.memory.supabase_client import get_supabase
     return expire_pending_requests(sb=get_supabase(), limit=int(payload.get("limit") or 100))
+
+
+@register("searches.alerts")
+async def _saved_search_alerts(payload: dict) -> dict:
+    """Run every alerting saved smart search once and notify tenants about leads delivered since the last run."""
+    from app.api.prod.lead_tools_api import run_saved_search
+    from app.services.aio import aexec
+    from app.memory.supabase_client import get_supabase
+    views = (await aexec(get_supabase().table("saved_views").select("*").eq("entity", "smart_search").limit(int(payload.get("limit") or 200)))).data or []
+    ran = notified = 0
+    for v in views:
+        if not (v.get("filters") or {}).get("alert"):
+            continue
+        try:
+            res = await run_saved_search(str(v["tenant_id"]), v, notify=True)
+            ran += 1
+            notified += 1 if res["new_matches"] else 0
+        except Exception:
+            logger.warning("saved search %s failed", v.get("id"), exc_info=True)
+    return {"ran": ran, "notified": notified}

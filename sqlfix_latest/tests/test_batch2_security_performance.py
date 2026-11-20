@@ -46,7 +46,7 @@ def test_target_pipeline_is_streaming_and_hard_stops_before_exhaustive_mode():
     assert 'asyncio.create_task(_enrich_worker' in target
     assert 'asyncio.create_task(_assignment_worker' in target
     assert 'stop_event.set()' in target
-    assert 'if assigned_n >= slots_cap' in target
+    assert 'if delivery_ready_n >= slots_cap' in target
     assert 'await deliver_batch(' in target
     assert 'mode": "streaming_target"' in target
     # Zero is intentionally routed to the existing exhaustive/non-target path.

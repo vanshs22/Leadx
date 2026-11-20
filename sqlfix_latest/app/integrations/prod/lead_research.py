@@ -124,16 +124,16 @@ def _merge_unique(old: list, new: list, key=None, limit: int = 50) -> list:
     return out
 
 
-async def deep_research_lead(lead: dict) -> dict:
+async def deep_research_lead(lead: dict, allow_paid: bool = True) -> dict:
+    """allow_paid=False drops the Serper search lane and Firecrawl (free website/social lanes only)."""
+    from app.integrations.prod import contact_candidates as cc
     name = lead.get("name") or lead.get("company_name") or ""
     city = lead.get("city")
     website = lead.get("website")
     # Independent lanes run concurrently; a failure in one never blocks the others.
-    tasks = [
-        asyncio.create_task(_google_research(name, city, website)),
-    ]
+    tasks = [asyncio.create_task(_google_research(name, city, website))] if allow_paid else []
     if website:
-        tasks.append(asyncio.create_task(enrich_one(website, use_crawl4ai=True, use_firecrawl=True, company_name=name, city=city)))
+        tasks.append(asyncio.create_task(enrich_one(website, use_crawl4ai=True, use_firecrawl=allow_paid, company_name=name, city=city)))
     tasks.append(asyncio.create_task(social_enrich_lead(dict(lead))))
     tasks.append(asyncio.create_task(lookup_linkedin_company(name, city=city, website=website, existing_linkedin=lead.get("linkedin_url"))))
     results = await asyncio.gather(*tasks, return_exceptions=True)
@@ -152,6 +152,7 @@ async def deep_research_lead(lead: dict) -> dict:
         for k in ("website", "email", "email_valid", "phone_from_web", "has_booking", "booking_platform", "owner_name", "enrichment_ok", "enrichment_method"):
             if result.get(k) and not merged.get(k): merged[k] = result[k]
         merged["emails"] = _merge_unique(merged.get("emails") or [], result.get("emails") or [], limit=20)
+        cc.merge(merged, result)
         merged["services"] = _merge_unique(merged.get("services") or [], result.get("services") or [], limit=50)
         if result.get("social_links"):
             merged["social_links"] = {**(merged.get("social_links") or {}), **result["social_links"]}
@@ -176,11 +177,13 @@ async def deep_research_lead(lead: dict) -> dict:
             if gr.get("rating") is not None and merged.get("google_rating") is None: merged["google_rating"] = gr["rating"]
             if gr.get("review_count") is not None and merged.get("review_count") is None: merged["review_count"] = gr["review_count"]
             merged["emails"] = _merge_unique(merged.get("emails") or [], gr.get("emails") or [], limit=20)
+            cc.add_many(merged, "email", gr.get("emails") or [], "google", 0.5)
             merged["social_links"] = {**(merged.get("social_links") or {}), **(gr.get("social_links") or {})}
             merged["decision_makers"] = _merge_unique(merged.get("decision_makers") or [], gr.get("people") or [], key=lambda x: x.get("linkedin_url") or x.get("name"), limit=15)
             evidence.extend(gr.get("evidence") or [])
             sources.append("google")
 
+    cc.seed_from_fields(merged, "research", 0.5)  # lead's own fields (incl. social lane output) become candidates too
     if merged.get("emails") and not merged.get("email"):
         merged["email"] = merged["emails"][0]
     raw["research_sources"] = sorted(set(sources))

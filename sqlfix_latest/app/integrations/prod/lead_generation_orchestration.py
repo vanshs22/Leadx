@@ -10,7 +10,7 @@ from __future__ import annotations
 from typing import Any
 
 NORMAL_STAGE_ORDER = (
-    "prospecting", "source_router", "discovery_planner", "identity_resolution",
+    "icp_planning", "prospecting", "source_router", "discovery_planner", "identity_resolution",
     "enrichment", "contact_finder", "email_finder", "research", "web_research",
     "social_intelligence", "verification", "deliverability", "data_quality",
     "icp", "intent", "trigger", "signal", "qualification", "personalization",
@@ -18,6 +18,7 @@ NORMAL_STAGE_ORDER = (
 )
 
 STAGE_OWNERS = {
+    "icp_planning": "icp",
     "crm_projection": "crm",
     "assignment": "crm",
     "delivery": "crm",
@@ -25,7 +26,8 @@ STAGE_OWNERS = {
 }
 
 STAGE_DEPENDENCIES = {
-    "prospecting": (),
+    "icp_planning": (),
+    "prospecting": ("icp_planning",),
     "source_router": ("prospecting",),
     "discovery_planner": ("source_router",),
     "identity_resolution": ("discovery_planner",),
@@ -57,6 +59,54 @@ PARALLEL_RESEARCH_BRANCHES = ("research", "web_research", "social_intelligence")
 POST_DELIVERY_AGENTS = (
     "crm_hygiene", "deal", "revenue", "cost_optimizer", "campaign_optimizer", "learning",
 )
+
+# Heavy lead-gen agents queued once per run after delivery (they already ran when specialists are inline).
+POST_DELIVERY_LEADGEN_AGENTS = ("contact_finder", "research", "web_research")
+
+# (agent_id, phase, mode). mode: inline_batch (run level), inline_lead (per lead, CPU only),
+# post_delivery (queued agent.run job), campaign (autonomous campaign / inbound mail).
+LEAD_GEN_AGENT_FLOW = (
+    ("icp", "planning", "inline_batch"),
+    ("prospecting", "discovery", "inline_batch"),
+    ("source_router", "discovery", "inline_batch"),
+    ("discovery_planner", "discovery", "inline_batch"),
+    ("identity_resolution", "discovery", "inline_batch"),
+    ("compliance", "discovery", "inline_batch"),
+    ("enrichment", "enrichment", "inline_lead"),
+    ("contact_finder", "enrichment", "inline_lead"),
+    ("email_finder", "enrichment", "inline_lead"),
+    ("research", "enrichment", "inline_lead"),
+    ("web_research", "enrichment", "inline_lead"),
+    ("social_intelligence", "enrichment", "inline_lead"),
+    ("verification", "qualification", "inline_lead"),
+    ("deliverability", "qualification", "inline_lead"),
+    ("data_quality", "qualification", "inline_lead"),
+    ("intent", "qualification", "inline_lead"),
+    ("trigger", "qualification", "inline_lead"),
+    ("signal", "qualification", "inline_lead"),
+    ("qualification", "qualification", "inline_lead"),
+    ("routing", "delivery", "inline_lead"),
+    ("crm", "delivery", "inline_lead"),
+    ("personalization", "outreach", "campaign"),
+    ("outreach", "outreach", "campaign"),
+    ("learning", "post_delivery", "post_delivery"),
+    ("cost_optimizer", "post_delivery", "post_delivery"),
+    ("campaign_optimizer", "post_delivery", "post_delivery"),
+    ("crm_hygiene", "post_delivery", "post_delivery"),
+)
+NON_LEAD_GEN_AGENTS = ("gtm", "deal", "revenue", "experiment")
+LEAD_GEN_AGENTS = tuple(agent for agent, _, _ in LEAD_GEN_AGENT_FLOW)
+
+
+def validate_agent_classification() -> None:
+    """Every registry agent is exactly one of lead-gen or non-lead-gen (lazy import avoids a cycle)."""
+    from app.integrations.prod.agent_registry import FULL_AGENT_REGISTRY
+
+    if set(LEAD_GEN_AGENTS) & set(NON_LEAD_GEN_AGENTS) or len(set(LEAD_GEN_AGENTS)) != len(LEAD_GEN_AGENTS):
+        raise ValueError("agent_classification_overlaps")
+    if set(LEAD_GEN_AGENTS) | set(NON_LEAD_GEN_AGENTS) != set(FULL_AGENT_REGISTRY):
+        raise ValueError("agent_classification_not_closed")
+
 
 _PORTAL_CHANNELS = {"", "portal", "crm", "none", "internal", "dashboard"}
 

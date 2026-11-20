@@ -57,7 +57,7 @@ class Client(AsyncClient):
     get = post = put = patch = delete = head = request = _go
 
 class _Finder(importlib.abc.MetaPathFinder, importlib.abc.Loader):
-    ROOTS = {"fastapi", "starlette", "pydantic", "httpx", "supabase", "anyio", "jose", "anthropic", "uvicorn"}
+    ROOTS = {"fastapi", "starlette", "pydantic", "httpx", "supabase", "anyio", "jwt", "anthropic", "uvicorn"}
     def find_spec(self, name, path, target=None):
         if name.split(".")[0] in self.ROOTS: return importlib.machinery.ModuleSpec(name, self, is_package=True)
     def create_module(self, spec):

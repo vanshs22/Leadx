@@ -28,7 +28,7 @@ export default function TeamPage() {
       />
       {msg ? <Notice tone={msg.includes("failed") || msg.includes("Could not") ? "danger" : "neutral"}>{msg}</Notice> : null}
       <DataState loading={loading} error={error} onRetry={() => void load()} skeleton={<div className="grid gap-4 lg:grid-cols-3"><div className="card lg:col-span-2"><LoadingRows rows={5} cols={3} /></div><div className="card"><LoadingRows rows={3} cols={1} /></div></div>}>
-        <div className="grid items-start gap-4 lg:grid-cols-3">
+        <div className="grid items-start gap-4 lg:grid-cols-3 [&>*]:min-w-0">
           <div className="space-y-4 lg:col-span-2">
             <Panel title="Members" description="People with access to this workspace." bodyClassName="p-0">
               {members.length ? (

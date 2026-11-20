@@ -17,7 +17,7 @@ A provider is only called when configured/enabled. Results are normalized into
 field-level observations; the caller can persist them in lead_verification_observations.
 """
 from __future__ import annotations
-import asyncio, logging, os, re, secrets, socket, time
+import asyncio, ipaddress, logging, os, re, secrets, smtplib, socket, ssl, time
 from typing import Any
 from urllib.parse import quote_plus
 import httpx
@@ -34,6 +34,9 @@ EMAIL_PROVIDERS = (
     {"name":"hunter", "tier":1, "mode":"free_plan_or_paid", "env_key":"HUNTER_API_KEY", "capabilities":["deliverability","score","status"]},
     {"name":"zerobounce", "tier":1, "mode":"free_plan_or_paid", "env_key":"ZEROBOUNCE_API_KEY", "capabilities":["deliverability","disposable","trap","risk","status"]},
     {"name":"abstract", "tier":1, "mode":"free_plan_or_paid", "env_key":"ABSTRACT_API_KEY", "capabilities":["smtp","mx","disposable","catch_all","quality"]},
+    {"name":"millionverifier", "tier":2, "mode":"paid", "env_key":"MILLIONVERIFIER_API_KEY", "capabilities":["deliverability","catch_all","disposable"]},
+    {"name":"emaillistverify", "tier":2, "mode":"paid", "env_key":"EMAILLISTVERIFY_API_KEY", "capabilities":["deliverability","catch_all"]},
+    {"name":"reoon", "tier":2, "mode":"paid", "env_key":"REOON_API_KEY", "capabilities":["deliverability","catch_all","disposable","role"]},
     {"name":"neverbounce", "tier":2, "mode":"paid", "env_key":"NEVERBOUNCE_API_KEY", "capabilities":["deliverability","status"]},
     {"name":"bouncer", "tier":2, "mode":"paid", "env_key":"BOUNCER_API_KEY", "capabilities":["deliverability","risk","status"]},
     {"name":"kickbox", "tier":2, "mode":"paid", "env_key":"KICKBOX_API_KEY", "capabilities":["deliverability","status"]},
@@ -48,16 +51,71 @@ PHONE_PROVIDERS = (
     {"name":"veriphone", "tier":1, "mode":"free_plan_or_paid", "env_key":"VERIPHONE_API_KEY", "capabilities":["validation","carrier","line_type","location"]},
     {"name":"abstract", "tier":1, "mode":"free_plan_or_paid", "env_key":"ABSTRACT_API_KEY", "capabilities":["validation","carrier","line_type","location","risk"]},
     {"name":"numverify", "tier":1, "mode":"free_plan_or_paid", "env_key":"NUMVERIFY_API_KEY", "capabilities":["validation","carrier","line_type","location"]},
+    {"name":"telnyx", "tier":2, "mode":"paid", "env_key":"TELNYX_API_KEY", "capabilities":["validation","carrier","line_type"]},
     {"name":"ipqs", "tier":2, "mode":"paid_or_trial", "env_key":"IPQS_API_KEY", "capabilities":["validation","carrier","line_type","fraud_risk"]},
 )
+
+# Cheapest-first paid email order (loops below follow it) and rough USD per call, used for the spend ledger.
+# Estimates from public list prices at pay-as-you-go volume; override with LEADX_VERIFY_CREDIT_COST.
+EMAIL_PAID_CHEAP = ("millionverifier", "emaillistverify", "reoon", "hunter", "zerobounce", "abstract")
+EMAIL_PAID_PREMIUM = ("neverbounce", "bouncer", "kickbox")
+VERIFY_COST_USD = {"millionverifier": 0.0004, "emaillistverify": 0.0005, "reoon": 0.0005, "hunter": 0.01, "zerobounce": 0.008,
+                   "abstract": 0.006, "neverbounce": 0.008, "bouncer": 0.007, "kickbox": 0.01, "telnyx": 0.003}
+_STATUS_MAP = {"ok": "valid", "good": "valid", "deliverable": "valid", "valid": "valid", "safe": "valid",
+               "catch_all": "accept_all", "ok_for_all": "accept_all", "accept_all": "accept_all",
+               "invalid": "invalid", "fail": "invalid", "disposable": "disposable", "spamtrap": "spamtrap", "role_account": "unknown"}
 
 
 def _env_enabled(name: str) -> bool:
     return bool(name and os.getenv(name))
 
 
+def _envnum(name: str, default: float) -> float:
+    try:
+        v = float(os.getenv(name) or default)
+        return v if 0 <= v < float("inf") else default  # rejects negative, inf and nan
+    except ValueError:
+        return default
+
+
 def smtp_probe_enabled() -> bool:
-    return (os.getenv("LEADX_SMTP_PROBE", "1") or "1").strip().lower() not in {"0", "false", "no", "off"}
+    raw = os.getenv("LEADX_SMTP_PROBE_ENABLED")
+    if raw is None or not raw.strip():
+        raw = os.getenv("LEADX_SMTP_PROBE", "1") or "1"
+    return raw.strip().lower() not in {"0", "false", "no", "off"}
+
+
+def _fqdn_ok(h: str) -> bool:
+    h = (h or "").strip().rstrip(".").lower()
+    if "." not in h or h == "localhost" or h.endswith((".localhost", ".localdomain")):
+        return False
+    try:
+        ipaddress.ip_address(h.strip("[]"))
+        return False
+    except ValueError:
+        pass
+    return all(re.fullmatch(r"[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?", lab) for lab in h.split("."))
+
+
+def _probe_identity() -> tuple[str, str, list[str], list[str]]:
+    """HELO name and MAIL FROM from env only (never socket.getfqdn(): a container hostname is not a public name).
+    Returns (helo, mail_from, errors, warnings); any error means the probe must not run."""
+    helo = (os.getenv("LEADX_SMTP_HELO") or "").strip()
+    frm = (os.getenv("LEADX_SMTP_PROBE_FROM") or "").strip()
+    errors: list[str] = []; warns: list[str] = []
+    if not helo:
+        errors.append("LEADX_SMTP_HELO is not set: set it to this server's public hostname (its reverse DNS/PTR should match).")
+    elif not _fqdn_ok(helo):
+        errors.append(f"LEADX_SMTP_HELO={helo!r} must be a public FQDN with a dot (not localhost or an IP address).")
+    if frm and not EMAIL_RE.match(frm):
+        errors.append(f"LEADX_SMTP_PROBE_FROM={frm!r} is not a valid email address.")
+    elif frm and helo and frm.rsplit("@", 1)[1].lower() != helo.lower() and not helo.lower().endswith("." + frm.rsplit("@", 1)[1].lower()):
+        warns.append("LEADX_SMTP_PROBE_FROM domain differs from LEADX_SMTP_HELO: use a domain whose SPF authorizes this server's IP.")
+    return helo, (frm or (f"postmaster@{helo}" if helo else "")), errors, warns
+
+
+def _socks_proxy() -> str:
+    return (os.getenv("LEADX_SMTP_SOCKS_PROXY") or "").strip()
 
 
 def verification_readiness() -> dict[str, Any]:
@@ -67,7 +125,8 @@ def verification_readiness() -> dict[str, Any]:
     return ``valid`` for emails and the local plan check can return ``valid``
     for phones. Paid/free-plan providers are optional upgrades that are called
     only when the local tiers are not decisive. ``ready`` is therefore True
-    whenever any tier can produce a verdict; ``warnings`` says what is weak.
+    whenever any tier can produce a verdict; ``warnings`` says what is weak
+    and ``errors`` lists env keys that are wrong (the probe stays off until fixed).
     """
     email_keys = [x["env_key"] for x in EMAIL_PROVIDERS if x.get("env_key")]
     phone_keys = [x["env_key"] for x in PHONE_PROVIDERS if x.get("env_key")]
@@ -75,6 +134,24 @@ def verification_readiness() -> dict[str, Any]:
     phone_ok = any((os.getenv(k) or "").strip() for k in phone_keys)
     probe = smtp_probe_enabled()
     warnings: list[str] = []
+    errors: list[str] = []
+    if probe:
+        _h, _f, errors, _w = _probe_identity()
+        warnings += _w
+        warnings.append("Cannot check from here: PTR (reverse DNS) of this server's IP must match LEADX_SMTP_HELO and SPF for the MAIL FROM domain should allow it, or big mailbox providers will reject or tarpit probes.")
+    for _k in ("LEADX_SMTP_PROBE_TIMEOUT", "LEADX_SMTP_CONNECT_TIMEOUT", "LEADX_SMTP_PROBE_CONCURRENCY", "LEADX_SMTP_GREYLIST_RETRIES", "LEADX_SMTP_GREYLIST_DELAY", "LEADX_SMTP_PORT"):
+        _v = (os.getenv(_k) or "").strip()
+        try:
+            if _v and not 0 <= float(_v) < float("inf"):
+                raise ValueError
+        except ValueError:
+            errors.append(f"{_k}={_v!r} must be a finite non-negative number.")
+    if _socks_proxy():
+        try:
+            import socks  # noqa: F401
+        except ImportError:
+            warnings.append("LEADX_SMTP_SOCKS_PROXY is set but PySocks is not installed (pip install PySocks): the proxy is ignored.")
+    warnings += errors
     if not probe and not email_ok:
         warnings.append("SMTP probe disabled and no email provider set: no email can reach 'valid'; leads rely on verified phones.")
     if probe and not _port25_open():
@@ -87,6 +164,8 @@ def verification_readiness() -> dict[str, Any]:
         "ready": True,
         "mode": "local_plus_providers" if (email_ok or phone_ok) else "local_only",
         "smtp_probe_enabled": probe,
+        "smtp_probe_config_ok": not errors,
+        "errors": errors,
         "email_provider_configured": bool(email_ok),
         "phone_provider_configured": bool(phone_ok),
         "set_one_of": sorted(set(email_keys + phone_keys)),
@@ -105,7 +184,8 @@ _MX_TTL = 3600.0
 
 
 def _resolve_mx_sync(domain: str) -> list[str] | None:
-    """Return MX hosts by preference. [] = domain has no MX. None = cannot resolve (no resolver)."""
+    """MX hosts by preference. [] = domain cannot receive mail (NXDOMAIN, null MX, or no MX and no A/AAAA).
+    No MX but an address record returns [domain] (RFC 5321 5.1 implicit MX). None = could not resolve."""
     try:
         import dns.resolver  # dnspython
     except ImportError:
@@ -114,13 +194,22 @@ def _resolve_mx_sync(domain: str) -> list[str] | None:
     try:
         answers = dns.resolver.resolve(domain, "MX", lifetime=8)
         hosts = sorted(((r.preference, str(r.exchange).rstrip(".")) for r in answers), key=lambda x: x[0])
-        return [h for _, h in hosts if h and h != "."]
+        return [h for _, h in hosts if h]  # a lone "." is a null MX (RFC 7505): empty list, no mail
     except Exception as exc:
         name = type(exc).__name__
-        if name in {"NXDOMAIN", "NoAnswer", "NoNameservers"}:
+        if name == "NXDOMAIN":
             return []
-        logger.debug("MX lookup failed for %s: %s", domain, name)
-        return None
+        if name != "NoAnswer":
+            logger.debug("MX lookup failed for %s: %s", domain, name)
+            return None
+    for rtype in ("A", "AAAA"):
+        try:
+            if dns.resolver.resolve(domain, rtype, lifetime=8):
+                return [domain]
+        except Exception as exc:
+            if type(exc).__name__ not in {"NoAnswer", "NXDOMAIN"}:
+                return None
+    return []
 
 
 async def _mx_hosts(domain: str) -> list[str] | None:
@@ -186,44 +275,146 @@ def _note_connect(ok: bool) -> None:
                          "Use a host that allows port 25, or set an email provider key / LEADX_EMAIL_VALIDATOR_URL.")
 
 
-def _smtp_probe_sync(email: str, mx_hosts: list[str], *, helo: str, mail_from: str, timeout: float, port: int = 25) -> dict[str, Any]:
-    import smtplib
-    domain = email.rsplit("@", 1)[1]
-    last = "no_mx_reached"
-    for host in mx_hosts[:2]:
-        srv = smtplib.SMTP(local_hostname=helo, timeout=timeout)
+class _Smtp(smtplib.SMTP):
+    def _get_socket(self, host, port, timeout):
+        return _open_sock(host, port, timeout)
+
+
+def _open_sock(host: str, port: int, timeout: float) -> socket.socket:
+    """TCP connect, through LEADX_SMTP_SOCKS_PROXY (socks5://host:port) when set and PySocks is installed."""
+    proxy = _socks_proxy()
+    if proxy:
         try:
-            try:
-                srv.connect(host, port)
-            except (OSError, smtplib.SMTPException) as exc:
-                _note_connect(False)
-                last = f"connect_{type(exc).__name__}"
-                continue
+            import socks
+        except ImportError:
+            socks = None
+        if socks:
+            from urllib.parse import urlparse
+            u = urlparse(proxy if "://" in proxy else "socks5://" + proxy)
+            kind = socks.SOCKS4 if u.scheme == "socks4" else socks.SOCKS5
+            return socks.create_connection((host, port), timeout, proxy_type=kind, proxy_addr=u.hostname, proxy_port=u.port or 1080,
+                                           proxy_rdns=True, proxy_username=u.username, proxy_password=u.password)
+    return socket.create_connection((host, port), timeout)
+
+
+class _TlsFailed(Exception):
+    pass
+
+
+def _rcpt_text(rmsg: Any) -> str:
+    return (rmsg.decode("utf-8", "ignore") if isinstance(rmsg, bytes) else str(rmsg)).lower()
+
+
+def _probe_host(host: str, email: str, *, helo: str, mail_from: str, timeout: float, connect_timeout: float, port: int, tls: bool) -> dict[str, Any]:
+    """One session on one MX. Returns a verdict dict, or {"_next": reason} when this host gave no answer."""
+    domain = email.rsplit("@", 1)[1]
+    srv = _Smtp(local_hostname=helo, timeout=connect_timeout)
+    try:
+        try:
+            srv.connect(host, port)
+        except OSError as exc:
+            _note_connect(False)
+            return {"_next": f"connect_{type(exc).__name__}"}
+        except smtplib.SMTPException as exc:  # reached the host (e.g. 421 banner): not an egress problem
             _note_connect(True)
-            code, _ = srv.ehlo()
-            if code >= 400:
-                srv.helo()
-            code, msg = srv.mail(mail_from)
-            if code >= 400:
-                return {"result": "unknown", "reason": f"mail_from_{code}", "mx": host}
-            rcode, rmsg = srv.rcpt(email)
-            rtext = (rmsg.decode("utf-8", "ignore") if isinstance(rmsg, bytes) else str(rmsg)).lower()
-            if rcode in (250, 251):
-                pcode, _ = srv.rcpt(f"lx-{secrets.token_hex(6)}@{domain}")
-                if pcode in (250, 251):
-                    return {"result": "accept_all", "reason": "catch_all_domain", "mx": host, "code": rcode}
-                return {"result": "valid", "reason": "rcpt_accepted_non_catch_all", "mx": host, "code": rcode}
-            if rcode >= 500 and any(t in rtext for t in _USER_UNKNOWN):
-                return {"result": "invalid", "reason": "mailbox_unknown", "mx": host, "code": rcode}
-            return {"result": "unknown", "reason": f"rcpt_{rcode}_not_conclusive", "mx": host, "code": rcode}
-        except (OSError, smtplib.SMTPException) as exc:
-            last = f"smtp_{type(exc).__name__}"
-        finally:
+            return {"_next": f"connect_{type(exc).__name__}"}
+        _note_connect(True)
+        srv.sock.settimeout(timeout)
+        code, _ = srv.ehlo()
+        if code >= 400:
+            srv.helo()
+        if tls and srv.has_extn("starttls"):
+            ctx = ssl.create_default_context()
+            ctx.check_hostname = False; ctx.verify_mode = ssl.CERT_NONE  # probing only, no data is sent
             try:
-                srv.close()
-            except Exception as exc:
-                logger.debug("smtp close failed: %s", exc)
+                srv.starttls(context=ctx)
+                srv.ehlo()
+            except (OSError, smtplib.SMTPException):
+                raise _TlsFailed
+        used_tls = srv.sock.__class__.__name__ == "SSLSocket"
+        code, _ = srv.mail(mail_from)
+        if code >= 400:
+            return {"result": "unknown", "reason": f"mail_from_{code}", "mx": host, "tls": used_tls}
+        rcode, rmsg = srv.rcpt(email)
+        base = {"mx": host, "code": rcode, "tls": used_tls}
+        if rcode in (250, 251):
+            srv.rset()  # fresh transaction before the catch-all control address
+            if srv.mail(mail_from)[0] >= 400:
+                return {"result": "unknown", "reason": "catch_all_check_failed", **base}
+            pcode, pmsg = srv.rcpt(f"lx-{secrets.token_hex(6)}@{domain}")
+            if pcode in (250, 251):
+                return {"result": "accept_all", "reason": "catch_all_domain", **base}
+            if pcode >= 500 and any(t in _rcpt_text(pmsg) for t in _USER_UNKNOWN):  # a policy/quota 5xx says nothing about the mailbox
+                return {"result": "valid", "reason": "rcpt_accepted_non_catch_all", **base}
+            return {"result": "unknown", "reason": "catch_all_check_inconclusive", **base}  # 4xx on the control: never valid
+        if 400 <= rcode < 500:
+            return {"result": "unknown", "reason": "greylisted", **base}
+        if rcode >= 500 and any(t in _rcpt_text(rmsg) for t in _USER_UNKNOWN):
+            return {"result": "invalid", "reason": "mailbox_unknown", **base}
+        return {"result": "unknown", "reason": f"rcpt_{rcode}_not_conclusive", **base}
+    except _TlsFailed:
+        raise
+    except (OSError, smtplib.SMTPException) as exc:
+        return {"_next": f"smtp_{type(exc).__name__}"}
+    finally:
+        try:
+            srv.close()
+        except Exception as exc:
+            logger.debug("smtp close failed: %s", exc)
+
+
+def _smtp_probe_sync(email: str, mx_hosts: list[str], *, helo: str, mail_from: str, timeout: float, port: int = 25,
+                     connect_timeout: float | None = None, greylist_retries: int | None = None,
+                     greylist_delay: float | None = None) -> dict[str, Any]:
+    """MX hosts are tried in the given (priority) order. A 4xx on RCPT is retried on a new connection after a delay
+    (greylisting) and, if it persists, stays 'unknown' with reason 'greylisted'."""
+    connect_timeout = _envnum("LEADX_SMTP_CONNECT_TIMEOUT", 8) if connect_timeout is None else connect_timeout
+    retries = int(_envnum("LEADX_SMTP_GREYLIST_RETRIES", 1)) if greylist_retries is None else greylist_retries
+    delay = _envnum("LEADX_SMTP_GREYLIST_DELAY", 15) if greylist_delay is None else greylist_delay
+    want_tls = (os.getenv("LEADX_SMTP_STARTTLS", "1") or "1").strip().lower() not in {"0", "false", "no", "off"}
+    kw = dict(helo=helo, mail_from=mail_from, timeout=timeout, connect_timeout=connect_timeout, port=port)
+    last = "no_mx_reached"
+    for host in mx_hosts[:3]:
+        for attempt in range(retries + 1):
+            if attempt:
+                time.sleep(delay)
+            try:
+                r = _probe_host(host, email, tls=want_tls, **kw)
+            except _TlsFailed:  # server advertised STARTTLS but it failed: redo this host in plain text
+                r = _probe_host(host, email, tls=False, **kw)
+            if "_next" in r:
+                last = r["_next"]
+                break
+            if r.get("reason") != "greylisted":
+                return r
+            last_grey = r
+        else:
+            return last_grey  # still greylisted after the retries
     return {"result": "unknown", "reason": last}
+
+
+_preflight = {"checked": 0.0, "lock": None}
+
+
+async def _egress_preflight() -> None:
+    """One 3 s connect test to a public MX before the first probes: a blocked port 25 trips the breaker at once
+    instead of after several 12 s probe timeouts per worker. Target is LEADX_SMTP_PREFLIGHT_HOST/PORT."""
+    if time.monotonic() - _preflight["checked"] < 600:
+        return
+    _preflight["lock"] = _preflight["lock"] or asyncio.Lock()
+    async with _preflight["lock"]:
+        if time.monotonic() - _preflight["checked"] < 600:
+            return
+        host = os.getenv("LEADX_SMTP_PREFLIGHT_HOST") or "gmail-smtp-in.l.google.com"
+        port = int(_envnum("LEADX_SMTP_PREFLIGHT_PORT", 25))
+        try:
+            sock = await asyncio.to_thread(_open_sock, host, port, 3)
+            sock.close()
+            _note_connect(True)
+        except Exception:
+            _egress["fails"] = 3
+            _note_connect(False)
+        _preflight["checked"] = time.monotonic()
 
 
 async def local_smtp_probe(email: str) -> dict[str, Any]:
@@ -244,11 +435,15 @@ async def local_smtp_probe(email: str) -> dict[str, Any]:
     if hosts is None:
         obs["reason"] = "mx_lookup_unavailable"; return obs
     if not hosts:
-        # No MX does not prove the domain cannot receive mail (RFC 5321 A-record fallback).
+        # Resolver already applied the A/AAAA fallback, so empty means NXDOMAIN or null MX.
         obs["reason"] = "no_mx"; obs["mx_found"] = False; return obs
     obs["mx_found"] = True
     if any(any(t in h.lower() for t in _UNPROBEABLE_MX) for h in hosts[:2]):
         obs["reason"] = "mx_provider_not_probeable"; return obs
+    helo, mail_from, id_errors, _ = _probe_identity()
+    if id_errors:
+        obs["reason"] = "probe_identity_invalid"; obs["detail"] = id_errors[0]; return obs
+    await _egress_preflight()
     if not _port25_open():
         obs["reason"] = "smtp_egress_blocked"; return obs
     hit = _probe_cache.get(e)
@@ -256,15 +451,22 @@ async def local_smtp_probe(email: str) -> dict[str, Any]:
         return {**obs, **hit[0]}
     global _probe_global_sem
     if _probe_global_sem is None:
-        _probe_global_sem = asyncio.Semaphore(max(1, int(os.getenv("LEADX_SMTP_PROBE_CONCURRENCY", "8"))))
+        _probe_global_sem = asyncio.Semaphore(max(1, int(_envnum("LEADX_SMTP_PROBE_CONCURRENCY", 8))))
     host_sem = _probe_host_sems.setdefault(hosts[0].lower(), asyncio.Semaphore(2))
-    helo = (os.getenv("LEADX_SMTP_HELO") or socket.getfqdn() or "localhost").strip()
-    mail_from = (os.getenv("LEADX_SMTP_PROBE_FROM") or f"postmaster@{helo}").strip()
-    timeout = float(os.getenv("LEADX_SMTP_PROBE_TIMEOUT", "12"))
-    async with _probe_global_sem, host_sem:
-        res = await asyncio.to_thread(_smtp_probe_sync, e, hosts, helo=helo, mail_from=mail_from, timeout=timeout)
+    timeout = _envnum("LEADX_SMTP_PROBE_TIMEOUT", 12)
+    retries = int(_envnum("LEADX_SMTP_GREYLIST_RETRIES", 1))
+    for attempt in range(retries + 1):
+        if attempt:
+            await asyncio.sleep(_envnum("LEADX_SMTP_GREYLIST_DELAY", 15))  # waited outside the semaphores so greylisters don't stall the pool
+        async with _probe_global_sem, host_sem:
+            if not _port25_open():  # the breaker may have tripped while this probe waited for a slot: don't burn another timeout
+                obs["reason"] = "smtp_egress_blocked"; return obs
+            res = await asyncio.to_thread(_smtp_probe_sync, e, hosts, helo=helo, mail_from=mail_from, timeout=timeout,
+                                         port=int(_envnum("LEADX_SMTP_PORT", 25)), greylist_retries=0)
+        if res.get("reason") != "greylisted":
+            break
     result = res.get("result", "unknown")
-    out = {"status": result, "reason": res.get("reason"), "mx": res.get("mx"), "smtp_code": res.get("code")}
+    out = {"status": result, "reason": res.get("reason"), "mx": res.get("mx"), "smtp_code": res.get("code"), "tls": res.get("tls")}
     if result == "valid":
         out["score"] = 88; out["catch_all"] = False
     elif result == "accept_all":
@@ -286,8 +488,11 @@ async def _get_json(url: str, **kwargs) -> dict[str, Any]:
         return {"_error":type(exc).__name__}
 
 
-async def verify_email(email: str, providers: list[str] | None = None) -> dict[str, Any]:
-    """Production free-first cascade: local -> free-plan -> paid fallback."""
+async def verify_email(email: str, providers: list[str] | None = None, *, allow_paid: bool = True) -> dict[str, Any]:
+    """Production free-first cascade: local -> free-plan -> paid fallback.
+
+    ``allow_paid=False`` stops after the local tiers (syntax, MX, validator, SMTP probe); the pipeline uses it before
+    the quality gate so paid verifiers are only paid for leads that are about to be delivered."""
     from app.integrations.prod.discovery_runtime import local_validation_mode
     if local_validation_mode():
         base = email_local_check(email)
@@ -330,13 +535,21 @@ async def verify_email(email: str, providers: list[str] | None = None) -> dict[s
                 if await maybe_return(probe): return _canonical_email(e,observations)
         except Exception as exc:
             logger.warning("local SMTP probe failed for a lead: %s", exc)
+    if not allow_paid and not explicit:
+        return _canonical_email(e,observations)
     async with httpx.AsyncClient(timeout=30,follow_redirects=False) as c:
-        for name in ("hunter","zerobounce","abstract"):
+        for name in EMAIL_PAID_CHEAP:
             if name not in requested: continue
             key=next((x["env_key"] for x in EMAIL_PROVIDERS if x["name"]==name),None)
             if key and not os.getenv(key): continue
             try:
-                if name=="hunter":
+                if name=="millionverifier":
+                    d=(await c.get('https://api.millionverifier.com/api/v3/',params={'api':os.getenv('MILLIONVERIFIER_API_KEY'),'email':e})).json(); o={"provider":name,"tier":2,"status":_STATUS_MAP.get(str(d.get('result','')).lower(),'unknown')}
+                elif name=="emaillistverify":
+                    t=(await c.get('https://apps.emaillistverify.com/api/verifyEmail',params={'secret':os.getenv('EMAILLISTVERIFY_API_KEY'),'email':e})).text.strip().lower(); o={"provider":name,"tier":2,"status":_STATUS_MAP.get(t,'unknown')}
+                elif name=="reoon":
+                    d=(await c.get('https://emailverifier.reoon.com/api/v1/verify',params={'email':e,'key':os.getenv('REOON_API_KEY'),'mode':'quick'})).json(); o={"provider":name,"tier":2,"status":_STATUS_MAP.get(str(d.get('status','')).lower(),'unknown')}
+                elif name=="hunter":
                     d=(await c.get('https://api.hunter.io/v2/email-verifier',params={'email':e,'api_key':os.getenv('HUNTER_API_KEY')})).json().get('data',{}); o={"provider":name,"tier":1,"status":str(d.get('status','unknown')).lower(),"score":d.get('score')}
                 elif name=="zerobounce":
                     d=(await c.get('https://api.zerobounce.net/v2/validate',params={'email':e,'api_key':os.getenv('ZEROBOUNCE_API_KEY')})).json(); o={"provider":name,"tier":1,"status":str(d.get('status','unknown')).lower(),"sub_status":d.get('sub_status'),"disposable":d.get('disposable')}
@@ -344,7 +557,7 @@ async def verify_email(email: str, providers: list[str] | None = None) -> dict[s
                     d=(await c.get('https://emailvalidation.abstractapi.com/v1/',params={'api_key':os.getenv('ABSTRACT_API_KEY'),'email':e})).json(); o={"provider":name,"tier":1,"status":"valid" if d.get('is_valid_format',{}).get('value') and d.get('is_smtp_valid',{}).get('value') else "unknown","deliverability":d.get('deliverability'),"quality_score":d.get('quality_score')}
                 if await maybe_return(o): return _canonical_email(e,observations)
             except Exception: continue
-        for name in ("neverbounce","bouncer","kickbox"):
+        for name in EMAIL_PAID_PREMIUM:
             if name not in requested: continue
             key=next((x["env_key"] for x in EMAIL_PROVIDERS if x["name"]==name),None)
             if key and not os.getenv(key): continue
@@ -403,7 +616,7 @@ def phone_local_check(phone: str, country_code: str | None = None) -> dict[str, 
         if not phonenumbers.is_valid_number(num):
             out["status"]="invalid"; out["reason"]="not_valid_for_region"; return out
         t=phonenumbers.number_type(num)
-        out["line_type"]=str(t).split(".")[-1].lower()
+        out["line_type"]=phonenumbers.PhoneNumberType.to_string(t).lower()
         if t in (phonenumbers.PhoneNumberType.PREMIUM_RATE, phonenumbers.PhoneNumberType.SHARED_COST, phonenumbers.PhoneNumberType.VOICEMAIL):
             out["status"]="invalid"; out["reason"]="non_dialable_type"; return out
         out["status"]="valid"; out["confidence"]=70
@@ -449,7 +662,7 @@ async def verify_phone(phone: str, country_code: str | None = None, providers: l
         o=await _phone_randomapi(p,country_code)
         if o: observations.append(o)  # possible/valid shape; not reachability proof
     async with httpx.AsyncClient(timeout=25,follow_redirects=False) as c:
-        for name in ("phonevalidationapi","numbers_online","twilio_lookup","veriphone","abstract","numverify"):
+        for name in ("phonevalidationapi","numbers_online","telnyx","twilio_lookup","veriphone","abstract","numverify"):
             if name not in requested: continue
             key=next((x["env_key"] for x in PHONE_PROVIDERS if x["name"]==name),None)
             if key and not os.getenv(key): continue
@@ -458,6 +671,10 @@ async def verify_phone(phone: str, country_code: str | None = None, providers: l
                     d=(await c.post('https://phonevalidationapi.com/api/v1/validate',headers={'Authorization':f'Bearer {os.getenv("PHONEVALIDATIONAPI_KEY")}'},json={'phone':p,'country':country_code})).json(); o={'provider':name,'tier':0,'status':'valid' if d.get('valid') else 'invalid','confidence':d.get('confidence'),'line_type':d.get('line_type'),'carrier':d.get('carrier')}
                 elif name=="numbers_online":
                     d=(await c.get(os.getenv('NUMBERS_ONLINE_LOOKUP_URL') or 'https://numbers.online/api/lookup',params={'number':p,'api_key':os.getenv('NUMBERS_ONLINE_API_KEY')})).json(); o={'provider':name,'tier':0,'status':'valid' if d.get('valid',True) else 'invalid','line_type':d.get('line_type'),'carrier':d.get('carrier'),'risk':d.get('risk')}
+                elif name=="telnyx":
+                    resp=await c.get('https://api.telnyx.com/v2/number_lookup/'+quote_plus(p),params={'type':'carrier'},headers={'Authorization':f'Bearer {os.getenv("TELNYX_API_KEY")}'})
+                    if resp.status_code!=200: continue  # bad key / rate limit is not evidence the number is invalid
+                    d=resp.json().get('data') or {}; cr=d.get('carrier') or {}; o={'provider':name,'tier':2,'status':'valid' if d.get('valid_number',d.get('phone_number')) else 'invalid','line_type':cr.get('type'),'carrier':cr.get('name')}
                 elif name=="twilio_lookup":
                     auth=(os.getenv('TWILIO_ACCOUNT_SID'),os.getenv('TWILIO_AUTH_TOKEN')); params={'CountryCode':country_code} if country_code else {}; d=(await c.get('https://lookups.twilio.com/v2/PhoneNumbers/'+quote_plus(p),params=params,auth=auth)).json(); li=d.get('line_type_intelligence') or {}; o={'provider':name,'tier':1,'status':'valid' if d.get('valid',True) else 'invalid','line_type':li.get('type'),'carrier':li.get('carrier_name'),'phone_number':d.get('phone_number')}
                 elif name=="veriphone":

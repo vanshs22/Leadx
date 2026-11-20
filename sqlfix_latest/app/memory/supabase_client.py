@@ -101,8 +101,31 @@ def get_supabase():
     else:
         _client = create_client(url, key)
 
+    _tune_postgrest_pool(_client)
     logger.info("Supabase client initialized host=%s", url.split("//")[-1][:40])
     return _client
+
+
+def _tune_postgrest_pool(client: Any) -> None:
+    """Give the shared PostgREST session a pool sized for the worker's thread pool.
+
+    supabase-py builds its httpx client with the default limits (20 kept-alive connections). The pipeline issues database calls
+    from ~100 threads, so most calls opened and closed a TCP connection, and the rest waited on the pool lock. Disable with
+    LEADX_DB_POOL_SIZE=0."""
+    size = int(os.getenv("LEADX_DB_POOL_SIZE", "128") or 0)
+    if size <= 0:
+        return
+    try:
+        import httpx
+        pg = client.postgrest
+        old = pg.session
+        pg.session = httpx.Client(
+            base_url=old.base_url, headers=old.headers, timeout=old.timeout, follow_redirects=True,
+            limits=httpx.Limits(max_connections=size * 2, max_keepalive_connections=size, keepalive_expiry=60.0),
+        )
+        old.close()
+    except Exception as exc:  # tuning must never stop the client from working
+        logger.debug("postgrest pool tuning skipped: %s", type(exc).__name__)
 
 
 def reset_supabase_client() -> None:

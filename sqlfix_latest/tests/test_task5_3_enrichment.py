@@ -22,8 +22,8 @@ def test_bounded_scrapling_crawl4ai_path_keeps_valid_partial_fields_after_crawl_
         return {
             "ok": True,
             "method": "scrapling",
-            "html": '<a href="mailto:owner@fixture.test">owner@fixture.test</a>',
-            "text": "owner@fixture.test",
+            "html": '<a href="mailto:owner@fixture-clinic.com">owner@fixture-clinic.com</a>',
+            "text": "owner@fixture-clinic.com",
         }
 
     async def crawl4ai(_url):
@@ -34,9 +34,9 @@ def test_bounded_scrapling_crawl4ai_path_keeps_valid_partial_fields_after_crawl_
     monkeypatch.setattr(enricher, "_fetch_secondary_pages", _no_network)
     monkeypatch.setenv("ENRICH_SEARCH_FALLBACK", "0")
 
-    result = asyncio.run(enricher.enrich_one("https://fixture.test", use_crawl4ai=True, use_firecrawl=False))
+    result = asyncio.run(enricher.enrich_one("https://fixture-clinic.com", use_crawl4ai=True, use_firecrawl=False))
 
-    assert result["email"] == "owner@fixture.test"
+    assert result["email"] == "owner@fixture-clinic.com"
     assert result["email_valid"] is True
     assert result["enrichment_ok"] is True
     assert result["enrichment_method"] == "scrapling"
@@ -44,7 +44,7 @@ def test_bounded_scrapling_crawl4ai_path_keeps_valid_partial_fields_after_crawl_
 
 def test_free_mesh_records_field_source_and_freshness_for_bounded_pages(monkeypatch):
     async def scrapling(_url, timeout=20):
-        return {"ok": True, "method": "scrapling", "html": '<a href="mailto:free@fixture.test">email</a>', "text": ""}
+        return {"ok": True, "method": "scrapling", "html": '<a href="mailto:free@fixture-clinic.com">email</a>', "text": ""}
 
     async def crawl4ai(_url):
         return {"ok": True, "method": "crawl4ai", "html": "", "text": "", "markdown": "Services"}
@@ -54,11 +54,11 @@ def test_free_mesh_records_field_source_and_freshness_for_bounded_pages(monkeypa
     monkeypatch.setattr(enrichment_mesh, "fetch_crawl4ai", crawl4ai)
 
     result = asyncio.run(
-        enrichment_mesh.enrich_with_free_mesh({"website": "https://fixture.test"}, use_crawl4ai=True)
+        enrichment_mesh.enrich_with_free_mesh({"website": "https://fixture-clinic.com"}, use_crawl4ai=True)
     )
     patch = result["patch"]
 
-    assert patch["email"] == "free@fixture.test"
+    assert patch["email"] == "free@fixture-clinic.com"
     assert patch["field_source"]["email"] == "first_party_web"
     observed = patch["field_observed_at"]["email"]
     assert datetime.fromisoformat(observed).tzinfo is not None
@@ -71,7 +71,7 @@ def test_free_mesh_records_field_source_and_freshness_for_bounded_pages(monkeypa
     [
         ("never", True, "email", {}, 1, "paid_fallback_disabled"),
         ("auto", False, "email", {}, 1, "paid_credential_missing"),
-        ("auto", True, "email", {"email": "owner@fixture.test"}, 1, "qualifying_gap_closed"),
+        ("auto", True, "email", {"email": "owner@fixture-clinic.com"}, 1, "qualifying_gap_closed"),
         ("auto", True, "email", {}, 0, "quota_exhausted"),
     ],
 )
@@ -88,7 +88,7 @@ def test_pipeline_paid_stage_requires_policy_credentials_gap_and_quota(
 
     async def paid_connector(*_args, **_kwargs):
         calls.append("paid")
-        return {"patch": {"email": "paid@fixture.test"}, "providers_attempted": ["fixture"]}
+        return {"patch": {"email": "paid@fixture-clinic.com"}, "providers_attempted": ["fixture"]}
 
     monkeypatch.setenv("LOCAL_VALIDATION_MODE", "false")
     monkeypatch.setenv("LEADX_PAID_FALLBACK", mode)
@@ -105,7 +105,7 @@ def test_pipeline_paid_stage_requires_policy_credentials_gap_and_quota(
 
     result = asyncio.run(
         enrichment_layer.enrich(
-            [{"website": "https://fixture.test", **lead}],
+            [{"website": "https://fixture-clinic.com", **lead}],
             execution_context=ProviderExecutionContext(budget_remaining=quota),
         )
     )[0]
@@ -118,7 +118,7 @@ def test_pipeline_preserves_free_fields_and_provenance_when_paid_stage_fails(mon
     async def free_mesh(_lead, **_kwargs):
         return {
             "patch": {
-                "email": "free@fixture.test",
+                "email": "free@fixture-clinic.com",
                 "field_source": {"email": "first_party_web"},
                 "field_confidence": {"email": 0.78},
                 "field_observed_at": {"email": "2026-01-01T00:00:00+00:00"},
@@ -143,12 +143,12 @@ def test_pipeline_preserves_free_fields_and_provenance_when_paid_stage_fails(mon
 
     result = asyncio.run(
         enrichment_layer.enrich(
-            [{"website": "https://fixture.test"}],
+            [{"website": "https://fixture-clinic.com"}],
             execution_context=ProviderExecutionContext(budget_remaining=1),
         )
     )[0]
 
-    assert result["email"] == "free@fixture.test"
+    assert result["email"] == "free@fixture-clinic.com"
     assert result["field_source"]["email"] == "first_party_web"
     assert result["field_observed_at"]["email"] == "2026-01-01T00:00:00+00:00"
     assert result["enrichment_mesh_audit"]["paid_stage"] == {"status": "error", "error": "RuntimeError"}
@@ -159,7 +159,7 @@ def test_waterfall_keeps_free_value_and_records_observed_at_after_later_failure(
 
     async def free(_lead, _field):
         calls.append("free")
-        return {"value": "free@fixture.test", "confidence": 0.7}
+        return {"value": "free@fixture-clinic.com", "confidence": 0.7}
 
     async def paid(_lead, _field):
         calls.append("paid")
@@ -177,7 +177,7 @@ def test_waterfall_keeps_free_value_and_records_observed_at_after_later_failure(
     result = asyncio.run(engine.enrich({}, ["email"]))
 
     assert calls == ["free", "paid"]
-    assert result["patch"]["email"] == "free@fixture.test"
+    assert result["patch"]["email"] == "free@fixture-clinic.com"
     assert result["patch"]["field_source"]["email"] == "free_fixture"
     assert datetime.fromisoformat(result["patch"]["field_observed_at"]["email"]).tzinfo is not None
     assert result["audit"]["email"]["attempts"][-1]["status"].startswith("error:")
@@ -185,7 +185,7 @@ def test_waterfall_keeps_free_value_and_records_observed_at_after_later_failure(
 
 def test_paid_mesh_records_field_freshness_without_live_provider(monkeypatch):
     async def fake_apollo(_lead, _fields):
-        return {"email": "paid@fixture.test"}
+        return {"email": "paid@fixture-clinic.com"}
 
     monkeypatch.setenv("LOCAL_VALIDATION_MODE", "false")
     monkeypatch.setenv("APOLLO_API_KEY", "offline-fixture-key")
@@ -199,12 +199,12 @@ def test_paid_mesh_records_field_freshness_without_live_provider(monkeypatch):
 
     result = asyncio.run(
         enrichment_mesh.enrich_with_paid_connectors(
-            {"website": "https://fixture.test"}, ["email"], max_providers=1
+            {"website": "https://fixture-clinic.com"}, ["email"], max_providers=1
         )
     )
 
     assert result["providers_attempted"] == ["apollo"]
-    assert result["patch"]["email"] == "paid@fixture.test"
+    assert result["patch"]["email"] == "paid@fixture-clinic.com"
     assert datetime.fromisoformat(result["patch"]["field_observed_at"]["email"]).tzinfo is not None
 
 
@@ -229,7 +229,7 @@ def test_mesh_does_not_bypass_zero_context_quota(monkeypatch):
 
     result = asyncio.run(
         enrichment_mesh.enrich_intelligent(
-            {"website": "https://fixture.test"},
+            {"website": "https://fixture-clinic.com"},
             wanted=["email"],
             execution_context=ProviderExecutionContext(budget_remaining=0),
         )
@@ -255,7 +255,7 @@ async def test_paid_connector_rejects_social_url_for_email(monkeypatch):
 
     monkeypatch.setattr(enrichment_mesh, "_native_apollo", fake_apollo)
     result = await enrichment_mesh.enrich_with_paid_connectors(
-        {"website": "https://fixture.test"}, ["email"], max_providers=1
+        {"website": "https://fixture-clinic.com"}, ["email"], max_providers=1
     )
 
     assert "email" not in result["patch"]
@@ -278,14 +278,14 @@ async def test_free_mesh_replaces_malformed_existing_email_with_valid_free_evide
     monkeypatch.setattr(
         enrichment_mesh,
         "_extract_free_facts",
-        lambda *_args: {"email": "owner@fixture.test", "phone": "+1 201 555 0101"},
+        lambda *_args: {"email": "owner@fixture-clinic.com", "phone": "+1 201 555 0101"},
     )
 
     result = await enrichment_mesh.enrich_with_free_mesh(
-        {"website": "https://fixture.test", "email": "https://instagram.com/example"}
+        {"website": "https://fixture-clinic.com", "email": "https://instagram.com/example"}
     )
 
-    assert result["patch"]["email"] == "owner@fixture.test"
+    assert result["patch"]["email"] == "owner@fixture-clinic.com"
     assert result["patch"]["field_source"]["email"] == "first_party_web"
 
 
@@ -311,7 +311,7 @@ async def test_scrapling_and_crawl4ai_start_concurrently_with_bounded_fetches(mo
     monkeypatch.setattr(enricher, "_fetch_secondary_pages", _no_network)
     monkeypatch.setenv("ENRICH_SEARCH_FALLBACK", "0")
 
-    task = asyncio.create_task(enricher.enrich_one("https://fixture.test", use_firecrawl=False))
+    task = asyncio.create_task(enricher.enrich_one("https://fixture-clinic.com", use_firecrawl=False))
     for _ in range(3):
         await asyncio.sleep(0)
         if len(started) == 2:
@@ -343,7 +343,7 @@ async def test_pipeline_merge_rejects_untyped_social_url_from_paid_stage(monkeyp
     monkeypatch.setattr(enrichment_layer, "_provider_endpoint", lambda _name: "http://fixture")
 
     result = (await enrichment_layer.enrich(
-        [{"website": "https://fixture.test"}],
+        [{"website": "https://fixture-clinic.com"}],
         execution_context=ProviderExecutionContext(budget_remaining=1),
     ))[0]
 
@@ -483,7 +483,7 @@ def test_free_mesh_retries_each_adapter_with_a_hard_attempt_bound(monkeypatch):
         return {
             "ok": True,
             "method": "scrapling",
-            "html": '<a href="mailto:retry@fixture.test">retry</a>',
+            "html": '<a href="mailto:retry@fixture-clinic.com">retry</a>',
             "text": "",
         }
 
@@ -497,11 +497,11 @@ def test_free_mesh_retries_each_adapter_with_a_hard_attempt_bound(monkeypatch):
     monkeypatch.setattr(enrichment_mesh, "fetch_crawl4ai", crawl4ai)
 
     result = asyncio.run(
-        enrichment_mesh.enrich_with_free_mesh({"website": "https://fixture.test"}, use_crawl4ai=True)
+        enrichment_mesh.enrich_with_free_mesh({"website": "https://fixture-clinic.com"}, use_crawl4ai=True)
     )
 
     assert calls == {"scrapling": 2, "crawl4ai": 2}
-    assert result["patch"]["email"] == "retry@fixture.test"
+    assert result["patch"]["email"] == "retry@fixture-clinic.com"
     assert result["audit"]["free_mesh"]["meta"]["scrapling"]["attempts"] == 2
     assert result["audit"]["free_mesh"]["meta"]["crawl4ai"]["attempts"] == 2
 
@@ -541,13 +541,13 @@ async def test_local_mode_preserves_existing_contact_evidence_and_calls_no_provi
 
     rows = await enrichment_layer.enrich([{
         "id": "lead-existing",
-        "email": "owner@fixture.test",
+        "email": "owner@fixture-clinic.com",
         "email_status": "valid",
         "field_source": {"email": "existing_fixture"},
         "source_provenance": {"source": "existing_fixture", "billable": False},
     }])
 
-    assert rows[0]["email"] == "owner@fixture.test"
+    assert rows[0]["email"] == "owner@fixture-clinic.com"
     assert rows[0]["field_source"] == {"email": "existing_fixture"}
     assert rows[0]["source_provenance"]["source"] == "existing_fixture"
     assert rows[0]["enrichment_sources"] == ["local_fixture"]
@@ -569,7 +569,7 @@ async def test_pipeline_calls_free_mesh_and_crawl_before_paid_fallback(monkeypat
         events.append("paid")
         return {
             "patch": {
-                "email": "paid@fixture.test",
+                "email": "paid@fixture-clinic.com",
                 "field_source": {"email": "offline_fixture"},
                 "field_observed_at": {"email": "2026-01-01T00:00:00+00:00"},
             },
@@ -586,10 +586,10 @@ async def test_pipeline_calls_free_mesh_and_crawl_before_paid_fallback(monkeypat
     monkeypatch.setattr(enrichment_layer, "_provider_endpoint", lambda _name: "https://fixture.invalid")
 
     result = (await enrichment_layer.enrich(
-        [{"website": "https://fixture.test"}],
+        [{"website": "https://fixture-clinic.com"}],
         execution_context=ProviderExecutionContext(budget_remaining=1),
     ))[0]
 
     assert events == ["free_mesh", "crawl", "paid"]
-    assert result["email"] == "paid@fixture.test"
+    assert result["email"] == "paid@fixture-clinic.com"
     assert result["field_source"]["email"] == "offline_fixture"

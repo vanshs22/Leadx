@@ -2,8 +2,9 @@
 from __future__ import annotations
 
 from app.services.aio import aexec
+import logging
 import os
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException, Request
@@ -17,6 +18,7 @@ from app.core.plans import (
 )
 from app.memory.supabase_client import get_supabase
 
+_log = logging.getLogger("lead_engine.billing")
 router = APIRouter(prefix="/billing", tags=["billing"])
 public_router = APIRouter(prefix="/public", tags=["public-plans"])
 
@@ -37,6 +39,10 @@ def _stripe():
     import stripe
     stripe.api_key = key
     stripe.api_version = os.getenv("STRIPE_API_VERSION", "2024-06-20")
+    # Test hook: point the SDK at a local Stripe stand-in. Ignored (and never applied) in production/staging.
+    base = os.getenv("STRIPE_API_BASE", "").strip()
+    if base and os.getenv("ENVIRONMENT", "development").lower() not in {"production", "prod", "staging"}:
+        stripe.api_base = base.rstrip("/")
     return stripe
 
 
@@ -166,7 +172,7 @@ async def cancel_subscription(body: CancellationRequest, ctx: TenantContext = De
     provider_status = getattr(result, "status", None) or (result.get("status") if isinstance(result, dict) else "pending")
     updates = {"billing_cancel_at_period_end": not body.immediate, "billing_status": str(provider_status)}
     try:
-        _sb().table("tenants").update(updates).eq("id", ctx.tenant_id).execute()
+        await aexec(_sb().table("tenants").update(updates).eq("id", ctx.tenant_id))
     except Exception:
         # Provider state remains authoritative even when an older local schema
         # cannot persist the additive cancellation projection.
@@ -210,7 +216,8 @@ def create_checkout_session(body: CheckoutRequest, request: Request, ctx: Tenant
     try:
         session = stripe.checkout.Session.create(**params)
     except Exception as exc:
-        raise HTTPException(502, f"Unable to create checkout session: {exc}") from exc
+        _log.warning("checkout session failed: %s", type(exc).__name__)
+        raise HTTPException(502, "Unable to create a checkout session right now. Please try again.") from exc
     return {"ok": True, "redirect_url": session.url, "session_id": session.id, "plan": plan, "interval": interval}
 
 
@@ -253,7 +260,7 @@ async def stripe_webhook(request: Request):
     try:
         event = stripe.Webhook.construct_event(payload, signature, secret)
     except Exception as exc:
-        raise HTTPException(400, f"Invalid Stripe webhook: {exc}") from exc
+        raise HTTPException(400, "Invalid Stripe webhook signature or payload") from exc
 
     event_id = str(event.get("id") or "").strip()
     event_type = str(event.get("type") or "")
@@ -268,9 +275,10 @@ async def stripe_webhook(request: Request):
                 "event_id": event_id, "source": "stripe",
                 "metadata": {"type": event_type, "tenant_id": tenant_id, "status": "processing"},
                 "processing_expires_at": (datetime.now(timezone.utc) + __import__('datetime').timedelta(minutes=10)).isoformat(),
-            }).select("id"))
+            }))  # insert returns the representation by default; the old .select("id") raised AttributeError, so EVERY webhook got a 503
             claimed_event = bool(claim.data)
-        except Exception:
+        except Exception as claim_exc:
+            _log.info("webhook ledger claim not inserted (%s: %s); checking for an existing row", type(claim_exc).__name__, str(claim_exc)[:200])
             existing = (await aexec(_sb().table("webhook_events").select("event_id,processed_at,processing_expires_at").eq("event_id", event_id).limit(1))).data or []
             if existing:
                 row = existing[0]
@@ -324,7 +332,7 @@ async def stripe_webhook(request: Request):
                     raise RuntimeError("tenant billing update matched no workspace")
             except Exception as exc:
                 await release_event_on_failure()
-                raise HTTPException(500, f"Stripe checkout billing update failed: {exc}") from exc
+                raise HTTPException(500, "Stripe checkout billing update failed") from exc
 
     elif event_type in {"customer.subscription.updated", "customer.subscription.created", "customer.subscription.deleted"}:
         tenant_id = tenant_id or metadata.get("tenant_id")
@@ -385,7 +393,6 @@ async def stripe_webhook(request: Request):
             elif status in {"paused", "incomplete", "incomplete_expired"}:
                 updates["billing_status"] = status
             elif status == "past_due":
-                from datetime import datetime, timedelta, timezone
                 raw = current.get("billing_grace_until"); grace = None
                 if raw:
                     try: grace = datetime.fromisoformat(str(raw).replace("Z", "+00:00"))
@@ -420,7 +427,7 @@ async def stripe_webhook(request: Request):
                         raise RuntimeError("tenant subscription update matched no workspace")
                 except Exception:
                     await release_event_on_failure()
-                    raise HTTPException(500, f"Stripe subscription billing update failed: {exc}") from exc
+                    raise HTTPException(500, "Stripe subscription billing update failed") from exc
 
     elif event_type == "invoice.payment_failed":
         tenant_id = tenant_id or metadata.get("tenant_id")
@@ -440,7 +447,7 @@ async def stripe_webhook(request: Request):
                     raise RuntimeError("tenant payment-failure update matched no workspace")
             except Exception as exc:
                 await release_event_on_failure()
-                raise HTTPException(500, f"Stripe payment-failure update failed: {exc}") from exc
+                raise HTTPException(500, "Stripe payment-failure update failed") from exc
 
     elif event_type in {"charge.refunded", "charge.dispute.created"}:
         customer = obj.get("customer")
@@ -464,7 +471,7 @@ async def stripe_webhook(request: Request):
                     raise RuntimeError("tenant refund/dispute update matched no workspace")
             except Exception as exc:
                 await release_event_on_failure()
-                raise HTTPException(500, f"Stripe refund/dispute update failed: {exc}") from exc
+                raise HTTPException(500, "Stripe refund/dispute update failed") from exc
 
     else:
         # Unknown but valid Stripe event: record it so retries are idempotent.

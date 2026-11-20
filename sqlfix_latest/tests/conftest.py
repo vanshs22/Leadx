@@ -20,12 +20,19 @@ sys.modules.setdefault("conftest", sys.modules[__name__])
 
 import pytest
 
+# tests/rig is a script-style harness: importing it patches os.environ, enricher.enrich_one and the Supabase client for the
+# whole process. Run it on its own: `pytest tests/rig --rootdir=. -p no:cacheprovider --override-ini=addopts=` (its own invocation).
+collect_ignore_glob = [] if any("rig" in a for a in sys.argv) else ["rig/*"]
+
 # Import the app package consistently regardless of where pytest is invoked.
 ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
 # Deterministic env so importing app modules never reaches for real services.
+# Discovery tests must not reach Overture/NPPES/directories on the live internet; opt in per test.
+os.environ.setdefault("LEADX_FREE_SOURCES", "osm")
+os.environ.setdefault("LEADX_DISCOVERY_DNS_CHECK", "0")  # fake test domains must not be dropped; tests/test_fetch_recovery.py turns it on
 os.environ.setdefault("ENVIRONMENT", "development")
 os.environ.setdefault("SUPABASE_URL", "https://test.supabase.co")
 os.environ.setdefault("SUPABASE_SERVICE_KEY", "test-service-key")
@@ -78,7 +85,7 @@ class _Query:
         return self
 
     def ilike(self, col, pattern):
-        needle = (pattern or "").strip("%").lower()
+        needle = (pattern or "").strip("%*").lower()
         self._rows = [r for r in self._rows if needle in str(r.get(col) or "").lower()]
         return self
 

@@ -1,5 +1,6 @@
 "use client";
 
+import { downloadCsv } from "@/lib/csv";
 import { useEffect, useState } from "react";
 import { crm, ReportsSummary } from "@/lib/api";
 import { getTenantId } from "@/lib/tenant";
@@ -76,13 +77,7 @@ export default function ReportsPage() {
         setError(new Error("No leads to export yet"));
         return;
       }
-      const headers = Object.keys(res.rows[0]);
-      const csv = [headers.join(","), ...res.rows.map((row: any) => headers.map((h) => JSON.stringify(row[h] ?? "")).join(","))].join("\n");
-      const a = document.createElement("a");
-      a.href = URL.createObjectURL(new Blob([csv], { type: "text/csv" }));
-      a.download = res.filename || "leads.csv";
-      a.click();
-      URL.revokeObjectURL(a.href);
+      downloadCsv(res.rows, res.filename || "leads.csv");
     } catch (caught) {
       setError(caught);
     } finally {

@@ -1,4 +1,5 @@
 from __future__ import annotations
+from uuid import UUID
 from datetime import date, datetime, timezone
 from hashlib import sha256
 
@@ -341,8 +342,16 @@ def me(admin:PlatformAdmin=Depends(require_platform_admin)):
 def agents(admin: PlatformAdmin = Depends(require_platform_admin)):
     from app.integrations.prod.agent_registry import FULL_AGENT_REGISTRY
     from app.memory.supabase_client import get_supabase
-    rows = get_supabase().table('agent_runs').select('id,tenant_id,agent_id,status,created_at,started_at,finished_at,error').order('created_at', desc=True).limit(100).execute().data or []
-    return {'ok': True, 'agents': [{'id': agent_id, **contract} for agent_id, contract in FULL_AGENT_REGISTRY.items()], 'runs': rows}
+    table = get_supabase().table
+    # or_ keeps NULL created_by rows (plain neq drops them); the Python filter covers planes that ignore or_.
+    rows = table('agent_runs').select('id,tenant_id,agent_id,task,outcome,status,created_at,started_at,finished_at,error,created_by').or_('created_by.is.null,created_by.neq.pipeline-stage-evidence').order('created_at', desc=True).limit(100).execute().data or []
+    rows = [{k: v for k, v in r.items() if k != 'created_by'} for r in rows if r.get('created_by') != 'pipeline-stage-evidence']
+    ev = table('agent_runs').select('id,tenant_id,agent_id,task,status,input_data,result,outcome,created_at,started_at,finished_at').eq('created_by', 'pipeline-stage-evidence').order('created_at', desc=True).limit(60).execute().data or []
+    groups: dict = {}
+    for r in ev:  # newest first, so the first source_run_id seen is the latest flow
+        groups.setdefault((r.get('input_data') or {}).get('source_run_id'), []).append(r)
+    flow = sorted(next(iter(groups.values()), []), key=lambda r: (r.get('input_data') or {}).get('order', 0))
+    return {'ok': True, 'agents': [{'id': agent_id, **contract} for agent_id, contract in FULL_AGENT_REGISTRY.items()], 'runs': rows, 'latest_pipeline_flow': flow}
 
     from app.integrations.prod.platform_control import platform_summary
     return {'ok':True,**platform_summary()}
@@ -382,12 +391,19 @@ def security_events(limit:int=100, admin:PlatformAdmin=Depends(require_platform_
 
 
 @router.get('/agent-missions')
-def agent_missions(tenant_id: str = Query(..., min_length=1), limit: int = Query(20, ge=1, le=100), admin: PlatformAdmin = Depends(require_platform_admin)):
+def agent_missions(tenant_id: UUID = Query(...), limit: int = Query(20, ge=1, le=100), admin: PlatformAdmin = Depends(require_platform_admin)):
     """Read-only, tenant-scoped mission index for the operator trace view."""
     from app.memory.supabase_client import get_supabase
-    rows = get_supabase().table('agent_missions').select(
-        'id,tenant_id,objective,status,profile_id,graph_version,graph_count,updated_at,created_at,terminal_reason'
-    ).eq('tenant_id', tenant_id).order('created_at', desc=True).limit(limit).execute().data or []
+    # select("*") + projection: profile_id/graph_version/graph_count are not columns in every deployment (the old explicit
+    # column list returned 500 for every call); they live in the mission's request/plan JSON.
+    raw = get_supabase().table('agent_missions').select('*').eq('tenant_id', str(tenant_id)).order('created_at', desc=True).limit(limit).execute().data or []
+    keep = ('id', 'tenant_id', 'objective', 'status', 'updated_at', 'created_at', 'terminal_reason')
+    rows = []
+    for m in raw:
+        req = m.get('request') if isinstance(m.get('request'), dict) else {}
+        plan = m.get('plan') if isinstance(m.get('plan'), dict) else {}
+        rows.append({**{k: m.get(k) for k in keep}, 'profile_id': m.get('profile_id') or req.get('profile_id'),
+                     'graph_version': m.get('graph_version') or plan.get('graph_version'), 'graph_count': m.get('graph_count') or plan.get('graph_count')})
     return {'ok': True, 'missions': rows}
 
 

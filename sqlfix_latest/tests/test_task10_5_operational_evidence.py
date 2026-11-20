@@ -45,13 +45,14 @@ def test_task10_5_operational_gate_requires_every_operational_check():
 
 
 def test_unavailable_local_executable_is_blocked_without_claiming_pass(tmp_path: Path):
+    (tmp_path / "producer.txt").write_text("x", encoding="utf-8")
     check = AuditCheck(
         check_id="operations.unavailable_fixture",
         claim="unavailable executable classification",
         evidence_level="automated",
         source="missing-local-executable",
         command=("missing-leadx-executable",),
-        source_paths=(),
+        source_paths=("producer.txt",),
         timeout_seconds=2,
     )
 

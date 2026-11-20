@@ -87,13 +87,26 @@ def _lead_id_set(values: object) -> list[str]:
     return list(dict.fromkeys(str(value) for value in values if value))
 
 
-def _rows(sb: object, table: str, *, filters: dict[str, object] | None = None) -> list[dict]:
-    """Read authorization metadata and re-filter it for simple test doubles."""
-    query = sb.table(table).select("*")
-    for column, value in (filters or {}).items():
-        if value is not None and hasattr(query, "eq"):
-            query = query.eq(column, value)
-    data = getattr(query.execute(), "data", None) or []
+def _rows(sb: object, table: str, *, filters: dict[str, object] | None = None, in_filter: tuple[str, list[str]] | None = None) -> list[dict]:
+    """Read authorization metadata and re-filter it for simple test doubles.
+
+    ``in_filter`` limits the read to the given ids (in chunks, so the URL stays short) instead of scanning the table."""
+    def _query(chunk: list[str] | None):
+        query = sb.table(table).select("*")
+        for column, value in (filters or {}).items():
+            if value is not None and hasattr(query, "eq"):
+                query = query.eq(column, value)
+        if chunk is not None and hasattr(query, "in_"):
+            query = query.in_(in_filter[0], chunk)
+        return query
+
+    if in_filter and in_filter[1]:
+        ids = list(in_filter[1])
+        data = []
+        for i in range(0, len(ids), 100):
+            data += getattr(_query(ids[i:i + 100]).execute(), "data", None) or []
+    else:
+        data = getattr(_query(None).execute(), "data", None) or []
     expected = filters or {}
     return [
         dict(row) for row in data
@@ -176,7 +189,7 @@ def authorize_lead_access(
                 "after_state": {"operation": str(operation)[:32], "agent_id": str(agent_id or "")[:80], "authorized": ok, "requested_count": len(requested)},
             }).execute()
         except Exception:
-            pass
+            __import__("logging").getLogger(__name__).debug("non-fatal error ignored", exc_info=True)
         return decision
 
     if len(requested) > 5000:
@@ -238,7 +251,7 @@ def authorize_lead_access(
             handoff_ids.update(_nested_ids(task))
 
     try:
-        assignments = _rows(sb, "lead_assignments")
+        assignments = _rows(sb, "lead_assignments", in_filter=("lead_id", sorted(requested)))
     except Exception:
         return _finish(False, "authorization_unavailable")
     assigned_ids: set[str] = set()

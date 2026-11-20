@@ -8,7 +8,10 @@ paid provider.
 from __future__ import annotations
 
 import asyncio
+import logging
 import os
+import threading
+import time
 from typing import Any
 
 import httpx
@@ -17,6 +20,22 @@ from app.integrations.prod.utils import extract_domain, fingerprint, normalize_p
 from app.integrations.prod.discovery_runtime import annotate_route_result, route_cell_id
 
 NOMINATIM_URL = os.getenv("NOMINATIM_URL", "https://nominatim.openstreetmap.org/search")
+logger = logging.getLogger("lead_engine.osm_fallback")
+# Nominatim's usage policy allows at most 1 request/second per client. Concurrent tenants share this
+# process-wide slot clock (thread-safe, so it also holds across event loops); otherwise parallel runs got blocked
+# and silently returned zero leads.
+_SLOT_LOCK = threading.Lock()
+_next_slot = 0.0
+
+
+async def _throttle(min_interval: float = float(os.getenv("NOMINATIM_MIN_INTERVAL", "1.1"))) -> None:
+    global _next_slot
+    with _SLOT_LOCK:
+        now = time.monotonic()
+        at = max(now, _next_slot)
+        _next_slot = at + min_interval
+    if at > now:
+        await asyncio.sleep(at - now)
 
 
 def _queries(industry: str, location: str) -> list[str]:
@@ -37,10 +56,16 @@ async def discover_osm_businesses(industry: str, location: str, *, limit: int = 
     try:
         async with httpx.AsyncClient(timeout=20, headers=headers, trust_env=False) as client:
             for query in _queries(industry, location):
-                response = await client.get(
-                    NOMINATIM_URL,
-                    params={"q": query, "format": "jsonv2", "addressdetails": 1, "limit": min(50, max(1, limit))},
-                )
+                response = None
+                for attempt in range(3):
+                    await _throttle()
+                    response = await client.get(
+                        NOMINATIM_URL,
+                        params={"q": query, "format": "jsonv2", "addressdetails": 1, "extratags": 1, "limit": min(50, max(1, limit))},
+                    )
+                    if response.status_code not in (429, 502, 503, 504):
+                        break
+                    await asyncio.sleep(2.0 * (attempt + 1))
                 response.raise_for_status()
                 for raw in response.json() or []:
                     name = str(raw.get("name") or "").strip()
@@ -50,13 +75,15 @@ async def discover_osm_businesses(industry: str, location: str, *, limit: int = 
                     if len(name) < 2:
                         continue
                     address = display or location
-                    phone = str(raw.get("extratags", {}).get("phone") or "")
-                    website = str(raw.get("extratags", {}).get("website") or "")
+                    tags = raw.get("extratags") or {}
+                    phone = str(tags.get("phone") or tags.get("contact:phone") or "")
+                    website = str(tags.get("website") or tags.get("contact:website") or "")
+                    email = str(tags.get("email") or tags.get("contact:email") or "").strip().lower()
                     if website and not website.startswith("http"):
                         website = "https://" + website
                     row = {
                         "name": name[:200], "company_name": name[:200],
-                        "phone": phone or None, "phone_normalized": normalize_phone(phone),
+                        "phone": phone or None, "email": email or None, "phone_normalized": normalize_phone(phone),
                         "phone_e164": to_e164(phone), "address": address[:500],
                         "city": location.split(",")[0].strip(), "website": website or None,
                         "website_domain": extract_domain(website) if website else None,
@@ -79,7 +106,7 @@ async def discover_osm_businesses(industry: str, location: str, *, limit: int = 
                         seen.add(key); rows.append(row)
                     if len(rows) >= limit:
                         return rows
-                await asyncio.sleep(1.0)
-    except Exception:
+    except Exception as exc:
+        logger.warning("nominatim discovery failed industry=%s location=%s: %s", industry, location, type(exc).__name__)
         return rows
     return rows

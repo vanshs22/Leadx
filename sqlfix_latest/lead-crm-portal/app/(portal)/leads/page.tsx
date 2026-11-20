@@ -1,16 +1,18 @@
 "use client";
 
+import { downloadCsv } from "@/lib/csv";
 import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
-import { crm, LeadCard } from "@/lib/api";
+import { crm, crmTools, LeadCard } from "@/lib/api";
 import { getTenantId, getTenantUserId } from "@/lib/tenant";
 import { useCrmChange } from "@/lib/crmRealtime";
 import { TierBadge, StagePill } from "@/components/leads/TierBadge";
 import { QualityChips } from "@/components/leads/QualityChips";
+import { LeadIntel } from "@/components/leads/LeadIntel";
 import { CopyButton } from "@/components/ui/CopyButton";
 import { SavedViews } from "@/components/leads/SavedViews";
 import { BulkActionBar } from "@/components/BulkActionBar";
-import { useChangedIds } from "@/lib/live";
+import { useChangedIds, useLiveLoader } from "@/lib/live";
 import { VariableVirtualList } from "@/lib/VariableVirtualList";
 import { ErrorState, EmptyState, LoadingRows } from "@/components/ui/States";
 import { EvidenceNote, FreshnessNote } from "@/components/ui/SurfaceMeta";
@@ -28,11 +30,11 @@ function LeadCols() {
       <col />
       <col className="w-[96px]" />
       <col className="w-[120px]" />
-      <col className="w-[230px]" />
+      <col className="w-[200px]" />
       <col className="w-[72px]" />
+      <col className="w-[92px]" />
       <col className="w-[96px]" />
-      <col className="w-[104px]" />
-      <col className="w-[150px]" />
+      <col className="w-[128px]" />
     </colgroup>
   );
 }
@@ -127,6 +129,7 @@ function LeadPreview({ lead }: { lead: any }) {
         { label: "Website", value: lead.website ? <a className="link" href={lead.website} target="_blank" rel="noreferrer" title={lead.website}>{lead.website.replace(/^https?:\/\//, "")}</a> : "—" },
         { label: "Updated", value: <span className="tabular-nums">{leadUpdated(lead) || "—"}</span> },
       ]} />
+      <LeadIntel assignmentId={String(id)} />
       <div>
         <div className="label mb-2">Quality</div>
         <QualityChips tier={lead.tier} score={lead.score ?? lead.total_score} intent={lead.intent_score} opportunity={lead.opportunity_score_overall ?? lead.opportunity_score} fit={lead.fit_score} contactability={lead.contactability_score} sources={lead.sources_hit || lead.source} pitch={lead.pitch_line} talkingPoints={lead.talking_points} />
@@ -151,6 +154,8 @@ export default function LeadsPage() {
   const [loadError, setLoadError] = useState<unknown>(null);
   const loadedOnceRef = useRef(false);
   const [search, setSearch] = useState("");
+  const [smart, setSmart] = useState(false);
+  const [smartNote, setSmartNote] = useState<string[]>([]);
   const [tier, setTier] = useState("");
   const [stage, setStage] = useState("");
   const [sort, setSort] = useState("score_desc");
@@ -177,27 +182,27 @@ export default function LeadsPage() {
   const load = useCallback(() => {
     if (!loadedOnceRef.current) setLoading(true);
     setLoadError(null);
-    crm
-      .leads(getTenantId(), {
-        search: search || undefined,
-        tier: tier || undefined,
-        stage: stage || undefined,
-        limit: 50,
-      })
+    const tid = getTenantId();
+    const request = smart && search.trim().length > 1
+      ? crmTools.nlSearch(tid, search.trim()).then((r) => { setSmartNote(r.explanation || []); return r; })
+      : (setSmartNote([]), crm.leads(tid, { search: search || undefined, tier: tier || undefined, stage: stage || undefined, limit: 50 }));
+    request
       .then((r) => {
         setLeads(r.leads || []);
         setTotal(r.total || 0);
       })
       .catch((e) => { setLoadError(e); setMsg(""); })
       .finally(() => { loadedOnceRef.current = true; setLoading(false); });
-  }, [search, tier, stage]);
+  }, [search, tier, stage, smart]);
 
   useEffect(() => {
-    const timer = window.setTimeout(load, search ? 220 : 0);
+    const timer = window.setTimeout(load, search ? (smart ? 600 : 220) : 0);
     return () => window.clearTimeout(timer);
-  }, [load, search, tier, stage]);
+  }, [load, search, tier, stage, smart]);
 
 
+  // Polling fallback (only while the tab is visible): without it, a Realtime outage left this list stale until a manual refresh.
+  useLiveLoader(load, 20_000, [load], { runImmediately: false, deadlineMs: 0 });
   useCrmChange(load, { tables: ["lead_assignments", "leads_global", "lead_crm_cards", "lead_state_history", "lead_score_snapshots", "lead_quality_gates", "lead_verification_observations", "lead_outcome_events", "activities", "lead_activities"] });
 
   function toggle(id: string) {
@@ -280,17 +285,7 @@ export default function LeadsPage() {
         tier: tier || undefined,
         stage: stage || undefined,
       });
-      const headers = Object.keys(data.rows[0] || {});
-      const csv = [
-        headers.join(","),
-        ...data.rows.map((row: any) =>
-          headers.map((h) => JSON.stringify(row[h] ?? "")).join(",")
-        ),
-      ].join("\n");
-      const a = document.createElement("a");
-      a.href = URL.createObjectURL(new Blob([csv], { type: "text/csv" }));
-      a.download = data.filename || "leads.csv";
-      a.click();
+      downloadCsv(data.rows, data.filename || "leads.csv");
       setMsg("CSV downloaded");
     } catch (e: any) {
       setMsg(e.message);
@@ -357,8 +352,9 @@ export default function LeadsPage() {
         <FilterBar onClear={() => { setSearch(""); setTier(""); setStage(""); setSort("score_desc"); }}>
           <div className="relative min-w-[220px] flex-1">
             <Icon name="search" size={14} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-ink-faint" />
-            <input className="input h-9 pl-8" type="search" placeholder="Search company, city, phone…" value={search} onChange={(e) => setSearch(e.target.value)} aria-label="Search leads" />
+            <input className="input h-9 pl-8" type="search" placeholder={smart ? "Ask: hot dentists in Austin with email, score above 70" : "Search company, city, phone…"} value={search} onChange={(e) => setSearch(e.target.value)} aria-label="Search leads" />
           </div>
+          <button type="button" className={`btn h-9 ${smart ? "btn-primary" : "btn-secondary"}`} aria-pressed={smart} title="Describe the leads you want in plain English" onClick={() => setSmart((v) => !v)}>Smart search</button>
           <Tabs
             label="Filter leads by tier"
             value={(tier || "all") as "all" | "A" | "B"}
@@ -370,8 +366,18 @@ export default function LeadsPage() {
             ]}
           />
           <select className="select h-9 w-auto min-w-[140px]" value={stage} onChange={(e) => setStage(e.target.value)} aria-label="Filter leads by stage"><option value="">All stages</option><option value="new">New</option><option value="contacted">Contacted</option><option value="qualified">Qualified</option><option value="won">Won</option><option value="lost">Lost</option></select>
-          <select className="select h-9 w-auto min-w-[170px]" value={sort} onChange={(e) => setSort(e.target.value)} aria-label="Sort leads"><option value="score_desc">Score: high → low</option><option value="score_asc">Score: low → high</option><option value="tier_asc">Tier: A → C</option><option value="tier_desc">Tier: C → A</option><option value="name_asc">Name: A → Z</option><option value="name_desc">Name: Z → A</option><option value="city_asc">City: A → Z</option><option value="newest">Newest first</option></select>
+          <select className="select h-9 w-auto min-w-[170px]" value={sort} onChange={(e) => setSort(e.target.value)} aria-label="Sort leads"><option value="score_desc">Score: high to low</option><option value="score_asc">Score: low to high</option><option value="tier_asc">Tier: A → C</option><option value="tier_desc">Tier: C → A</option><option value="name_asc">Name: A → Z</option><option value="name_desc">Name: Z → A</option><option value="city_asc">City: A → Z</option><option value="newest">Newest first</option></select>
         </FilterBar>
+        {smart && smartNote.length > 0 && (
+          <p className="flex flex-wrap items-center gap-2 text-xs text-ink-faint" aria-live="polite">
+            <span>Understood as: {smartNote.join(" · ")}</span>
+            <button type="button" className="btn btn-secondary h-7 px-2 text-xs" onClick={() => {
+              crmTools.saveSearch(getTenantId(), search.trim().slice(0, 60), search.trim(), true)
+                .then(() => setMsg("Saved. You'll get a notification when new leads match this search."))
+                .catch((e) => setMsg(e instanceof Error ? e.message : "Could not save this search."));
+            }}>Alert me about new matches</button>
+          </p>
+        )}
         <SavedViews
           current={{ search, tier, stage, sort }}
           onApply={(f) => { setSearch(f.search ?? ""); setTier(f.tier ?? ""); setStage(f.stage ?? ""); setSort(f.sort ?? "score_desc"); }}
@@ -395,14 +401,14 @@ export default function LeadsPage() {
           <EmptyState title="No leads match these filters" hint="Clear a filter or wait for the next delivery batch. LeadX will keep this view current through the CRM stream." />
         ) : sortedLeads.length > 100 ? (
           <div className="overflow-x-auto">
-            <table className="data-table min-w-[1080px] table-fixed">
+            <table className="data-table min-w-[940px] table-fixed">
               <caption className="sr-only">Leads</caption>
               <LeadCols />
               <LeadHead allSelected={allSelected} onToggleAll={toggleAll} />
             </table>
-            <div className="min-w-[1080px]">
+            <div className="min-w-[940px]">
               <VariableVirtualList items={sortedLeads} estimate={72} height={760} getKey={(lead:any)=>leadId(lead)} render={(lead:any) => (
-                <table className="data-table min-w-[1080px] table-fixed border-t border-line/70">
+                <table className="data-table min-w-[940px] table-fixed border-t border-line/70">
                   <LeadCols />
                   <tbody><LeadRow lead={lead} selected={selected} changed={changedLeadIds.has(String(leadId(lead)))} toggle={toggle} onPreview={setPreview} /></tbody>
                 </table>
@@ -411,7 +417,7 @@ export default function LeadsPage() {
           </div>
         ) : (
           <div className="max-h-[calc(100vh-16rem)] min-h-[320px] overflow-auto">
-            <table className="data-table min-w-[1080px] table-fixed">
+            <table className="data-table min-w-[940px] table-fixed">
               <caption className="sr-only">Leads</caption>
               <LeadCols />
               <LeadHead allSelected={allSelected} onToggleAll={toggleAll} />

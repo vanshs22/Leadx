@@ -152,7 +152,6 @@ _API_SOURCES = [
     ("google_places_api", "GOOGLE_PLACES_API_KEY", ("businesses", "local")),
     ("foursquare_api", "FOURSQUARE_API_KEY", ("businesses", "local")),
     ("yelp_api", "YELP_API_KEY", ("businesses", "local")),
-    ("bing_search", "BING_SEARCH_API_KEY", ("web", "companies")),
     ("brave_search", "BRAVE_SEARCH_API_KEY", ("web", "companies")),
     ("tavily", "TAVILY_API_KEY", ("web", "research")),
     ("exa", "EXA_API_KEY", ("web", "research")),

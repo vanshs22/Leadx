@@ -284,7 +284,7 @@ def waterfall_fields(
 
 
 __all__ = [
-    "CONTACT_STATUSES", "FIELD_STATUSES", "ContactIntegrityError", "EvidenceLedger",
+    "CONTACT_STATUSES", "FIELD_STATUSES", "ContactIntegrityError",
     "FieldEvidence", "FieldEvidenceError", "FieldEvidenceLedger", "classify_contact",
     "is_stale", "make_field_evidence", "needs_enrichment", "normalize_email", "normalize_field_value",
     "normalize_phone", "select_winner", "validate_contact_value", "validate_email", "waterfall_fields",

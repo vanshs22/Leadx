@@ -97,7 +97,22 @@ def refresh_vertical_priors(vertical: str) -> dict:
     return result
 
 
+_WEIGHTS_CACHE: dict[tuple[str, str], tuple[float, dict]] = {}
+
+
 async def weights_for_tenant(tenant_id: str, vertical: str) -> dict[str, float]:
+    """Per-lead callers hit this hundreds of times a run (and it recomputes priors when none exist); cache for a few minutes."""
+    import time as _time
+    key = (str(tenant_id), str(vertical).lower())
+    hit = _WEIGHTS_CACHE.get(key)
+    if hit and _time.monotonic() - hit[0] < float(__import__("os").getenv("LEADX_WEIGHTS_CACHE_SECONDS", "300")):
+        return dict(hit[1])
+    weights = await _weights_for_tenant_uncached(tenant_id, vertical)
+    _WEIGHTS_CACHE[key] = (_time.monotonic(), dict(weights))
+    return weights
+
+
+async def _weights_for_tenant_uncached(tenant_id: str, vertical: str) -> dict[str, float]:
     """
     Prefer tenant-specific feedback (5+ outcomes).
     Else use vertical prior → multiplier.

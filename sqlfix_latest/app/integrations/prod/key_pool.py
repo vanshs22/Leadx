@@ -43,8 +43,13 @@ def _now() -> datetime:
 @to_async
 def get_active_key(provider: str) -> tuple[str, str | None]:
     """Return (key_value, key_id). Reactivates cooled keys. Env fallback."""
-    sb = get_supabase()
     try:
+        sb = get_supabase()
+    except RuntimeError:  # no database configured (scripts, benchmarks): env keys below still work
+        sb = None
+    try:
+        if sb is None:
+            raise LookupError("no database")
         sb.table("api_key_pool").update({
             "status": "active",
             "updated_at": _now().isoformat(),
@@ -67,6 +72,8 @@ def get_active_key(provider: str) -> tuple[str, str | None]:
                 "last_used_at": _now().isoformat(),
             }).eq("id", row["id"]).execute()
             return row["key_value"], row["id"]
+    except LookupError:
+        pass
     except Exception as e:
         logger.warning("key_pool query failed for %s: %s", provider, e)
 
@@ -89,8 +96,8 @@ def get_active_key(provider: str) -> tuple[str, str | None]:
 
 @to_async
 def mark_quota_error(provider: str, key_value: str, error: str, cooldown_minutes: int = 30) -> None:
-    sb = get_supabase()
     try:
+        sb = get_supabase()
         rows = (
             sb.table("api_key_pool")
             .select("id, error_count")
@@ -120,8 +127,8 @@ def mark_quota_error(provider: str, key_value: str, error: str, cooldown_minutes
 
 @to_async
 def mark_exhausted(provider: str, key_value: str, error: str = "") -> None:
-    sb = get_supabase()
     try:
+        sb = get_supabase()
         sb.table("api_key_pool").update({
             "status": "exhausted",
             "last_error": str(error)[:500],
@@ -161,8 +168,8 @@ def mark_provider_exhausted(provider: str, error: str = "") -> None:
 
 @to_async
 def increment_usage(provider: str, key_value: str, amount: int = 1) -> None:
-    sb = get_supabase()
     try:
+        sb = get_supabase()
         rows = (
             sb.table("api_key_pool")
             .select("id, credits_used, credits_limit")

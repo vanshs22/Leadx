@@ -660,6 +660,12 @@ export const autonomousCampaigns = {
     adminApi(`/leads/v2/admin/autonomous-campaigns/${id}/run-now`, { method: "POST" }),
   tick: () => adminApi(`/leads/v2/admin/autonomous-campaigns/tick`, { method: "POST" }),
   stats: (id: string) => adminApi(`/leads/v2/admin/autonomous-campaigns/${id}/stats`),
+  drafts: (id: string) => adminApi(`/leads/v2/admin/autonomous-campaigns/${id}/drafts`) as Promise<{ ok: boolean; drafts: any[] }>,
+  decideDraft: (id: string, copyId: string, body: { approve: boolean; subject?: string; body_text?: string }) =>
+    adminApi(`/leads/v2/admin/autonomous-campaigns/${id}/drafts/${copyId}`, { method: "POST", body: JSON.stringify(body) }),
+  profile: () => adminApi(`/leads/v2/admin/outreach-profile`) as Promise<{ ok: boolean; profile: Record<string, string>; missing: string[] }>,
+  saveProfile: (body: Record<string, string>) =>
+    adminApi(`/leads/v2/admin/outreach-profile`, { method: "PUT", body: JSON.stringify(body) }) as Promise<{ ok: boolean; profile: Record<string, string>; missing: string[] }>,
 };
 
 export const adminScale = {

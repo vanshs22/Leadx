@@ -203,37 +203,23 @@ def filter_blocked_leads(
         if ids["fingerprint"]:
             fps.add(ids["fingerprint"])
 
-    # Load matching opt-outs in few queries
+    # Load matching opt-outs. The values go in the URL, so they are sent in chunks: one query with thousands of
+    # values exceeds the URL limit and used to skip the opt-out check silently.
     opt_phones, opt_emails, opt_domains, opt_fps = set(), set(), set(), set()
+
+    def _matches(column: str, values: set) -> set:
+        found: set = set()
+        vals = sorted(values)
+        for i in range(0, len(vals), 100):
+            for row in (sb.table("global_opt_out").select(column).in_(column, vals[i:i + 100]).execute().data or []):
+                if row.get(column):
+                    found.add(str(row[column]))
+        return found
     try:
-        if phones:
-            for row in (
-                sb.table("global_opt_out").select("phone_normalized")
-                .in_("phone_normalized", list(phones)).execute().data or []
-            ):
-                if row.get("phone_normalized"):
-                    opt_phones.add(row["phone_normalized"])
-        if emails:
-            for row in (
-                sb.table("global_opt_out").select("email")
-                .in_("email", list(emails)).execute().data or []
-            ):
-                if row.get("email"):
-                    opt_emails.add(row["email"].lower())
-        if domains:
-            for row in (
-                sb.table("global_opt_out").select("domain")
-                .in_("domain", list(domains)).execute().data or []
-            ):
-                if row.get("domain"):
-                    opt_domains.add(row["domain"])
-        if fps:
-            for row in (
-                sb.table("global_opt_out").select("fingerprint")
-                .in_("fingerprint", list(fps)).execute().data or []
-            ):
-                if row.get("fingerprint"):
-                    opt_fps.add(row["fingerprint"])
+        opt_phones = _matches("phone_normalized", phones) if phones else set()
+        opt_emails = {e.lower() for e in _matches("email", emails)} if emails else set()
+        opt_domains = _matches("domain", domains) if domains else set()
+        opt_fps = _matches("fingerprint", fps) if fps else set()
     except Exception as e:
         logger.warning("bulk opt-out load: %s", e)
 

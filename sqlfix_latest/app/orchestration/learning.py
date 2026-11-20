@@ -7,6 +7,7 @@ runtime configuration.
 from __future__ import annotations
 
 from dataclasses import dataclass, replace
+from datetime import datetime
 from typing import Any, Mapping, Sequence
 
 from .learning_events import LEARNING_DIMENSIONS, OutcomeEvent, _freeze

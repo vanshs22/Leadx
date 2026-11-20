@@ -21,6 +21,9 @@ failure mode that has already bitten this project once.
 """
 from __future__ import annotations
 
+from app.services.http_tuning import install as _install_http_tuning
+_install_http_tuning()
+
 import argparse
 import asyncio
 import json
@@ -48,6 +51,10 @@ logging.basicConfig(
 from app.layers.telemetry import emit as emit_telemetry, error_code as telemetry_error_code, tenant_scope as safe_tenant_scope
 
 logger = logging.getLogger("lead_engine.worker")
+# httpx logs full request URLs at INFO, which includes PostgREST filters such as key_value=eq.<api key>.
+for _noisy in ("httpx", "httpcore"):
+    logging.getLogger(_noisy).setLevel(logging.WARNING)
+
 
 POLL_INTERVAL = float(os.getenv("WORKER_POLL_SECONDS", "3"))
 REAP_INTERVAL = float(os.getenv("WORKER_REAP_SECONDS", "300"))
@@ -362,9 +369,11 @@ async def _housekeeping() -> None:
         ("schedules.tick", SCHEDULES_INTERVAL, {}),
         ("leads.reverify", REVERIFY_INTERVAL, {}),
         ("autonomous.campaign_tick", AUTONOMOUS_CAMPAIGN_INTERVAL, {"limit": 10}),
+        ("inbound.imap_poll", float(os.getenv("IMAP_POLL_INTERVAL", "120")), {"limit": 50}),
         ("webhooks.deliver", WEBHOOK_INTERVAL, {"limit": 100}),
         ("agent.goals.tick", 300, {"limit": 20}),
         ("signals.refresh", 900, {"limit": 100}),
+        ("searches.alerts", 900, {"limit": 200}),
     ]
     started_at = time.monotonic()
     last: dict[str, float] = {kind: started_at for kind, _, _ in cron}

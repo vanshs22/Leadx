@@ -179,7 +179,8 @@ def _find_assignment(tenant_id: str, from_email: str) -> Optional[str]:
     return rows[0]["id"] if rows else None
 
 
-async def handle_reply(raw_mime: str) -> dict:
+async def handle_reply(raw_mime: str, tenant_id: Optional[str] = None) -> dict:
+    """tenant_id is given by the IMAP poller; the SES path derives it from the plus-tag."""
     sb = get_supabase()
     msg = email.message_from_string(raw_mime)
     to_header = _decode(msg.get("To", ""))
@@ -189,7 +190,7 @@ async def handle_reply(raw_mime: str) -> dict:
     body = _extract_text(msg).strip()
 
     m = _PLUS_TAG.search(to_header)
-    tenant_id = m.group(1) if m else None
+    tenant_id = tenant_id or (m.group(1) if m else None)
     from_email = parseaddr(from_header)[1].strip().lower() or from_header.strip().lower()
 
     if not tenant_id:
@@ -241,9 +242,10 @@ async def handle_reply(raw_mime: str) -> dict:
     except Exception:
         logger.debug("automation reply event enqueue skipped", exc_info=True)
 
+    optout_result: dict = {}
     if category == "opt_out":
         from app.integrations.prod.unsubscribe import process_unsubscribe
-        await process_unsubscribe(tenant_id, from_email)
+        optout_result = await process_unsubscribe(tenant_id, from_email) or {}
 
     # A campaign may intentionally continue after a non-opt-out reply, but an
     # opt-out always wins for compliance. Non-campaign enrollments retain the
@@ -277,8 +279,11 @@ async def handle_reply(raw_mime: str) -> dict:
                 await aexec(sb.table("lead_assignments").update({"status": "contacted"}).eq("id", assignment_id).eq("status", "new"))
             except Exception:
                 logger.warning("positive-reply status update failed assignment=%s", assignment_id, exc_info=True)
-            from app.integrations.prod.unsubscribe import notify_tenant
-            await notify_tenant(tenant_id, f"Reply from {from_email}: positive -- check your replies tab.")
+
+    if category != "opt_out":
+        # Every real reply reaches the operator (Telegram if configured, plus an in-app activity).
+        from app.integrations.prod.unsubscribe import notify_tenant
+        await notify_tenant(tenant_id, f"Reply from {from_email} ({category}): {body[:140]}")
 
     # Attribute replies back to an autonomous campaign when applicable.
     try:
@@ -318,6 +323,16 @@ async def handle_reply(raw_mime: str) -> dict:
             category=category,
         )
     except Exception as exc: __import__("logging").getLogger(__name__).debug("suppressed optional failure: %s", exc)
+
+    try:
+        from app.integrations.prod.agent_run_evidence import record_outcomes
+        items = [("outreach", "reply_handling", {"category": category, "assignment_id": assignment_id})]
+        if category == "opt_out":
+            items += [("compliance", "opt_out", {"suppression_added": bool(optout_result.get("ok")), "assignment_id": assignment_id}),
+                      ("learning", "feedback_signal", {"signal": "opt_out", "assignment_id": assignment_id})]
+        await record_outcomes(tenant_id, None, items, "inbound-reply")
+    except Exception as exc:
+        logger.debug("reply agent evidence skipped: %s", type(exc).__name__)
 
     return {"ok": True, "tenant_id": tenant_id, "assignment_id": assignment_id, "category": category}
 

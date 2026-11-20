@@ -29,27 +29,9 @@ DM_TITLE_HINTS = re.compile(
 
 
 async def _serper_search(query: str, num: int = 5) -> list[dict]:
-    """Run Serper organic search with key pool rotation."""
-
-    async def _call(api_key: str) -> list[dict]:
-        async with httpx.AsyncClient(timeout=20) as client:
-            r = await client.post(
-                "https://google.serper.dev/search",
-                headers={"X-API-KEY": api_key, "Content-Type": "application/json"},
-                json={"q": query, "num": num},
-            )
-            r.raise_for_status()
-            data = r.json()
-            return data.get("organic") or []
-
-    try:
-        return await with_key_rotation("serper", _call)
-    except KeyPoolExhausted:
-        logger.warning("Serper pool exhausted for LinkedIn lookup")
-        return []
-    except Exception as e:
-        logger.warning("Serper LinkedIn search failed: %s", e)
-        return []
+    """Per-lead lookup: one SearXNG page (Serper only if SearXNG is empty)."""
+    from app.integrations.prod.web_search import web_search
+    return await web_search(query, max_pages=1)
 
 
 def _extract_company_url(results: list[dict], company_name: str) -> Optional[str]:

@@ -37,6 +37,9 @@ class CampaignCreateRequest(BaseModel):
     # Campaigns are strict regardless of a legacy client sending false.
     require_verified_email: bool = True
     score_threshold: int = Field(default=70, ge=0, le=100)
+    auto_send: bool = False  # False = AI drafts wait for operator approval
+    exclude_eu_uk: bool = True
+    lawful_basis_note: str = Field(default="", max_length=1000)
 
 
 class CampaignPatchRequest(BaseModel):
@@ -58,6 +61,9 @@ class CampaignPatchRequest(BaseModel):
     stop_on_optout: Optional[bool] = None
     require_verified_email: Optional[bool] = None
     score_threshold: Optional[int] = Field(default=None, ge=0, le=100)
+    auto_send: Optional[bool] = None
+    exclude_eu_uk: Optional[bool] = None
+    lawful_basis_note: Optional[str] = Field(default=None, max_length=1000)
 
 
 def _safe_campaign(row: dict) -> dict:
@@ -66,7 +72,7 @@ def _safe_campaign(row: dict) -> dict:
         "offer", "goal", "daily_new_lead_limit", "daily_email_limit", "max_active_enrollments",
         "schedule_hours", "timezone", "generate_ai_copy", "auto_followup", "stop_on_reply",
         "stop_on_optout", "require_verified_email", "score_threshold", "created_at", "updated_at",
-        "next_discovery_at", "last_discovery_at", "created_by",
+        "next_discovery_at", "last_discovery_at", "created_by", "auto_send", "exclude_eu_uk", "lawful_basis_note",
     }
     result = {key: row.get(key) for key in allowed if key in row}
     raw = row.get("last_discovery_result") or {}
@@ -196,6 +202,53 @@ def campaign_status(tenant_id: str, campaign_id: str, ctx: TenantContext = Depen
     jobs = get_supabase().table("jobs").select("id,kind,status,tenant_id,created_at,started_at,finished_at,result,error,payload").eq("tenant_id", tenant_id).eq("kind", "autonomous.campaign_run").order("created_at", desc=True).limit(25).execute().data or []
     recent = [row for row in jobs if str((row.get("payload") or {}).get("campaign_id")) == str(campaign_id)][:5]
     return {"ok": True, "campaign": _safe_campaign(campaign), "daily": __import__("app.integrations.prod.autonomous_campaigns", fromlist=["daily_stats"]).daily_stats(campaign_id), "jobs": [{**{key: row.get(key) for key in ("id", "kind", "status", "created_at", "started_at", "finished_at")}, "error": "job_failed" if row.get("error") else None} for row in recent]}
+
+
+class OutreachProfile(BaseModel):
+    sender_name: Optional[str] = Field(default=None, max_length=200)
+    postal_address: Optional[str] = Field(default=None, max_length=500)
+    product_description: Optional[str] = Field(default=None, max_length=2000)
+
+
+@router.get("/{tenant_id}/outreach-profile")
+def get_outreach_profile(tenant_id: str, ctx: TenantContext = Depends(require_tenant)):
+    assert_tenant_match(ctx, tenant_id)
+    from app.integrations.prod.outreach_compliance import outreach_profile, REQUIRED
+    p = outreach_profile(tenant_id)
+    return {"ok": True, "profile": p, "missing": [k for k in REQUIRED if not p[k]]}
+
+
+@router.put("/{tenant_id}/outreach-profile")
+def put_outreach_profile(tenant_id: str, req: OutreachProfile, ctx: TenantContext = Depends(require_admin)):
+    _admin_context(tenant_id, ctx)
+    from app.integrations.prod.outreach_compliance import save_outreach_profile, REQUIRED
+    p = save_outreach_profile(tenant_id, req.model_dump())
+    return {"ok": True, "profile": p, "missing": [k for k in REQUIRED if not p[k]]}
+
+
+@router.get("/{tenant_id}/campaigns/{campaign_id}/drafts")
+def list_campaign_drafts(tenant_id: str, campaign_id: str, ctx: TenantContext = Depends(require_admin)):
+    _admin_context(tenant_id, ctx)
+    _campaign_or_404(tenant_id, campaign_id)
+    from app.integrations.prod.autonomous_copy import list_drafts
+    return {"ok": True, "drafts": list_drafts(campaign_id)}
+
+
+class DraftDecision(BaseModel):
+    approve: bool = True
+    subject: Optional[str] = Field(default=None, max_length=200)
+    body_text: Optional[str] = Field(default=None, max_length=5000)
+
+
+@router.post("/{tenant_id}/campaigns/{campaign_id}/drafts/{copy_id}")
+def decide_campaign_draft(tenant_id: str, campaign_id: str, copy_id: str, req: DraftDecision, ctx: TenantContext = Depends(require_admin)):
+    _admin_context(tenant_id, ctx)
+    _campaign_or_404(tenant_id, campaign_id)
+    from app.integrations.prod.autonomous_copy import decide_draft
+    out = decide_draft(tenant_id, campaign_id, copy_id, req.approve, req.subject, req.body_text)
+    if not out:
+        raise HTTPException(404, "draft not found")
+    return out
 
 
 @router.get("/{tenant_id}/pipeline-runs/{run_id}")

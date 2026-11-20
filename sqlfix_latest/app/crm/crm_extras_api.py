@@ -557,9 +557,18 @@ def list_webhooks(tenant_id: UUID, ctx: TenantContext = Depends(require_tenant))
 @router.post("/{tenant_id}/integrations/webhooks")
 def create_webhook(tenant_id: UUID, req: WebhookCreate, ctx: TenantContext = Depends(require_admin)):
     assert_tenant_match(ctx, tenant_id)
-    row={"tenant_id":str(tenant_id),**req.model_dump()}
+    # Static SSRF screen at configuration time (scheme, credentials, internal/private hosts);
+    # DNS-level checks are repeated on every delivery.
+    from app.integrations.prod.net_safety import is_public_url
+    ok_url, reason = is_public_url(req.endpoint_url, resolve=False)
+    if not ok_url:
+        raise HTTPException(400, f"endpoint_url rejected: {reason}")
+    secret = "whsec_" + secrets.token_urlsafe(32)
+    row={"tenant_id":str(tenant_id),**req.model_dump(),"signing_secret":secret}
     rows=_sb().table("outbound_webhooks").insert(row).execute().data or []
-    return {"ok":True,"webhook":rows[0] if rows else row}
+    hook = dict(rows[0] if rows else row); hook.pop("signing_secret", None)
+    # The secret is shown exactly once; verify deliveries with HMAC-SHA256 over "<x-leadx-timestamp>.<raw body>".
+    return {"ok":True,"webhook":hook,"signing_secret":secret,"signature":"x-leadx-signature-v2: t=<unix>,v1=<hex hmac-sha256(secret, t + '.' + body)>"}
 
 
 @router.delete("/{tenant_id}/integrations/webhooks/{webhook_id}")
@@ -615,7 +624,7 @@ def _consume_oauth_state(payload: dict) -> None:
                   .eq("tenant_id",str(payload["tenant_id"])).eq("user_id",str(payload["user_id"]))
                   .eq("provider",str(payload["provider"])).eq("nonce_hash",nonce_hash)
                   .is_("used_at","null").gt("expires_at",datetime.now(timezone.utc).isoformat())
-                  .select("id").limit(1).execute())
+                  .execute())
     except Exception as exc:
         logger.exception("oauth_state_consume_failed")
         raise HTTPException(503, "OAuth state storage unavailable") from exc

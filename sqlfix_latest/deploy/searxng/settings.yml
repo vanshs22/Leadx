@@ -1,0 +1,12 @@
+# Self-hosted SearXNG for LeadX discovery. Internal only: do not publish this port; the API and worker reach it on the compose network.
+use_default_settings: true
+general: {debug: false, instance_name: "leadx-searxng"}
+server:   # secret_key comes from the SEARXNG_SECRET environment variable
+  limiter: false                     # no public traffic reaches this instance
+  image_proxy: false
+search:
+  formats: [html, json]
+  safe_search: 0
+  autocomplete: ""
+  max_page: 10
+outgoing: {request_timeout: 6.0, max_request_timeout: 12.0, pool_connections: 50, pool_maxsize: 20}

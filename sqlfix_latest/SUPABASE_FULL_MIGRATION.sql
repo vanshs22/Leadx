@@ -59,10 +59,7 @@ CREATE TABLE IF NOT EXISTS api_key_pool (
   updated_at     timestamptz NOT NULL DEFAULT now(),
   UNIQUE (provider, key_value)
 );
--- LeadX additive schema compatibility sweep: reconcile pre-existing table shapes.
--- CREATE TABLE IF NOT EXISTS does not alter legacy tables. Missing columns are added
--- before downstream indexes/views/functions reference them. Constraints remain defined by
--- the canonical CREATE TABLE on clean installs; existing installs keep their data intact.
+-- LeadX compatibility sweep: reconcile legacy table shapes before downstream statements.
 ALTER TABLE IF EXISTS public.api_key_pool ADD COLUMN IF NOT EXISTS id uuid;
 ALTER TABLE IF EXISTS public.api_key_pool ADD COLUMN IF NOT EXISTS provider text;
 ALTER TABLE IF EXISTS public.api_key_pool ADD COLUMN IF NOT EXISTS key_value text;
@@ -102,10 +99,7 @@ CREATE TABLE IF NOT EXISTS tenants (
   created_at            timestamptz NOT NULL DEFAULT now(),
   updated_at            timestamptz NOT NULL DEFAULT now()
 );
--- LeadX additive schema compatibility sweep: reconcile pre-existing table shapes.
--- CREATE TABLE IF NOT EXISTS does not alter legacy tables. Missing columns are added
--- before downstream indexes/views/functions reference them. Constraints remain defined by
--- the canonical CREATE TABLE on clean installs; existing installs keep their data intact.
+-- LeadX compatibility sweep: reconcile legacy table shapes before downstream statements.
 ALTER TABLE IF EXISTS public.tenants ADD COLUMN IF NOT EXISTS id uuid;
 ALTER TABLE IF EXISTS public.tenants ADD COLUMN IF NOT EXISTS name text;
 ALTER TABLE IF EXISTS public.tenants ADD COLUMN IF NOT EXISTS slug text;
@@ -132,16 +126,13 @@ CREATE TABLE IF NOT EXISTS icp_profiles (
   geo           jsonb NOT NULL DEFAULT '[]',
   keywords      jsonb NOT NULL DEFAULT '[]',
   weights       jsonb NOT NULL DEFAULT '{}',
-  exclusivity   text NOT NULL DEFAULT 'shared'
+  exclusivity   text NOT NULL DEFAULT 'exclusive'
                   CHECK (exclusivity IN ('exclusive','shared')),
   active        boolean NOT NULL DEFAULT true,
   created_at    timestamptz NOT NULL DEFAULT now(),
   updated_at    timestamptz NOT NULL DEFAULT now()
 );
--- LeadX additive schema compatibility sweep: reconcile pre-existing table shapes.
--- CREATE TABLE IF NOT EXISTS does not alter legacy tables. Missing columns are added
--- before downstream indexes/views/functions reference them. Constraints remain defined by
--- the canonical CREATE TABLE on clean installs; existing installs keep their data intact.
+-- LeadX compatibility sweep: reconcile legacy table shapes before downstream statements.
 ALTER TABLE IF EXISTS public.icp_profiles ADD COLUMN IF NOT EXISTS id uuid;
 ALTER TABLE IF EXISTS public.icp_profiles ADD COLUMN IF NOT EXISTS tenant_id uuid;
 ALTER TABLE IF EXISTS public.icp_profiles ADD COLUMN IF NOT EXISTS name text;
@@ -185,10 +176,7 @@ CREATE TABLE IF NOT EXISTS leads_global (
   created_at        timestamptz NOT NULL DEFAULT now(),
   updated_at        timestamptz NOT NULL DEFAULT now()
 );
--- LeadX additive schema compatibility sweep: reconcile pre-existing table shapes.
--- CREATE TABLE IF NOT EXISTS does not alter legacy tables. Missing columns are added
--- before downstream indexes/views/functions reference them. Constraints remain defined by
--- the canonical CREATE TABLE on clean installs; existing installs keep their data intact.
+-- LeadX compatibility sweep: reconcile legacy table shapes before downstream statements.
 ALTER TABLE IF EXISTS public.leads_global ADD COLUMN IF NOT EXISTS id uuid;
 ALTER TABLE IF EXISTS public.leads_global ADD COLUMN IF NOT EXISTS fingerprint text;
 ALTER TABLE IF EXISTS public.leads_global ADD COLUMN IF NOT EXISTS phone_normalized text;
@@ -244,10 +232,7 @@ CREATE TABLE IF NOT EXISTS enrichment (
   extracted_at      timestamptz NOT NULL DEFAULT now(),
   UNIQUE (lead_id)
 );
--- LeadX additive schema compatibility sweep: reconcile pre-existing table shapes.
--- CREATE TABLE IF NOT EXISTS does not alter legacy tables. Missing columns are added
--- before downstream indexes/views/functions reference them. Constraints remain defined by
--- the canonical CREATE TABLE on clean installs; existing installs keep their data intact.
+-- LeadX compatibility sweep: reconcile legacy table shapes before downstream statements.
 ALTER TABLE IF EXISTS public.enrichment ADD COLUMN IF NOT EXISTS id uuid;
 ALTER TABLE IF EXISTS public.enrichment ADD COLUMN IF NOT EXISTS lead_id uuid;
 ALTER TABLE IF EXISTS public.enrichment ADD COLUMN IF NOT EXISTS email text;
@@ -285,10 +270,7 @@ CREATE TABLE IF NOT EXISTS scores (
   scored_at           timestamptz NOT NULL DEFAULT now(),
   UNIQUE (lead_id)
 );
--- LeadX additive schema compatibility sweep: reconcile pre-existing table shapes.
--- CREATE TABLE IF NOT EXISTS does not alter legacy tables. Missing columns are added
--- before downstream indexes/views/functions reference them. Constraints remain defined by
--- the canonical CREATE TABLE on clean installs; existing installs keep their data intact.
+-- LeadX compatibility sweep: reconcile legacy table shapes before downstream statements.
 ALTER TABLE IF EXISTS public.scores ADD COLUMN IF NOT EXISTS id uuid;
 ALTER TABLE IF EXISTS public.scores ADD COLUMN IF NOT EXISTS lead_id uuid;
 ALTER TABLE IF EXISTS public.scores ADD COLUMN IF NOT EXISTS deterministic_score int;
@@ -321,10 +303,7 @@ CREATE TABLE IF NOT EXISTS lead_assignments (
   created_at       timestamptz NOT NULL DEFAULT now(),
   UNIQUE (lead_id, tenant_id)
 );
--- LeadX additive schema compatibility sweep: reconcile pre-existing table shapes.
--- CREATE TABLE IF NOT EXISTS does not alter legacy tables. Missing columns are added
--- before downstream indexes/views/functions reference them. Constraints remain defined by
--- the canonical CREATE TABLE on clean installs; existing installs keep their data intact.
+-- LeadX compatibility sweep: reconcile legacy table shapes before downstream statements.
 ALTER TABLE IF EXISTS public.lead_assignments ADD COLUMN IF NOT EXISTS id uuid;
 ALTER TABLE IF EXISTS public.lead_assignments ADD COLUMN IF NOT EXISTS lead_id uuid;
 ALTER TABLE IF EXISTS public.lead_assignments ADD COLUMN IF NOT EXISTS tenant_id uuid;
@@ -379,10 +358,7 @@ CREATE TABLE IF NOT EXISTS usage_log (
   updated_at      timestamptz NOT NULL DEFAULT now(),
   UNIQUE (tenant_id, period)
 );
--- LeadX additive schema compatibility sweep: reconcile pre-existing table shapes.
--- CREATE TABLE IF NOT EXISTS does not alter legacy tables. Missing columns are added
--- before downstream indexes/views/functions reference them. Constraints remain defined by
--- the canonical CREATE TABLE on clean installs; existing installs keep their data intact.
+-- LeadX compatibility sweep: reconcile legacy table shapes before downstream statements.
 ALTER TABLE IF EXISTS public.usage_log ADD COLUMN IF NOT EXISTS id uuid;
 ALTER TABLE IF EXISTS public.usage_log ADD COLUMN IF NOT EXISTS tenant_id uuid;
 ALTER TABLE IF EXISTS public.usage_log ADD COLUMN IF NOT EXISTS period date;
@@ -414,10 +390,7 @@ CREATE TABLE IF NOT EXISTS pipeline_runs (
   started_at      timestamptz NOT NULL DEFAULT now(),
   finished_at     timestamptz
 );
--- LeadX additive schema compatibility sweep: reconcile pre-existing table shapes.
--- CREATE TABLE IF NOT EXISTS does not alter legacy tables. Missing columns are added
--- before downstream indexes/views/functions reference them. Constraints remain defined by
--- the canonical CREATE TABLE on clean installs; existing installs keep their data intact.
+-- LeadX compatibility sweep: reconcile legacy table shapes before downstream statements.
 ALTER TABLE IF EXISTS public.pipeline_runs ADD COLUMN IF NOT EXISTS id uuid;
 ALTER TABLE IF EXISTS public.pipeline_runs ADD COLUMN IF NOT EXISTS tenant_id uuid;
 ALTER TABLE IF EXISTS public.pipeline_runs ADD COLUMN IF NOT EXISTS icp_id uuid;
@@ -453,49 +426,6 @@ BEGIN
     LOOP
       EXECUTE format('ALTER TABLE public.pipeline_runs DROP CONSTRAINT IF EXISTS %I', c.conname);
     END LOOP;
-
-    -- Existing installations may contain historical labels from before the
-    -- durable lifecycle contract. Normalize them before adding the stricter
-    -- constraint; preserve successful work and mark ambiguous terminal work
-    -- as partial when it produced any output.
-    UPDATE public.pipeline_runs
-    SET status = CASE lower(trim(COALESCE(status, '')))
-      WHEN 'queued' THEN 'queued'
-      WHEN 'pending' THEN 'queued'
-      WHEN 'created' THEN 'queued'
-      WHEN 'waiting' THEN 'queued'
-      WHEN 'running' THEN 'running'
-      WHEN 'processing' THEN 'running'
-      WHEN 'started' THEN 'running'
-      WHEN 'in_progress' THEN 'running'
-      WHEN 'in-progress' THEN 'running'
-      WHEN 'completed' THEN 'completed'
-      WHEN 'complete' THEN 'completed'
-      WHEN 'done' THEN 'completed'
-      WHEN 'success' THEN 'completed'
-      WHEN 'succeeded' THEN 'completed'
-      WHEN 'failed' THEN 'failed'
-      WHEN 'error' THEN 'failed'
-      WHEN 'errored' THEN 'failed'
-      WHEN 'partial' THEN 'partial'
-      WHEN 'partially_completed' THEN 'partial'
-      WHEN 'partial_success' THEN 'partial'
-      WHEN 'cancelled' THEN CASE
-        WHEN COALESCE(assigned, 0) > 0 OR COALESCE(delivered, 0) > 0 THEN 'partial'
-        ELSE 'failed'
-      END
-      WHEN 'canceled' THEN CASE
-        WHEN COALESCE(assigned, 0) > 0 OR COALESCE(delivered, 0) > 0 THEN 'partial'
-        ELSE 'failed'
-      END
-      ELSE CASE
-        WHEN COALESCE(assigned, 0) > 0 OR COALESCE(delivered, 0) > 0 THEN 'partial'
-        ELSE 'failed'
-      END
-    END
-    WHERE lower(trim(COALESCE(status, ''))) NOT IN
-      ('queued','running','completed','failed','partial');
-
     ALTER TABLE public.pipeline_runs
       ADD CONSTRAINT pipeline_runs_status_check
       CHECK (status IN ('queued','running','completed','failed','partial'));
@@ -512,10 +442,7 @@ CREATE TABLE IF NOT EXISTS enrichment_failures (
   last_attempt timestamptz NOT NULL DEFAULT now(),
   resolved     boolean NOT NULL DEFAULT false
 );
--- LeadX additive schema compatibility sweep: reconcile pre-existing table shapes.
--- CREATE TABLE IF NOT EXISTS does not alter legacy tables. Missing columns are added
--- before downstream indexes/views/functions reference them. Constraints remain defined by
--- the canonical CREATE TABLE on clean installs; existing installs keep their data intact.
+-- LeadX compatibility sweep: reconcile legacy table shapes before downstream statements.
 ALTER TABLE IF EXISTS public.enrichment_failures ADD COLUMN IF NOT EXISTS id uuid;
 ALTER TABLE IF EXISTS public.enrichment_failures ADD COLUMN IF NOT EXISTS lead_id uuid;
 ALTER TABLE IF EXISTS public.enrichment_failures ADD COLUMN IF NOT EXISTS website text;
@@ -670,10 +597,7 @@ CREATE TABLE IF NOT EXISTS tenant_members (
   updated_at    timestamptz NOT NULL DEFAULT now(),
   UNIQUE (tenant_id, auth_user_id)
 );
--- LeadX additive schema compatibility sweep: reconcile pre-existing table shapes.
--- CREATE TABLE IF NOT EXISTS does not alter legacy tables. Missing columns are added
--- before downstream indexes/views/functions reference them. Constraints remain defined by
--- the canonical CREATE TABLE on clean installs; existing installs keep their data intact.
+-- LeadX compatibility sweep: reconcile legacy table shapes before downstream statements.
 ALTER TABLE IF EXISTS public.tenant_members ADD COLUMN IF NOT EXISTS id uuid;
 ALTER TABLE IF EXISTS public.tenant_members ADD COLUMN IF NOT EXISTS tenant_id uuid;
 ALTER TABLE IF EXISTS public.tenant_members ADD COLUMN IF NOT EXISTS auth_user_id uuid;
@@ -696,10 +620,7 @@ CREATE TABLE IF NOT EXISTS pipeline_stages (
   created_at    timestamptz NOT NULL DEFAULT now(),
   UNIQUE (tenant_id, slug)
 );
--- LeadX additive schema compatibility sweep: reconcile pre-existing table shapes.
--- CREATE TABLE IF NOT EXISTS does not alter legacy tables. Missing columns are added
--- before downstream indexes/views/functions reference them. Constraints remain defined by
--- the canonical CREATE TABLE on clean installs; existing installs keep their data intact.
+-- LeadX compatibility sweep: reconcile legacy table shapes before downstream statements.
 ALTER TABLE IF EXISTS public.pipeline_stages ADD COLUMN IF NOT EXISTS id uuid;
 ALTER TABLE IF EXISTS public.pipeline_stages ADD COLUMN IF NOT EXISTS tenant_id uuid;
 ALTER TABLE IF EXISTS public.pipeline_stages ADD COLUMN IF NOT EXISTS name text;
@@ -720,17 +641,14 @@ CREATE TABLE IF NOT EXISTS lead_activities (
   created_by    uuid,
   created_at    timestamptz NOT NULL DEFAULT now()
 );
--- LeadX additive schema compatibility sweep: reconcile pre-existing table shapes.
--- CREATE TABLE IF NOT EXISTS does not alter legacy tables. Missing columns are added
--- before downstream indexes/views/functions reference them. Constraints remain defined by
--- the canonical CREATE TABLE on clean installs; existing installs keep their data intact.
+-- LeadX compatibility sweep: reconcile legacy table shapes before downstream statements.
 ALTER TABLE IF EXISTS public.lead_activities ADD COLUMN IF NOT EXISTS id uuid;
 ALTER TABLE IF EXISTS public.lead_activities ADD COLUMN IF NOT EXISTS tenant_id uuid;
 ALTER TABLE IF EXISTS public.lead_activities ADD COLUMN IF NOT EXISTS assignment_id uuid;
 ALTER TABLE IF EXISTS public.lead_activities ADD COLUMN IF NOT EXISTS activity_type text;
 ALTER TABLE IF EXISTS public.lead_activities ADD COLUMN IF NOT EXISTS title text;
 ALTER TABLE IF EXISTS public.lead_activities ADD COLUMN IF NOT EXISTS body text;
-ALTER TABLE IF EXISTS public.lead_activities ADD COLUMN IF NOT EXISTS meta jsonb DEFAULT '{}';
+ALTER TABLE IF EXISTS public.lead_activities ADD COLUMN IF NOT EXISTS meta jsonb;
 ALTER TABLE IF EXISTS public.lead_activities ADD COLUMN IF NOT EXISTS created_by uuid;
 ALTER TABLE IF EXISTS public.lead_activities ADD COLUMN IF NOT EXISTS created_at timestamptz;
 
@@ -747,16 +665,13 @@ CREATE TABLE IF NOT EXISTS lead_tasks (
   created_at    timestamptz NOT NULL DEFAULT now(),
   completed_at  timestamptz
 );
--- LeadX additive schema compatibility sweep: reconcile pre-existing table shapes.
--- CREATE TABLE IF NOT EXISTS does not alter legacy tables. Missing columns are added
--- before downstream indexes/views/functions reference them. Constraints remain defined by
--- the canonical CREATE TABLE on clean installs; existing installs keep their data intact.
+-- LeadX compatibility sweep: reconcile legacy table shapes before downstream statements.
 ALTER TABLE IF EXISTS public.lead_tasks ADD COLUMN IF NOT EXISTS id uuid;
 ALTER TABLE IF EXISTS public.lead_tasks ADD COLUMN IF NOT EXISTS tenant_id uuid;
 ALTER TABLE IF EXISTS public.lead_tasks ADD COLUMN IF NOT EXISTS assignment_id uuid;
 ALTER TABLE IF EXISTS public.lead_tasks ADD COLUMN IF NOT EXISTS title text;
 ALTER TABLE IF EXISTS public.lead_tasks ADD COLUMN IF NOT EXISTS status text;
-ALTER TABLE IF EXISTS public.lead_tasks ADD COLUMN IF NOT EXISTS priority text DEFAULT 'medium';
+ALTER TABLE IF EXISTS public.lead_tasks ADD COLUMN IF NOT EXISTS priority text;
 ALTER TABLE IF EXISTS public.lead_tasks ADD COLUMN IF NOT EXISTS due_at timestamptz;
 ALTER TABLE IF EXISTS public.lead_tasks ADD COLUMN IF NOT EXISTS created_at timestamptz;
 ALTER TABLE IF EXISTS public.lead_tasks ADD COLUMN IF NOT EXISTS completed_at timestamptz;
@@ -769,10 +684,7 @@ CREATE TABLE IF NOT EXISTS lead_tags (
   tag           text NOT NULL,
   created_at    timestamptz NOT NULL DEFAULT now()
 );
--- LeadX additive schema compatibility sweep: reconcile pre-existing table shapes.
--- CREATE TABLE IF NOT EXISTS does not alter legacy tables. Missing columns are added
--- before downstream indexes/views/functions reference them. Constraints remain defined by
--- the canonical CREATE TABLE on clean installs; existing installs keep their data intact.
+-- LeadX compatibility sweep: reconcile legacy table shapes before downstream statements.
 ALTER TABLE IF EXISTS public.lead_tags ADD COLUMN IF NOT EXISTS id uuid;
 ALTER TABLE IF EXISTS public.lead_tags ADD COLUMN IF NOT EXISTS tenant_id uuid;
 ALTER TABLE IF EXISTS public.lead_tags ADD COLUMN IF NOT EXISTS assignment_id uuid;
@@ -787,10 +699,7 @@ CREATE TABLE IF NOT EXISTS lead_segments (
   filters       jsonb NOT NULL DEFAULT '{}',
   created_at    timestamptz NOT NULL DEFAULT now()
 );
--- LeadX additive schema compatibility sweep: reconcile pre-existing table shapes.
--- CREATE TABLE IF NOT EXISTS does not alter legacy tables. Missing columns are added
--- before downstream indexes/views/functions reference them. Constraints remain defined by
--- the canonical CREATE TABLE on clean installs; existing installs keep their data intact.
+-- LeadX compatibility sweep: reconcile legacy table shapes before downstream statements.
 ALTER TABLE IF EXISTS public.lead_segments ADD COLUMN IF NOT EXISTS id uuid;
 ALTER TABLE IF EXISTS public.lead_segments ADD COLUMN IF NOT EXISTS tenant_id uuid;
 ALTER TABLE IF EXISTS public.lead_segments ADD COLUMN IF NOT EXISTS name text;
@@ -808,17 +717,14 @@ CREATE TABLE IF NOT EXISTS crm_audit_log (
   meta          jsonb DEFAULT '{}',
   created_at    timestamptz NOT NULL DEFAULT now()
 );
--- LeadX additive schema compatibility sweep: reconcile pre-existing table shapes.
--- CREATE TABLE IF NOT EXISTS does not alter legacy tables. Missing columns are added
--- before downstream indexes/views/functions reference them. Constraints remain defined by
--- the canonical CREATE TABLE on clean installs; existing installs keep their data intact.
+-- LeadX compatibility sweep: reconcile legacy table shapes before downstream statements.
 ALTER TABLE IF EXISTS public.crm_audit_log ADD COLUMN IF NOT EXISTS id uuid;
 ALTER TABLE IF EXISTS public.crm_audit_log ADD COLUMN IF NOT EXISTS tenant_id uuid;
 ALTER TABLE IF EXISTS public.crm_audit_log ADD COLUMN IF NOT EXISTS actor_id uuid;
 ALTER TABLE IF EXISTS public.crm_audit_log ADD COLUMN IF NOT EXISTS action text;
 ALTER TABLE IF EXISTS public.crm_audit_log ADD COLUMN IF NOT EXISTS entity text;
 ALTER TABLE IF EXISTS public.crm_audit_log ADD COLUMN IF NOT EXISTS entity_id text;
-ALTER TABLE IF EXISTS public.crm_audit_log ADD COLUMN IF NOT EXISTS meta jsonb DEFAULT '{}';
+ALTER TABLE IF EXISTS public.crm_audit_log ADD COLUMN IF NOT EXISTS meta jsonb;
 ALTER TABLE IF EXISTS public.crm_audit_log ADD COLUMN IF NOT EXISTS created_at timestamptz;
 
 
@@ -1114,10 +1020,7 @@ CREATE TABLE IF NOT EXISTS lead_outcomes (
   recorded_at   timestamptz NOT NULL DEFAULT now(),
   UNIQUE (assignment_id)
 );
--- LeadX additive schema compatibility sweep: reconcile pre-existing table shapes.
--- CREATE TABLE IF NOT EXISTS does not alter legacy tables. Missing columns are added
--- before downstream indexes/views/functions reference them. Constraints remain defined by
--- the canonical CREATE TABLE on clean installs; existing installs keep their data intact.
+-- LeadX compatibility sweep: reconcile legacy table shapes before downstream statements.
 ALTER TABLE IF EXISTS public.lead_outcomes ADD COLUMN IF NOT EXISTS id uuid;
 ALTER TABLE IF EXISTS public.lead_outcomes ADD COLUMN IF NOT EXISTS tenant_id uuid;
 ALTER TABLE IF EXISTS public.lead_outcomes ADD COLUMN IF NOT EXISTS lead_id uuid;
@@ -1178,10 +1081,7 @@ CREATE TABLE IF NOT EXISTS suppression_list (
 -- upload | manual | crm_sync
   created_at  timestamptz NOT NULL DEFAULT now()
 );
--- LeadX additive schema compatibility sweep: reconcile pre-existing table shapes.
--- CREATE TABLE IF NOT EXISTS does not alter legacy tables. Missing columns are added
--- before downstream indexes/views/functions reference them. Constraints remain defined by
--- the canonical CREATE TABLE on clean installs; existing installs keep their data intact.
+-- LeadX compatibility sweep: reconcile legacy table shapes before downstream statements.
 ALTER TABLE IF EXISTS public.suppression_list ADD COLUMN IF NOT EXISTS id uuid;
 ALTER TABLE IF EXISTS public.suppression_list ADD COLUMN IF NOT EXISTS tenant_id uuid;
 ALTER TABLE IF EXISTS public.suppression_list ADD COLUMN IF NOT EXISTS fingerprint text;
@@ -1190,8 +1090,7 @@ ALTER TABLE IF EXISTS public.suppression_list ADD COLUMN IF NOT EXISTS phone_nor
 ALTER TABLE IF EXISTS public.suppression_list ADD COLUMN IF NOT EXISTS email text;
 ALTER TABLE IF EXISTS public.suppression_list ADD COLUMN IF NOT EXISTS domain text;
 ALTER TABLE IF EXISTS public.suppression_list ADD COLUMN IF NOT EXISTS company_name text;
-ALTER TABLE IF EXISTS public.suppression_list ADD COLUMN IF NOT EXISTS source text DEFAULT 'upload';
--- upload | manual | crm_sync;
+ALTER TABLE IF EXISTS public.suppression_list ADD COLUMN IF NOT EXISTS source text;
 ALTER TABLE IF EXISTS public.suppression_list ADD COLUMN IF NOT EXISTS created_at timestamptz;
 
 
@@ -1216,10 +1115,7 @@ CREATE TABLE IF NOT EXISTS global_opt_out (
 -- email or 'admin'
   created_at  timestamptz NOT NULL DEFAULT now()
 );
--- LeadX additive schema compatibility sweep: reconcile pre-existing table shapes.
--- CREATE TABLE IF NOT EXISTS does not alter legacy tables. Missing columns are added
--- before downstream indexes/views/functions reference them. Constraints remain defined by
--- the canonical CREATE TABLE on clean installs; existing installs keep their data intact.
+-- LeadX compatibility sweep: reconcile legacy table shapes before downstream statements.
 ALTER TABLE IF EXISTS public.global_opt_out ADD COLUMN IF NOT EXISTS id uuid;
 ALTER TABLE IF EXISTS public.global_opt_out ADD COLUMN IF NOT EXISTS fingerprint text;
 ALTER TABLE IF EXISTS public.global_opt_out ADD COLUMN IF NOT EXISTS phone_normalized text;
@@ -1255,16 +1151,12 @@ CREATE TABLE IF NOT EXISTS lead_signals (
   detail      jsonb DEFAULT '{}',
   detected_at timestamptz NOT NULL DEFAULT now()
 );
--- LeadX additive schema compatibility sweep: reconcile pre-existing table shapes.
--- CREATE TABLE IF NOT EXISTS does not alter legacy tables. Missing columns are added
--- before downstream indexes/views/functions reference them. Constraints remain defined by
--- the canonical CREATE TABLE on clean installs; existing installs keep their data intact.
+-- LeadX compatibility sweep: reconcile legacy table shapes before downstream statements.
 ALTER TABLE IF EXISTS public.lead_signals ADD COLUMN IF NOT EXISTS id uuid;
 ALTER TABLE IF EXISTS public.lead_signals ADD COLUMN IF NOT EXISTS lead_id uuid;
 ALTER TABLE IF EXISTS public.lead_signals ADD COLUMN IF NOT EXISTS signal_type text;
-ALTER TABLE IF EXISTS public.lead_signals ADD COLUMN IF NOT EXISTS strength numeric(4,2) DEFAULT 1.0;
--- 0–1 relative strength;
-ALTER TABLE IF EXISTS public.lead_signals ADD COLUMN IF NOT EXISTS detail jsonb DEFAULT '{}';
+ALTER TABLE IF EXISTS public.lead_signals ADD COLUMN IF NOT EXISTS strength numeric(4,2);
+ALTER TABLE IF EXISTS public.lead_signals ADD COLUMN IF NOT EXISTS detail jsonb;
 ALTER TABLE IF EXISTS public.lead_signals ADD COLUMN IF NOT EXISTS detected_at timestamptz;
 
 
@@ -1296,10 +1188,7 @@ CREATE TABLE IF NOT EXISTS lead_credits (
   detail        jsonb DEFAULT '{}',
   created_at    timestamptz NOT NULL DEFAULT now()
 );
--- LeadX additive schema compatibility sweep: reconcile pre-existing table shapes.
--- CREATE TABLE IF NOT EXISTS does not alter legacy tables. Missing columns are added
--- before downstream indexes/views/functions reference them. Constraints remain defined by
--- the canonical CREATE TABLE on clean installs; existing installs keep their data intact.
+-- LeadX compatibility sweep: reconcile legacy table shapes before downstream statements.
 ALTER TABLE IF EXISTS public.lead_credits ADD COLUMN IF NOT EXISTS id uuid;
 ALTER TABLE IF EXISTS public.lead_credits ADD COLUMN IF NOT EXISTS tenant_id uuid;
 ALTER TABLE IF EXISTS public.lead_credits ADD COLUMN IF NOT EXISTS assignment_id uuid;
@@ -1307,7 +1196,7 @@ ALTER TABLE IF EXISTS public.lead_credits ADD COLUMN IF NOT EXISTS lead_id uuid;
 ALTER TABLE IF EXISTS public.lead_credits ADD COLUMN IF NOT EXISTS credit_type text;
 ALTER TABLE IF EXISTS public.lead_credits ADD COLUMN IF NOT EXISTS amount int;
 ALTER TABLE IF EXISTS public.lead_credits ADD COLUMN IF NOT EXISTS period date;
-ALTER TABLE IF EXISTS public.lead_credits ADD COLUMN IF NOT EXISTS detail jsonb DEFAULT '{}';
+ALTER TABLE IF EXISTS public.lead_credits ADD COLUMN IF NOT EXISTS detail jsonb;
 ALTER TABLE IF EXISTS public.lead_credits ADD COLUMN IF NOT EXISTS created_at timestamptz;
 
 
@@ -1324,10 +1213,7 @@ CREATE TABLE IF NOT EXISTS vertical_priors (
   updated_at  timestamptz NOT NULL DEFAULT now(),
   PRIMARY KEY (vertical, feature)
 );
--- LeadX additive schema compatibility sweep: reconcile pre-existing table shapes.
--- CREATE TABLE IF NOT EXISTS does not alter legacy tables. Missing columns are added
--- before downstream indexes/views/functions reference them. Constraints remain defined by
--- the canonical CREATE TABLE on clean installs; existing installs keep their data intact.
+-- LeadX compatibility sweep: reconcile legacy table shapes before downstream statements.
 ALTER TABLE IF EXISTS public.vertical_priors ADD COLUMN IF NOT EXISTS vertical text;
 ALTER TABLE IF EXISTS public.vertical_priors ADD COLUMN IF NOT EXISTS feature text;
 ALTER TABLE IF EXISTS public.vertical_priors ADD COLUMN IF NOT EXISTS win_rate numeric(6,4);
@@ -1451,10 +1337,7 @@ CREATE TABLE IF NOT EXISTS tenant_invites (
     CHECK (status IN ('pending','accepted','expired','revoked')),
   created_at  timestamptz NOT NULL DEFAULT now()
 );
--- LeadX additive schema compatibility sweep: reconcile pre-existing table shapes.
--- CREATE TABLE IF NOT EXISTS does not alter legacy tables. Missing columns are added
--- before downstream indexes/views/functions reference them. Constraints remain defined by
--- the canonical CREATE TABLE on clean installs; existing installs keep their data intact.
+-- LeadX compatibility sweep: reconcile legacy table shapes before downstream statements.
 ALTER TABLE IF EXISTS public.tenant_invites ADD COLUMN IF NOT EXISTS id uuid;
 ALTER TABLE IF EXISTS public.tenant_invites ADD COLUMN IF NOT EXISTS tenant_id uuid;
 ALTER TABLE IF EXISTS public.tenant_invites ADD COLUMN IF NOT EXISTS email text;
@@ -1519,10 +1402,7 @@ CREATE TABLE IF NOT EXISTS ops_metrics_daily (
   error_samples     jsonb DEFAULT '[]',
   PRIMARY KEY (day, tenant_id)
 );
--- LeadX additive schema compatibility sweep: reconcile pre-existing table shapes.
--- CREATE TABLE IF NOT EXISTS does not alter legacy tables. Missing columns are added
--- before downstream indexes/views/functions reference them. Constraints remain defined by
--- the canonical CREATE TABLE on clean installs; existing installs keep their data intact.
+-- LeadX compatibility sweep: reconcile legacy table shapes before downstream statements.
 ALTER TABLE IF EXISTS public.ops_metrics_daily ADD COLUMN IF NOT EXISTS day date;
 ALTER TABLE IF EXISTS public.ops_metrics_daily ADD COLUMN IF NOT EXISTS tenant_id uuid;
 -- null = global/system;
@@ -1538,7 +1418,7 @@ ALTER TABLE IF EXISTS public.ops_metrics_daily ADD COLUMN IF NOT EXISTS credits_
 ALTER TABLE IF EXISTS public.ops_metrics_daily ADD COLUMN IF NOT EXISTS serper_calls int;
 ALTER TABLE IF EXISTS public.ops_metrics_daily ADD COLUMN IF NOT EXISTS firecrawl_calls int;
 ALTER TABLE IF EXISTS public.ops_metrics_daily ADD COLUMN IF NOT EXISTS avg_enrich_ms int;
-ALTER TABLE IF EXISTS public.ops_metrics_daily ADD COLUMN IF NOT EXISTS error_samples jsonb DEFAULT '[]';
+ALTER TABLE IF EXISTS public.ops_metrics_daily ADD COLUMN IF NOT EXISTS error_samples jsonb;
 
 
 -- Allow null tenant for global: use sentinel
@@ -1609,21 +1489,18 @@ CREATE TABLE IF NOT EXISTS social_enrichment (
 -- instaloader
   enriched_at             timestamptz NOT NULL DEFAULT now()
 );
--- LeadX additive schema compatibility sweep: reconcile pre-existing table shapes.
--- CREATE TABLE IF NOT EXISTS does not alter legacy tables. Missing columns are added
--- before downstream indexes/views/functions reference them. Constraints remain defined by
--- the canonical CREATE TABLE on clean installs; existing installs keep their data intact.
+-- LeadX compatibility sweep: reconcile legacy table shapes before downstream statements.
 ALTER TABLE IF EXISTS public.social_enrichment ADD COLUMN IF NOT EXISTS lead_id uuid;
 ALTER TABLE IF EXISTS public.social_enrichment ADD COLUMN IF NOT EXISTS linkedin_url text;
 ALTER TABLE IF EXISTS public.social_enrichment ADD COLUMN IF NOT EXISTS linkedin_employee_range text;
 ALTER TABLE IF EXISTS public.social_enrichment ADD COLUMN IF NOT EXISTS decision_maker_name text;
 ALTER TABLE IF EXISTS public.social_enrichment ADD COLUMN IF NOT EXISTS decision_maker_title text;
-ALTER TABLE IF EXISTS public.social_enrichment ADD COLUMN IF NOT EXISTS decision_makers jsonb DEFAULT '[]';
+ALTER TABLE IF EXISTS public.social_enrichment ADD COLUMN IF NOT EXISTS decision_makers jsonb;
 ALTER TABLE IF EXISTS public.social_enrichment ADD COLUMN IF NOT EXISTS instagram_handle text;
 ALTER TABLE IF EXISTS public.social_enrichment ADD COLUMN IF NOT EXISTS instagram_followers int;
 ALTER TABLE IF EXISTS public.social_enrichment ADD COLUMN IF NOT EXISTS instagram_bio text;
 ALTER TABLE IF EXISTS public.social_enrichment ADD COLUMN IF NOT EXISTS instagram_last_post_at timestamptz;
-ALTER TABLE IF EXISTS public.social_enrichment ADD COLUMN IF NOT EXISTS instagram_stale boolean DEFAULT false;
+ALTER TABLE IF EXISTS public.social_enrichment ADD COLUMN IF NOT EXISTS instagram_stale boolean;
 ALTER TABLE IF EXISTS public.social_enrichment ADD COLUMN IF NOT EXISTS source_linkedin text;
 -- serper | drissbri | site_html;
 ALTER TABLE IF EXISTS public.social_enrichment ADD COLUMN IF NOT EXISTS source_instagram text;
@@ -1639,10 +1516,7 @@ CREATE TABLE IF NOT EXISTS social_enrichment_failures (
   error      text,
   failed_at  timestamptz NOT NULL DEFAULT now()
 );
--- LeadX additive schema compatibility sweep: reconcile pre-existing table shapes.
--- CREATE TABLE IF NOT EXISTS does not alter legacy tables. Missing columns are added
--- before downstream indexes/views/functions reference them. Constraints remain defined by
--- the canonical CREATE TABLE on clean installs; existing installs keep their data intact.
+-- LeadX compatibility sweep: reconcile legacy table shapes before downstream statements.
 ALTER TABLE IF EXISTS public.social_enrichment_failures ADD COLUMN IF NOT EXISTS id uuid;
 ALTER TABLE IF EXISTS public.social_enrichment_failures ADD COLUMN IF NOT EXISTS lead_id uuid;
 ALTER TABLE IF EXISTS public.social_enrichment_failures ADD COLUMN IF NOT EXISTS source text;
@@ -1722,10 +1596,7 @@ CREATE TABLE IF NOT EXISTS lead_contacts (
   confidence      int DEFAULT 50,
   created_at      timestamptz NOT NULL DEFAULT now()
 );
--- LeadX additive schema compatibility sweep: reconcile pre-existing table shapes.
--- CREATE TABLE IF NOT EXISTS does not alter legacy tables. Missing columns are added
--- before downstream indexes/views/functions reference them. Constraints remain defined by
--- the canonical CREATE TABLE on clean installs; existing installs keep their data intact.
+-- LeadX compatibility sweep: reconcile legacy table shapes before downstream statements.
 ALTER TABLE IF EXISTS public.lead_contacts ADD COLUMN IF NOT EXISTS id uuid;
 ALTER TABLE IF EXISTS public.lead_contacts ADD COLUMN IF NOT EXISTS lead_id uuid;
 ALTER TABLE IF EXISTS public.lead_contacts ADD COLUMN IF NOT EXISTS full_name text;
@@ -1733,10 +1604,10 @@ ALTER TABLE IF EXISTS public.lead_contacts ADD COLUMN IF NOT EXISTS title text;
 ALTER TABLE IF EXISTS public.lead_contacts ADD COLUMN IF NOT EXISTS email text;
 ALTER TABLE IF EXISTS public.lead_contacts ADD COLUMN IF NOT EXISTS phone text;
 ALTER TABLE IF EXISTS public.lead_contacts ADD COLUMN IF NOT EXISTS linkedin_url text;
-ALTER TABLE IF EXISTS public.lead_contacts ADD COLUMN IF NOT EXISTS is_decision_maker boolean DEFAULT false;
+ALTER TABLE IF EXISTS public.lead_contacts ADD COLUMN IF NOT EXISTS is_decision_maker boolean;
 ALTER TABLE IF EXISTS public.lead_contacts ADD COLUMN IF NOT EXISTS source text;
 -- linkedin | website | serper | manual;
-ALTER TABLE IF EXISTS public.lead_contacts ADD COLUMN IF NOT EXISTS confidence int DEFAULT 50;
+ALTER TABLE IF EXISTS public.lead_contacts ADD COLUMN IF NOT EXISTS confidence int;
 ALTER TABLE IF EXISTS public.lead_contacts ADD COLUMN IF NOT EXISTS created_at timestamptz;
 
 CREATE INDEX IF NOT EXISTS idx_lead_contacts_lead ON lead_contacts (lead_id);
@@ -1754,10 +1625,7 @@ CREATE TABLE IF NOT EXISTS lead_qa (
   reviewed_by     text DEFAULT 'ops',
   reviewed_at     timestamptz NOT NULL DEFAULT now()
 );
--- LeadX additive schema compatibility sweep: reconcile pre-existing table shapes.
--- CREATE TABLE IF NOT EXISTS does not alter legacy tables. Missing columns are added
--- before downstream indexes/views/functions reference them. Constraints remain defined by
--- the canonical CREATE TABLE on clean installs; existing installs keep their data intact.
+-- LeadX compatibility sweep: reconcile legacy table shapes before downstream statements.
 ALTER TABLE IF EXISTS public.lead_qa ADD COLUMN IF NOT EXISTS id uuid;
 ALTER TABLE IF EXISTS public.lead_qa ADD COLUMN IF NOT EXISTS lead_id uuid;
 ALTER TABLE IF EXISTS public.lead_qa ADD COLUMN IF NOT EXISTS assignment_id uuid;
@@ -1766,7 +1634,7 @@ ALTER TABLE IF EXISTS public.lead_qa ADD COLUMN IF NOT EXISTS phone_ok boolean;
 ALTER TABLE IF EXISTS public.lead_qa ADD COLUMN IF NOT EXISTS email_ok boolean;
 ALTER TABLE IF EXISTS public.lead_qa ADD COLUMN IF NOT EXISTS business_open boolean;
 ALTER TABLE IF EXISTS public.lead_qa ADD COLUMN IF NOT EXISTS notes text;
-ALTER TABLE IF EXISTS public.lead_qa ADD COLUMN IF NOT EXISTS reviewed_by text DEFAULT 'ops';
+ALTER TABLE IF EXISTS public.lead_qa ADD COLUMN IF NOT EXISTS reviewed_by text;
 ALTER TABLE IF EXISTS public.lead_qa ADD COLUMN IF NOT EXISTS reviewed_at timestamptz;
 
 CREATE INDEX IF NOT EXISTS idx_lead_qa_tenant ON lead_qa (tenant_id, reviewed_at DESC);
@@ -1781,16 +1649,13 @@ CREATE TABLE IF NOT EXISTS sample_packs (
   meta            jsonb DEFAULT '{}',
   created_at      timestamptz NOT NULL DEFAULT now()
 );
--- LeadX additive schema compatibility sweep: reconcile pre-existing table shapes.
--- CREATE TABLE IF NOT EXISTS does not alter legacy tables. Missing columns are added
--- before downstream indexes/views/functions reference them. Constraints remain defined by
--- the canonical CREATE TABLE on clean installs; existing installs keep their data intact.
+-- LeadX compatibility sweep: reconcile legacy table shapes before downstream statements.
 ALTER TABLE IF EXISTS public.sample_packs ADD COLUMN IF NOT EXISTS id uuid;
 ALTER TABLE IF EXISTS public.sample_packs ADD COLUMN IF NOT EXISTS tenant_id uuid;
 ALTER TABLE IF EXISTS public.sample_packs ADD COLUMN IF NOT EXISTS vertical text;
 ALTER TABLE IF EXISTS public.sample_packs ADD COLUMN IF NOT EXISTS geo text;
-ALTER TABLE IF EXISTS public.sample_packs ADD COLUMN IF NOT EXISTS lead_ids uuid[] DEFAULT '{}';
-ALTER TABLE IF EXISTS public.sample_packs ADD COLUMN IF NOT EXISTS meta jsonb DEFAULT '{}';
+ALTER TABLE IF EXISTS public.sample_packs ADD COLUMN IF NOT EXISTS lead_ids uuid[];
+ALTER TABLE IF EXISTS public.sample_packs ADD COLUMN IF NOT EXISTS meta jsonb;
 ALTER TABLE IF EXISTS public.sample_packs ADD COLUMN IF NOT EXISTS created_at timestamptz;
 
 
@@ -1809,10 +1674,7 @@ CREATE TABLE IF NOT EXISTS territories (
   UNIQUE (vertical, geo_key)
 -- one exclusive owner per vertical+geo
 );
--- LeadX additive schema compatibility sweep: reconcile pre-existing table shapes.
--- CREATE TABLE IF NOT EXISTS does not alter legacy tables. Missing columns are added
--- before downstream indexes/views/functions reference them. Constraints remain defined by
--- the canonical CREATE TABLE on clean installs; existing installs keep their data intact.
+-- LeadX compatibility sweep: reconcile legacy table shapes before downstream statements.
 ALTER TABLE IF EXISTS public.territories ADD COLUMN IF NOT EXISTS id uuid;
 ALTER TABLE IF EXISTS public.territories ADD COLUMN IF NOT EXISTS tenant_id uuid;
 ALTER TABLE IF EXISTS public.territories ADD COLUMN IF NOT EXISTS vertical text;
@@ -1837,10 +1699,7 @@ CREATE TABLE IF NOT EXISTS bad_lead_reports (
   created_at      timestamptz NOT NULL DEFAULT now(),
   resolved_at     timestamptz
 );
--- LeadX additive schema compatibility sweep: reconcile pre-existing table shapes.
--- CREATE TABLE IF NOT EXISTS does not alter legacy tables. Missing columns are added
--- before downstream indexes/views/functions reference them. Constraints remain defined by
--- the canonical CREATE TABLE on clean installs; existing installs keep their data intact.
+-- LeadX compatibility sweep: reconcile legacy table shapes before downstream statements.
 ALTER TABLE IF EXISTS public.bad_lead_reports ADD COLUMN IF NOT EXISTS id uuid;
 ALTER TABLE IF EXISTS public.bad_lead_reports ADD COLUMN IF NOT EXISTS tenant_id uuid;
 ALTER TABLE IF EXISTS public.bad_lead_reports ADD COLUMN IF NOT EXISTS assignment_id uuid;
@@ -1900,10 +1759,7 @@ create table if not exists public.pipeline_run_leads (
   updated_at timestamptz not null default now(),
   unique (run_id, lead_id)
 );
--- LeadX additive schema compatibility sweep: reconcile pre-existing table shapes.
--- CREATE TABLE IF NOT EXISTS does not alter legacy tables. Missing columns are added
--- before downstream indexes/views/functions reference them. Constraints remain defined by
--- the canonical CREATE TABLE on clean installs; existing installs keep their data intact.
+-- LeadX compatibility sweep: reconcile legacy table shapes before downstream statements.
 ALTER TABLE IF EXISTS public.pipeline_run_leads ADD COLUMN IF NOT EXISTS id uuid;
 ALTER TABLE IF EXISTS public.pipeline_run_leads ADD COLUMN IF NOT EXISTS run_id uuid;
 ALTER TABLE IF EXISTS public.pipeline_run_leads ADD COLUMN IF NOT EXISTS lead_id uuid;
@@ -1918,7 +1774,7 @@ ALTER TABLE IF EXISTS public.pipeline_run_leads ADD COLUMN IF NOT EXISTS name te
 ALTER TABLE IF EXISTS public.pipeline_run_leads ADD COLUMN IF NOT EXISTS phone text;
 ALTER TABLE IF EXISTS public.pipeline_run_leads ADD COLUMN IF NOT EXISTS website text;
 ALTER TABLE IF EXISTS public.pipeline_run_leads ADD COLUMN IF NOT EXISTS city text;
-ALTER TABLE IF EXISTS public.pipeline_run_leads ADD COLUMN IF NOT EXISTS position int DEFAULT 0;
+ALTER TABLE IF EXISTS public.pipeline_run_leads ADD COLUMN IF NOT EXISTS position int;
 ALTER TABLE IF EXISTS public.pipeline_run_leads ADD COLUMN IF NOT EXISTS created_at timestamptz;
 ALTER TABLE IF EXISTS public.pipeline_run_leads ADD COLUMN IF NOT EXISTS updated_at timestamptz;
 
@@ -1956,10 +1812,7 @@ CREATE TABLE IF NOT EXISTS discovery_coverage (
   meta            jsonb DEFAULT '{}',
   UNIQUE (icp_id, source, location_key, query_key)
 );
--- LeadX additive schema compatibility sweep: reconcile pre-existing table shapes.
--- CREATE TABLE IF NOT EXISTS does not alter legacy tables. Missing columns are added
--- before downstream indexes/views/functions reference them. Constraints remain defined by
--- the canonical CREATE TABLE on clean installs; existing installs keep their data intact.
+-- LeadX compatibility sweep: reconcile legacy table shapes before downstream statements.
 ALTER TABLE IF EXISTS public.discovery_coverage ADD COLUMN IF NOT EXISTS id uuid;
 ALTER TABLE IF EXISTS public.discovery_coverage ADD COLUMN IF NOT EXISTS tenant_id uuid;
 ALTER TABLE IF EXISTS public.discovery_coverage ADD COLUMN IF NOT EXISTS icp_id uuid;
@@ -1971,7 +1824,7 @@ ALTER TABLE IF EXISTS public.discovery_coverage ADD COLUMN IF NOT EXISTS page_re
 ALTER TABLE IF EXISTS public.discovery_coverage ADD COLUMN IF NOT EXISTS leads_found int;
 ALTER TABLE IF EXISTS public.discovery_coverage ADD COLUMN IF NOT EXISTS last_run_at timestamptz;
 ALTER TABLE IF EXISTS public.discovery_coverage ADD COLUMN IF NOT EXISTS exhausted boolean;
-ALTER TABLE IF EXISTS public.discovery_coverage ADD COLUMN IF NOT EXISTS meta jsonb DEFAULT '{}';
+ALTER TABLE IF EXISTS public.discovery_coverage ADD COLUMN IF NOT EXISTS meta jsonb;
 
 
 CREATE INDEX IF NOT EXISTS idx_coverage_icp ON discovery_coverage (icp_id, exhausted, last_run_at);
@@ -1985,10 +1838,7 @@ CREATE TABLE IF NOT EXISTS tenant_seen_leads (
   first_seen_at   timestamptz NOT NULL DEFAULT now(),
   PRIMARY KEY (tenant_id, fingerprint)
 );
--- LeadX additive schema compatibility sweep: reconcile pre-existing table shapes.
--- CREATE TABLE IF NOT EXISTS does not alter legacy tables. Missing columns are added
--- before downstream indexes/views/functions reference them. Constraints remain defined by
--- the canonical CREATE TABLE on clean installs; existing installs keep their data intact.
+-- LeadX compatibility sweep: reconcile legacy table shapes before downstream statements.
 ALTER TABLE IF EXISTS public.tenant_seen_leads ADD COLUMN IF NOT EXISTS tenant_id uuid;
 ALTER TABLE IF EXISTS public.tenant_seen_leads ADD COLUMN IF NOT EXISTS fingerprint text;
 ALTER TABLE IF EXISTS public.tenant_seen_leads ADD COLUMN IF NOT EXISTS lead_id uuid;
@@ -2011,10 +1861,7 @@ CREATE TABLE IF NOT EXISTS icp_geo_cells (
   active          boolean NOT NULL DEFAULT true,
   UNIQUE (icp_id, cell_key)
 );
--- LeadX additive schema compatibility sweep: reconcile pre-existing table shapes.
--- CREATE TABLE IF NOT EXISTS does not alter legacy tables. Missing columns are added
--- before downstream indexes/views/functions reference them. Constraints remain defined by
--- the canonical CREATE TABLE on clean installs; existing installs keep their data intact.
+-- LeadX compatibility sweep: reconcile legacy table shapes before downstream statements.
 ALTER TABLE IF EXISTS public.icp_geo_cells ADD COLUMN IF NOT EXISTS id uuid;
 ALTER TABLE IF EXISTS public.icp_geo_cells ADD COLUMN IF NOT EXISTS icp_id uuid;
 ALTER TABLE IF EXISTS public.icp_geo_cells ADD COLUMN IF NOT EXISTS cell_key text;
@@ -2059,8 +1906,17 @@ CREATE INDEX IF NOT EXISTS idx_assignments_offer_cat
   ON lead_assignments (lead_id, lower(offer_category))
   WHERE status NOT IN ('rejected', 'expired');
 
--- Older rows are normalized by the correction migration below. Do not infer a
--- competitive offer from the target vertical: missing offers remain shared.
+-- Backfill: if offer_category null, use vertical as conservative default
+-- (operator should set real categories for multi-ICP same-vertical sharing)
+UPDATE icp_profiles
+SET offer_category = lower(regexp_replace(vertical, '\s+', '_', 'g'))
+WHERE offer_category IS NULL OR offer_category = '';
+
+UPDATE lead_assignments la
+SET offer_category = icp.offer_category
+FROM icp_profiles icp
+WHERE la.icp_id = icp.id
+  AND (la.offer_category IS NULL OR la.offer_category = '');
 
 -- New exclusivity function: compete on offer_category, not vertical alone
 CREATE OR REPLACE FUNCTION check_exclusivity(
@@ -2075,10 +1931,14 @@ DECLARE
   conflict_exists boolean;
   v_offer text;
 BEGIN
-  -- Only an explicit offer/use-case can create a competitive lock.
+  -- Prefer explicit offer category; fall back to vertical (legacy)
   v_offer := lower(nullif(trim(p_offer_category), ''));
-  IF v_offer IS NULL OR v_offer IN ('default','general','generic','unknown','any','all','shared','lead_gen_service','lead_generation','service') THEN
-    RETURN false;
+  IF v_offer IS NULL THEN
+    v_offer := lower(nullif(trim(p_vertical), ''));
+  END IF;
+
+  IF v_offer IS NULL THEN
+    RETURN false; -- cannot lock without a category
   END IF;
 
   SELECT EXISTS (
@@ -2088,9 +1948,9 @@ BEGIN
     WHERE la.lead_id = p_lead_id
       AND la.tenant_id <> p_tenant_id
       AND la.status NOT IN ('rejected', 'expired')
-      AND COALESCE(icp.exclusivity, 'shared') = 'exclusive'
-      -- SAME explicit competitive offer/use-case only
-      AND lower(COALESCE(nullif(la.offer_category, ''), nullif(icp.offer_category, '')))
+      AND COALESCE(icp.exclusivity, 'exclusive') = 'exclusive'
+      -- SAME competitive set only
+      AND lower(COALESCE(nullif(la.offer_category, ''), nullif(icp.offer_category, ''), icp.vertical, la.vertical, ''))
           = v_offer
       AND (
         icp.geo IS NULL
@@ -2158,10 +2018,7 @@ CREATE TABLE IF NOT EXISTS doc_templates (
   created_at    timestamptz DEFAULT now(),
   updated_at    timestamptz DEFAULT now()
 );
--- LeadX additive schema compatibility sweep: reconcile pre-existing table shapes.
--- CREATE TABLE IF NOT EXISTS does not alter legacy tables. Missing columns are added
--- before downstream indexes/views/functions reference them. Constraints remain defined by
--- the canonical CREATE TABLE on clean installs; existing installs keep their data intact.
+-- LeadX compatibility sweep: reconcile legacy table shapes before downstream statements.
 ALTER TABLE IF EXISTS public.doc_templates ADD COLUMN IF NOT EXISTS id uuid;
 ALTER TABLE IF EXISTS public.doc_templates ADD COLUMN IF NOT EXISTS tenant_id uuid;
 ALTER TABLE IF EXISTS public.doc_templates ADD COLUMN IF NOT EXISTS category text;
@@ -2170,11 +2027,10 @@ ALTER TABLE IF EXISTS public.doc_templates ADD COLUMN IF NOT EXISTS description 
 ALTER TABLE IF EXISTS public.doc_templates ADD COLUMN IF NOT EXISTS body_html text;
 ALTER TABLE IF EXISTS public.doc_templates ADD COLUMN IF NOT EXISTS body_text text;
 ALTER TABLE IF EXISTS public.doc_templates ADD COLUMN IF NOT EXISTS variables jsonb;
-ALTER TABLE IF EXISTS public.doc_templates ADD COLUMN IF NOT EXISTS channel_hint text DEFAULT 'email';
--- email, whatsapp, both;
-ALTER TABLE IF EXISTS public.doc_templates ADD COLUMN IF NOT EXISTS active boolean DEFAULT true;
-ALTER TABLE IF EXISTS public.doc_templates ADD COLUMN IF NOT EXISTS created_at timestamptz DEFAULT now();
-ALTER TABLE IF EXISTS public.doc_templates ADD COLUMN IF NOT EXISTS updated_at timestamptz DEFAULT now();
+ALTER TABLE IF EXISTS public.doc_templates ADD COLUMN IF NOT EXISTS channel_hint text;
+ALTER TABLE IF EXISTS public.doc_templates ADD COLUMN IF NOT EXISTS active boolean;
+ALTER TABLE IF EXISTS public.doc_templates ADD COLUMN IF NOT EXISTS created_at timestamptz;
+ALTER TABLE IF EXISTS public.doc_templates ADD COLUMN IF NOT EXISTS updated_at timestamptz;
 
 
 CREATE INDEX IF NOT EXISTS idx_doc_templates_cat ON doc_templates (category) WHERE active;
@@ -2198,10 +2054,7 @@ CREATE TABLE IF NOT EXISTS doc_sends (
   error         text,
   created_at    timestamptz DEFAULT now()
 );
--- LeadX additive schema compatibility sweep: reconcile pre-existing table shapes.
--- CREATE TABLE IF NOT EXISTS does not alter legacy tables. Missing columns are added
--- before downstream indexes/views/functions reference them. Constraints remain defined by
--- the canonical CREATE TABLE on clean installs; existing installs keep their data intact.
+-- LeadX compatibility sweep: reconcile legacy table shapes before downstream statements.
 ALTER TABLE IF EXISTS public.doc_sends ADD COLUMN IF NOT EXISTS id uuid;
 ALTER TABLE IF EXISTS public.doc_sends ADD COLUMN IF NOT EXISTS tenant_id uuid;
 ALTER TABLE IF EXISTS public.doc_sends ADD COLUMN IF NOT EXISTS template_id uuid;
@@ -2212,11 +2065,11 @@ ALTER TABLE IF EXISTS public.doc_sends ADD COLUMN IF NOT EXISTS channel text;
 ALTER TABLE IF EXISTS public.doc_sends ADD COLUMN IF NOT EXISTS subject text;
 ALTER TABLE IF EXISTS public.doc_sends ADD COLUMN IF NOT EXISTS body_html text;
 ALTER TABLE IF EXISTS public.doc_sends ADD COLUMN IF NOT EXISTS body_text text;
-ALTER TABLE IF EXISTS public.doc_sends ADD COLUMN IF NOT EXISTS variables jsonb DEFAULT '{}';
-ALTER TABLE IF EXISTS public.doc_sends ADD COLUMN IF NOT EXISTS status text DEFAULT 'queued';
+ALTER TABLE IF EXISTS public.doc_sends ADD COLUMN IF NOT EXISTS variables jsonb;
+ALTER TABLE IF EXISTS public.doc_sends ADD COLUMN IF NOT EXISTS status text;
 ALTER TABLE IF EXISTS public.doc_sends ADD COLUMN IF NOT EXISTS provider_id text;
 ALTER TABLE IF EXISTS public.doc_sends ADD COLUMN IF NOT EXISTS error text;
-ALTER TABLE IF EXISTS public.doc_sends ADD COLUMN IF NOT EXISTS created_at timestamptz DEFAULT now();
+ALTER TABLE IF EXISTS public.doc_sends ADD COLUMN IF NOT EXISTS created_at timestamptz;
 
 
 CREATE INDEX IF NOT EXISTS idx_doc_sends_tenant ON doc_sends (tenant_id, created_at DESC);
@@ -2235,10 +2088,7 @@ CREATE TABLE IF NOT EXISTS first_touch_log (
   error         text,
   created_at    timestamptz DEFAULT now()
 );
--- LeadX additive schema compatibility sweep: reconcile pre-existing table shapes.
--- CREATE TABLE IF NOT EXISTS does not alter legacy tables. Missing columns are added
--- before downstream indexes/views/functions reference them. Constraints remain defined by
--- the canonical CREATE TABLE on clean installs; existing installs keep their data intact.
+-- LeadX compatibility sweep: reconcile legacy table shapes before downstream statements.
 ALTER TABLE IF EXISTS public.first_touch_log ADD COLUMN IF NOT EXISTS id uuid;
 ALTER TABLE IF EXISTS public.first_touch_log ADD COLUMN IF NOT EXISTS tenant_id uuid;
 ALTER TABLE IF EXISTS public.first_touch_log ADD COLUMN IF NOT EXISTS assignment_id uuid;
@@ -2247,9 +2097,9 @@ ALTER TABLE IF EXISTS public.first_touch_log ADD COLUMN IF NOT EXISTS channel te
 ALTER TABLE IF EXISTS public.first_touch_log ADD COLUMN IF NOT EXISTS status text;
 ALTER TABLE IF EXISTS public.first_touch_log ADD COLUMN IF NOT EXISTS provider text;
 ALTER TABLE IF EXISTS public.first_touch_log ADD COLUMN IF NOT EXISTS provider_id text;
-ALTER TABLE IF EXISTS public.first_touch_log ADD COLUMN IF NOT EXISTS payload jsonb DEFAULT '{}';
+ALTER TABLE IF EXISTS public.first_touch_log ADD COLUMN IF NOT EXISTS payload jsonb;
 ALTER TABLE IF EXISTS public.first_touch_log ADD COLUMN IF NOT EXISTS error text;
-ALTER TABLE IF EXISTS public.first_touch_log ADD COLUMN IF NOT EXISTS created_at timestamptz DEFAULT now();
+ALTER TABLE IF EXISTS public.first_touch_log ADD COLUMN IF NOT EXISTS created_at timestamptz;
 
 
 -- Freshness schedule config (global defaults)
@@ -2257,10 +2107,7 @@ CREATE TABLE IF NOT EXISTS freshness_policy (
   tier          text PRIMARY KEY,
   reverify_days int NOT NULL
 );
--- LeadX additive schema compatibility sweep: reconcile pre-existing table shapes.
--- CREATE TABLE IF NOT EXISTS does not alter legacy tables. Missing columns are added
--- before downstream indexes/views/functions reference them. Constraints remain defined by
--- the canonical CREATE TABLE on clean installs; existing installs keep their data intact.
+-- LeadX compatibility sweep: reconcile legacy table shapes before downstream statements.
 ALTER TABLE IF EXISTS public.freshness_policy ADD COLUMN IF NOT EXISTS tier text;
 ALTER TABLE IF EXISTS public.freshness_policy ADD COLUMN IF NOT EXISTS reverify_days int;
 
@@ -2312,10 +2159,7 @@ CREATE TABLE IF NOT EXISTS email_sends (
   error         text,
   created_at    timestamptz NOT NULL DEFAULT now()
 );
--- LeadX additive schema compatibility sweep: reconcile pre-existing table shapes.
--- CREATE TABLE IF NOT EXISTS does not alter legacy tables. Missing columns are added
--- before downstream indexes/views/functions reference them. Constraints remain defined by
--- the canonical CREATE TABLE on clean installs; existing installs keep their data intact.
+-- LeadX compatibility sweep: reconcile legacy table shapes before downstream statements.
 ALTER TABLE IF EXISTS public.email_sends ADD COLUMN IF NOT EXISTS id uuid;
 ALTER TABLE IF EXISTS public.email_sends ADD COLUMN IF NOT EXISTS tenant_id uuid;
 ALTER TABLE IF EXISTS public.email_sends ADD COLUMN IF NOT EXISTS assignment_id uuid;
@@ -2454,21 +2298,18 @@ CREATE TABLE IF NOT EXISTS social_enrichment (
   source_instagram        text,
   enriched_at             timestamptz NOT NULL DEFAULT now()
 );
--- LeadX additive schema compatibility sweep: reconcile pre-existing table shapes.
--- CREATE TABLE IF NOT EXISTS does not alter legacy tables. Missing columns are added
--- before downstream indexes/views/functions reference them. Constraints remain defined by
--- the canonical CREATE TABLE on clean installs; existing installs keep their data intact.
+-- LeadX compatibility sweep: reconcile legacy table shapes before downstream statements.
 ALTER TABLE IF EXISTS public.social_enrichment ADD COLUMN IF NOT EXISTS lead_id uuid;
 ALTER TABLE IF EXISTS public.social_enrichment ADD COLUMN IF NOT EXISTS linkedin_url text;
 ALTER TABLE IF EXISTS public.social_enrichment ADD COLUMN IF NOT EXISTS linkedin_employee_range text;
 ALTER TABLE IF EXISTS public.social_enrichment ADD COLUMN IF NOT EXISTS decision_maker_name text;
 ALTER TABLE IF EXISTS public.social_enrichment ADD COLUMN IF NOT EXISTS decision_maker_title text;
-ALTER TABLE IF EXISTS public.social_enrichment ADD COLUMN IF NOT EXISTS decision_makers jsonb DEFAULT '[]';
+ALTER TABLE IF EXISTS public.social_enrichment ADD COLUMN IF NOT EXISTS decision_makers jsonb;
 ALTER TABLE IF EXISTS public.social_enrichment ADD COLUMN IF NOT EXISTS instagram_handle text;
 ALTER TABLE IF EXISTS public.social_enrichment ADD COLUMN IF NOT EXISTS instagram_followers int;
 ALTER TABLE IF EXISTS public.social_enrichment ADD COLUMN IF NOT EXISTS instagram_bio text;
 ALTER TABLE IF EXISTS public.social_enrichment ADD COLUMN IF NOT EXISTS instagram_last_post_at timestamptz;
-ALTER TABLE IF EXISTS public.social_enrichment ADD COLUMN IF NOT EXISTS instagram_stale boolean DEFAULT false;
+ALTER TABLE IF EXISTS public.social_enrichment ADD COLUMN IF NOT EXISTS instagram_stale boolean;
 ALTER TABLE IF EXISTS public.social_enrichment ADD COLUMN IF NOT EXISTS source_linkedin text;
 ALTER TABLE IF EXISTS public.social_enrichment ADD COLUMN IF NOT EXISTS source_instagram text;
 ALTER TABLE IF EXISTS public.social_enrichment ADD COLUMN IF NOT EXISTS enriched_at timestamptz;
@@ -2909,10 +2750,7 @@ CREATE TABLE IF NOT EXISTS companies (
   created_at      timestamptz NOT NULL DEFAULT now(),
   updated_at      timestamptz NOT NULL DEFAULT now()
 );
--- LeadX additive schema compatibility sweep: reconcile pre-existing table shapes.
--- CREATE TABLE IF NOT EXISTS does not alter legacy tables. Missing columns are added
--- before downstream indexes/views/functions reference them. Constraints remain defined by
--- the canonical CREATE TABLE on clean installs; existing installs keep their data intact.
+-- LeadX compatibility sweep: reconcile legacy table shapes before downstream statements.
 ALTER TABLE IF EXISTS public.companies ADD COLUMN IF NOT EXISTS id uuid;
 ALTER TABLE IF EXISTS public.companies ADD COLUMN IF NOT EXISTS tenant_id uuid;
 ALTER TABLE IF EXISTS public.companies ADD COLUMN IF NOT EXISTS name text;
@@ -2998,10 +2836,7 @@ CREATE TABLE IF NOT EXISTS contacts (
   created_at        timestamptz NOT NULL DEFAULT now(),
   updated_at        timestamptz NOT NULL DEFAULT now()
 );
--- LeadX additive schema compatibility sweep: reconcile pre-existing table shapes.
--- CREATE TABLE IF NOT EXISTS does not alter legacy tables. Missing columns are added
--- before downstream indexes/views/functions reference them. Constraints remain defined by
--- the canonical CREATE TABLE on clean installs; existing installs keep their data intact.
+-- LeadX compatibility sweep: reconcile legacy table shapes before downstream statements.
 ALTER TABLE IF EXISTS public.contacts ADD COLUMN IF NOT EXISTS id uuid;
 ALTER TABLE IF EXISTS public.contacts ADD COLUMN IF NOT EXISTS tenant_id uuid;
 ALTER TABLE IF EXISTS public.contacts ADD COLUMN IF NOT EXISTS company_id uuid;
@@ -3071,10 +2906,7 @@ CREATE TABLE IF NOT EXISTS deal_stages (
   updated_at    timestamptz NOT NULL DEFAULT now(),
   UNIQUE (tenant_id, slug)
 );
--- LeadX additive schema compatibility sweep: reconcile pre-existing table shapes.
--- CREATE TABLE IF NOT EXISTS does not alter legacy tables. Missing columns are added
--- before downstream indexes/views/functions reference them. Constraints remain defined by
--- the canonical CREATE TABLE on clean installs; existing installs keep their data intact.
+-- LeadX compatibility sweep: reconcile legacy table shapes before downstream statements.
 ALTER TABLE IF EXISTS public.deal_stages ADD COLUMN IF NOT EXISTS id uuid;
 ALTER TABLE IF EXISTS public.deal_stages ADD COLUMN IF NOT EXISTS tenant_id uuid;
 ALTER TABLE IF EXISTS public.deal_stages ADD COLUMN IF NOT EXISTS name text;
@@ -3128,10 +2960,7 @@ CREATE TABLE IF NOT EXISTS deals (
   created_at           timestamptz NOT NULL DEFAULT now(),
   updated_at           timestamptz NOT NULL DEFAULT now()
 );
--- LeadX additive schema compatibility sweep: reconcile pre-existing table shapes.
--- CREATE TABLE IF NOT EXISTS does not alter legacy tables. Missing columns are added
--- before downstream indexes/views/functions reference them. Constraints remain defined by
--- the canonical CREATE TABLE on clean installs; existing installs keep their data intact.
+-- LeadX compatibility sweep: reconcile legacy table shapes before downstream statements.
 ALTER TABLE IF EXISTS public.deals ADD COLUMN IF NOT EXISTS id uuid;
 ALTER TABLE IF EXISTS public.deals ADD COLUMN IF NOT EXISTS tenant_id uuid;
 ALTER TABLE IF EXISTS public.deals ADD COLUMN IF NOT EXISTS company_id uuid;
@@ -3214,10 +3043,7 @@ CREATE TABLE IF NOT EXISTS activities (
   meta             jsonb NOT NULL DEFAULT '{}',
   created_at       timestamptz NOT NULL DEFAULT now()
 );
--- LeadX additive schema compatibility sweep: reconcile pre-existing table shapes.
--- CREATE TABLE IF NOT EXISTS does not alter legacy tables. Missing columns are added
--- before downstream indexes/views/functions reference them. Constraints remain defined by
--- the canonical CREATE TABLE on clean installs; existing installs keep their data intact.
+-- LeadX compatibility sweep: reconcile legacy table shapes before downstream statements.
 ALTER TABLE IF EXISTS public.activities ADD COLUMN IF NOT EXISTS id uuid;
 ALTER TABLE IF EXISTS public.activities ADD COLUMN IF NOT EXISTS tenant_id uuid;
 ALTER TABLE IF EXISTS public.activities ADD COLUMN IF NOT EXISTS activity_type text;
@@ -3298,10 +3124,7 @@ CREATE TABLE IF NOT EXISTS tasks (
   created_at    timestamptz NOT NULL DEFAULT now(),
   updated_at    timestamptz NOT NULL DEFAULT now()
 );
--- LeadX additive schema compatibility sweep: reconcile pre-existing table shapes.
--- CREATE TABLE IF NOT EXISTS does not alter legacy tables. Missing columns are added
--- before downstream indexes/views/functions reference them. Constraints remain defined by
--- the canonical CREATE TABLE on clean installs; existing installs keep their data intact.
+-- LeadX compatibility sweep: reconcile legacy table shapes before downstream statements.
 ALTER TABLE IF EXISTS public.tasks ADD COLUMN IF NOT EXISTS id uuid;
 ALTER TABLE IF EXISTS public.tasks ADD COLUMN IF NOT EXISTS tenant_id uuid;
 ALTER TABLE IF EXISTS public.tasks ADD COLUMN IF NOT EXISTS title text;
@@ -3353,10 +3176,7 @@ CREATE TABLE IF NOT EXISTS notes (
   created_at    timestamptz NOT NULL DEFAULT now(),
   updated_at    timestamptz NOT NULL DEFAULT now()
 );
--- LeadX additive schema compatibility sweep: reconcile pre-existing table shapes.
--- CREATE TABLE IF NOT EXISTS does not alter legacy tables. Missing columns are added
--- before downstream indexes/views/functions reference them. Constraints remain defined by
--- the canonical CREATE TABLE on clean installs; existing installs keep their data intact.
+-- LeadX compatibility sweep: reconcile legacy table shapes before downstream statements.
 ALTER TABLE IF EXISTS public.notes ADD COLUMN IF NOT EXISTS id uuid;
 ALTER TABLE IF EXISTS public.notes ADD COLUMN IF NOT EXISTS tenant_id uuid;
 ALTER TABLE IF EXISTS public.notes ADD COLUMN IF NOT EXISTS body text;
@@ -3401,10 +3221,7 @@ CREATE TABLE IF NOT EXISTS custom_field_defs (
   updated_at    timestamptz NOT NULL DEFAULT now(),
   UNIQUE (tenant_id, entity_type, field_key)
 );
--- LeadX additive schema compatibility sweep: reconcile pre-existing table shapes.
--- CREATE TABLE IF NOT EXISTS does not alter legacy tables. Missing columns are added
--- before downstream indexes/views/functions reference them. Constraints remain defined by
--- the canonical CREATE TABLE on clean installs; existing installs keep their data intact.
+-- LeadX compatibility sweep: reconcile legacy table shapes before downstream statements.
 ALTER TABLE IF EXISTS public.custom_field_defs ADD COLUMN IF NOT EXISTS id uuid;
 ALTER TABLE IF EXISTS public.custom_field_defs ADD COLUMN IF NOT EXISTS tenant_id uuid;
 ALTER TABLE IF EXISTS public.custom_field_defs ADD COLUMN IF NOT EXISTS entity_type text;
@@ -3455,10 +3272,7 @@ CREATE TABLE IF NOT EXISTS email_log (
   sent_at             timestamptz,
   created_at          timestamptz NOT NULL DEFAULT now()
 );
--- LeadX additive schema compatibility sweep: reconcile pre-existing table shapes.
--- CREATE TABLE IF NOT EXISTS does not alter legacy tables. Missing columns are added
--- before downstream indexes/views/functions reference them. Constraints remain defined by
--- the canonical CREATE TABLE on clean installs; existing installs keep their data intact.
+-- LeadX compatibility sweep: reconcile legacy table shapes before downstream statements.
 ALTER TABLE IF EXISTS public.email_log ADD COLUMN IF NOT EXISTS id uuid;
 ALTER TABLE IF EXISTS public.email_log ADD COLUMN IF NOT EXISTS tenant_id uuid;
 ALTER TABLE IF EXISTS public.email_log ADD COLUMN IF NOT EXISTS to_email text;
@@ -3507,10 +3321,7 @@ CREATE TABLE IF NOT EXISTS call_log (
   created_by       uuid,
   created_at       timestamptz NOT NULL DEFAULT now()
 );
--- LeadX additive schema compatibility sweep: reconcile pre-existing table shapes.
--- CREATE TABLE IF NOT EXISTS does not alter legacy tables. Missing columns are added
--- before downstream indexes/views/functions reference them. Constraints remain defined by
--- the canonical CREATE TABLE on clean installs; existing installs keep their data intact.
+-- LeadX compatibility sweep: reconcile legacy table shapes before downstream statements.
 ALTER TABLE IF EXISTS public.call_log ADD COLUMN IF NOT EXISTS id uuid;
 ALTER TABLE IF EXISTS public.call_log ADD COLUMN IF NOT EXISTS tenant_id uuid;
 ALTER TABLE IF EXISTS public.call_log ADD COLUMN IF NOT EXISTS contact_id uuid;
@@ -4229,10 +4040,7 @@ CREATE TABLE IF NOT EXISTS pipeline_stages (
   created_at  timestamptz NOT NULL DEFAULT now(),
   UNIQUE (tenant_id, slug)
 );
--- LeadX additive schema compatibility sweep: reconcile pre-existing table shapes.
--- CREATE TABLE IF NOT EXISTS does not alter legacy tables. Missing columns are added
--- before downstream indexes/views/functions reference them. Constraints remain defined by
--- the canonical CREATE TABLE on clean installs; existing installs keep their data intact.
+-- LeadX compatibility sweep: reconcile legacy table shapes before downstream statements.
 ALTER TABLE IF EXISTS public.pipeline_stages ADD COLUMN IF NOT EXISTS id uuid;
 ALTER TABLE IF EXISTS public.pipeline_stages ADD COLUMN IF NOT EXISTS tenant_id uuid;
 ALTER TABLE IF EXISTS public.pipeline_stages ADD COLUMN IF NOT EXISTS name text;
@@ -4288,10 +4096,7 @@ CREATE TABLE IF NOT EXISTS lead_activities (
 -- duration, outcome, from_stage, to_stage, etc.
   created_at    timestamptz NOT NULL DEFAULT now()
 );
--- LeadX additive schema compatibility sweep: reconcile pre-existing table shapes.
--- CREATE TABLE IF NOT EXISTS does not alter legacy tables. Missing columns are added
--- before downstream indexes/views/functions reference them. Constraints remain defined by
--- the canonical CREATE TABLE on clean installs; existing installs keep their data intact.
+-- LeadX compatibility sweep: reconcile legacy table shapes before downstream statements.
 ALTER TABLE IF EXISTS public.lead_activities ADD COLUMN IF NOT EXISTS id uuid;
 ALTER TABLE IF EXISTS public.lead_activities ADD COLUMN IF NOT EXISTS tenant_id uuid;
 ALTER TABLE IF EXISTS public.lead_activities ADD COLUMN IF NOT EXISTS assignment_id uuid;
@@ -4301,8 +4106,7 @@ ALTER TABLE IF EXISTS public.lead_activities ADD COLUMN IF NOT EXISTS actor_id u
 ALTER TABLE IF EXISTS public.lead_activities ADD COLUMN IF NOT EXISTS activity_type text;
 ALTER TABLE IF EXISTS public.lead_activities ADD COLUMN IF NOT EXISTS title text;
 ALTER TABLE IF EXISTS public.lead_activities ADD COLUMN IF NOT EXISTS body text;
-ALTER TABLE IF EXISTS public.lead_activities ADD COLUMN IF NOT EXISTS meta jsonb DEFAULT '{}';
--- duration, outcome, from_stage, to_stage, etc.;
+ALTER TABLE IF EXISTS public.lead_activities ADD COLUMN IF NOT EXISTS meta jsonb;
 ALTER TABLE IF EXISTS public.lead_activities ADD COLUMN IF NOT EXISTS created_at timestamptz;
 
 
@@ -4327,10 +4131,7 @@ CREATE TABLE IF NOT EXISTS lead_tasks (
     CHECK (priority IN ('low','medium','high','urgent')),
   created_at    timestamptz NOT NULL DEFAULT now()
 );
--- LeadX additive schema compatibility sweep: reconcile pre-existing table shapes.
--- CREATE TABLE IF NOT EXISTS does not alter legacy tables. Missing columns are added
--- before downstream indexes/views/functions reference them. Constraints remain defined by
--- the canonical CREATE TABLE on clean installs; existing installs keep their data intact.
+-- LeadX compatibility sweep: reconcile legacy table shapes before downstream statements.
 ALTER TABLE IF EXISTS public.lead_tasks ADD COLUMN IF NOT EXISTS id uuid;
 ALTER TABLE IF EXISTS public.lead_tasks ADD COLUMN IF NOT EXISTS tenant_id uuid;
 ALTER TABLE IF EXISTS public.lead_tasks ADD COLUMN IF NOT EXISTS assignment_id uuid;
@@ -4358,14 +4159,11 @@ CREATE TABLE IF NOT EXISTS lead_tags (
   created_at timestamptz NOT NULL DEFAULT now(),
   UNIQUE (tenant_id, name)
 );
--- LeadX additive schema compatibility sweep: reconcile pre-existing table shapes.
--- CREATE TABLE IF NOT EXISTS does not alter legacy tables. Missing columns are added
--- before downstream indexes/views/functions reference them. Constraints remain defined by
--- the canonical CREATE TABLE on clean installs; existing installs keep their data intact.
+-- LeadX compatibility sweep: reconcile legacy table shapes before downstream statements.
 ALTER TABLE IF EXISTS public.lead_tags ADD COLUMN IF NOT EXISTS id uuid;
 ALTER TABLE IF EXISTS public.lead_tags ADD COLUMN IF NOT EXISTS tenant_id uuid;
 ALTER TABLE IF EXISTS public.lead_tags ADD COLUMN IF NOT EXISTS name text;
-ALTER TABLE IF EXISTS public.lead_tags ADD COLUMN IF NOT EXISTS color text DEFAULT '#64748b';
+ALTER TABLE IF EXISTS public.lead_tags ADD COLUMN IF NOT EXISTS color text;
 ALTER TABLE IF EXISTS public.lead_tags ADD COLUMN IF NOT EXISTS created_at timestamptz;
 
 
@@ -4386,10 +4184,7 @@ CREATE TABLE IF NOT EXISTS tenant_members (
   created_at  timestamptz NOT NULL DEFAULT now(),
   UNIQUE (tenant_id, email)
 );
--- LeadX additive schema compatibility sweep: reconcile pre-existing table shapes.
--- CREATE TABLE IF NOT EXISTS does not alter legacy tables. Missing columns are added
--- before downstream indexes/views/functions reference them. Constraints remain defined by
--- the canonical CREATE TABLE on clean installs; existing installs keep their data intact.
+-- LeadX compatibility sweep: reconcile legacy table shapes before downstream statements.
 ALTER TABLE IF EXISTS public.tenant_members ADD COLUMN IF NOT EXISTS id uuid;
 ALTER TABLE IF EXISTS public.tenant_members ADD COLUMN IF NOT EXISTS tenant_id uuid;
 ALTER TABLE IF EXISTS public.tenant_members ADD COLUMN IF NOT EXISTS email text;
@@ -4415,10 +4210,7 @@ CREATE TABLE IF NOT EXISTS lead_segments (
   created_by  uuid,
   created_at  timestamptz NOT NULL DEFAULT now()
 );
--- LeadX additive schema compatibility sweep: reconcile pre-existing table shapes.
--- CREATE TABLE IF NOT EXISTS does not alter legacy tables. Missing columns are added
--- before downstream indexes/views/functions reference them. Constraints remain defined by
--- the canonical CREATE TABLE on clean installs; existing installs keep their data intact.
+-- LeadX compatibility sweep: reconcile legacy table shapes before downstream statements.
 ALTER TABLE IF EXISTS public.lead_segments ADD COLUMN IF NOT EXISTS id uuid;
 ALTER TABLE IF EXISTS public.lead_segments ADD COLUMN IF NOT EXISTS tenant_id uuid;
 ALTER TABLE IF EXISTS public.lead_segments ADD COLUMN IF NOT EXISTS name text;
@@ -4512,10 +4304,7 @@ CREATE TABLE IF NOT EXISTS public.pipeline_run_leads (
   updated_at timestamptz not null default now(),
   unique (run_id, lead_id)
 );
--- LeadX additive schema compatibility sweep: reconcile pre-existing table shapes.
--- CREATE TABLE IF NOT EXISTS does not alter legacy tables. Missing columns are added
--- before downstream indexes/views/functions reference them. Constraints remain defined by
--- the canonical CREATE TABLE on clean installs; existing installs keep their data intact.
+-- LeadX compatibility sweep: reconcile legacy table shapes before downstream statements.
 ALTER TABLE IF EXISTS public.pipeline_run_leads ADD COLUMN IF NOT EXISTS id uuid;
 ALTER TABLE IF EXISTS public.pipeline_run_leads ADD COLUMN IF NOT EXISTS run_id uuid;
 ALTER TABLE IF EXISTS public.pipeline_run_leads ADD COLUMN IF NOT EXISTS lead_id uuid;
@@ -4529,7 +4318,7 @@ ALTER TABLE IF EXISTS public.pipeline_run_leads ADD COLUMN IF NOT EXISTS name te
 ALTER TABLE IF EXISTS public.pipeline_run_leads ADD COLUMN IF NOT EXISTS phone text;
 ALTER TABLE IF EXISTS public.pipeline_run_leads ADD COLUMN IF NOT EXISTS website text;
 ALTER TABLE IF EXISTS public.pipeline_run_leads ADD COLUMN IF NOT EXISTS city text;
-ALTER TABLE IF EXISTS public.pipeline_run_leads ADD COLUMN IF NOT EXISTS position int DEFAULT 0;
+ALTER TABLE IF EXISTS public.pipeline_run_leads ADD COLUMN IF NOT EXISTS position int;
 ALTER TABLE IF EXISTS public.pipeline_run_leads ADD COLUMN IF NOT EXISTS created_at timestamptz;
 ALTER TABLE IF EXISTS public.pipeline_run_leads ADD COLUMN IF NOT EXISTS updated_at timestamptz;
 
@@ -4625,10 +4414,7 @@ CREATE TABLE IF NOT EXISTS public.tenant_invites (
   created_at timestamptz DEFAULT now(),
   accepted_at timestamptz
 );
--- LeadX additive schema compatibility sweep: reconcile pre-existing table shapes.
--- CREATE TABLE IF NOT EXISTS does not alter legacy tables. Missing columns are added
--- before downstream indexes/views/functions reference them. Constraints remain defined by
--- the canonical CREATE TABLE on clean installs; existing installs keep their data intact.
+-- LeadX compatibility sweep: reconcile legacy table shapes before downstream statements.
 ALTER TABLE IF EXISTS public.tenant_invites ADD COLUMN IF NOT EXISTS id uuid;
 ALTER TABLE IF EXISTS public.tenant_invites ADD COLUMN IF NOT EXISTS tenant_id uuid;
 ALTER TABLE IF EXISTS public.tenant_invites ADD COLUMN IF NOT EXISTS email text;
@@ -4637,7 +4423,7 @@ ALTER TABLE IF EXISTS public.tenant_invites ADD COLUMN IF NOT EXISTS token text;
 ALTER TABLE IF EXISTS public.tenant_invites ADD COLUMN IF NOT EXISTS invited_by text;
 ALTER TABLE IF EXISTS public.tenant_invites ADD COLUMN IF NOT EXISTS status text;
 ALTER TABLE IF EXISTS public.tenant_invites ADD COLUMN IF NOT EXISTS expires_at timestamptz;
-ALTER TABLE IF EXISTS public.tenant_invites ADD COLUMN IF NOT EXISTS created_at timestamptz DEFAULT now();
+ALTER TABLE IF EXISTS public.tenant_invites ADD COLUMN IF NOT EXISTS created_at timestamptz;
 ALTER TABLE IF EXISTS public.tenant_invites ADD COLUMN IF NOT EXISTS accepted_at timestamptz;
 
 CREATE INDEX IF NOT EXISTS idx_tenant_invites_token ON public.tenant_invites(token);
@@ -4674,10 +4460,7 @@ CREATE TABLE IF NOT EXISTS public.email_provider_daily (
   sent_count int NOT NULL DEFAULT 0,
   PRIMARY KEY (day, provider)
 );
--- LeadX additive schema compatibility sweep: reconcile pre-existing table shapes.
--- CREATE TABLE IF NOT EXISTS does not alter legacy tables. Missing columns are added
--- before downstream indexes/views/functions reference them. Constraints remain defined by
--- the canonical CREATE TABLE on clean installs; existing installs keep their data intact.
+-- LeadX compatibility sweep: reconcile legacy table shapes before downstream statements.
 ALTER TABLE IF EXISTS public.email_provider_daily ADD COLUMN IF NOT EXISTS day date;
 ALTER TABLE IF EXISTS public.email_provider_daily ADD COLUMN IF NOT EXISTS provider text;
 ALTER TABLE IF EXISTS public.email_provider_daily ADD COLUMN IF NOT EXISTS sent_count int;
@@ -4703,10 +4486,7 @@ CREATE TABLE IF NOT EXISTS public.tenant_email_settings (
   created_at timestamptz DEFAULT now(),
   updated_at timestamptz DEFAULT now()
 );
--- LeadX additive schema compatibility sweep: reconcile pre-existing table shapes.
--- CREATE TABLE IF NOT EXISTS does not alter legacy tables. Missing columns are added
--- before downstream indexes/views/functions reference them. Constraints remain defined by
--- the canonical CREATE TABLE on clean installs; existing installs keep their data intact.
+-- LeadX compatibility sweep: reconcile legacy table shapes before downstream statements.
 ALTER TABLE IF EXISTS public.tenant_email_settings ADD COLUMN IF NOT EXISTS tenant_id uuid;
 ALTER TABLE IF EXISTS public.tenant_email_settings ADD COLUMN IF NOT EXISTS provider text;
 ALTER TABLE IF EXISTS public.tenant_email_settings ADD COLUMN IF NOT EXISTS from_name text;
@@ -4715,11 +4495,11 @@ ALTER TABLE IF EXISTS public.tenant_email_settings ADD COLUMN IF NOT EXISTS repl
 ALTER TABLE IF EXISTS public.tenant_email_settings ADD COLUMN IF NOT EXISTS domain text;
 ALTER TABLE IF EXISTS public.tenant_email_settings ADD COLUMN IF NOT EXISTS domain_verified boolean;
 ALTER TABLE IF EXISTS public.tenant_email_settings ADD COLUMN IF NOT EXISTS dkim_status text;
-ALTER TABLE IF EXISTS public.tenant_email_settings ADD COLUMN IF NOT EXISTS dns_records jsonb DEFAULT '[]'::jsonb;
-ALTER TABLE IF EXISTS public.tenant_email_settings ADD COLUMN IF NOT EXISTS daily_limit int DEFAULT 500;
-ALTER TABLE IF EXISTS public.tenant_email_settings ADD COLUMN IF NOT EXISTS status text DEFAULT 'active';
-ALTER TABLE IF EXISTS public.tenant_email_settings ADD COLUMN IF NOT EXISTS created_at timestamptz DEFAULT now();
-ALTER TABLE IF EXISTS public.tenant_email_settings ADD COLUMN IF NOT EXISTS updated_at timestamptz DEFAULT now();
+ALTER TABLE IF EXISTS public.tenant_email_settings ADD COLUMN IF NOT EXISTS dns_records jsonb;
+ALTER TABLE IF EXISTS public.tenant_email_settings ADD COLUMN IF NOT EXISTS daily_limit int;
+ALTER TABLE IF EXISTS public.tenant_email_settings ADD COLUMN IF NOT EXISTS status text;
+ALTER TABLE IF EXISTS public.tenant_email_settings ADD COLUMN IF NOT EXISTS created_at timestamptz;
+ALTER TABLE IF EXISTS public.tenant_email_settings ADD COLUMN IF NOT EXISTS updated_at timestamptz;
 
 
 CREATE INDEX IF NOT EXISTS idx_tenant_email_domain
@@ -4740,10 +4520,7 @@ CREATE TABLE IF NOT EXISTS public.email_sequences (
   created_at timestamptz NOT NULL DEFAULT now(),
   updated_at timestamptz NOT NULL DEFAULT now()
 );
--- LeadX additive schema compatibility sweep: reconcile pre-existing table shapes.
--- CREATE TABLE IF NOT EXISTS does not alter legacy tables. Missing columns are added
--- before downstream indexes/views/functions reference them. Constraints remain defined by
--- the canonical CREATE TABLE on clean installs; existing installs keep their data intact.
+-- LeadX compatibility sweep: reconcile legacy table shapes before downstream statements.
 ALTER TABLE IF EXISTS public.email_sequences ADD COLUMN IF NOT EXISTS id uuid;
 ALTER TABLE IF EXISTS public.email_sequences ADD COLUMN IF NOT EXISTS tenant_id uuid;
 ALTER TABLE IF EXISTS public.email_sequences ADD COLUMN IF NOT EXISTS name text;
@@ -4763,10 +4540,7 @@ CREATE TABLE IF NOT EXISTS public.email_sequence_steps (
   created_at timestamptz NOT NULL DEFAULT now(),
   UNIQUE(sequence_id, step_number)
 );
--- LeadX additive schema compatibility sweep: reconcile pre-existing table shapes.
--- CREATE TABLE IF NOT EXISTS does not alter legacy tables. Missing columns are added
--- before downstream indexes/views/functions reference them. Constraints remain defined by
--- the canonical CREATE TABLE on clean installs; existing installs keep their data intact.
+-- LeadX compatibility sweep: reconcile legacy table shapes before downstream statements.
 ALTER TABLE IF EXISTS public.email_sequence_steps ADD COLUMN IF NOT EXISTS id uuid;
 ALTER TABLE IF EXISTS public.email_sequence_steps ADD COLUMN IF NOT EXISTS sequence_id uuid;
 ALTER TABLE IF EXISTS public.email_sequence_steps ADD COLUMN IF NOT EXISTS step_number int;
@@ -4794,10 +4568,7 @@ CREATE TABLE IF NOT EXISTS public.email_sequence_enrollments (
   created_at timestamptz NOT NULL DEFAULT now(),
   UNIQUE(sequence_id, assignment_id)
 );
--- LeadX additive schema compatibility sweep: reconcile pre-existing table shapes.
--- CREATE TABLE IF NOT EXISTS does not alter legacy tables. Missing columns are added
--- before downstream indexes/views/functions reference them. Constraints remain defined by
--- the canonical CREATE TABLE on clean installs; existing installs keep their data intact.
+-- LeadX compatibility sweep: reconcile legacy table shapes before downstream statements.
 ALTER TABLE IF EXISTS public.email_sequence_enrollments ADD COLUMN IF NOT EXISTS id uuid;
 ALTER TABLE IF EXISTS public.email_sequence_enrollments ADD COLUMN IF NOT EXISTS tenant_id uuid;
 ALTER TABLE IF EXISTS public.email_sequence_enrollments ADD COLUMN IF NOT EXISTS sequence_id uuid;
@@ -4832,10 +4603,7 @@ CREATE TABLE IF NOT EXISTS public.email_sequence_sends (
   sent_at timestamptz,
   UNIQUE(enrollment_id, step_number)
 );
--- LeadX additive schema compatibility sweep: reconcile pre-existing table shapes.
--- CREATE TABLE IF NOT EXISTS does not alter legacy tables. Missing columns are added
--- before downstream indexes/views/functions reference them. Constraints remain defined by
--- the canonical CREATE TABLE on clean installs; existing installs keep their data intact.
+-- LeadX compatibility sweep: reconcile legacy table shapes before downstream statements.
 ALTER TABLE IF EXISTS public.email_sequence_sends ADD COLUMN IF NOT EXISTS id uuid;
 ALTER TABLE IF EXISTS public.email_sequence_sends ADD COLUMN IF NOT EXISTS enrollment_id uuid;
 ALTER TABLE IF EXISTS public.email_sequence_sends ADD COLUMN IF NOT EXISTS tenant_id uuid;
@@ -4865,10 +4633,7 @@ CREATE TABLE IF NOT EXISTS public.email_bounces (
   raw jsonb NOT NULL DEFAULT '{}'::jsonb,
   created_at timestamptz NOT NULL DEFAULT now()
 );
--- LeadX additive schema compatibility sweep: reconcile pre-existing table shapes.
--- CREATE TABLE IF NOT EXISTS does not alter legacy tables. Missing columns are added
--- before downstream indexes/views/functions reference them. Constraints remain defined by
--- the canonical CREATE TABLE on clean installs; existing installs keep their data intact.
+-- LeadX compatibility sweep: reconcile legacy table shapes before downstream statements.
 ALTER TABLE IF EXISTS public.email_bounces ADD COLUMN IF NOT EXISTS id uuid;
 ALTER TABLE IF EXISTS public.email_bounces ADD COLUMN IF NOT EXISTS tenant_id uuid;
 ALTER TABLE IF EXISTS public.email_bounces ADD COLUMN IF NOT EXISTS email text;
@@ -4889,10 +4654,7 @@ CREATE TABLE IF NOT EXISTS public.email_domain_daily (
   sent_count int NOT NULL DEFAULT 0,
   PRIMARY KEY(day, tenant_id, domain)
 );
--- LeadX additive schema compatibility sweep: reconcile pre-existing table shapes.
--- CREATE TABLE IF NOT EXISTS does not alter legacy tables. Missing columns are added
--- before downstream indexes/views/functions reference them. Constraints remain defined by
--- the canonical CREATE TABLE on clean installs; existing installs keep their data intact.
+-- LeadX compatibility sweep: reconcile legacy table shapes before downstream statements.
 ALTER TABLE IF EXISTS public.email_domain_daily ADD COLUMN IF NOT EXISTS day date;
 ALTER TABLE IF EXISTS public.email_domain_daily ADD COLUMN IF NOT EXISTS tenant_id uuid;
 ALTER TABLE IF EXISTS public.email_domain_daily ADD COLUMN IF NOT EXISTS domain text;
@@ -4908,10 +4670,7 @@ CREATE TABLE IF NOT EXISTS public.domain_warmup (
   paused boolean NOT NULL DEFAULT false,
   PRIMARY KEY(tenant_id, domain)
 );
--- LeadX additive schema compatibility sweep: reconcile pre-existing table shapes.
--- CREATE TABLE IF NOT EXISTS does not alter legacy tables. Missing columns are added
--- before downstream indexes/views/functions reference them. Constraints remain defined by
--- the canonical CREATE TABLE on clean installs; existing installs keep their data intact.
+-- LeadX compatibility sweep: reconcile legacy table shapes before downstream statements.
 ALTER TABLE IF EXISTS public.domain_warmup ADD COLUMN IF NOT EXISTS tenant_id uuid;
 ALTER TABLE IF EXISTS public.domain_warmup ADD COLUMN IF NOT EXISTS domain text;
 ALTER TABLE IF EXISTS public.domain_warmup ADD COLUMN IF NOT EXISTS started_on date;
@@ -4986,10 +4745,7 @@ CREATE TABLE IF NOT EXISTS discovery_requests (
   created_at timestamptz NOT NULL DEFAULT now(),
   updated_at timestamptz NOT NULL DEFAULT now()
 );
--- LeadX additive schema compatibility sweep: reconcile pre-existing table shapes.
--- CREATE TABLE IF NOT EXISTS does not alter legacy tables. Missing columns are added
--- before downstream indexes/views/functions reference them. Constraints remain defined by
--- the canonical CREATE TABLE on clean installs; existing installs keep their data intact.
+-- LeadX compatibility sweep: reconcile legacy table shapes before downstream statements.
 ALTER TABLE IF EXISTS public.discovery_requests ADD COLUMN IF NOT EXISTS id uuid;
 ALTER TABLE IF EXISTS public.discovery_requests ADD COLUMN IF NOT EXISTS tenant_id uuid;
 ALTER TABLE IF EXISTS public.discovery_requests ADD COLUMN IF NOT EXISTS icp_id uuid;
@@ -5039,10 +4795,7 @@ CREATE TABLE IF NOT EXISTS global_discovery_coverage (
   meta jsonb NOT NULL DEFAULT '{}',
   UNIQUE(vertical_key, source, location_key, query_key)
 );
--- LeadX additive schema compatibility sweep: reconcile pre-existing table shapes.
--- CREATE TABLE IF NOT EXISTS does not alter legacy tables. Missing columns are added
--- before downstream indexes/views/functions reference them. Constraints remain defined by
--- the canonical CREATE TABLE on clean installs; existing installs keep their data intact.
+-- LeadX compatibility sweep: reconcile legacy table shapes before downstream statements.
 ALTER TABLE IF EXISTS public.global_discovery_coverage ADD COLUMN IF NOT EXISTS id uuid;
 ALTER TABLE IF EXISTS public.global_discovery_coverage ADD COLUMN IF NOT EXISTS vertical_key text;
 ALTER TABLE IF EXISTS public.global_discovery_coverage ADD COLUMN IF NOT EXISTS source text;
@@ -5239,10 +4992,7 @@ CREATE TABLE IF NOT EXISTS lead_evidence (
   is_current boolean NOT NULL DEFAULT true,
   created_at timestamptz NOT NULL DEFAULT now()
 );
--- LeadX additive schema compatibility sweep: reconcile pre-existing table shapes.
--- CREATE TABLE IF NOT EXISTS does not alter legacy tables. Missing columns are added
--- before downstream indexes/views/functions reference them. Constraints remain defined by
--- the canonical CREATE TABLE on clean installs; existing installs keep their data intact.
+-- LeadX compatibility sweep: reconcile legacy table shapes before downstream statements.
 ALTER TABLE IF EXISTS public.lead_evidence ADD COLUMN IF NOT EXISTS id uuid;
 ALTER TABLE IF EXISTS public.lead_evidence ADD COLUMN IF NOT EXISTS lead_id uuid;
 ALTER TABLE IF EXISTS public.lead_evidence ADD COLUMN IF NOT EXISTS tenant_id uuid;
@@ -5287,10 +5037,7 @@ CREATE TABLE IF NOT EXISTS lead_observations (
   observed_at timestamptz NOT NULL DEFAULT now(),
   created_at timestamptz NOT NULL DEFAULT now()
 );
--- LeadX additive schema compatibility sweep: reconcile pre-existing table shapes.
--- CREATE TABLE IF NOT EXISTS does not alter legacy tables. Missing columns are added
--- before downstream indexes/views/functions reference them. Constraints remain defined by
--- the canonical CREATE TABLE on clean installs; existing installs keep their data intact.
+-- LeadX compatibility sweep: reconcile legacy table shapes before downstream statements.
 ALTER TABLE IF EXISTS public.lead_observations ADD COLUMN IF NOT EXISTS id uuid;
 ALTER TABLE IF EXISTS public.lead_observations ADD COLUMN IF NOT EXISTS lead_id uuid;
 ALTER TABLE IF EXISTS public.lead_observations ADD COLUMN IF NOT EXISTS field_name text;
@@ -5317,10 +5064,7 @@ CREATE TABLE IF NOT EXISTS lead_score_versions (
   evidence_ids uuid[] NOT NULL DEFAULT '{}',
   created_at timestamptz NOT NULL DEFAULT now()
 );
--- LeadX additive schema compatibility sweep: reconcile pre-existing table shapes.
--- CREATE TABLE IF NOT EXISTS does not alter legacy tables. Missing columns are added
--- before downstream indexes/views/functions reference them. Constraints remain defined by
--- the canonical CREATE TABLE on clean installs; existing installs keep their data intact.
+-- LeadX compatibility sweep: reconcile legacy table shapes before downstream statements.
 ALTER TABLE IF EXISTS public.lead_score_versions ADD COLUMN IF NOT EXISTS id uuid;
 ALTER TABLE IF EXISTS public.lead_score_versions ADD COLUMN IF NOT EXISTS lead_id uuid;
 ALTER TABLE IF EXISTS public.lead_score_versions ADD COLUMN IF NOT EXISTS model_version text;
@@ -5347,10 +5091,7 @@ CREATE TABLE IF NOT EXISTS lead_refresh_state (
   last_result jsonb NOT NULL DEFAULT '{}',
   updated_at timestamptz NOT NULL DEFAULT now()
 );
--- LeadX additive schema compatibility sweep: reconcile pre-existing table shapes.
--- CREATE TABLE IF NOT EXISTS does not alter legacy tables. Missing columns are added
--- before downstream indexes/views/functions reference them. Constraints remain defined by
--- the canonical CREATE TABLE on clean installs; existing installs keep their data intact.
+-- LeadX compatibility sweep: reconcile legacy table shapes before downstream statements.
 ALTER TABLE IF EXISTS public.lead_refresh_state ADD COLUMN IF NOT EXISTS lead_id uuid;
 ALTER TABLE IF EXISTS public.lead_refresh_state ADD COLUMN IF NOT EXISTS last_refreshed_at timestamptz;
 ALTER TABLE IF EXISTS public.lead_refresh_state ADD COLUMN IF NOT EXISTS next_refresh_at timestamptz;
@@ -5378,10 +5119,7 @@ CREATE TABLE IF NOT EXISTS saved_searches (
   created_at timestamptz NOT NULL DEFAULT now(),
   updated_at timestamptz NOT NULL DEFAULT now()
 );
--- LeadX additive schema compatibility sweep: reconcile pre-existing table shapes.
--- CREATE TABLE IF NOT EXISTS does not alter legacy tables. Missing columns are added
--- before downstream indexes/views/functions reference them. Constraints remain defined by
--- the canonical CREATE TABLE on clean installs; existing installs keep their data intact.
+-- LeadX compatibility sweep: reconcile legacy table shapes before downstream statements.
 ALTER TABLE IF EXISTS public.saved_searches ADD COLUMN IF NOT EXISTS id uuid;
 ALTER TABLE IF EXISTS public.saved_searches ADD COLUMN IF NOT EXISTS tenant_id uuid;
 ALTER TABLE IF EXISTS public.saved_searches ADD COLUMN IF NOT EXISTS name text;
@@ -5414,10 +5152,7 @@ CREATE TABLE IF NOT EXISTS workflow_rules (
   created_at timestamptz NOT NULL DEFAULT now(),
   updated_at timestamptz NOT NULL DEFAULT now()
 );
--- LeadX additive schema compatibility sweep: reconcile pre-existing table shapes.
--- CREATE TABLE IF NOT EXISTS does not alter legacy tables. Missing columns are added
--- before downstream indexes/views/functions reference them. Constraints remain defined by
--- the canonical CREATE TABLE on clean installs; existing installs keep their data intact.
+-- LeadX compatibility sweep: reconcile legacy table shapes before downstream statements.
 ALTER TABLE IF EXISTS public.workflow_rules ADD COLUMN IF NOT EXISTS id uuid;
 ALTER TABLE IF EXISTS public.workflow_rules ADD COLUMN IF NOT EXISTS tenant_id uuid;
 ALTER TABLE IF EXISTS public.workflow_rules ADD COLUMN IF NOT EXISTS name text;
@@ -5446,10 +5181,7 @@ CREATE TABLE IF NOT EXISTS workflow_runs (
   created_at timestamptz NOT NULL DEFAULT now(),
   finished_at timestamptz
 );
--- LeadX additive schema compatibility sweep: reconcile pre-existing table shapes.
--- CREATE TABLE IF NOT EXISTS does not alter legacy tables. Missing columns are added
--- before downstream indexes/views/functions reference them. Constraints remain defined by
--- the canonical CREATE TABLE on clean installs; existing installs keep their data intact.
+-- LeadX compatibility sweep: reconcile legacy table shapes before downstream statements.
 ALTER TABLE IF EXISTS public.workflow_runs ADD COLUMN IF NOT EXISTS id uuid;
 ALTER TABLE IF EXISTS public.workflow_runs ADD COLUMN IF NOT EXISTS workflow_id uuid;
 ALTER TABLE IF EXISTS public.workflow_runs ADD COLUMN IF NOT EXISTS tenant_id uuid;
@@ -5477,10 +5209,7 @@ CREATE TABLE IF NOT EXISTS provider_usage_daily (
   metadata jsonb NOT NULL DEFAULT '{}',
   PRIMARY KEY(day, provider, operation, tenant_id)
 );
--- LeadX additive schema compatibility sweep: reconcile pre-existing table shapes.
--- CREATE TABLE IF NOT EXISTS does not alter legacy tables. Missing columns are added
--- before downstream indexes/views/functions reference them. Constraints remain defined by
--- the canonical CREATE TABLE on clean installs; existing installs keep their data intact.
+-- LeadX compatibility sweep: reconcile legacy table shapes before downstream statements.
 ALTER TABLE IF EXISTS public.provider_usage_daily ADD COLUMN IF NOT EXISTS day date;
 ALTER TABLE IF EXISTS public.provider_usage_daily ADD COLUMN IF NOT EXISTS provider text;
 ALTER TABLE IF EXISTS public.provider_usage_daily ADD COLUMN IF NOT EXISTS operation text;
@@ -5527,10 +5256,7 @@ CREATE TABLE IF NOT EXISTS autonomous_campaigns (
   created_at timestamptz NOT NULL DEFAULT now(),
   updated_at timestamptz NOT NULL DEFAULT now()
 );
--- LeadX additive schema compatibility sweep: reconcile pre-existing table shapes.
--- CREATE TABLE IF NOT EXISTS does not alter legacy tables. Missing columns are added
--- before downstream indexes/views/functions reference them. Constraints remain defined by
--- the canonical CREATE TABLE on clean installs; existing installs keep their data intact.
+-- LeadX compatibility sweep: reconcile legacy table shapes before downstream statements.
 ALTER TABLE IF EXISTS public.autonomous_campaigns ADD COLUMN IF NOT EXISTS id uuid;
 ALTER TABLE IF EXISTS public.autonomous_campaigns ADD COLUMN IF NOT EXISTS tenant_id uuid;
 ALTER TABLE IF EXISTS public.autonomous_campaigns ADD COLUMN IF NOT EXISTS name text;
@@ -5578,10 +5304,7 @@ CREATE TABLE IF NOT EXISTS autonomous_campaign_daily (
   updated_at timestamptz NOT NULL DEFAULT now(),
   PRIMARY KEY(campaign_id, day)
 );
--- LeadX additive schema compatibility sweep: reconcile pre-existing table shapes.
--- CREATE TABLE IF NOT EXISTS does not alter legacy tables. Missing columns are added
--- before downstream indexes/views/functions reference them. Constraints remain defined by
--- the canonical CREATE TABLE on clean installs; existing installs keep their data intact.
+-- LeadX compatibility sweep: reconcile legacy table shapes before downstream statements.
 ALTER TABLE IF EXISTS public.autonomous_campaign_daily ADD COLUMN IF NOT EXISTS campaign_id uuid;
 ALTER TABLE IF EXISTS public.autonomous_campaign_daily ADD COLUMN IF NOT EXISTS day date;
 ALTER TABLE IF EXISTS public.autonomous_campaign_daily ADD COLUMN IF NOT EXISTS leads_discovered int;
@@ -5619,10 +5342,7 @@ CREATE TABLE IF NOT EXISTS campaign_email_copies (
   created_at timestamptz NOT NULL DEFAULT now(),
   UNIQUE(campaign_id, assignment_id, step_number)
 );
--- LeadX additive schema compatibility sweep: reconcile pre-existing table shapes.
--- CREATE TABLE IF NOT EXISTS does not alter legacy tables. Missing columns are added
--- before downstream indexes/views/functions reference them. Constraints remain defined by
--- the canonical CREATE TABLE on clean installs; existing installs keep their data intact.
+-- LeadX compatibility sweep: reconcile legacy table shapes before downstream statements.
 ALTER TABLE IF EXISTS public.campaign_email_copies ADD COLUMN IF NOT EXISTS id uuid;
 ALTER TABLE IF EXISTS public.campaign_email_copies ADD COLUMN IF NOT EXISTS campaign_id uuid;
 ALTER TABLE IF EXISTS public.campaign_email_copies ADD COLUMN IF NOT EXISTS enrollment_id uuid;
@@ -5651,10 +5371,7 @@ CREATE TABLE IF NOT EXISTS lead_feedback (
   created_by text,
   created_at timestamptz NOT NULL DEFAULT now()
 );
--- LeadX additive schema compatibility sweep: reconcile pre-existing table shapes.
--- CREATE TABLE IF NOT EXISTS does not alter legacy tables. Missing columns are added
--- before downstream indexes/views/functions reference them. Constraints remain defined by
--- the canonical CREATE TABLE on clean installs; existing installs keep their data intact.
+-- LeadX compatibility sweep: reconcile legacy table shapes before downstream statements.
 ALTER TABLE IF EXISTS public.lead_feedback ADD COLUMN IF NOT EXISTS id uuid;
 ALTER TABLE IF EXISTS public.lead_feedback ADD COLUMN IF NOT EXISTS tenant_id uuid;
 ALTER TABLE IF EXISTS public.lead_feedback ADD COLUMN IF NOT EXISTS lead_id uuid;
@@ -5728,10 +5445,7 @@ CREATE TABLE IF NOT EXISTS worker_heartbeats (
   observed_at timestamptz NOT NULL DEFAULT now(),
   updated_at timestamptz NOT NULL DEFAULT now()
 );
--- LeadX additive schema compatibility sweep: reconcile pre-existing table shapes.
--- CREATE TABLE IF NOT EXISTS does not alter legacy tables. Missing columns are added
--- before downstream indexes/views/functions reference them. Constraints remain defined by
--- the canonical CREATE TABLE on clean installs; existing installs keep their data intact.
+-- LeadX compatibility sweep: reconcile legacy table shapes before downstream statements.
 ALTER TABLE IF EXISTS public.worker_heartbeats ADD COLUMN IF NOT EXISTS worker_id text;
 ALTER TABLE IF EXISTS public.worker_heartbeats ADD COLUMN IF NOT EXISTS kinds text[];
 ALTER TABLE IF EXISTS public.worker_heartbeats ADD COLUMN IF NOT EXISTS capacity integer;
@@ -5754,10 +5468,7 @@ CREATE TABLE IF NOT EXISTS operation_idempotency (
   created_at timestamptz NOT NULL DEFAULT now(),
   UNIQUE(idempotency_key, operation)
 );
--- LeadX additive schema compatibility sweep: reconcile pre-existing table shapes.
--- CREATE TABLE IF NOT EXISTS does not alter legacy tables. Missing columns are added
--- before downstream indexes/views/functions reference them. Constraints remain defined by
--- the canonical CREATE TABLE on clean installs; existing installs keep their data intact.
+-- LeadX compatibility sweep: reconcile legacy table shapes before downstream statements.
 ALTER TABLE IF EXISTS public.operation_idempotency ADD COLUMN IF NOT EXISTS id uuid;
 ALTER TABLE IF EXISTS public.operation_idempotency ADD COLUMN IF NOT EXISTS idempotency_key text;
 ALTER TABLE IF EXISTS public.operation_idempotency ADD COLUMN IF NOT EXISTS operation text;
@@ -5782,10 +5493,7 @@ CREATE TABLE IF NOT EXISTS delivery_outbox (
   last_error text,
   created_at timestamptz NOT NULL DEFAULT now()
 );
--- LeadX additive schema compatibility sweep: reconcile pre-existing table shapes.
--- CREATE TABLE IF NOT EXISTS does not alter legacy tables. Missing columns are added
--- before downstream indexes/views/functions reference them. Constraints remain defined by
--- the canonical CREATE TABLE on clean installs; existing installs keep their data intact.
+-- LeadX compatibility sweep: reconcile legacy table shapes before downstream statements.
 ALTER TABLE IF EXISTS public.delivery_outbox ADD COLUMN IF NOT EXISTS id uuid;
 ALTER TABLE IF EXISTS public.delivery_outbox ADD COLUMN IF NOT EXISTS tenant_id uuid;
 ALTER TABLE IF EXISTS public.delivery_outbox ADD COLUMN IF NOT EXISTS event_type text;
@@ -5815,10 +5523,7 @@ CREATE TABLE IF NOT EXISTS lead_ai_briefs (
   confidence numeric(5,4),
   created_at timestamptz NOT NULL DEFAULT now()
 );
--- LeadX additive schema compatibility sweep: reconcile pre-existing table shapes.
--- CREATE TABLE IF NOT EXISTS does not alter legacy tables. Missing columns are added
--- before downstream indexes/views/functions reference them. Constraints remain defined by
--- the canonical CREATE TABLE on clean installs; existing installs keep their data intact.
+-- LeadX compatibility sweep: reconcile legacy table shapes before downstream statements.
 ALTER TABLE IF EXISTS public.lead_ai_briefs ADD COLUMN IF NOT EXISTS id uuid;
 ALTER TABLE IF EXISTS public.lead_ai_briefs ADD COLUMN IF NOT EXISTS tenant_id uuid;
 ALTER TABLE IF EXISTS public.lead_ai_briefs ADD COLUMN IF NOT EXISTS lead_id uuid;
@@ -5843,10 +5548,7 @@ CREATE TABLE IF NOT EXISTS intelligence_feedback (
   metadata jsonb NOT NULL DEFAULT '{}',
   created_at timestamptz NOT NULL DEFAULT now()
 );
--- LeadX additive schema compatibility sweep: reconcile pre-existing table shapes.
--- CREATE TABLE IF NOT EXISTS does not alter legacy tables. Missing columns are added
--- before downstream indexes/views/functions reference them. Constraints remain defined by
--- the canonical CREATE TABLE on clean installs; existing installs keep their data intact.
+-- LeadX compatibility sweep: reconcile legacy table shapes before downstream statements.
 ALTER TABLE IF EXISTS public.intelligence_feedback ADD COLUMN IF NOT EXISTS id uuid;
 ALTER TABLE IF EXISTS public.intelligence_feedback ADD COLUMN IF NOT EXISTS tenant_id uuid;
 ALTER TABLE IF EXISTS public.intelligence_feedback ADD COLUMN IF NOT EXISTS lead_id uuid;
@@ -5873,10 +5575,7 @@ CREATE TABLE IF NOT EXISTS revenue_funnel_events (
   occurred_at timestamptz NOT NULL DEFAULT now(),
   created_at timestamptz NOT NULL DEFAULT now()
 );
--- LeadX additive schema compatibility sweep: reconcile pre-existing table shapes.
--- CREATE TABLE IF NOT EXISTS does not alter legacy tables. Missing columns are added
--- before downstream indexes/views/functions reference them. Constraints remain defined by
--- the canonical CREATE TABLE on clean installs; existing installs keep their data intact.
+-- LeadX compatibility sweep: reconcile legacy table shapes before downstream statements.
 ALTER TABLE IF EXISTS public.revenue_funnel_events ADD COLUMN IF NOT EXISTS id uuid;
 ALTER TABLE IF EXISTS public.revenue_funnel_events ADD COLUMN IF NOT EXISTS tenant_id uuid;
 ALTER TABLE IF EXISTS public.revenue_funnel_events ADD COLUMN IF NOT EXISTS lead_id uuid;
@@ -5905,10 +5604,7 @@ CREATE TABLE IF NOT EXISTS revenue_attribution (
   metadata jsonb NOT NULL DEFAULT '{}',
   created_at timestamptz NOT NULL DEFAULT now()
 );
--- LeadX additive schema compatibility sweep: reconcile pre-existing table shapes.
--- CREATE TABLE IF NOT EXISTS does not alter legacy tables. Missing columns are added
--- before downstream indexes/views/functions reference them. Constraints remain defined by
--- the canonical CREATE TABLE on clean installs; existing installs keep their data intact.
+-- LeadX compatibility sweep: reconcile legacy table shapes before downstream statements.
 ALTER TABLE IF EXISTS public.revenue_attribution ADD COLUMN IF NOT EXISTS id uuid;
 ALTER TABLE IF EXISTS public.revenue_attribution ADD COLUMN IF NOT EXISTS tenant_id uuid;
 ALTER TABLE IF EXISTS public.revenue_attribution ADD COLUMN IF NOT EXISTS deal_id uuid;
@@ -5939,10 +5635,7 @@ CREATE TABLE IF NOT EXISTS learning_snapshots (
   lookalike_queries jsonb NOT NULL DEFAULT '[]',
   created_at timestamptz NOT NULL DEFAULT now()
 );
--- LeadX additive schema compatibility sweep: reconcile pre-existing table shapes.
--- CREATE TABLE IF NOT EXISTS does not alter legacy tables. Missing columns are added
--- before downstream indexes/views/functions reference them. Constraints remain defined by
--- the canonical CREATE TABLE on clean installs; existing installs keep their data intact.
+-- LeadX compatibility sweep: reconcile legacy table shapes before downstream statements.
 ALTER TABLE IF EXISTS public.learning_snapshots ADD COLUMN IF NOT EXISTS id uuid;
 ALTER TABLE IF EXISTS public.learning_snapshots ADD COLUMN IF NOT EXISTS tenant_id uuid;
 ALTER TABLE IF EXISTS public.learning_snapshots ADD COLUMN IF NOT EXISTS model_version text;
@@ -5966,10 +5659,7 @@ CREATE TABLE IF NOT EXISTS workspace_preferences (
   default_view text NOT NULL DEFAULT 'command_center',
   updated_at timestamptz NOT NULL DEFAULT now()
 );
--- LeadX additive schema compatibility sweep: reconcile pre-existing table shapes.
--- CREATE TABLE IF NOT EXISTS does not alter legacy tables. Missing columns are added
--- before downstream indexes/views/functions reference them. Constraints remain defined by
--- the canonical CREATE TABLE on clean installs; existing installs keep their data intact.
+-- LeadX compatibility sweep: reconcile legacy table shapes before downstream statements.
 ALTER TABLE IF EXISTS public.workspace_preferences ADD COLUMN IF NOT EXISTS tenant_id uuid;
 ALTER TABLE IF EXISTS public.workspace_preferences ADD COLUMN IF NOT EXISTS dashboard_layout jsonb;
 ALTER TABLE IF EXISTS public.workspace_preferences ADD COLUMN IF NOT EXISTS density text;
@@ -5995,10 +5685,7 @@ CREATE TABLE IF NOT EXISTS platform_admins (
   created_at timestamptz NOT NULL DEFAULT now(),
   updated_at timestamptz NOT NULL DEFAULT now()
 );
--- LeadX additive schema compatibility sweep: reconcile pre-existing table shapes.
--- CREATE TABLE IF NOT EXISTS does not alter legacy tables. Missing columns are added
--- before downstream indexes/views/functions reference them. Constraints remain defined by
--- the canonical CREATE TABLE on clean installs; existing installs keep their data intact.
+-- LeadX compatibility sweep: reconcile legacy table shapes before downstream statements.
 ALTER TABLE IF EXISTS public.platform_admins ADD COLUMN IF NOT EXISTS user_id uuid;
 ALTER TABLE IF EXISTS public.platform_admins ADD COLUMN IF NOT EXISTS email text;
 ALTER TABLE IF EXISTS public.platform_admins ADD COLUMN IF NOT EXISTS role text;
@@ -6022,10 +5709,7 @@ CREATE TABLE IF NOT EXISTS audit_log (
   user_agent text,
   created_at timestamptz NOT NULL DEFAULT now()
 );
--- LeadX additive schema compatibility sweep: reconcile pre-existing table shapes.
--- CREATE TABLE IF NOT EXISTS does not alter legacy tables. Missing columns are added
--- before downstream indexes/views/functions reference them. Constraints remain defined by
--- the canonical CREATE TABLE on clean installs; existing installs keep their data intact.
+-- LeadX compatibility sweep: reconcile legacy table shapes before downstream statements.
 ALTER TABLE IF EXISTS public.audit_log ADD COLUMN IF NOT EXISTS id uuid;
 ALTER TABLE IF EXISTS public.audit_log ADD COLUMN IF NOT EXISTS actor_id text;
 ALTER TABLE IF EXISTS public.audit_log ADD COLUMN IF NOT EXISTS actor_type text;
@@ -6071,10 +5755,7 @@ CREATE TABLE IF NOT EXISTS security_events (
   metadata jsonb NOT NULL DEFAULT '{}',
   created_at timestamptz NOT NULL DEFAULT now()
 );
--- LeadX additive schema compatibility sweep: reconcile pre-existing table shapes.
--- CREATE TABLE IF NOT EXISTS does not alter legacy tables. Missing columns are added
--- before downstream indexes/views/functions reference them. Constraints remain defined by
--- the canonical CREATE TABLE on clean installs; existing installs keep their data intact.
+-- LeadX compatibility sweep: reconcile legacy table shapes before downstream statements.
 ALTER TABLE IF EXISTS public.security_events ADD COLUMN IF NOT EXISTS id uuid;
 ALTER TABLE IF EXISTS public.security_events ADD COLUMN IF NOT EXISTS severity text;
 ALTER TABLE IF EXISTS public.security_events ADD COLUMN IF NOT EXISTS event_type text;
@@ -6097,10 +5778,7 @@ CREATE TABLE IF NOT EXISTS queue_metrics (
   throughput_per_minute numeric(12,2) NOT NULL DEFAULT 0,
   captured_at timestamptz NOT NULL DEFAULT now()
 );
--- LeadX additive schema compatibility sweep: reconcile pre-existing table shapes.
--- CREATE TABLE IF NOT EXISTS does not alter legacy tables. Missing columns are added
--- before downstream indexes/views/functions reference them. Constraints remain defined by
--- the canonical CREATE TABLE on clean installs; existing installs keep their data intact.
+-- LeadX compatibility sweep: reconcile legacy table shapes before downstream statements.
 ALTER TABLE IF EXISTS public.queue_metrics ADD COLUMN IF NOT EXISTS id uuid;
 ALTER TABLE IF EXISTS public.queue_metrics ADD COLUMN IF NOT EXISTS queue_name text;
 ALTER TABLE IF EXISTS public.queue_metrics ADD COLUMN IF NOT EXISTS queued integer;
@@ -6125,10 +5803,7 @@ CREATE TABLE IF NOT EXISTS provider_health (
   observed_at timestamptz NOT NULL DEFAULT now(),
   UNIQUE(provider,operation)
 );
--- LeadX additive schema compatibility sweep: reconcile pre-existing table shapes.
--- CREATE TABLE IF NOT EXISTS does not alter legacy tables. Missing columns are added
--- before downstream indexes/views/functions reference them. Constraints remain defined by
--- the canonical CREATE TABLE on clean installs; existing installs keep their data intact.
+-- LeadX compatibility sweep: reconcile legacy table shapes before downstream statements.
 ALTER TABLE IF EXISTS public.provider_health ADD COLUMN IF NOT EXISTS id uuid;
 ALTER TABLE IF EXISTS public.provider_health ADD COLUMN IF NOT EXISTS provider text;
 ALTER TABLE IF EXISTS public.provider_health ADD COLUMN IF NOT EXISTS operation text;
@@ -6159,10 +5834,7 @@ CREATE TABLE IF NOT EXISTS data_lineage (
   confidence numeric(6,5),
   metadata jsonb NOT NULL DEFAULT '{}'
 );
--- LeadX additive schema compatibility sweep: reconcile pre-existing table shapes.
--- CREATE TABLE IF NOT EXISTS does not alter legacy tables. Missing columns are added
--- before downstream indexes/views/functions reference them. Constraints remain defined by
--- the canonical CREATE TABLE on clean installs; existing installs keep their data intact.
+-- LeadX compatibility sweep: reconcile legacy table shapes before downstream statements.
 ALTER TABLE IF EXISTS public.data_lineage ADD COLUMN IF NOT EXISTS id uuid;
 ALTER TABLE IF EXISTS public.data_lineage ADD COLUMN IF NOT EXISTS tenant_id uuid;
 ALTER TABLE IF EXISTS public.data_lineage ADD COLUMN IF NOT EXISTS entity_type text;
@@ -6196,10 +5868,7 @@ CREATE TABLE IF NOT EXISTS lead_signals (
   evidence jsonb NOT NULL DEFAULT '{}',
   status text NOT NULL DEFAULT 'active'
 );
--- LeadX additive schema compatibility sweep: reconcile pre-existing table shapes.
--- CREATE TABLE IF NOT EXISTS does not alter legacy tables. Missing columns are added
--- before downstream indexes/views/functions reference them. Constraints remain defined by
--- the canonical CREATE TABLE on clean installs; existing installs keep their data intact.
+-- LeadX compatibility sweep: reconcile legacy table shapes before downstream statements.
 ALTER TABLE IF EXISTS public.lead_signals ADD COLUMN IF NOT EXISTS id uuid;
 ALTER TABLE IF EXISTS public.lead_signals ADD COLUMN IF NOT EXISTS tenant_id uuid;
 ALTER TABLE IF EXISTS public.lead_signals ADD COLUMN IF NOT EXISTS lead_id uuid;
@@ -6240,10 +5909,7 @@ CREATE TABLE IF NOT EXISTS lead_opportunities (
   created_at timestamptz NOT NULL DEFAULT now(),
   updated_at timestamptz NOT NULL DEFAULT now()
 );
--- LeadX additive schema compatibility sweep: reconcile pre-existing table shapes.
--- CREATE TABLE IF NOT EXISTS does not alter legacy tables. Missing columns are added
--- before downstream indexes/views/functions reference them. Constraints remain defined by
--- the canonical CREATE TABLE on clean installs; existing installs keep their data intact.
+-- LeadX compatibility sweep: reconcile legacy table shapes before downstream statements.
 ALTER TABLE IF EXISTS public.lead_opportunities ADD COLUMN IF NOT EXISTS id uuid;
 ALTER TABLE IF EXISTS public.lead_opportunities ADD COLUMN IF NOT EXISTS tenant_id uuid;
 ALTER TABLE IF EXISTS public.lead_opportunities ADD COLUMN IF NOT EXISTS lead_id uuid;
@@ -6278,10 +5944,7 @@ CREATE TABLE IF NOT EXISTS contact_graph_edges (
   evidence jsonb NOT NULL DEFAULT '{}',
   observed_at timestamptz NOT NULL DEFAULT now()
 );
--- LeadX additive schema compatibility sweep: reconcile pre-existing table shapes.
--- CREATE TABLE IF NOT EXISTS does not alter legacy tables. Missing columns are added
--- before downstream indexes/views/functions reference them. Constraints remain defined by
--- the canonical CREATE TABLE on clean installs; existing installs keep their data intact.
+-- LeadX compatibility sweep: reconcile legacy table shapes before downstream statements.
 ALTER TABLE IF EXISTS public.contact_graph_edges ADD COLUMN IF NOT EXISTS id uuid;
 ALTER TABLE IF EXISTS public.contact_graph_edges ADD COLUMN IF NOT EXISTS tenant_id uuid;
 ALTER TABLE IF EXISTS public.contact_graph_edges ADD COLUMN IF NOT EXISTS company_id uuid;
@@ -6289,7 +5952,7 @@ ALTER TABLE IF EXISTS public.contact_graph_edges ADD COLUMN IF NOT EXISTS contac
 ALTER TABLE IF EXISTS public.contact_graph_edges ADD COLUMN IF NOT EXISTS role text;
 ALTER TABLE IF EXISTS public.contact_graph_edges ADD COLUMN IF NOT EXISTS influence numeric(6,2);
 ALTER TABLE IF EXISTS public.contact_graph_edges ADD COLUMN IF NOT EXISTS authority numeric(6,2);
-ALTER TABLE IF EXISTS public.contact_graph_edges ADD COLUMN IF NOT EXISTS confidence numeric(6,5) DEFAULT 0.5;
+ALTER TABLE IF EXISTS public.contact_graph_edges ADD COLUMN IF NOT EXISTS confidence numeric(6,5);
 ALTER TABLE IF EXISTS public.contact_graph_edges ADD COLUMN IF NOT EXISTS evidence jsonb;
 ALTER TABLE IF EXISTS public.contact_graph_edges ADD COLUMN IF NOT EXISTS observed_at timestamptz;
 
@@ -6311,17 +5974,14 @@ CREATE TABLE IF NOT EXISTS company_change_events (
   source text,
   observed_at timestamptz NOT NULL DEFAULT now()
 );
--- LeadX additive schema compatibility sweep: reconcile pre-existing table shapes.
--- CREATE TABLE IF NOT EXISTS does not alter legacy tables. Missing columns are added
--- before downstream indexes/views/functions reference them. Constraints remain defined by
--- the canonical CREATE TABLE on clean installs; existing installs keep their data intact.
+-- LeadX compatibility sweep: reconcile legacy table shapes before downstream statements.
 ALTER TABLE IF EXISTS public.company_change_events ADD COLUMN IF NOT EXISTS id uuid;
 ALTER TABLE IF EXISTS public.company_change_events ADD COLUMN IF NOT EXISTS tenant_id uuid;
 ALTER TABLE IF EXISTS public.company_change_events ADD COLUMN IF NOT EXISTS lead_id uuid;
 ALTER TABLE IF EXISTS public.company_change_events ADD COLUMN IF NOT EXISTS event_type text;
 ALTER TABLE IF EXISTS public.company_change_events ADD COLUMN IF NOT EXISTS before_value jsonb;
 ALTER TABLE IF EXISTS public.company_change_events ADD COLUMN IF NOT EXISTS after_value jsonb;
-ALTER TABLE IF EXISTS public.company_change_events ADD COLUMN IF NOT EXISTS confidence numeric(6,5) DEFAULT 0.5;
+ALTER TABLE IF EXISTS public.company_change_events ADD COLUMN IF NOT EXISTS confidence numeric(6,5);
 ALTER TABLE IF EXISTS public.company_change_events ADD COLUMN IF NOT EXISTS source text;
 ALTER TABLE IF EXISTS public.company_change_events ADD COLUMN IF NOT EXISTS observed_at timestamptz;
 
@@ -6348,10 +6008,7 @@ CREATE TABLE IF NOT EXISTS website_audits (
   evidence jsonb NOT NULL DEFAULT '[]',
   created_at timestamptz NOT NULL DEFAULT now()
 );
--- LeadX additive schema compatibility sweep: reconcile pre-existing table shapes.
--- CREATE TABLE IF NOT EXISTS does not alter legacy tables. Missing columns are added
--- before downstream indexes/views/functions reference them. Constraints remain defined by
--- the canonical CREATE TABLE on clean installs; existing installs keep their data intact.
+-- LeadX compatibility sweep: reconcile legacy table shapes before downstream statements.
 ALTER TABLE IF EXISTS public.website_audits ADD COLUMN IF NOT EXISTS id uuid;
 ALTER TABLE IF EXISTS public.website_audits ADD COLUMN IF NOT EXISTS tenant_id uuid;
 ALTER TABLE IF EXISTS public.website_audits ADD COLUMN IF NOT EXISTS lead_id uuid;
@@ -6379,15 +6036,12 @@ CREATE TABLE IF NOT EXISTS technographics (
   observed_at timestamptz NOT NULL DEFAULT now(),
   UNIQUE(lead_id,technology)
 );
--- LeadX additive schema compatibility sweep: reconcile pre-existing table shapes.
--- CREATE TABLE IF NOT EXISTS does not alter legacy tables. Missing columns are added
--- before downstream indexes/views/functions reference them. Constraints remain defined by
--- the canonical CREATE TABLE on clean installs; existing installs keep their data intact.
+-- LeadX compatibility sweep: reconcile legacy table shapes before downstream statements.
 ALTER TABLE IF EXISTS public.technographics ADD COLUMN IF NOT EXISTS id uuid;
 ALTER TABLE IF EXISTS public.technographics ADD COLUMN IF NOT EXISTS lead_id uuid;
 ALTER TABLE IF EXISTS public.technographics ADD COLUMN IF NOT EXISTS technology text;
 ALTER TABLE IF EXISTS public.technographics ADD COLUMN IF NOT EXISTS category text;
-ALTER TABLE IF EXISTS public.technographics ADD COLUMN IF NOT EXISTS confidence numeric(6,5) DEFAULT 0.5;
+ALTER TABLE IF EXISTS public.technographics ADD COLUMN IF NOT EXISTS confidence numeric(6,5);
 ALTER TABLE IF EXISTS public.technographics ADD COLUMN IF NOT EXISTS source text;
 ALTER TABLE IF EXISTS public.technographics ADD COLUMN IF NOT EXISTS observed_at timestamptz;
 
@@ -6410,10 +6064,7 @@ CREATE TABLE IF NOT EXISTS lead_quality_reports (
   created_at timestamptz NOT NULL DEFAULT now(),
   resolved_at timestamptz
 );
--- LeadX additive schema compatibility sweep: reconcile pre-existing table shapes.
--- CREATE TABLE IF NOT EXISTS does not alter legacy tables. Missing columns are added
--- before downstream indexes/views/functions reference them. Constraints remain defined by
--- the canonical CREATE TABLE on clean installs; existing installs keep their data intact.
+-- LeadX compatibility sweep: reconcile legacy table shapes before downstream statements.
 ALTER TABLE IF EXISTS public.lead_quality_reports ADD COLUMN IF NOT EXISTS id uuid;
 ALTER TABLE IF EXISTS public.lead_quality_reports ADD COLUMN IF NOT EXISTS tenant_id uuid;
 ALTER TABLE IF EXISTS public.lead_quality_reports ADD COLUMN IF NOT EXISTS assignment_id uuid;
@@ -6435,10 +6086,7 @@ CREATE TABLE IF NOT EXISTS lead_replacement_events (
   reason text NOT NULL,
   created_at timestamptz NOT NULL DEFAULT now()
 );
--- LeadX additive schema compatibility sweep: reconcile pre-existing table shapes.
--- CREATE TABLE IF NOT EXISTS does not alter legacy tables. Missing columns are added
--- before downstream indexes/views/functions reference them. Constraints remain defined by
--- the canonical CREATE TABLE on clean installs; existing installs keep their data intact.
+-- LeadX compatibility sweep: reconcile legacy table shapes before downstream statements.
 ALTER TABLE IF EXISTS public.lead_replacement_events ADD COLUMN IF NOT EXISTS id uuid;
 ALTER TABLE IF EXISTS public.lead_replacement_events ADD COLUMN IF NOT EXISTS tenant_id uuid;
 ALTER TABLE IF EXISTS public.lead_replacement_events ADD COLUMN IF NOT EXISTS original_assignment_id uuid;
@@ -6461,18 +6109,15 @@ CREATE TABLE IF NOT EXISTS campaign_guardrails (
   updated_at timestamptz NOT NULL DEFAULT now(),
   UNIQUE(campaign_id)
 );
--- LeadX additive schema compatibility sweep: reconcile pre-existing table shapes.
--- CREATE TABLE IF NOT EXISTS does not alter legacy tables. Missing columns are added
--- before downstream indexes/views/functions reference them. Constraints remain defined by
--- the canonical CREATE TABLE on clean installs; existing installs keep their data intact.
+-- LeadX compatibility sweep: reconcile legacy table shapes before downstream statements.
 ALTER TABLE IF EXISTS public.campaign_guardrails ADD COLUMN IF NOT EXISTS id uuid;
 ALTER TABLE IF EXISTS public.campaign_guardrails ADD COLUMN IF NOT EXISTS tenant_id uuid;
 ALTER TABLE IF EXISTS public.campaign_guardrails ADD COLUMN IF NOT EXISTS campaign_id uuid;
 ALTER TABLE IF EXISTS public.campaign_guardrails ADD COLUMN IF NOT EXISTS max_leads_per_day integer;
 ALTER TABLE IF EXISTS public.campaign_guardrails ADD COLUMN IF NOT EXISTS max_emails_per_day integer;
 ALTER TABLE IF EXISTS public.campaign_guardrails ADD COLUMN IF NOT EXISTS max_cost_per_day numeric(16,2);
-ALTER TABLE IF EXISTS public.campaign_guardrails ADD COLUMN IF NOT EXISTS max_bounce_pct numeric(6,3) DEFAULT 5;
-ALTER TABLE IF EXISTS public.campaign_guardrails ADD COLUMN IF NOT EXISTS max_complaint_pct numeric(6,3) DEFAULT 0.2;
+ALTER TABLE IF EXISTS public.campaign_guardrails ADD COLUMN IF NOT EXISTS max_bounce_pct numeric(6,3);
+ALTER TABLE IF EXISTS public.campaign_guardrails ADD COLUMN IF NOT EXISTS max_complaint_pct numeric(6,3);
 ALTER TABLE IF EXISTS public.campaign_guardrails ADD COLUMN IF NOT EXISTS max_ai_cost_per_day numeric(16,2);
 ALTER TABLE IF EXISTS public.campaign_guardrails ADD COLUMN IF NOT EXISTS enabled boolean;
 ALTER TABLE IF EXISTS public.campaign_guardrails ADD COLUMN IF NOT EXISTS updated_at timestamptz;
@@ -6493,10 +6138,7 @@ CREATE TABLE IF NOT EXISTS email_domain_health (
   status text NOT NULL DEFAULT 'unknown',
   UNIQUE(tenant_id,domain)
 );
--- LeadX additive schema compatibility sweep: reconcile pre-existing table shapes.
--- CREATE TABLE IF NOT EXISTS does not alter legacy tables. Missing columns are added
--- before downstream indexes/views/functions reference them. Constraints remain defined by
--- the canonical CREATE TABLE on clean installs; existing installs keep their data intact.
+-- LeadX compatibility sweep: reconcile legacy table shapes before downstream statements.
 ALTER TABLE IF EXISTS public.email_domain_health ADD COLUMN IF NOT EXISTS id uuid;
 ALTER TABLE IF EXISTS public.email_domain_health ADD COLUMN IF NOT EXISTS tenant_id uuid;
 ALTER TABLE IF EXISTS public.email_domain_health ADD COLUMN IF NOT EXISTS domain text;
@@ -6504,9 +6146,9 @@ ALTER TABLE IF EXISTS public.email_domain_health ADD COLUMN IF NOT EXISTS spf_ok
 ALTER TABLE IF EXISTS public.email_domain_health ADD COLUMN IF NOT EXISTS dkim_ok boolean;
 ALTER TABLE IF EXISTS public.email_domain_health ADD COLUMN IF NOT EXISTS dmarc_ok boolean;
 ALTER TABLE IF EXISTS public.email_domain_health ADD COLUMN IF NOT EXISTS mx_ok boolean;
-ALTER TABLE IF EXISTS public.email_domain_health ADD COLUMN IF NOT EXISTS bounce_pct numeric(7,3) DEFAULT 0;
-ALTER TABLE IF EXISTS public.email_domain_health ADD COLUMN IF NOT EXISTS complaint_pct numeric(7,3) DEFAULT 0;
-ALTER TABLE IF EXISTS public.email_domain_health ADD COLUMN IF NOT EXISTS sent_count bigint DEFAULT 0;
+ALTER TABLE IF EXISTS public.email_domain_health ADD COLUMN IF NOT EXISTS bounce_pct numeric(7,3);
+ALTER TABLE IF EXISTS public.email_domain_health ADD COLUMN IF NOT EXISTS complaint_pct numeric(7,3);
+ALTER TABLE IF EXISTS public.email_domain_health ADD COLUMN IF NOT EXISTS sent_count bigint;
 ALTER TABLE IF EXISTS public.email_domain_health ADD COLUMN IF NOT EXISTS last_checked_at timestamptz;
 ALTER TABLE IF EXISTS public.email_domain_health ADD COLUMN IF NOT EXISTS status text;
 
@@ -6522,10 +6164,7 @@ CREATE TABLE IF NOT EXISTS compliance_events (
   metadata jsonb NOT NULL DEFAULT '{}',
   created_at timestamptz NOT NULL DEFAULT now()
 );
--- LeadX additive schema compatibility sweep: reconcile pre-existing table shapes.
--- CREATE TABLE IF NOT EXISTS does not alter legacy tables. Missing columns are added
--- before downstream indexes/views/functions reference them. Constraints remain defined by
--- the canonical CREATE TABLE on clean installs; existing installs keep their data intact.
+-- LeadX compatibility sweep: reconcile legacy table shapes before downstream statements.
 ALTER TABLE IF EXISTS public.compliance_events ADD COLUMN IF NOT EXISTS id uuid;
 ALTER TABLE IF EXISTS public.compliance_events ADD COLUMN IF NOT EXISTS tenant_id uuid;
 ALTER TABLE IF EXISTS public.compliance_events ADD COLUMN IF NOT EXISTS subject_type text;
@@ -6549,10 +6188,7 @@ CREATE TABLE IF NOT EXISTS workflow_definitions (
   created_at timestamptz NOT NULL DEFAULT now(),
   updated_at timestamptz NOT NULL DEFAULT now()
 );
--- LeadX additive schema compatibility sweep: reconcile pre-existing table shapes.
--- CREATE TABLE IF NOT EXISTS does not alter legacy tables. Missing columns are added
--- before downstream indexes/views/functions reference them. Constraints remain defined by
--- the canonical CREATE TABLE on clean installs; existing installs keep their data intact.
+-- LeadX compatibility sweep: reconcile legacy table shapes before downstream statements.
 ALTER TABLE IF EXISTS public.workflow_definitions ADD COLUMN IF NOT EXISTS id uuid;
 ALTER TABLE IF EXISTS public.workflow_definitions ADD COLUMN IF NOT EXISTS tenant_id uuid;
 ALTER TABLE IF EXISTS public.workflow_definitions ADD COLUMN IF NOT EXISTS name text;
@@ -6576,10 +6212,7 @@ CREATE TABLE IF NOT EXISTS workflow_runs (
   completed_at timestamptz,
   created_at timestamptz NOT NULL DEFAULT now()
 );
--- LeadX additive schema compatibility sweep: reconcile pre-existing table shapes.
--- CREATE TABLE IF NOT EXISTS does not alter legacy tables. Missing columns are added
--- before downstream indexes/views/functions reference them. Constraints remain defined by
--- the canonical CREATE TABLE on clean installs; existing installs keep their data intact.
+-- LeadX compatibility sweep: reconcile legacy table shapes before downstream statements.
 ALTER TABLE IF EXISTS public.workflow_runs ADD COLUMN IF NOT EXISTS id uuid;
 ALTER TABLE IF EXISTS public.workflow_runs ADD COLUMN IF NOT EXISTS workflow_id uuid;
 ALTER TABLE IF EXISTS public.workflow_runs ADD COLUMN IF NOT EXISTS tenant_id uuid;
@@ -6601,10 +6234,7 @@ CREATE TABLE IF NOT EXISTS product_events (
   properties jsonb NOT NULL DEFAULT '{}',
   created_at timestamptz NOT NULL DEFAULT now()
 );
--- LeadX additive schema compatibility sweep: reconcile pre-existing table shapes.
--- CREATE TABLE IF NOT EXISTS does not alter legacy tables. Missing columns are added
--- before downstream indexes/views/functions reference them. Constraints remain defined by
--- the canonical CREATE TABLE on clean installs; existing installs keep their data intact.
+-- LeadX compatibility sweep: reconcile legacy table shapes before downstream statements.
 ALTER TABLE IF EXISTS public.product_events ADD COLUMN IF NOT EXISTS id uuid;
 ALTER TABLE IF EXISTS public.product_events ADD COLUMN IF NOT EXISTS tenant_id uuid;
 ALTER TABLE IF EXISTS public.product_events ADD COLUMN IF NOT EXISTS user_id text;
@@ -6622,10 +6252,7 @@ CREATE TABLE IF NOT EXISTS daily_briefs (
   created_at timestamptz NOT NULL DEFAULT now(),
   UNIQUE(tenant_id,brief_date)
 );
--- LeadX additive schema compatibility sweep: reconcile pre-existing table shapes.
--- CREATE TABLE IF NOT EXISTS does not alter legacy tables. Missing columns are added
--- before downstream indexes/views/functions reference them. Constraints remain defined by
--- the canonical CREATE TABLE on clean installs; existing installs keep their data intact.
+-- LeadX compatibility sweep: reconcile legacy table shapes before downstream statements.
 ALTER TABLE IF EXISTS public.daily_briefs ADD COLUMN IF NOT EXISTS id uuid;
 ALTER TABLE IF EXISTS public.daily_briefs ADD COLUMN IF NOT EXISTS tenant_id uuid;
 ALTER TABLE IF EXISTS public.daily_briefs ADD COLUMN IF NOT EXISTS brief_date date;
@@ -6646,18 +6273,15 @@ CREATE TABLE IF NOT EXISTS next_best_actions (
   due_at timestamptz,
   created_at timestamptz NOT NULL DEFAULT now()
 );
--- LeadX additive schema compatibility sweep: reconcile pre-existing table shapes.
--- CREATE TABLE IF NOT EXISTS does not alter legacy tables. Missing columns are added
--- before downstream indexes/views/functions reference them. Constraints remain defined by
--- the canonical CREATE TABLE on clean installs; existing installs keep their data intact.
+-- LeadX compatibility sweep: reconcile legacy table shapes before downstream statements.
 ALTER TABLE IF EXISTS public.next_best_actions ADD COLUMN IF NOT EXISTS id uuid;
 ALTER TABLE IF EXISTS public.next_best_actions ADD COLUMN IF NOT EXISTS tenant_id uuid;
 ALTER TABLE IF EXISTS public.next_best_actions ADD COLUMN IF NOT EXISTS entity_type text;
 ALTER TABLE IF EXISTS public.next_best_actions ADD COLUMN IF NOT EXISTS entity_id text;
 ALTER TABLE IF EXISTS public.next_best_actions ADD COLUMN IF NOT EXISTS action text;
 ALTER TABLE IF EXISTS public.next_best_actions ADD COLUMN IF NOT EXISTS reason text;
-ALTER TABLE IF EXISTS public.next_best_actions ADD COLUMN IF NOT EXISTS priority numeric(8,3) DEFAULT 0;
-ALTER TABLE IF EXISTS public.next_best_actions ADD COLUMN IF NOT EXISTS confidence numeric(6,5) DEFAULT 0.5;
+ALTER TABLE IF EXISTS public.next_best_actions ADD COLUMN IF NOT EXISTS priority numeric(8,3);
+ALTER TABLE IF EXISTS public.next_best_actions ADD COLUMN IF NOT EXISTS confidence numeric(6,5);
 ALTER TABLE IF EXISTS public.next_best_actions ADD COLUMN IF NOT EXISTS status text;
 ALTER TABLE IF EXISTS public.next_best_actions ADD COLUMN IF NOT EXISTS due_at timestamptz;
 ALTER TABLE IF EXISTS public.next_best_actions ADD COLUMN IF NOT EXISTS created_at timestamptz;
@@ -6674,10 +6298,7 @@ CREATE TABLE IF NOT EXISTS export_audit (
   filters jsonb NOT NULL DEFAULT '{}',
   created_at timestamptz NOT NULL DEFAULT now()
 );
--- LeadX additive schema compatibility sweep: reconcile pre-existing table shapes.
--- CREATE TABLE IF NOT EXISTS does not alter legacy tables. Missing columns are added
--- before downstream indexes/views/functions reference them. Constraints remain defined by
--- the canonical CREATE TABLE on clean installs; existing installs keep their data intact.
+-- LeadX compatibility sweep: reconcile legacy table shapes before downstream statements.
 ALTER TABLE IF EXISTS public.export_audit ADD COLUMN IF NOT EXISTS id uuid;
 ALTER TABLE IF EXISTS public.export_audit ADD COLUMN IF NOT EXISTS tenant_id uuid;
 ALTER TABLE IF EXISTS public.export_audit ADD COLUMN IF NOT EXISTS actor_id text;
@@ -6699,10 +6320,7 @@ CREATE TABLE IF NOT EXISTS data_subject_requests (
   resolved_at timestamptz,
   resolution text
 );
--- LeadX additive schema compatibility sweep: reconcile pre-existing table shapes.
--- CREATE TABLE IF NOT EXISTS does not alter legacy tables. Missing columns are added
--- before downstream indexes/views/functions reference them. Constraints remain defined by
--- the canonical CREATE TABLE on clean installs; existing installs keep their data intact.
+-- LeadX compatibility sweep: reconcile legacy table shapes before downstream statements.
 ALTER TABLE IF EXISTS public.data_subject_requests ADD COLUMN IF NOT EXISTS id uuid;
 ALTER TABLE IF EXISTS public.data_subject_requests ADD COLUMN IF NOT EXISTS tenant_id uuid;
 ALTER TABLE IF EXISTS public.data_subject_requests ADD COLUMN IF NOT EXISTS subject_type text;
@@ -6722,10 +6340,7 @@ CREATE TABLE IF NOT EXISTS feature_flags (
   metadata jsonb NOT NULL DEFAULT '{}',
   updated_at timestamptz NOT NULL DEFAULT now()
 );
--- LeadX additive schema compatibility sweep: reconcile pre-existing table shapes.
--- CREATE TABLE IF NOT EXISTS does not alter legacy tables. Missing columns are added
--- before downstream indexes/views/functions reference them. Constraints remain defined by
--- the canonical CREATE TABLE on clean installs; existing installs keep their data intact.
+-- LeadX compatibility sweep: reconcile legacy table shapes before downstream statements.
 ALTER TABLE IF EXISTS public.feature_flags ADD COLUMN IF NOT EXISTS key text;
 ALTER TABLE IF EXISTS public.feature_flags ADD COLUMN IF NOT EXISTS enabled boolean;
 ALTER TABLE IF EXISTS public.feature_flags ADD COLUMN IF NOT EXISTS rollout_pct integer;
@@ -6746,10 +6361,7 @@ CREATE TABLE IF NOT EXISTS ai_model_versions (
   created_at timestamptz NOT NULL DEFAULT now(),
   UNIQUE(model_key,provider,version)
 );
--- LeadX additive schema compatibility sweep: reconcile pre-existing table shapes.
--- CREATE TABLE IF NOT EXISTS does not alter legacy tables. Missing columns are added
--- before downstream indexes/views/functions reference them. Constraints remain defined by
--- the canonical CREATE TABLE on clean installs; existing installs keep their data intact.
+-- LeadX compatibility sweep: reconcile legacy table shapes before downstream statements.
 ALTER TABLE IF EXISTS public.ai_model_versions ADD COLUMN IF NOT EXISTS id uuid;
 ALTER TABLE IF EXISTS public.ai_model_versions ADD COLUMN IF NOT EXISTS model_key text;
 ALTER TABLE IF EXISTS public.ai_model_versions ADD COLUMN IF NOT EXISTS provider text;
@@ -6772,10 +6384,7 @@ CREATE TABLE IF NOT EXISTS ai_claims (
   model_version text,
   created_at timestamptz NOT NULL DEFAULT now()
 );
--- LeadX additive schema compatibility sweep: reconcile pre-existing table shapes.
--- CREATE TABLE IF NOT EXISTS does not alter legacy tables. Missing columns are added
--- before downstream indexes/views/functions reference them. Constraints remain defined by
--- the canonical CREATE TABLE on clean installs; existing installs keep their data intact.
+-- LeadX compatibility sweep: reconcile legacy table shapes before downstream statements.
 ALTER TABLE IF EXISTS public.ai_claims ADD COLUMN IF NOT EXISTS id uuid;
 ALTER TABLE IF EXISTS public.ai_claims ADD COLUMN IF NOT EXISTS tenant_id uuid;
 ALTER TABLE IF EXISTS public.ai_claims ADD COLUMN IF NOT EXISTS entity_type text;
@@ -6797,16 +6406,13 @@ CREATE TABLE IF NOT EXISTS ai_claim_evidence (
   evidence_strength numeric(6,5) DEFAULT 0.5,
   created_at timestamptz NOT NULL DEFAULT now()
 );
--- LeadX additive schema compatibility sweep: reconcile pre-existing table shapes.
--- CREATE TABLE IF NOT EXISTS does not alter legacy tables. Missing columns are added
--- before downstream indexes/views/functions reference them. Constraints remain defined by
--- the canonical CREATE TABLE on clean installs; existing installs keep their data intact.
+-- LeadX compatibility sweep: reconcile legacy table shapes before downstream statements.
 ALTER TABLE IF EXISTS public.ai_claim_evidence ADD COLUMN IF NOT EXISTS id uuid;
 ALTER TABLE IF EXISTS public.ai_claim_evidence ADD COLUMN IF NOT EXISTS claim_id uuid;
 ALTER TABLE IF EXISTS public.ai_claim_evidence ADD COLUMN IF NOT EXISTS source text;
 ALTER TABLE IF EXISTS public.ai_claim_evidence ADD COLUMN IF NOT EXISTS source_url text;
 ALTER TABLE IF EXISTS public.ai_claim_evidence ADD COLUMN IF NOT EXISTS excerpt text;
-ALTER TABLE IF EXISTS public.ai_claim_evidence ADD COLUMN IF NOT EXISTS evidence_strength numeric(6,5) DEFAULT 0.5;
+ALTER TABLE IF EXISTS public.ai_claim_evidence ADD COLUMN IF NOT EXISTS evidence_strength numeric(6,5);
 ALTER TABLE IF EXISTS public.ai_claim_evidence ADD COLUMN IF NOT EXISTS created_at timestamptz;
 
 
@@ -6820,10 +6426,7 @@ CREATE TABLE IF NOT EXISTS review_insights (
   examples jsonb NOT NULL DEFAULT '[]',
   observed_at timestamptz NOT NULL DEFAULT now()
 );
--- LeadX additive schema compatibility sweep: reconcile pre-existing table shapes.
--- CREATE TABLE IF NOT EXISTS does not alter legacy tables. Missing columns are added
--- before downstream indexes/views/functions reference them. Constraints remain defined by
--- the canonical CREATE TABLE on clean installs; existing installs keep their data intact.
+-- LeadX compatibility sweep: reconcile legacy table shapes before downstream statements.
 ALTER TABLE IF EXISTS public.review_insights ADD COLUMN IF NOT EXISTS id uuid;
 ALTER TABLE IF EXISTS public.review_insights ADD COLUMN IF NOT EXISTS lead_id uuid;
 ALTER TABLE IF EXISTS public.review_insights ADD COLUMN IF NOT EXISTS source text;
@@ -6857,10 +6460,7 @@ CREATE TABLE IF NOT EXISTS discovery_frontier (
   metadata jsonb NOT NULL DEFAULT '{}',
   UNIQUE(vertical_key,source,location_key,query_key)
 );
--- LeadX additive schema compatibility sweep: reconcile pre-existing table shapes.
--- CREATE TABLE IF NOT EXISTS does not alter legacy tables. Missing columns are added
--- before downstream indexes/views/functions reference them. Constraints remain defined by
--- the canonical CREATE TABLE on clean installs; existing installs keep their data intact.
+-- LeadX compatibility sweep: reconcile legacy table shapes before downstream statements.
 ALTER TABLE IF EXISTS public.discovery_frontier ADD COLUMN IF NOT EXISTS id uuid;
 ALTER TABLE IF EXISTS public.discovery_frontier ADD COLUMN IF NOT EXISTS vertical_key text;
 ALTER TABLE IF EXISTS public.discovery_frontier ADD COLUMN IF NOT EXISTS source text;
@@ -6886,15 +6486,12 @@ CREATE TABLE IF NOT EXISTS inventory_freshness (
   priority numeric(8,3) DEFAULT 0,
   status text NOT NULL DEFAULT 'fresh'
 );
--- LeadX additive schema compatibility sweep: reconcile pre-existing table shapes.
--- CREATE TABLE IF NOT EXISTS does not alter legacy tables. Missing columns are added
--- before downstream indexes/views/functions reference them. Constraints remain defined by
--- the canonical CREATE TABLE on clean installs; existing installs keep their data intact.
+-- LeadX compatibility sweep: reconcile legacy table shapes before downstream statements.
 ALTER TABLE IF EXISTS public.inventory_freshness ADD COLUMN IF NOT EXISTS lead_id uuid;
 ALTER TABLE IF EXISTS public.inventory_freshness ADD COLUMN IF NOT EXISTS last_verified_at timestamptz;
 ALTER TABLE IF EXISTS public.inventory_freshness ADD COLUMN IF NOT EXISTS next_refresh_at timestamptz;
-ALTER TABLE IF EXISTS public.inventory_freshness ADD COLUMN IF NOT EXISTS change_probability numeric(6,5) DEFAULT 0.5;
-ALTER TABLE IF EXISTS public.inventory_freshness ADD COLUMN IF NOT EXISTS priority numeric(8,3) DEFAULT 0;
+ALTER TABLE IF EXISTS public.inventory_freshness ADD COLUMN IF NOT EXISTS change_probability numeric(6,5);
+ALTER TABLE IF EXISTS public.inventory_freshness ADD COLUMN IF NOT EXISTS priority numeric(8,3);
 ALTER TABLE IF EXISTS public.inventory_freshness ADD COLUMN IF NOT EXISTS status text;
 
 
@@ -6912,20 +6509,17 @@ CREATE TABLE IF NOT EXISTS unit_economics_snapshots (
   metadata jsonb NOT NULL DEFAULT '{}',
   created_at timestamptz NOT NULL DEFAULT now()
 );
--- LeadX additive schema compatibility sweep: reconcile pre-existing table shapes.
--- CREATE TABLE IF NOT EXISTS does not alter legacy tables. Missing columns are added
--- before downstream indexes/views/functions reference them. Constraints remain defined by
--- the canonical CREATE TABLE on clean installs; existing installs keep their data intact.
+-- LeadX compatibility sweep: reconcile legacy table shapes before downstream statements.
 ALTER TABLE IF EXISTS public.unit_economics_snapshots ADD COLUMN IF NOT EXISTS id uuid;
 ALTER TABLE IF EXISTS public.unit_economics_snapshots ADD COLUMN IF NOT EXISTS tenant_id uuid;
 ALTER TABLE IF EXISTS public.unit_economics_snapshots ADD COLUMN IF NOT EXISTS period_start date;
 ALTER TABLE IF EXISTS public.unit_economics_snapshots ADD COLUMN IF NOT EXISTS period_end date;
-ALTER TABLE IF EXISTS public.unit_economics_snapshots ADD COLUMN IF NOT EXISTS revenue numeric(16,2) DEFAULT 0;
-ALTER TABLE IF EXISTS public.unit_economics_snapshots ADD COLUMN IF NOT EXISTS provider_cost numeric(16,2) DEFAULT 0;
-ALTER TABLE IF EXISTS public.unit_economics_snapshots ADD COLUMN IF NOT EXISTS ai_cost numeric(16,2) DEFAULT 0;
-ALTER TABLE IF EXISTS public.unit_economics_snapshots ADD COLUMN IF NOT EXISTS email_cost numeric(16,2) DEFAULT 0;
-ALTER TABLE IF EXISTS public.unit_economics_snapshots ADD COLUMN IF NOT EXISTS other_cost numeric(16,2) DEFAULT 0;
-ALTER TABLE IF EXISTS public.unit_economics_snapshots ADD COLUMN IF NOT EXISTS gross_margin numeric(16,2) DEFAULT 0;
+ALTER TABLE IF EXISTS public.unit_economics_snapshots ADD COLUMN IF NOT EXISTS revenue numeric(16,2);
+ALTER TABLE IF EXISTS public.unit_economics_snapshots ADD COLUMN IF NOT EXISTS provider_cost numeric(16,2);
+ALTER TABLE IF EXISTS public.unit_economics_snapshots ADD COLUMN IF NOT EXISTS ai_cost numeric(16,2);
+ALTER TABLE IF EXISTS public.unit_economics_snapshots ADD COLUMN IF NOT EXISTS email_cost numeric(16,2);
+ALTER TABLE IF EXISTS public.unit_economics_snapshots ADD COLUMN IF NOT EXISTS other_cost numeric(16,2);
+ALTER TABLE IF EXISTS public.unit_economics_snapshots ADD COLUMN IF NOT EXISTS gross_margin numeric(16,2);
 ALTER TABLE IF EXISTS public.unit_economics_snapshots ADD COLUMN IF NOT EXISTS metadata jsonb;
 ALTER TABLE IF EXISTS public.unit_economics_snapshots ADD COLUMN IF NOT EXISTS created_at timestamptz;
 
@@ -6958,8 +6552,468 @@ RETURNS boolean LANGUAGE sql STABLE AS $$
   SELECT EXISTS(SELECT 1 FROM platform_admins WHERE user_id=p_user_id AND active=true);
 $$;
 
+-- Backend-owned data: deny direct client access by default. The service role
+-- used by the FastAPI API bypasses RLS; tenant access is enforced in the API.
+DO $$ DECLARE t text; BEGIN
+  FOREACH t IN ARRAY ARRAY[
+    'platform_admins','audit_log','security_events','queue_metrics','provider_health',
+    'data_lineage','lead_signals','lead_opportunities','contact_graph_edges','company_change_events',
+    'website_audits','technographics','lead_quality_reports','lead_replacement_events','campaign_guardrails',
+    'email_domain_health','compliance_events','workflow_definitions','workflow_runs','product_events',
+    'daily_briefs','next_best_actions','export_audit','data_subject_requests','feature_flags',
+    'ai_model_versions','ai_claims','ai_claim_evidence','review_insights','discovery_frontier',
+    'inventory_freshness','unit_economics_snapshots'
+  ] LOOP
+    EXECUTE format('ALTER TABLE IF EXISTS %I ENABLE ROW LEVEL SECURITY', t);
+  END LOOP;
+END $$;
+
+-- LeadX runtime schema repair / compatibility migration.
+-- Safe to run against an existing installation. This repairs runtime tables that
+-- were referenced by application code but were missing from older migration
+-- chains, and backfills columns on automation tables created by early builds.
+
+-- ---------------------------------------------------------------------------
+-- Replies / inbound email
+CREATE TABLE IF NOT EXISTS email_replies (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  tenant_id uuid NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+  assignment_id uuid REFERENCES lead_assignments(id) ON DELETE SET NULL,
+  from_email text NOT NULL,
+  subject text,
+  body_text text,
+  category text NOT NULL DEFAULT 'unclassified',
+  message_id text,
+  metadata jsonb NOT NULL DEFAULT '{}',
+  received_at timestamptz NOT NULL DEFAULT now(),
+  created_at timestamptz NOT NULL DEFAULT now()
+);
+-- LeadX compatibility sweep: reconcile legacy table shapes before downstream statements.
+ALTER TABLE IF EXISTS public.email_replies ADD COLUMN IF NOT EXISTS id uuid;
+ALTER TABLE IF EXISTS public.email_replies ADD COLUMN IF NOT EXISTS tenant_id uuid;
+ALTER TABLE IF EXISTS public.email_replies ADD COLUMN IF NOT EXISTS assignment_id uuid;
+ALTER TABLE IF EXISTS public.email_replies ADD COLUMN IF NOT EXISTS from_email text;
+ALTER TABLE IF EXISTS public.email_replies ADD COLUMN IF NOT EXISTS subject text;
+ALTER TABLE IF EXISTS public.email_replies ADD COLUMN IF NOT EXISTS body_text text;
+ALTER TABLE IF EXISTS public.email_replies ADD COLUMN IF NOT EXISTS category text;
+ALTER TABLE IF EXISTS public.email_replies ADD COLUMN IF NOT EXISTS message_id text;
+ALTER TABLE IF EXISTS public.email_replies ADD COLUMN IF NOT EXISTS metadata jsonb;
+ALTER TABLE IF EXISTS public.email_replies ADD COLUMN IF NOT EXISTS received_at timestamptz;
+ALTER TABLE IF EXISTS public.email_replies ADD COLUMN IF NOT EXISTS created_at timestamptz;
+
+ALTER TABLE email_replies ADD COLUMN IF NOT EXISTS assignment_id uuid;
+ALTER TABLE email_replies ADD COLUMN IF NOT EXISTS from_email text;
+ALTER TABLE email_replies ADD COLUMN IF NOT EXISTS subject text;
+ALTER TABLE email_replies ADD COLUMN IF NOT EXISTS body_text text;
+ALTER TABLE email_replies ADD COLUMN IF NOT EXISTS category text NOT NULL DEFAULT 'unclassified';
+ALTER TABLE email_replies ADD COLUMN IF NOT EXISTS message_id text;
+ALTER TABLE email_replies ADD COLUMN IF NOT EXISTS metadata jsonb NOT NULL DEFAULT '{}';
+ALTER TABLE email_replies ADD COLUMN IF NOT EXISTS received_at timestamptz NOT NULL DEFAULT now();
+ALTER TABLE email_replies ADD COLUMN IF NOT EXISTS created_at timestamptz NOT NULL DEFAULT now();
+CREATE INDEX IF NOT EXISTS idx_email_replies_tenant_received ON email_replies(tenant_id, received_at DESC);
+CREATE INDEX IF NOT EXISTS idx_email_replies_assignment ON email_replies(assignment_id, received_at DESC);
+CREATE INDEX IF NOT EXISTS idx_email_replies_category ON email_replies(tenant_id, category, received_at DESC);
+
+-- ---------------------------------------------------------------------------
+-- Tenant/global opt-out ledger. The application intentionally fails closed if
+-- this table cannot be read, so it must exist before email automation is used.
+CREATE TABLE IF NOT EXISTS email_optouts (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  tenant_id uuid REFERENCES tenants(id) ON DELETE CASCADE,
+  email text NOT NULL,
+  reason text,
+  source text,
+  created_at timestamptz NOT NULL DEFAULT now(),
+  updated_at timestamptz NOT NULL DEFAULT now()
+);
+-- LeadX compatibility sweep: reconcile legacy table shapes before downstream statements.
+ALTER TABLE IF EXISTS public.email_optouts ADD COLUMN IF NOT EXISTS id uuid;
+ALTER TABLE IF EXISTS public.email_optouts ADD COLUMN IF NOT EXISTS tenant_id uuid;
+ALTER TABLE IF EXISTS public.email_optouts ADD COLUMN IF NOT EXISTS email text;
+ALTER TABLE IF EXISTS public.email_optouts ADD COLUMN IF NOT EXISTS reason text;
+ALTER TABLE IF EXISTS public.email_optouts ADD COLUMN IF NOT EXISTS source text;
+ALTER TABLE IF EXISTS public.email_optouts ADD COLUMN IF NOT EXISTS created_at timestamptz;
+ALTER TABLE IF EXISTS public.email_optouts ADD COLUMN IF NOT EXISTS updated_at timestamptz;
+
+ALTER TABLE email_optouts ADD COLUMN IF NOT EXISTS reason text;
+ALTER TABLE email_optouts ADD COLUMN IF NOT EXISTS source text;
+ALTER TABLE email_optouts ADD COLUMN IF NOT EXISTS updated_at timestamptz NOT NULL DEFAULT now();
+CREATE UNIQUE INDEX IF NOT EXISTS uq_email_optouts_tenant_email ON email_optouts(tenant_id, email);
+CREATE INDEX IF NOT EXISTS idx_email_optouts_email ON email_optouts(lower(email));
+
+-- ---------------------------------------------------------------------------
+-- Lead contact/touch history used by send-policy minimum-gap protection.
+CREATE TABLE IF NOT EXISTS lead_touches (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  tenant_id uuid REFERENCES tenants(id) ON DELETE CASCADE,
+  assignment_id uuid REFERENCES lead_assignments(id) ON DELETE SET NULL,
+  channel text NOT NULL,
+  meta jsonb NOT NULL DEFAULT '{}',
+  touched_at timestamptz NOT NULL DEFAULT now(),
+  created_at timestamptz NOT NULL DEFAULT now()
+);
+-- LeadX compatibility sweep: reconcile legacy table shapes before downstream statements.
+ALTER TABLE IF EXISTS public.lead_touches ADD COLUMN IF NOT EXISTS id uuid;
+ALTER TABLE IF EXISTS public.lead_touches ADD COLUMN IF NOT EXISTS tenant_id uuid;
+ALTER TABLE IF EXISTS public.lead_touches ADD COLUMN IF NOT EXISTS assignment_id uuid;
+ALTER TABLE IF EXISTS public.lead_touches ADD COLUMN IF NOT EXISTS channel text;
+ALTER TABLE IF EXISTS public.lead_touches ADD COLUMN IF NOT EXISTS meta jsonb;
+ALTER TABLE IF EXISTS public.lead_touches ADD COLUMN IF NOT EXISTS touched_at timestamptz;
+ALTER TABLE IF EXISTS public.lead_touches ADD COLUMN IF NOT EXISTS created_at timestamptz;
+
+ALTER TABLE lead_touches ADD COLUMN IF NOT EXISTS tenant_id uuid;
+ALTER TABLE lead_touches ADD COLUMN IF NOT EXISTS assignment_id uuid;
+ALTER TABLE lead_touches ADD COLUMN IF NOT EXISTS channel text;
+ALTER TABLE lead_touches ADD COLUMN IF NOT EXISTS meta jsonb NOT NULL DEFAULT '{}';
+ALTER TABLE lead_touches ADD COLUMN IF NOT EXISTS touched_at timestamptz NOT NULL DEFAULT now();
+ALTER TABLE lead_touches ADD COLUMN IF NOT EXISTS created_at timestamptz NOT NULL DEFAULT now();
+CREATE INDEX IF NOT EXISTS idx_lead_touches_assignment ON lead_touches(assignment_id, touched_at DESC);
+CREATE INDEX IF NOT EXISTS idx_lead_touches_tenant ON lead_touches(tenant_id, touched_at DESC);
+
+-- ---------------------------------------------------------------------------
+-- AI email/template experiment ledger.
+CREATE TABLE IF NOT EXISTS template_variant_stats (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  tenant_id uuid REFERENCES tenants(id) ON DELETE CASCADE,
+  category text NOT NULL,
+  variant_key text NOT NULL,
+  sent int NOT NULL DEFAULT 0,
+  opened int NOT NULL DEFAULT 0,
+  replied int NOT NULL DEFAULT 0,
+  positive int NOT NULL DEFAULT 0,
+  created_at timestamptz NOT NULL DEFAULT now(),
+  updated_at timestamptz NOT NULL DEFAULT now()
+);
+-- LeadX compatibility sweep: reconcile legacy table shapes before downstream statements.
+ALTER TABLE IF EXISTS public.template_variant_stats ADD COLUMN IF NOT EXISTS id uuid;
+ALTER TABLE IF EXISTS public.template_variant_stats ADD COLUMN IF NOT EXISTS tenant_id uuid;
+ALTER TABLE IF EXISTS public.template_variant_stats ADD COLUMN IF NOT EXISTS category text;
+ALTER TABLE IF EXISTS public.template_variant_stats ADD COLUMN IF NOT EXISTS variant_key text;
+ALTER TABLE IF EXISTS public.template_variant_stats ADD COLUMN IF NOT EXISTS sent int;
+ALTER TABLE IF EXISTS public.template_variant_stats ADD COLUMN IF NOT EXISTS opened int;
+ALTER TABLE IF EXISTS public.template_variant_stats ADD COLUMN IF NOT EXISTS replied int;
+ALTER TABLE IF EXISTS public.template_variant_stats ADD COLUMN IF NOT EXISTS positive int;
+ALTER TABLE IF EXISTS public.template_variant_stats ADD COLUMN IF NOT EXISTS created_at timestamptz;
+ALTER TABLE IF EXISTS public.template_variant_stats ADD COLUMN IF NOT EXISTS updated_at timestamptz;
+
+ALTER TABLE template_variant_stats ADD COLUMN IF NOT EXISTS sent int NOT NULL DEFAULT 0;
+ALTER TABLE template_variant_stats ADD COLUMN IF NOT EXISTS opened int NOT NULL DEFAULT 0;
+ALTER TABLE template_variant_stats ADD COLUMN IF NOT EXISTS replied int NOT NULL DEFAULT 0;
+ALTER TABLE template_variant_stats ADD COLUMN IF NOT EXISTS positive int NOT NULL DEFAULT 0;
+ALTER TABLE template_variant_stats ADD COLUMN IF NOT EXISTS created_at timestamptz NOT NULL DEFAULT now();
+ALTER TABLE template_variant_stats ADD COLUMN IF NOT EXISTS updated_at timestamptz NOT NULL DEFAULT now();
+CREATE UNIQUE INDEX IF NOT EXISTS uq_template_variant_stats_tenant ON template_variant_stats(tenant_id, category, variant_key) WHERE tenant_id IS NOT NULL;
+CREATE UNIQUE INDEX IF NOT EXISTS uq_template_variant_stats_global ON template_variant_stats(category, variant_key) WHERE tenant_id IS NULL;
+
+-- ---------------------------------------------------------------------------
+-- Webhook idempotency ledger.
+CREATE TABLE IF NOT EXISTS webhook_events (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  event_id text NOT NULL UNIQUE,
+  source text NOT NULL,
+  metadata jsonb NOT NULL DEFAULT '{}',
+  received_at timestamptz NOT NULL DEFAULT now(),
+  created_at timestamptz NOT NULL DEFAULT now()
+);
+-- LeadX compatibility sweep: reconcile legacy table shapes before downstream statements.
+ALTER TABLE IF EXISTS public.webhook_events ADD COLUMN IF NOT EXISTS id uuid;
+ALTER TABLE IF EXISTS public.webhook_events ADD COLUMN IF NOT EXISTS event_id text;
+ALTER TABLE IF EXISTS public.webhook_events ADD COLUMN IF NOT EXISTS source text;
+ALTER TABLE IF EXISTS public.webhook_events ADD COLUMN IF NOT EXISTS metadata jsonb;
+ALTER TABLE IF EXISTS public.webhook_events ADD COLUMN IF NOT EXISTS received_at timestamptz;
+ALTER TABLE IF EXISTS public.webhook_events ADD COLUMN IF NOT EXISTS created_at timestamptz;
+
+ALTER TABLE webhook_events ADD COLUMN IF NOT EXISTS source text;
+ALTER TABLE webhook_events ADD COLUMN IF NOT EXISTS metadata jsonb NOT NULL DEFAULT '{}';
+ALTER TABLE webhook_events ADD COLUMN IF NOT EXISTS received_at timestamptz NOT NULL DEFAULT now();
+ALTER TABLE webhook_events ADD COLUMN IF NOT EXISTS created_at timestamptz NOT NULL DEFAULT now();
+CREATE UNIQUE INDEX IF NOT EXISTS uq_webhook_events_event_id ON webhook_events(event_id);
+CREATE INDEX IF NOT EXISTS idx_webhook_events_received ON webhook_events(received_at DESC);
+
+-- ---------------------------------------------------------------------------
+-- Automation compatibility backfill. Older installs may have created these
+-- tables with a subset of the current columns. CREATE TABLE IF NOT EXISTS does
+-- not add columns, so explicitly repair them here. The CREATE guards also make
+-- this repair file safe to run by itself after a partially-applied migration.
+CREATE TABLE IF NOT EXISTS campaign_schedules (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  tenant_id uuid NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+  name text NOT NULL,
+  icp_id uuid,
+  industry text,
+  locations jsonb NOT NULL DEFAULT '[]',
+  queries jsonb NOT NULL DEFAULT '[]',
+  params jsonb NOT NULL DEFAULT '{}',
+  target_new_leads int NOT NULL DEFAULT 25,
+  interval_hours int NOT NULL DEFAULT 24,
+  auto_enroll_sequence_id uuid,
+  active boolean NOT NULL DEFAULT true,
+  last_run_at timestamptz,
+  last_status text,
+  last_result jsonb,
+  next_run_at timestamptz NOT NULL DEFAULT now(),
+  created_by text DEFAULT 'admin',
+  created_at timestamptz NOT NULL DEFAULT now(),
+  updated_at timestamptz NOT NULL DEFAULT now()
+);
+-- LeadX compatibility sweep: reconcile legacy table shapes before downstream statements.
+ALTER TABLE IF EXISTS public.campaign_schedules ADD COLUMN IF NOT EXISTS id uuid;
+ALTER TABLE IF EXISTS public.campaign_schedules ADD COLUMN IF NOT EXISTS tenant_id uuid;
+ALTER TABLE IF EXISTS public.campaign_schedules ADD COLUMN IF NOT EXISTS name text;
+ALTER TABLE IF EXISTS public.campaign_schedules ADD COLUMN IF NOT EXISTS icp_id uuid;
+ALTER TABLE IF EXISTS public.campaign_schedules ADD COLUMN IF NOT EXISTS industry text;
+ALTER TABLE IF EXISTS public.campaign_schedules ADD COLUMN IF NOT EXISTS locations jsonb;
+ALTER TABLE IF EXISTS public.campaign_schedules ADD COLUMN IF NOT EXISTS queries jsonb;
+ALTER TABLE IF EXISTS public.campaign_schedules ADD COLUMN IF NOT EXISTS params jsonb;
+ALTER TABLE IF EXISTS public.campaign_schedules ADD COLUMN IF NOT EXISTS target_new_leads int;
+ALTER TABLE IF EXISTS public.campaign_schedules ADD COLUMN IF NOT EXISTS interval_hours int;
+ALTER TABLE IF EXISTS public.campaign_schedules ADD COLUMN IF NOT EXISTS auto_enroll_sequence_id uuid;
+ALTER TABLE IF EXISTS public.campaign_schedules ADD COLUMN IF NOT EXISTS active boolean;
+ALTER TABLE IF EXISTS public.campaign_schedules ADD COLUMN IF NOT EXISTS last_run_at timestamptz;
+ALTER TABLE IF EXISTS public.campaign_schedules ADD COLUMN IF NOT EXISTS last_status text;
+ALTER TABLE IF EXISTS public.campaign_schedules ADD COLUMN IF NOT EXISTS last_result jsonb;
+ALTER TABLE IF EXISTS public.campaign_schedules ADD COLUMN IF NOT EXISTS next_run_at timestamptz;
+ALTER TABLE IF EXISTS public.campaign_schedules ADD COLUMN IF NOT EXISTS created_by text;
+ALTER TABLE IF EXISTS public.campaign_schedules ADD COLUMN IF NOT EXISTS created_at timestamptz;
+ALTER TABLE IF EXISTS public.campaign_schedules ADD COLUMN IF NOT EXISTS updated_at timestamptz;
+
+ALTER TABLE campaign_schedules ADD COLUMN IF NOT EXISTS icp_id uuid;
+ALTER TABLE campaign_schedules ADD COLUMN IF NOT EXISTS industry text;
+ALTER TABLE campaign_schedules ADD COLUMN IF NOT EXISTS locations jsonb NOT NULL DEFAULT '[]';
+ALTER TABLE campaign_schedules ADD COLUMN IF NOT EXISTS queries jsonb NOT NULL DEFAULT '[]';
+ALTER TABLE campaign_schedules ADD COLUMN IF NOT EXISTS params jsonb NOT NULL DEFAULT '{}';
+ALTER TABLE campaign_schedules ADD COLUMN IF NOT EXISTS target_new_leads int NOT NULL DEFAULT 25;
+ALTER TABLE campaign_schedules ADD COLUMN IF NOT EXISTS interval_hours int NOT NULL DEFAULT 24;
+ALTER TABLE campaign_schedules ADD COLUMN IF NOT EXISTS auto_enroll_sequence_id uuid;
+ALTER TABLE campaign_schedules ADD COLUMN IF NOT EXISTS active boolean NOT NULL DEFAULT true;
+ALTER TABLE campaign_schedules ADD COLUMN IF NOT EXISTS last_run_at timestamptz;
+ALTER TABLE campaign_schedules ADD COLUMN IF NOT EXISTS last_status text;
+ALTER TABLE campaign_schedules ADD COLUMN IF NOT EXISTS last_result jsonb;
+ALTER TABLE campaign_schedules ADD COLUMN IF NOT EXISTS next_run_at timestamptz NOT NULL DEFAULT now();
+ALTER TABLE campaign_schedules ADD COLUMN IF NOT EXISTS created_by text DEFAULT 'admin';
+ALTER TABLE campaign_schedules ADD COLUMN IF NOT EXISTS created_at timestamptz NOT NULL DEFAULT now();
+ALTER TABLE campaign_schedules ADD COLUMN IF NOT EXISTS updated_at timestamptz NOT NULL DEFAULT now();
+CREATE INDEX IF NOT EXISTS idx_schedules_due_runtime ON campaign_schedules(next_run_at) WHERE active;
+CREATE INDEX IF NOT EXISTS idx_schedules_tenant_runtime ON campaign_schedules(tenant_id, created_at DESC);
+
+CREATE TABLE IF NOT EXISTS autonomous_campaigns (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  tenant_id uuid NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+  name text NOT NULL,
+  icp_id uuid,
+  sequence_id uuid,
+  status text NOT NULL DEFAULT 'draft',
+  locations jsonb NOT NULL DEFAULT '[]',
+  queries jsonb NOT NULL DEFAULT '[]',
+  offer text,
+  goal text,
+  daily_new_lead_limit int NOT NULL DEFAULT 25,
+  daily_email_limit int NOT NULL DEFAULT 25,
+  max_active_enrollments int NOT NULL DEFAULT 5000,
+  send_window_start time NOT NULL DEFAULT '09:00',
+  send_window_end time NOT NULL DEFAULT '17:00',
+  timezone text NOT NULL DEFAULT 'America/New_York',
+  generate_ai_copy boolean NOT NULL DEFAULT true,
+  auto_followup boolean NOT NULL DEFAULT true,
+  stop_on_reply boolean NOT NULL DEFAULT true,
+  stop_on_optout boolean NOT NULL DEFAULT true,
+  require_verified_email boolean NOT NULL DEFAULT true,
+  score_threshold int NOT NULL DEFAULT 70,
+  schedule_hours int NOT NULL DEFAULT 24,
+  next_discovery_at timestamptz,
+  last_discovery_at timestamptz,
+  last_discovery_result jsonb NOT NULL DEFAULT '{}',
+  created_by text NOT NULL DEFAULT 'admin',
+  created_at timestamptz NOT NULL DEFAULT now(),
+  updated_at timestamptz NOT NULL DEFAULT now()
+);
+-- LeadX compatibility sweep: reconcile legacy table shapes before downstream statements.
+ALTER TABLE IF EXISTS public.autonomous_campaigns ADD COLUMN IF NOT EXISTS id uuid;
+ALTER TABLE IF EXISTS public.autonomous_campaigns ADD COLUMN IF NOT EXISTS tenant_id uuid;
+ALTER TABLE IF EXISTS public.autonomous_campaigns ADD COLUMN IF NOT EXISTS name text;
+ALTER TABLE IF EXISTS public.autonomous_campaigns ADD COLUMN IF NOT EXISTS icp_id uuid;
+ALTER TABLE IF EXISTS public.autonomous_campaigns ADD COLUMN IF NOT EXISTS sequence_id uuid;
+ALTER TABLE IF EXISTS public.autonomous_campaigns ADD COLUMN IF NOT EXISTS status text;
+ALTER TABLE IF EXISTS public.autonomous_campaigns ADD COLUMN IF NOT EXISTS locations jsonb;
+ALTER TABLE IF EXISTS public.autonomous_campaigns ADD COLUMN IF NOT EXISTS queries jsonb;
+ALTER TABLE IF EXISTS public.autonomous_campaigns ADD COLUMN IF NOT EXISTS offer text;
+ALTER TABLE IF EXISTS public.autonomous_campaigns ADD COLUMN IF NOT EXISTS goal text;
+ALTER TABLE IF EXISTS public.autonomous_campaigns ADD COLUMN IF NOT EXISTS daily_new_lead_limit int;
+ALTER TABLE IF EXISTS public.autonomous_campaigns ADD COLUMN IF NOT EXISTS daily_email_limit int;
+ALTER TABLE IF EXISTS public.autonomous_campaigns ADD COLUMN IF NOT EXISTS max_active_enrollments int;
+ALTER TABLE IF EXISTS public.autonomous_campaigns ADD COLUMN IF NOT EXISTS send_window_start time;
+ALTER TABLE IF EXISTS public.autonomous_campaigns ADD COLUMN IF NOT EXISTS send_window_end time;
+ALTER TABLE IF EXISTS public.autonomous_campaigns ADD COLUMN IF NOT EXISTS timezone text;
+ALTER TABLE IF EXISTS public.autonomous_campaigns ADD COLUMN IF NOT EXISTS generate_ai_copy boolean;
+ALTER TABLE IF EXISTS public.autonomous_campaigns ADD COLUMN IF NOT EXISTS auto_followup boolean;
+ALTER TABLE IF EXISTS public.autonomous_campaigns ADD COLUMN IF NOT EXISTS stop_on_reply boolean;
+ALTER TABLE IF EXISTS public.autonomous_campaigns ADD COLUMN IF NOT EXISTS stop_on_optout boolean;
+ALTER TABLE IF EXISTS public.autonomous_campaigns ADD COLUMN IF NOT EXISTS require_verified_email boolean;
+ALTER TABLE IF EXISTS public.autonomous_campaigns ADD COLUMN IF NOT EXISTS score_threshold int;
+ALTER TABLE IF EXISTS public.autonomous_campaigns ADD COLUMN IF NOT EXISTS schedule_hours int;
+ALTER TABLE IF EXISTS public.autonomous_campaigns ADD COLUMN IF NOT EXISTS next_discovery_at timestamptz;
+ALTER TABLE IF EXISTS public.autonomous_campaigns ADD COLUMN IF NOT EXISTS last_discovery_at timestamptz;
+ALTER TABLE IF EXISTS public.autonomous_campaigns ADD COLUMN IF NOT EXISTS last_discovery_result jsonb;
+ALTER TABLE IF EXISTS public.autonomous_campaigns ADD COLUMN IF NOT EXISTS created_by text;
+ALTER TABLE IF EXISTS public.autonomous_campaigns ADD COLUMN IF NOT EXISTS created_at timestamptz;
+ALTER TABLE IF EXISTS public.autonomous_campaigns ADD COLUMN IF NOT EXISTS updated_at timestamptz;
+
+ALTER TABLE autonomous_campaigns ADD COLUMN IF NOT EXISTS icp_id uuid;
+ALTER TABLE autonomous_campaigns ADD COLUMN IF NOT EXISTS sequence_id uuid;
+ALTER TABLE autonomous_campaigns ADD COLUMN IF NOT EXISTS status text NOT NULL DEFAULT 'draft';
+ALTER TABLE autonomous_campaigns ADD COLUMN IF NOT EXISTS locations jsonb NOT NULL DEFAULT '[]';
+ALTER TABLE autonomous_campaigns ADD COLUMN IF NOT EXISTS queries jsonb NOT NULL DEFAULT '[]';
+ALTER TABLE autonomous_campaigns ADD COLUMN IF NOT EXISTS offer text;
+ALTER TABLE autonomous_campaigns ADD COLUMN IF NOT EXISTS goal text;
+ALTER TABLE autonomous_campaigns ADD COLUMN IF NOT EXISTS daily_new_lead_limit int NOT NULL DEFAULT 25;
+ALTER TABLE autonomous_campaigns ADD COLUMN IF NOT EXISTS daily_email_limit int NOT NULL DEFAULT 25;
+ALTER TABLE autonomous_campaigns ADD COLUMN IF NOT EXISTS max_active_enrollments int NOT NULL DEFAULT 5000;
+ALTER TABLE autonomous_campaigns ADD COLUMN IF NOT EXISTS send_window_start time NOT NULL DEFAULT '09:00';
+ALTER TABLE autonomous_campaigns ADD COLUMN IF NOT EXISTS send_window_end time NOT NULL DEFAULT '17:00';
+ALTER TABLE autonomous_campaigns ADD COLUMN IF NOT EXISTS timezone text NOT NULL DEFAULT 'America/New_York';
+ALTER TABLE autonomous_campaigns ADD COLUMN IF NOT EXISTS generate_ai_copy boolean NOT NULL DEFAULT true;
+ALTER TABLE autonomous_campaigns ADD COLUMN IF NOT EXISTS auto_followup boolean NOT NULL DEFAULT true;
+ALTER TABLE autonomous_campaigns ADD COLUMN IF NOT EXISTS stop_on_reply boolean NOT NULL DEFAULT true;
+ALTER TABLE autonomous_campaigns ADD COLUMN IF NOT EXISTS stop_on_optout boolean NOT NULL DEFAULT true;
+ALTER TABLE autonomous_campaigns ADD COLUMN IF NOT EXISTS require_verified_email boolean NOT NULL DEFAULT true;
+ALTER TABLE autonomous_campaigns ADD COLUMN IF NOT EXISTS score_threshold int NOT NULL DEFAULT 70;
+ALTER TABLE autonomous_campaigns ADD COLUMN IF NOT EXISTS schedule_hours int NOT NULL DEFAULT 24;
+ALTER TABLE autonomous_campaigns ADD COLUMN IF NOT EXISTS next_discovery_at timestamptz;
+ALTER TABLE autonomous_campaigns ADD COLUMN IF NOT EXISTS last_discovery_at timestamptz;
+ALTER TABLE autonomous_campaigns ADD COLUMN IF NOT EXISTS last_discovery_result jsonb NOT NULL DEFAULT '{}';
+ALTER TABLE autonomous_campaigns ADD COLUMN IF NOT EXISTS created_by text NOT NULL DEFAULT 'admin';
+ALTER TABLE autonomous_campaigns ADD COLUMN IF NOT EXISTS created_at timestamptz NOT NULL DEFAULT now();
+ALTER TABLE autonomous_campaigns ADD COLUMN IF NOT EXISTS updated_at timestamptz NOT NULL DEFAULT now();
+CREATE INDEX IF NOT EXISTS idx_autonomous_campaigns_due_runtime ON autonomous_campaigns(next_discovery_at) WHERE status = 'active';
+
+-- The operator tenant flag is required by admin automation/prospecting.
+ALTER TABLE tenants ADD COLUMN IF NOT EXISTS is_operator boolean NOT NULL DEFAULT false;
+CREATE UNIQUE INDEX IF NOT EXISTS idx_tenants_single_operator_runtime ON tenants(is_operator) WHERE is_operator;
+
+-- ---------------------------------------------------------------------------
+-- Lightweight schema verification view/function for diagnostics. It does not
+-- expose secrets and is safe for the service-key backend to query.
+CREATE OR REPLACE FUNCTION leadx_runtime_schema_status()
+RETURNS TABLE(object_name text, object_kind text, present boolean)
+LANGUAGE sql STABLE AS $$
+  SELECT x.name, x.kind,
+    CASE WHEN x.kind = 'table' THEN to_regclass('public.' || x.name) IS NOT NULL
+         WHEN x.kind = 'view' THEN to_regclass('public.' || x.name) IS NOT NULL
+         ELSE false END AS present
+  FROM (VALUES
+    ('email_replies','table'),
+    ('email_optouts','table'),
+    ('lead_touches','table'),
+    ('template_variant_stats','table'),
+    ('webhook_events','table'),
+    ('campaign_schedules','table'),
+    ('autonomous_campaigns','table'),
+    ('crm_lead_cards','view')
+  ) AS x(name,kind);
+$$;
+
+-- Supabase/PostgREST may retain a schema cache briefly after DDL. Ask it to
+-- reload so newly repaired tables are visible immediately to REST clients.
+NOTIFY pgrst, 'reload schema';
+
+-- PostgREST schema-cache refresh for runtime repair objects.
+DO $$
+BEGIN
+  PERFORM pg_notify('pgrst', 'reload schema');
+EXCEPTION WHEN OTHERS THEN
+  NULL;
+END $$;
+
+
+-- ============================================================================
+-- RUNTIME COMPATIBILITY: notifications
+-- ============================================================================
+
+
+-- ---------------------------------------------------------------------------
+-- In-app notifications. Required by tenant/admin notification feeds and by
+-- pipeline/SES/job handlers. Keep this in the runtime repair so an installation
+-- that ran only the consolidated/safe migration cannot miss this table.
+CREATE TABLE IF NOT EXISTS public.notifications (
+  id          uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  scope       text NOT NULL DEFAULT 'tenant'
+              CHECK (scope IN ('tenant', 'admin')),
+  tenant_id   uuid,
+  kind        text NOT NULL,
+  severity    text NOT NULL DEFAULT 'info'
+              CHECK (severity IN ('info', 'warning', 'critical')),
+  title       text NOT NULL,
+  body        text NOT NULL DEFAULT '',
+  link        text,
+  meta        jsonb NOT NULL DEFAULT '{}'::jsonb,
+  read_at     timestamptz,
+  created_at  timestamptz NOT NULL DEFAULT now()
+);
+-- LeadX compatibility sweep: reconcile legacy table shapes before downstream statements.
+ALTER TABLE IF EXISTS public.notifications ADD COLUMN IF NOT EXISTS id uuid;
+ALTER TABLE IF EXISTS public.notifications ADD COLUMN IF NOT EXISTS scope text;
+ALTER TABLE IF EXISTS public.notifications ADD COLUMN IF NOT EXISTS tenant_id uuid;
+ALTER TABLE IF EXISTS public.notifications ADD COLUMN IF NOT EXISTS kind text;
+ALTER TABLE IF EXISTS public.notifications ADD COLUMN IF NOT EXISTS severity text;
+ALTER TABLE IF EXISTS public.notifications ADD COLUMN IF NOT EXISTS title text;
+ALTER TABLE IF EXISTS public.notifications ADD COLUMN IF NOT EXISTS body text;
+ALTER TABLE IF EXISTS public.notifications ADD COLUMN IF NOT EXISTS link text;
+ALTER TABLE IF EXISTS public.notifications ADD COLUMN IF NOT EXISTS meta jsonb;
+ALTER TABLE IF EXISTS public.notifications ADD COLUMN IF NOT EXISTS read_at timestamptz;
+ALTER TABLE IF EXISTS public.notifications ADD COLUMN IF NOT EXISTS created_at timestamptz;
+
+ALTER TABLE public.notifications ADD COLUMN IF NOT EXISTS scope text NOT NULL DEFAULT 'tenant';
+ALTER TABLE public.notifications ADD COLUMN IF NOT EXISTS tenant_id uuid;
+ALTER TABLE public.notifications ADD COLUMN IF NOT EXISTS kind text NOT NULL DEFAULT 'system';
+ALTER TABLE public.notifications ADD COLUMN IF NOT EXISTS severity text NOT NULL DEFAULT 'info';
+ALTER TABLE public.notifications ADD COLUMN IF NOT EXISTS title text NOT NULL DEFAULT '';
+ALTER TABLE public.notifications ADD COLUMN IF NOT EXISTS body text NOT NULL DEFAULT '';
+ALTER TABLE public.notifications ADD COLUMN IF NOT EXISTS link text;
+ALTER TABLE public.notifications ADD COLUMN IF NOT EXISTS meta jsonb NOT NULL DEFAULT '{}'::jsonb;
+ALTER TABLE public.notifications ADD COLUMN IF NOT EXISTS read_at timestamptz;
+ALTER TABLE public.notifications ADD COLUMN IF NOT EXISTS created_at timestamptz NOT NULL DEFAULT now();
+CREATE INDEX IF NOT EXISTS idx_notifications_scope_created ON public.notifications(scope, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_notifications_tenant_unread ON public.notifications(tenant_id, created_at DESC) WHERE read_at IS NULL;
+CREATE INDEX IF NOT EXISTS idx_notifications_admin_unread ON public.notifications(scope, created_at DESC) WHERE scope = 'admin' AND read_at IS NULL;
+ALTER TABLE public.notifications ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "service_all_notifications" ON public.notifications;
+CREATE POLICY "service_all_notifications" ON public.notifications FOR ALL TO service_role USING (true) WITH CHECK (true);
+
+NOTIFY pgrst, 'reload schema';
+DO $$
+BEGIN
+  PERFORM pg_notify('pgrst', 'reload schema');
+EXCEPTION WHEN OTHERS THEN
+  NULL;
+END $$;
+
+-- LeadX realtime hardening (idempotent; safe after CRM tables exist)
+DO $$
+DECLARE t text;
+BEGIN
+  FOREACH t IN ARRAY ARRAY[
+    'companies','contacts','deals','deal_stages','activities','tasks','notes','pipeline_stages',
+    'lead_assignments','lead_activities','lead_tasks','notifications','discovery_requests'
+  ] LOOP
+    BEGIN
+      EXECUTE format('ALTER TABLE public.%I REPLICA IDENTITY FULL', t);
+      EXECUTE format('ALTER PUBLICATION supabase_realtime ADD TABLE public.%I', t);
+    EXCEPTION WHEN duplicate_object THEN NULL;
+    WHEN undefined_table THEN NULL;
+    WHEN undefined_object THEN NULL;
+    END;
+  END LOOP;
+END $$;
+
+
+-- 043_FAST_DASHBOARD_SNAPSHOT.sql included
+-- 043_FAST_DASHBOARD_SNAPSHOT.sql
 CREATE OR REPLACE FUNCTION public.crm_dashboard_snapshot(p_tenant_id uuid)
-RETURNS jsonb LANGUAGE sql SECURITY DEFINER SET search_path=public AS $$
+RETURNS jsonb
+LANGUAGE sql
+SECURITY DEFINER
+SET search_path = public
+AS $$
 WITH cards AS (
   SELECT
     COALESCE(cc.stage_slug, 'new') AS stage_slug,
@@ -7105,10 +7159,7 @@ CREATE TABLE IF NOT EXISTS public.playbooks (
  objection_handlers jsonb NOT NULL DEFAULT '[]', call_script text, sequence_steps jsonb NOT NULL DEFAULT '[]', active boolean NOT NULL DEFAULT true,
  created_at timestamptz NOT NULL DEFAULT now(), updated_at timestamptz NOT NULL DEFAULT now()
 );
--- LeadX additive schema compatibility sweep: reconcile pre-existing table shapes.
--- CREATE TABLE IF NOT EXISTS does not alter legacy tables. Missing columns are added
--- before downstream indexes/views/functions reference them. Constraints remain defined by
--- the canonical CREATE TABLE on clean installs; existing installs keep their data intact.
+-- LeadX compatibility sweep: reconcile legacy table shapes before downstream statements.
 ALTER TABLE IF EXISTS public.playbooks ADD COLUMN IF NOT EXISTS id uuid;
 ALTER TABLE IF EXISTS public.playbooks ADD COLUMN IF NOT EXISTS icp_defaults jsonb;
 ALTER TABLE IF EXISTS public.playbooks ADD COLUMN IF NOT EXISTS objection_handlers jsonb;
@@ -7119,10 +7170,7 @@ CREATE TABLE IF NOT EXISTS public.tenant_playbooks (
  playbook_id uuid NOT NULL REFERENCES playbooks(id) ON DELETE CASCADE, config jsonb NOT NULL DEFAULT '{}', active boolean NOT NULL DEFAULT true,
  created_at timestamptz NOT NULL DEFAULT now(), UNIQUE(tenant_id, playbook_id)
 );
--- LeadX additive schema compatibility sweep: reconcile pre-existing table shapes.
--- CREATE TABLE IF NOT EXISTS does not alter legacy tables. Missing columns are added
--- before downstream indexes/views/functions reference them. Constraints remain defined by
--- the canonical CREATE TABLE on clean installs; existing installs keep their data intact.
+-- LeadX compatibility sweep: reconcile legacy table shapes before downstream statements.
 ALTER TABLE IF EXISTS public.tenant_playbooks ADD COLUMN IF NOT EXISTS id uuid;
 ALTER TABLE IF EXISTS public.tenant_playbooks ADD COLUMN IF NOT EXISTS playbook_id uuid;
 ALTER TABLE IF EXISTS public.tenant_playbooks ADD COLUMN IF NOT EXISTS created_at timestamptz;
@@ -7133,10 +7181,7 @@ CREATE TABLE IF NOT EXISTS public.territory_locks (
  stripe_subscription_id text, status text NOT NULL DEFAULT 'active', starts_at timestamptz NOT NULL DEFAULT now(), ends_at timestamptz,
  created_at timestamptz NOT NULL DEFAULT now(), UNIQUE(vertical, geo_key)
 );
--- LeadX additive schema compatibility sweep: reconcile pre-existing table shapes.
--- CREATE TABLE IF NOT EXISTS does not alter legacy tables. Missing columns are added
--- before downstream indexes/views/functions reference them. Constraints remain defined by
--- the canonical CREATE TABLE on clean installs; existing installs keep their data intact.
+-- LeadX compatibility sweep: reconcile legacy table shapes before downstream statements.
 ALTER TABLE IF EXISTS public.territory_locks ADD COLUMN IF NOT EXISTS id uuid;
 ALTER TABLE IF EXISTS public.territory_locks ADD COLUMN IF NOT EXISTS stripe_subscription_id text;
 ALTER TABLE IF EXISTS public.territory_locks ADD COLUMN IF NOT EXISTS status text;
@@ -7148,10 +7193,7 @@ CREATE TABLE IF NOT EXISTS public.integration_field_maps (
  mapping jsonb NOT NULL DEFAULT '{}', stage_mapping jsonb NOT NULL DEFAULT '{}', auto_push boolean NOT NULL DEFAULT false,
  created_at timestamptz NOT NULL DEFAULT now(), updated_at timestamptz NOT NULL DEFAULT now(), UNIQUE(tenant_id, provider)
 );
--- LeadX additive schema compatibility sweep: reconcile pre-existing table shapes.
--- CREATE TABLE IF NOT EXISTS does not alter legacy tables. Missing columns are added
--- before downstream indexes/views/functions reference them. Constraints remain defined by
--- the canonical CREATE TABLE on clean installs; existing installs keep their data intact.
+-- LeadX compatibility sweep: reconcile legacy table shapes before downstream statements.
 ALTER TABLE IF EXISTS public.integration_field_maps ADD COLUMN IF NOT EXISTS id uuid;
 ALTER TABLE IF EXISTS public.integration_field_maps ADD COLUMN IF NOT EXISTS mapping jsonb;
 ALTER TABLE IF EXISTS public.integration_field_maps ADD COLUMN IF NOT EXISTS created_at timestamptz;
@@ -7182,24 +7224,12 @@ ON CONFLICT(slug) DO NOTHING;
 CREATE TABLE IF NOT EXISTS public.lead_outcome_events (
  id uuid PRIMARY KEY DEFAULT gen_random_uuid(), tenant_id uuid NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
  assignment_id uuid NOT NULL REFERENCES lead_assignments(id) ON DELETE CASCADE, lead_id uuid NOT NULL REFERENCES leads_global(id) ON DELETE CASCADE,
- outcome text NOT NULL CHECK (outcome IN ('no_answer','booked','not_interested','won')), note text, recorded_at timestamptz NOT NULL DEFAULT now(),
- signal text, value numeric(12,2), positive boolean, metadata jsonb NOT NULL DEFAULT '{}'::jsonb,
- occurred_at timestamptz NOT NULL DEFAULT now()
+ outcome text NOT NULL CHECK (outcome IN ('no_answer','booked','not_interested','won')), note text, recorded_at timestamptz NOT NULL DEFAULT now()
 );
--- LeadX additive schema compatibility sweep: reconcile pre-existing table shapes.
--- CREATE TABLE IF NOT EXISTS does not alter legacy tables. Missing columns are added
--- before downstream indexes/views/functions reference them. Constraints remain defined by
--- the canonical CREATE TABLE on clean installs; existing installs keep their data intact.
+-- LeadX compatibility sweep: reconcile legacy table shapes before downstream statements.
 ALTER TABLE IF EXISTS public.lead_outcome_events ADD COLUMN IF NOT EXISTS id uuid;
 ALTER TABLE IF EXISTS public.lead_outcome_events ADD COLUMN IF NOT EXISTS assignment_id uuid;
 ALTER TABLE IF EXISTS public.lead_outcome_events ADD COLUMN IF NOT EXISTS outcome text;
-ALTER TABLE IF EXISTS public.lead_outcome_events ADD COLUMN IF NOT EXISTS note text;
-ALTER TABLE IF EXISTS public.lead_outcome_events ADD COLUMN IF NOT EXISTS recorded_at timestamptz NOT NULL DEFAULT now();
-ALTER TABLE IF EXISTS public.lead_outcome_events ADD COLUMN IF NOT EXISTS signal text;
-ALTER TABLE IF EXISTS public.lead_outcome_events ADD COLUMN IF NOT EXISTS value numeric(12,2);
-ALTER TABLE IF EXISTS public.lead_outcome_events ADD COLUMN IF NOT EXISTS positive boolean;
-ALTER TABLE IF EXISTS public.lead_outcome_events ADD COLUMN IF NOT EXISTS metadata jsonb NOT NULL DEFAULT '{}'::jsonb;
-ALTER TABLE IF EXISTS public.lead_outcome_events ADD COLUMN IF NOT EXISTS occurred_at timestamptz NOT NULL DEFAULT now();
 
 CREATE INDEX IF NOT EXISTS idx_lead_outcome_events_tenant_time ON public.lead_outcome_events(tenant_id,recorded_at DESC);
 
@@ -7221,10 +7251,7 @@ CREATE TABLE IF NOT EXISTS agent_runs (
   finished_at timestamptz,
   updated_at timestamptz NOT NULL DEFAULT now()
 );
--- LeadX additive schema compatibility sweep: reconcile pre-existing table shapes.
--- CREATE TABLE IF NOT EXISTS does not alter legacy tables. Missing columns are added
--- before downstream indexes/views/functions reference them. Constraints remain defined by
--- the canonical CREATE TABLE on clean installs; existing installs keep their data intact.
+-- LeadX compatibility sweep: reconcile legacy table shapes before downstream statements.
 ALTER TABLE IF EXISTS public.agent_runs ADD COLUMN IF NOT EXISTS id uuid;
 ALTER TABLE IF EXISTS public.agent_runs ADD COLUMN IF NOT EXISTS tenant_id uuid;
 ALTER TABLE IF EXISTS public.agent_runs ADD COLUMN IF NOT EXISTS agent_id text;
@@ -7253,10 +7280,7 @@ CREATE TABLE IF NOT EXISTS agent_memory (
   updated_at timestamptz NOT NULL DEFAULT now(),
   UNIQUE(tenant_id, agent_id, memory_key)
 );
--- LeadX additive schema compatibility sweep: reconcile pre-existing table shapes.
--- CREATE TABLE IF NOT EXISTS does not alter legacy tables. Missing columns are added
--- before downstream indexes/views/functions reference them. Constraints remain defined by
--- the canonical CREATE TABLE on clean installs; existing installs keep their data intact.
+-- LeadX compatibility sweep: reconcile legacy table shapes before downstream statements.
 ALTER TABLE IF EXISTS public.agent_memory ADD COLUMN IF NOT EXISTS id uuid;
 ALTER TABLE IF EXISTS public.agent_memory ADD COLUMN IF NOT EXISTS tenant_id uuid;
 ALTER TABLE IF EXISTS public.agent_memory ADD COLUMN IF NOT EXISTS agent_id text;
@@ -7277,10 +7301,7 @@ CREATE TABLE IF NOT EXISTS agent_feedback (
   metadata jsonb NOT NULL DEFAULT '{}',
   created_at timestamptz NOT NULL DEFAULT now()
 );
--- LeadX additive schema compatibility sweep: reconcile pre-existing table shapes.
--- CREATE TABLE IF NOT EXISTS does not alter legacy tables. Missing columns are added
--- before downstream indexes/views/functions reference them. Constraints remain defined by
--- the canonical CREATE TABLE on clean installs; existing installs keep their data intact.
+-- LeadX compatibility sweep: reconcile legacy table shapes before downstream statements.
 ALTER TABLE IF EXISTS public.agent_feedback ADD COLUMN IF NOT EXISTS id uuid;
 ALTER TABLE IF EXISTS public.agent_feedback ADD COLUMN IF NOT EXISTS tenant_id uuid;
 ALTER TABLE IF EXISTS public.agent_feedback ADD COLUMN IF NOT EXISTS agent_id text;
@@ -7308,10 +7329,7 @@ CREATE TABLE IF NOT EXISTS email_verification_codes (
   consumed_at timestamptz,
   created_at timestamptz NOT NULL DEFAULT now()
 );
--- LeadX additive schema compatibility sweep: reconcile pre-existing table shapes.
--- CREATE TABLE IF NOT EXISTS does not alter legacy tables. Missing columns are added
--- before downstream indexes/views/functions reference them. Constraints remain defined by
--- the canonical CREATE TABLE on clean installs; existing installs keep their data intact.
+-- LeadX compatibility sweep: reconcile legacy table shapes before downstream statements.
 ALTER TABLE IF EXISTS public.email_verification_codes ADD COLUMN IF NOT EXISTS id uuid;
 ALTER TABLE IF EXISTS public.email_verification_codes ADD COLUMN IF NOT EXISTS email text;
 ALTER TABLE IF EXISTS public.email_verification_codes ADD COLUMN IF NOT EXISTS auth_user_id uuid;
@@ -7374,29 +7392,13 @@ CREATE TABLE IF NOT EXISTS public.integration_deliveries (
   created_at timestamptz NOT NULL DEFAULT now(),
   updated_at timestamptz NOT NULL DEFAULT now()
 );
--- LeadX additive schema compatibility sweep: reconcile pre-existing table shapes.
--- CREATE TABLE IF NOT EXISTS does not alter legacy tables. Missing columns are added
--- before downstream indexes/views/functions reference them. Constraints remain defined by
--- the canonical CREATE TABLE on clean installs; existing installs keep their data intact.
-ALTER TABLE IF EXISTS public.integration_deliveries ADD COLUMN IF NOT EXISTS id uuid;
-ALTER TABLE IF EXISTS public.integration_deliveries ADD COLUMN IF NOT EXISTS tenant_id uuid;
-ALTER TABLE IF EXISTS public.integration_deliveries ADD COLUMN IF NOT EXISTS assignment_id uuid;
-ALTER TABLE IF EXISTS public.integration_deliveries ADD COLUMN IF NOT EXISTS provider text;
-ALTER TABLE IF EXISTS public.integration_deliveries ADD COLUMN IF NOT EXISTS status text;
-ALTER TABLE IF EXISTS public.integration_deliveries ADD COLUMN IF NOT EXISTS attempt integer;
-ALTER TABLE IF EXISTS public.integration_deliveries ADD COLUMN IF NOT EXISTS http_code integer;
-ALTER TABLE IF EXISTS public.integration_deliveries ADD COLUMN IF NOT EXISTS error text;
-ALTER TABLE IF EXISTS public.integration_deliveries ADD COLUMN IF NOT EXISTS payload jsonb;
-ALTER TABLE IF EXISTS public.integration_deliveries ADD COLUMN IF NOT EXISTS created_at timestamptz;
-ALTER TABLE IF EXISTS public.integration_deliveries ADD COLUMN IF NOT EXISTS updated_at timestamptz;
-
 CREATE INDEX IF NOT EXISTS idx_integration_deliveries_lookup ON public.integration_deliveries(tenant_id,assignment_id,provider,status);
 
 -- ============================================================================
 -- CANONICAL MIGRATION 03: 20260930000200_competitive_upgrade.sql
 -- ============================================================================
 
--- LeadX competitive upgrade (2026-09-30): two-way CRM sync, agency sub-accounts
+-- LeadX competitive upgrade (2026-09-30): two-way CRM sync, agency sub-accounts,
 -- white-label reports, public scoreboard snapshots, waterfall provider stats.
 -- Idempotent. Service-role API access only (RLS enabled, no anon policies).
 
@@ -7437,21 +7439,6 @@ CREATE TABLE IF NOT EXISTS public.crm_sync_links (
   created_at timestamptz NOT NULL DEFAULT now(),
   UNIQUE (provider, account_id, external_id)
 );
--- LeadX additive schema compatibility sweep: reconcile pre-existing table shapes.
--- CREATE TABLE IF NOT EXISTS does not alter legacy tables. Missing columns are added
--- before downstream indexes/views/functions reference them. Constraints remain defined by
--- the canonical CREATE TABLE on clean installs; existing installs keep their data intact.
-ALTER TABLE IF EXISTS public.crm_sync_links ADD COLUMN IF NOT EXISTS id uuid;
-ALTER TABLE IF EXISTS public.crm_sync_links ADD COLUMN IF NOT EXISTS tenant_id uuid;
-ALTER TABLE IF EXISTS public.crm_sync_links ADD COLUMN IF NOT EXISTS provider text;
-ALTER TABLE IF EXISTS public.crm_sync_links ADD COLUMN IF NOT EXISTS account_id text;
-ALTER TABLE IF EXISTS public.crm_sync_links ADD COLUMN IF NOT EXISTS external_id text;
-ALTER TABLE IF EXISTS public.crm_sync_links ADD COLUMN IF NOT EXISTS assignment_id uuid;
-ALTER TABLE IF EXISTS public.crm_sync_links ADD COLUMN IF NOT EXISTS lead_id uuid;
-ALTER TABLE IF EXISTS public.crm_sync_links ADD COLUMN IF NOT EXISTS outcome text;
-ALTER TABLE IF EXISTS public.crm_sync_links ADD COLUMN IF NOT EXISTS last_synced_ms bigint;
-ALTER TABLE IF EXISTS public.crm_sync_links ADD COLUMN IF NOT EXISTS created_at timestamptz;
-
 CREATE INDEX IF NOT EXISTS idx_crm_sync_links_assignment ON public.crm_sync_links(tenant_id, assignment_id);
 
 CREATE TABLE IF NOT EXISTS public.crm_sync_events (
@@ -7463,17 +7450,6 @@ CREATE TABLE IF NOT EXISTS public.crm_sync_events (
   created_at timestamptz NOT NULL DEFAULT now(),
   UNIQUE (provider, event_id)
 );
--- LeadX additive schema compatibility sweep: reconcile pre-existing table shapes.
--- CREATE TABLE IF NOT EXISTS does not alter legacy tables. Missing columns are added
--- before downstream indexes/views/functions reference them. Constraints remain defined by
--- the canonical CREATE TABLE on clean installs; existing installs keep their data intact.
-ALTER TABLE IF EXISTS public.crm_sync_events ADD COLUMN IF NOT EXISTS id uuid;
-ALTER TABLE IF EXISTS public.crm_sync_events ADD COLUMN IF NOT EXISTS provider text;
-ALTER TABLE IF EXISTS public.crm_sync_events ADD COLUMN IF NOT EXISTS event_id text;
-ALTER TABLE IF EXISTS public.crm_sync_events ADD COLUMN IF NOT EXISTS status text;
-ALTER TABLE IF EXISTS public.crm_sync_events ADD COLUMN IF NOT EXISTS detail jsonb;
-ALTER TABLE IF EXISTS public.crm_sync_events ADD COLUMN IF NOT EXISTS created_at timestamptz;
-
 
 CREATE TABLE IF NOT EXISTS public.crm_sync_echo (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -7483,17 +7459,6 @@ CREATE TABLE IF NOT EXISTS public.crm_sync_echo (
   value_hash text NOT NULL,
   written_epoch double precision NOT NULL
 );
--- LeadX additive schema compatibility sweep: reconcile pre-existing table shapes.
--- CREATE TABLE IF NOT EXISTS does not alter legacy tables. Missing columns are added
--- before downstream indexes/views/functions reference them. Constraints remain defined by
--- the canonical CREATE TABLE on clean installs; existing installs keep their data intact.
-ALTER TABLE IF EXISTS public.crm_sync_echo ADD COLUMN IF NOT EXISTS id uuid;
-ALTER TABLE IF EXISTS public.crm_sync_echo ADD COLUMN IF NOT EXISTS tenant_id uuid;
-ALTER TABLE IF EXISTS public.crm_sync_echo ADD COLUMN IF NOT EXISTS provider text;
-ALTER TABLE IF EXISTS public.crm_sync_echo ADD COLUMN IF NOT EXISTS external_id text;
-ALTER TABLE IF EXISTS public.crm_sync_echo ADD COLUMN IF NOT EXISTS value_hash text;
-ALTER TABLE IF EXISTS public.crm_sync_echo ADD COLUMN IF NOT EXISTS written_epoch double precision;
-
 CREATE INDEX IF NOT EXISTS idx_crm_sync_echo_lookup ON public.crm_sync_echo(tenant_id, provider, external_id, value_hash, written_epoch DESC);
 
 -- 3) Signals: free-form types (old installs had a closed CHECK list) ------------
@@ -7514,15 +7479,6 @@ CREATE TABLE IF NOT EXISTS public.scoreboard_snapshots (
   integrity_hash text NOT NULL,
   generated_at timestamptz NOT NULL DEFAULT now()
 );
--- LeadX additive schema compatibility sweep: reconcile pre-existing table shapes.
--- CREATE TABLE IF NOT EXISTS does not alter legacy tables. Missing columns are added
--- before downstream indexes/views/functions reference them. Constraints remain defined by
--- the canonical CREATE TABLE on clean installs; existing installs keep their data intact.
-ALTER TABLE IF EXISTS public.scoreboard_snapshots ADD COLUMN IF NOT EXISTS id uuid;
-ALTER TABLE IF EXISTS public.scoreboard_snapshots ADD COLUMN IF NOT EXISTS payload jsonb;
-ALTER TABLE IF EXISTS public.scoreboard_snapshots ADD COLUMN IF NOT EXISTS integrity_hash text;
-ALTER TABLE IF EXISTS public.scoreboard_snapshots ADD COLUMN IF NOT EXISTS generated_at timestamptz;
-
 CREATE INDEX IF NOT EXISTS idx_scoreboard_generated ON public.scoreboard_snapshots(generated_at DESC);
 
 -- 5) White-label client reports -------------------------------------------------
@@ -7536,19 +7492,6 @@ CREATE TABLE IF NOT EXISTS public.client_reports (
   created_by text,
   created_at timestamptz NOT NULL DEFAULT now()
 );
--- LeadX additive schema compatibility sweep: reconcile pre-existing table shapes.
--- CREATE TABLE IF NOT EXISTS does not alter legacy tables. Missing columns are added
--- before downstream indexes/views/functions reference them. Constraints remain defined by
--- the canonical CREATE TABLE on clean installs; existing installs keep their data intact.
-ALTER TABLE IF EXISTS public.client_reports ADD COLUMN IF NOT EXISTS id uuid;
-ALTER TABLE IF EXISTS public.client_reports ADD COLUMN IF NOT EXISTS tenant_id uuid;
-ALTER TABLE IF EXISTS public.client_reports ADD COLUMN IF NOT EXISTS client_tenant_id uuid;
-ALTER TABLE IF EXISTS public.client_reports ADD COLUMN IF NOT EXISTS period text;
-ALTER TABLE IF EXISTS public.client_reports ADD COLUMN IF NOT EXISTS html text;
-ALTER TABLE IF EXISTS public.client_reports ADD COLUMN IF NOT EXISTS metrics jsonb;
-ALTER TABLE IF EXISTS public.client_reports ADD COLUMN IF NOT EXISTS created_by text;
-ALTER TABLE IF EXISTS public.client_reports ADD COLUMN IF NOT EXISTS created_at timestamptz;
-
 CREATE INDEX IF NOT EXISTS idx_client_reports_tenant ON public.client_reports(tenant_id, created_at DESC);
 
 -- 6) Waterfall provider hit-rate stats -------------------------------------------
@@ -7557,14 +7500,6 @@ CREATE TABLE IF NOT EXISTS public.enrichment_provider_stats (
   snapshot jsonb NOT NULL DEFAULT '{}'::jsonb,
   updated_at timestamptz NOT NULL DEFAULT now()
 );
--- LeadX additive schema compatibility sweep: reconcile pre-existing table shapes.
--- CREATE TABLE IF NOT EXISTS does not alter legacy tables. Missing columns are added
--- before downstream indexes/views/functions reference them. Constraints remain defined by
--- the canonical CREATE TABLE on clean installs; existing installs keep their data intact.
-ALTER TABLE IF EXISTS public.enrichment_provider_stats ADD COLUMN IF NOT EXISTS id text;
-ALTER TABLE IF EXISTS public.enrichment_provider_stats ADD COLUMN IF NOT EXISTS snapshot jsonb;
-ALTER TABLE IF EXISTS public.enrichment_provider_stats ADD COLUMN IF NOT EXISTS updated_at timestamptz;
-
 
 -- RLS on, no policies: only the service role (API/worker) can touch these.
 ALTER TABLE public.crm_sync_links ENABLE ROW LEVEL SECURITY;
@@ -7601,28 +7536,6 @@ CREATE TABLE IF NOT EXISTS public.agent_goals (
   created_at timestamptz NOT NULL DEFAULT now(),
   updated_at timestamptz NOT NULL DEFAULT now()
 );
--- LeadX additive schema compatibility sweep: reconcile pre-existing table shapes.
--- CREATE TABLE IF NOT EXISTS does not alter legacy tables. Missing columns are added
--- before downstream indexes/views/functions reference them. Constraints remain defined by
--- the canonical CREATE TABLE on clean installs; existing installs keep their data intact.
-ALTER TABLE IF EXISTS public.agent_goals ADD COLUMN IF NOT EXISTS id uuid;
-ALTER TABLE IF EXISTS public.agent_goals ADD COLUMN IF NOT EXISTS tenant_id uuid;
-ALTER TABLE IF EXISTS public.agent_goals ADD COLUMN IF NOT EXISTS name text;
-ALTER TABLE IF EXISTS public.agent_goals ADD COLUMN IF NOT EXISTS description text;
-ALTER TABLE IF EXISTS public.agent_goals ADD COLUMN IF NOT EXISTS agent_id text;
-ALTER TABLE IF EXISTS public.agent_goals ADD COLUMN IF NOT EXISTS goal_type text;
-ALTER TABLE IF EXISTS public.agent_goals ADD COLUMN IF NOT EXISTS target jsonb;
-ALTER TABLE IF EXISTS public.agent_goals ADD COLUMN IF NOT EXISTS current_state jsonb;
-ALTER TABLE IF EXISTS public.agent_goals ADD COLUMN IF NOT EXISTS status text;
-ALTER TABLE IF EXISTS public.agent_goals ADD COLUMN IF NOT EXISTS interval_minutes integer;
-ALTER TABLE IF EXISTS public.agent_goals ADD COLUMN IF NOT EXISTS next_run_at timestamptz;
-ALTER TABLE IF EXISTS public.agent_goals ADD COLUMN IF NOT EXISTS last_run_at timestamptz;
-ALTER TABLE IF EXISTS public.agent_goals ADD COLUMN IF NOT EXISTS last_run_id uuid;
-ALTER TABLE IF EXISTS public.agent_goals ADD COLUMN IF NOT EXISTS last_error text;
-ALTER TABLE IF EXISTS public.agent_goals ADD COLUMN IF NOT EXISTS created_by text;
-ALTER TABLE IF EXISTS public.agent_goals ADD COLUMN IF NOT EXISTS created_at timestamptz;
-ALTER TABLE IF EXISTS public.agent_goals ADD COLUMN IF NOT EXISTS updated_at timestamptz;
-
 CREATE INDEX IF NOT EXISTS idx_agent_goals_due ON public.agent_goals(status, next_run_at);
 CREATE INDEX IF NOT EXISTS idx_agent_goals_tenant ON public.agent_goals(tenant_id, status, created_at DESC);
 
@@ -7639,21 +7552,6 @@ CREATE TABLE IF NOT EXISTS public.lead_account_memory (
   updated_at timestamptz NOT NULL DEFAULT now(),
   UNIQUE(tenant_id, lead_id, memory_key)
 );
--- LeadX additive schema compatibility sweep: reconcile pre-existing table shapes.
--- CREATE TABLE IF NOT EXISTS does not alter legacy tables. Missing columns are added
--- before downstream indexes/views/functions reference them. Constraints remain defined by
--- the canonical CREATE TABLE on clean installs; existing installs keep their data intact.
-ALTER TABLE IF EXISTS public.lead_account_memory ADD COLUMN IF NOT EXISTS id uuid;
-ALTER TABLE IF EXISTS public.lead_account_memory ADD COLUMN IF NOT EXISTS tenant_id uuid;
-ALTER TABLE IF EXISTS public.lead_account_memory ADD COLUMN IF NOT EXISTS lead_id uuid;
-ALTER TABLE IF EXISTS public.lead_account_memory ADD COLUMN IF NOT EXISTS memory_key text;
-ALTER TABLE IF EXISTS public.lead_account_memory ADD COLUMN IF NOT EXISTS memory_value jsonb;
-ALTER TABLE IF EXISTS public.lead_account_memory ADD COLUMN IF NOT EXISTS confidence numeric(6,5);
-ALTER TABLE IF EXISTS public.lead_account_memory ADD COLUMN IF NOT EXISTS source_type text;
-ALTER TABLE IF EXISTS public.lead_account_memory ADD COLUMN IF NOT EXISTS source_ref text;
-ALTER TABLE IF EXISTS public.lead_account_memory ADD COLUMN IF NOT EXISTS observed_at timestamptz;
-ALTER TABLE IF EXISTS public.lead_account_memory ADD COLUMN IF NOT EXISTS updated_at timestamptz;
-
 CREATE INDEX IF NOT EXISTS idx_account_memory_lead ON public.lead_account_memory(tenant_id, lead_id, updated_at DESC);
 CREATE INDEX IF NOT EXISTS idx_account_memory_key ON public.lead_account_memory(tenant_id, memory_key, updated_at DESC);
 
@@ -7669,21 +7567,6 @@ CREATE TABLE IF NOT EXISTS public.ai_command_runs (
   created_at timestamptz NOT NULL DEFAULT now(),
   updated_at timestamptz NOT NULL DEFAULT now()
 );
--- LeadX additive schema compatibility sweep: reconcile pre-existing table shapes.
--- CREATE TABLE IF NOT EXISTS does not alter legacy tables. Missing columns are added
--- before downstream indexes/views/functions reference them. Constraints remain defined by
--- the canonical CREATE TABLE on clean installs; existing installs keep their data intact.
-ALTER TABLE IF EXISTS public.ai_command_runs ADD COLUMN IF NOT EXISTS id uuid;
-ALTER TABLE IF EXISTS public.ai_command_runs ADD COLUMN IF NOT EXISTS tenant_id uuid;
-ALTER TABLE IF EXISTS public.ai_command_runs ADD COLUMN IF NOT EXISTS command text;
-ALTER TABLE IF EXISTS public.ai_command_runs ADD COLUMN IF NOT EXISTS intent text;
-ALTER TABLE IF EXISTS public.ai_command_runs ADD COLUMN IF NOT EXISTS plan jsonb;
-ALTER TABLE IF EXISTS public.ai_command_runs ADD COLUMN IF NOT EXISTS status text;
-ALTER TABLE IF EXISTS public.ai_command_runs ADD COLUMN IF NOT EXISTS agent_run_id uuid;
-ALTER TABLE IF EXISTS public.ai_command_runs ADD COLUMN IF NOT EXISTS result jsonb;
-ALTER TABLE IF EXISTS public.ai_command_runs ADD COLUMN IF NOT EXISTS created_at timestamptz;
-ALTER TABLE IF EXISTS public.ai_command_runs ADD COLUMN IF NOT EXISTS updated_at timestamptz;
-
 CREATE INDEX IF NOT EXISTS idx_ai_command_runs_tenant ON public.ai_command_runs(tenant_id, created_at DESC);
 
 ALTER TABLE public.agent_runs ADD COLUMN IF NOT EXISTS goal_id uuid REFERENCES public.agent_goals(id) ON DELETE SET NULL;
@@ -7720,19 +7603,6 @@ CREATE TABLE IF NOT EXISTS public.core_provider_registry (
   config jsonb NOT NULL DEFAULT '{}'::jsonb,
   updated_at timestamptz NOT NULL DEFAULT now()
 );
--- LeadX additive schema compatibility sweep: reconcile pre-existing table shapes.
--- CREATE TABLE IF NOT EXISTS does not alter legacy tables. Missing columns are added
--- before downstream indexes/views/functions reference them. Constraints remain defined by
--- the canonical CREATE TABLE on clean installs; existing installs keep their data intact.
-ALTER TABLE IF EXISTS public.core_provider_registry ADD COLUMN IF NOT EXISTS provider text;
-ALTER TABLE IF EXISTS public.core_provider_registry ADD COLUMN IF NOT EXISTS kind text;
-ALTER TABLE IF EXISTS public.core_provider_registry ADD COLUMN IF NOT EXISTS capabilities jsonb;
-ALTER TABLE IF EXISTS public.core_provider_registry ADD COLUMN IF NOT EXISTS enabled boolean;
-ALTER TABLE IF EXISTS public.core_provider_registry ADD COLUMN IF NOT EXISTS cost_estimate numeric(12,4);
-ALTER TABLE IF EXISTS public.core_provider_registry ADD COLUMN IF NOT EXISTS priority numeric(8,4);
-ALTER TABLE IF EXISTS public.core_provider_registry ADD COLUMN IF NOT EXISTS config jsonb;
-ALTER TABLE IF EXISTS public.core_provider_registry ADD COLUMN IF NOT EXISTS updated_at timestamptz;
-
 
 CREATE TABLE IF NOT EXISTS public.core_provider_observations (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -7748,23 +7618,6 @@ CREATE TABLE IF NOT EXISTS public.core_provider_observations (
   metadata jsonb NOT NULL DEFAULT '{}'::jsonb,
   created_at timestamptz NOT NULL DEFAULT now()
 );
--- LeadX additive schema compatibility sweep: reconcile pre-existing table shapes.
--- CREATE TABLE IF NOT EXISTS does not alter legacy tables. Missing columns are added
--- before downstream indexes/views/functions reference them. Constraints remain defined by
--- the canonical CREATE TABLE on clean installs; existing installs keep their data intact.
-ALTER TABLE IF EXISTS public.core_provider_observations ADD COLUMN IF NOT EXISTS id uuid;
-ALTER TABLE IF EXISTS public.core_provider_observations ADD COLUMN IF NOT EXISTS tenant_id uuid;
-ALTER TABLE IF EXISTS public.core_provider_observations ADD COLUMN IF NOT EXISTS provider text;
-ALTER TABLE IF EXISTS public.core_provider_observations ADD COLUMN IF NOT EXISTS operation text;
-ALTER TABLE IF EXISTS public.core_provider_observations ADD COLUMN IF NOT EXISTS field_name text;
-ALTER TABLE IF EXISTS public.core_provider_observations ADD COLUMN IF NOT EXISTS status text;
-ALTER TABLE IF EXISTS public.core_provider_observations ADD COLUMN IF NOT EXISTS latency_ms integer;
-ALTER TABLE IF EXISTS public.core_provider_observations ADD COLUMN IF NOT EXISTS cost numeric(12,4) DEFAULT 0;
-ALTER TABLE IF EXISTS public.core_provider_observations ADD COLUMN IF NOT EXISTS confidence numeric(6,5);
-ALTER TABLE IF EXISTS public.core_provider_observations ADD COLUMN IF NOT EXISTS verified boolean;
-ALTER TABLE IF EXISTS public.core_provider_observations ADD COLUMN IF NOT EXISTS metadata jsonb;
-ALTER TABLE IF EXISTS public.core_provider_observations ADD COLUMN IF NOT EXISTS created_at timestamptz;
-
 CREATE INDEX IF NOT EXISTS idx_core_provider_obs ON public.core_provider_observations(provider, operation, created_at DESC);
 
 CREATE TABLE IF NOT EXISTS public.core_field_provenance (
@@ -7779,20 +7632,6 @@ CREATE TABLE IF NOT EXISTS public.core_field_provenance (
   evidence jsonb NOT NULL DEFAULT '{}'::jsonb,
   PRIMARY KEY (lead_id, field_name)
 );
--- LeadX additive schema compatibility sweep: reconcile pre-existing table shapes.
--- CREATE TABLE IF NOT EXISTS does not alter legacy tables. Missing columns are added
--- before downstream indexes/views/functions reference them. Constraints remain defined by
--- the canonical CREATE TABLE on clean installs; existing installs keep their data intact.
-ALTER TABLE IF EXISTS public.core_field_provenance ADD COLUMN IF NOT EXISTS lead_id uuid;
-ALTER TABLE IF EXISTS public.core_field_provenance ADD COLUMN IF NOT EXISTS field_name text;
-ALTER TABLE IF EXISTS public.core_field_provenance ADD COLUMN IF NOT EXISTS value_hash text;
-ALTER TABLE IF EXISTS public.core_field_provenance ADD COLUMN IF NOT EXISTS provider text;
-ALTER TABLE IF EXISTS public.core_field_provenance ADD COLUMN IF NOT EXISTS confidence numeric(6,5) DEFAULT 0;
-ALTER TABLE IF EXISTS public.core_field_provenance ADD COLUMN IF NOT EXISTS verified boolean;
-ALTER TABLE IF EXISTS public.core_field_provenance ADD COLUMN IF NOT EXISTS observed_at timestamptz;
-ALTER TABLE IF EXISTS public.core_field_provenance ADD COLUMN IF NOT EXISTS expires_at timestamptz;
-ALTER TABLE IF EXISTS public.core_field_provenance ADD COLUMN IF NOT EXISTS evidence jsonb;
-
 CREATE INDEX IF NOT EXISTS idx_core_field_freshness ON public.core_field_provenance(expires_at);
 
 CREATE TABLE IF NOT EXISTS public.core_discovery_runs (
@@ -7807,21 +7646,6 @@ CREATE TABLE IF NOT EXISTS public.core_discovery_runs (
   final_count bigint NOT NULL DEFAULT 0,
   created_at timestamptz NOT NULL DEFAULT now()
 );
--- LeadX additive schema compatibility sweep: reconcile pre-existing table shapes.
--- CREATE TABLE IF NOT EXISTS does not alter legacy tables. Missing columns are added
--- before downstream indexes/views/functions reference them. Constraints remain defined by
--- the canonical CREATE TABLE on clean installs; existing installs keep their data intact.
-ALTER TABLE IF EXISTS public.core_discovery_runs ADD COLUMN IF NOT EXISTS id uuid;
-ALTER TABLE IF EXISTS public.core_discovery_runs ADD COLUMN IF NOT EXISTS tenant_id uuid;
-ALTER TABLE IF EXISTS public.core_discovery_runs ADD COLUMN IF NOT EXISTS vertical text;
-ALTER TABLE IF EXISTS public.core_discovery_runs ADD COLUMN IF NOT EXISTS locations jsonb;
-ALTER TABLE IF EXISTS public.core_discovery_runs ADD COLUMN IF NOT EXISTS objective text;
-ALTER TABLE IF EXISTS public.core_discovery_runs ADD COLUMN IF NOT EXISTS source_telemetry jsonb;
-ALTER TABLE IF EXISTS public.core_discovery_runs ADD COLUMN IF NOT EXISTS raw_count bigint;
-ALTER TABLE IF EXISTS public.core_discovery_runs ADD COLUMN IF NOT EXISTS resolved_count bigint;
-ALTER TABLE IF EXISTS public.core_discovery_runs ADD COLUMN IF NOT EXISTS final_count bigint;
-ALTER TABLE IF EXISTS public.core_discovery_runs ADD COLUMN IF NOT EXISTS created_at timestamptz;
-
 CREATE INDEX IF NOT EXISTS idx_core_discovery_runs ON public.core_discovery_runs(tenant_id, created_at DESC);
 
 CREATE TABLE IF NOT EXISTS public.core_lead_outcomes (
@@ -7834,19 +7658,6 @@ CREATE TABLE IF NOT EXISTS public.core_lead_outcomes (
   reason text,
   created_at timestamptz NOT NULL DEFAULT now()
 );
--- LeadX additive schema compatibility sweep: reconcile pre-existing table shapes.
--- CREATE TABLE IF NOT EXISTS does not alter legacy tables. Missing columns are added
--- before downstream indexes/views/functions reference them. Constraints remain defined by
--- the canonical CREATE TABLE on clean installs; existing installs keep their data intact.
-ALTER TABLE IF EXISTS public.core_lead_outcomes ADD COLUMN IF NOT EXISTS id uuid;
-ALTER TABLE IF EXISTS public.core_lead_outcomes ADD COLUMN IF NOT EXISTS tenant_id uuid;
-ALTER TABLE IF EXISTS public.core_lead_outcomes ADD COLUMN IF NOT EXISTS lead_id uuid;
-ALTER TABLE IF EXISTS public.core_lead_outcomes ADD COLUMN IF NOT EXISTS provider_sources jsonb;
-ALTER TABLE IF EXISTS public.core_lead_outcomes ADD COLUMN IF NOT EXISTS opportunity_score numeric(8,3);
-ALTER TABLE IF EXISTS public.core_lead_outcomes ADD COLUMN IF NOT EXISTS outcome text;
-ALTER TABLE IF EXISTS public.core_lead_outcomes ADD COLUMN IF NOT EXISTS reason text;
-ALTER TABLE IF EXISTS public.core_lead_outcomes ADD COLUMN IF NOT EXISTS created_at timestamptz;
-
 CREATE INDEX IF NOT EXISTS idx_core_outcomes_lead ON public.core_lead_outcomes(tenant_id, lead_id, created_at DESC);
 
 ALTER TABLE public.core_provider_registry ENABLE ROW LEVEL SECURITY;
@@ -7874,22 +7685,6 @@ CREATE TABLE IF NOT EXISTS enrichment_field_observations (
   metadata jsonb NOT NULL DEFAULT '{}'::jsonb,
   UNIQUE (lead_id, field_name, provider, observed_at)
 );
--- LeadX additive schema compatibility sweep: reconcile pre-existing table shapes.
--- CREATE TABLE IF NOT EXISTS does not alter legacy tables. Missing columns are added
--- before downstream indexes/views/functions reference them. Constraints remain defined by
--- the canonical CREATE TABLE on clean installs; existing installs keep their data intact.
-ALTER TABLE IF EXISTS public.enrichment_field_observations ADD COLUMN IF NOT EXISTS id uuid;
-ALTER TABLE IF EXISTS public.enrichment_field_observations ADD COLUMN IF NOT EXISTS lead_id uuid;
-ALTER TABLE IF EXISTS public.enrichment_field_observations ADD COLUMN IF NOT EXISTS field_name text;
-ALTER TABLE IF EXISTS public.enrichment_field_observations ADD COLUMN IF NOT EXISTS value_json jsonb;
-ALTER TABLE IF EXISTS public.enrichment_field_observations ADD COLUMN IF NOT EXISTS provider text;
-ALTER TABLE IF EXISTS public.enrichment_field_observations ADD COLUMN IF NOT EXISTS source_url text;
-ALTER TABLE IF EXISTS public.enrichment_field_observations ADD COLUMN IF NOT EXISTS confidence numeric(5,4);
-ALTER TABLE IF EXISTS public.enrichment_field_observations ADD COLUMN IF NOT EXISTS observed_at timestamptz;
-ALTER TABLE IF EXISTS public.enrichment_field_observations ADD COLUMN IF NOT EXISTS expires_at timestamptz;
-ALTER TABLE IF EXISTS public.enrichment_field_observations ADD COLUMN IF NOT EXISTS verified boolean;
-ALTER TABLE IF EXISTS public.enrichment_field_observations ADD COLUMN IF NOT EXISTS metadata jsonb;
-
 CREATE INDEX IF NOT EXISTS idx_enrichment_obs_lead_field ON enrichment_field_observations(lead_id, field_name, observed_at DESC);
 CREATE INDEX IF NOT EXISTS idx_enrichment_obs_provider ON enrichment_field_observations(provider, observed_at DESC);
 
@@ -7907,23 +7702,6 @@ CREATE TABLE IF NOT EXISTS enrichment_provider_observations (
   observed_at timestamptz NOT NULL DEFAULT now(),
   metadata jsonb NOT NULL DEFAULT '{}'::jsonb
 );
--- LeadX additive schema compatibility sweep: reconcile pre-existing table shapes.
--- CREATE TABLE IF NOT EXISTS does not alter legacy tables. Missing columns are added
--- before downstream indexes/views/functions reference them. Constraints remain defined by
--- the canonical CREATE TABLE on clean installs; existing installs keep their data intact.
-ALTER TABLE IF EXISTS public.enrichment_provider_observations ADD COLUMN IF NOT EXISTS id uuid;
-ALTER TABLE IF EXISTS public.enrichment_provider_observations ADD COLUMN IF NOT EXISTS provider text;
-ALTER TABLE IF EXISTS public.enrichment_provider_observations ADD COLUMN IF NOT EXISTS field_name text;
-ALTER TABLE IF EXISTS public.enrichment_provider_observations ADD COLUMN IF NOT EXISTS tenant_id uuid;
-ALTER TABLE IF EXISTS public.enrichment_provider_observations ADD COLUMN IF NOT EXISTS calls integer;
-ALTER TABLE IF EXISTS public.enrichment_provider_observations ADD COLUMN IF NOT EXISTS hits integer;
-ALTER TABLE IF EXISTS public.enrichment_provider_observations ADD COLUMN IF NOT EXISTS verified_hits integer;
-ALTER TABLE IF EXISTS public.enrichment_provider_observations ADD COLUMN IF NOT EXISTS conflicts integer;
-ALTER TABLE IF EXISTS public.enrichment_provider_observations ADD COLUMN IF NOT EXISTS estimated_cost numeric(12,4);
-ALTER TABLE IF EXISTS public.enrichment_provider_observations ADD COLUMN IF NOT EXISTS latency_ms integer;
-ALTER TABLE IF EXISTS public.enrichment_provider_observations ADD COLUMN IF NOT EXISTS observed_at timestamptz;
-ALTER TABLE IF EXISTS public.enrichment_provider_observations ADD COLUMN IF NOT EXISTS metadata jsonb;
-
 CREATE INDEX IF NOT EXISTS idx_enrichment_provider_obs ON enrichment_provider_observations(provider, field_name, observed_at DESC);
 
 ALTER TABLE enrichment_field_observations ENABLE ROW LEVEL SECURITY;
@@ -7940,7 +7718,7 @@ EXCEPTION WHEN duplicate_object THEN NULL; END $$;
 -- CANONICAL MIGRATION 07: 20260930000600_lead_intelligence_6.sql
 -- ============================================================================
 
--- LeadX 6.0: post-enrichment intelligence, verification, quality gating
+-- LeadX 6.0: post-enrichment intelligence, verification, quality gating,
 -- assignment, delivery and closed-loop learning.
 
 ALTER TABLE leads_global ADD COLUMN IF NOT EXISTS lead_state text NOT NULL DEFAULT 'DISCOVERED';
@@ -7968,16 +7746,6 @@ CREATE TABLE IF NOT EXISTS lead_score_snapshots (
   overall numeric(6,2) NOT NULL DEFAULT 0, priority text, reasons jsonb NOT NULL DEFAULT '[]'::jsonb,
   created_at timestamptz NOT NULL DEFAULT now()
 );
--- LeadX additive schema compatibility sweep: reconcile pre-existing table shapes.
--- CREATE TABLE IF NOT EXISTS does not alter legacy tables. Missing columns are added
--- before downstream indexes/views/functions reference them. Constraints remain defined by
--- the canonical CREATE TABLE on clean installs; existing installs keep their data intact.
-ALTER TABLE IF EXISTS public.lead_score_snapshots ADD COLUMN IF NOT EXISTS id uuid;
-ALTER TABLE IF EXISTS public.lead_score_snapshots ADD COLUMN IF NOT EXISTS tenant_id uuid;
-ALTER TABLE IF EXISTS public.lead_score_snapshots ADD COLUMN IF NOT EXISTS model_version text;
-ALTER TABLE IF EXISTS public.lead_score_snapshots ADD COLUMN IF NOT EXISTS overall numeric(6,2);
-ALTER TABLE IF EXISTS public.lead_score_snapshots ADD COLUMN IF NOT EXISTS created_at timestamptz;
-
 CREATE INDEX IF NOT EXISTS idx_lead_scores_lead_time ON lead_score_snapshots(lead_id, created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_lead_scores_tenant_priority ON lead_score_snapshots(tenant_id, overall DESC, created_at DESC);
 
@@ -7988,15 +7756,6 @@ CREATE TABLE IF NOT EXISTS lead_field_truth (
   evidence jsonb NOT NULL DEFAULT '[]'::jsonb, resolved_at timestamptz NOT NULL DEFAULT now(),
   UNIQUE(lead_id, field_name)
 );
--- LeadX additive schema compatibility sweep: reconcile pre-existing table shapes.
--- CREATE TABLE IF NOT EXISTS does not alter legacy tables. Missing columns are added
--- before downstream indexes/views/functions reference them. Constraints remain defined by
--- the canonical CREATE TABLE on clean installs; existing installs keep their data intact.
-ALTER TABLE IF EXISTS public.lead_field_truth ADD COLUMN IF NOT EXISTS id uuid;
-ALTER TABLE IF EXISTS public.lead_field_truth ADD COLUMN IF NOT EXISTS field_name text;
-ALTER TABLE IF EXISTS public.lead_field_truth ADD COLUMN IF NOT EXISTS conflict boolean;
-ALTER TABLE IF EXISTS public.lead_field_truth ADD COLUMN IF NOT EXISTS evidence jsonb;
-
 CREATE INDEX IF NOT EXISTS idx_lead_truth_field ON lead_field_truth(lead_id, field_name);
 
 CREATE TABLE IF NOT EXISTS lead_quality_gates (
@@ -8005,16 +7764,6 @@ CREATE TABLE IF NOT EXISTS lead_quality_gates (
   score numeric(6,2), evaluated_at timestamptz NOT NULL DEFAULT now(),
   UNIQUE(lead_id, tenant_id)
 );
--- LeadX additive schema compatibility sweep: reconcile pre-existing table shapes.
--- CREATE TABLE IF NOT EXISTS does not alter legacy tables. Missing columns are added
--- before downstream indexes/views/functions reference them. Constraints remain defined by
--- the canonical CREATE TABLE on clean installs; existing installs keep their data intact.
-ALTER TABLE IF EXISTS public.lead_quality_gates ADD COLUMN IF NOT EXISTS id uuid;
-ALTER TABLE IF EXISTS public.lead_quality_gates ADD COLUMN IF NOT EXISTS tenant_id uuid;
-ALTER TABLE IF EXISTS public.lead_quality_gates ADD COLUMN IF NOT EXISTS decision text;
-ALTER TABLE IF EXISTS public.lead_quality_gates ADD COLUMN IF NOT EXISTS score numeric(6,2);
-ALTER TABLE IF EXISTS public.lead_quality_gates ADD COLUMN IF NOT EXISTS evaluated_at timestamptz;
-
 CREATE INDEX IF NOT EXISTS idx_quality_gates_tenant_decision ON lead_quality_gates(tenant_id, decision, evaluated_at DESC);
 
 CREATE TABLE IF NOT EXISTS lead_state_history (
@@ -8022,16 +7771,6 @@ CREATE TABLE IF NOT EXISTS lead_state_history (
   tenant_id uuid, from_state text, to_state text NOT NULL, event text NOT NULL, reason text,
   metadata jsonb NOT NULL DEFAULT '{}'::jsonb, created_at timestamptz NOT NULL DEFAULT now()
 );
--- LeadX additive schema compatibility sweep: reconcile pre-existing table shapes.
--- CREATE TABLE IF NOT EXISTS does not alter legacy tables. Missing columns are added
--- before downstream indexes/views/functions reference them. Constraints remain defined by
--- the canonical CREATE TABLE on clean installs; existing installs keep their data intact.
-ALTER TABLE IF EXISTS public.lead_state_history ADD COLUMN IF NOT EXISTS id uuid;
-ALTER TABLE IF EXISTS public.lead_state_history ADD COLUMN IF NOT EXISTS tenant_id uuid;
-ALTER TABLE IF EXISTS public.lead_state_history ADD COLUMN IF NOT EXISTS from_state text;
-ALTER TABLE IF EXISTS public.lead_state_history ADD COLUMN IF NOT EXISTS to_state text;
-ALTER TABLE IF EXISTS public.lead_state_history ADD COLUMN IF NOT EXISTS metadata jsonb;
-
 CREATE INDEX IF NOT EXISTS idx_lead_state_history ON lead_state_history(lead_id, created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_lead_state_tenant ON lead_state_history(tenant_id, to_state, created_at DESC);
 
@@ -8040,15 +7779,6 @@ CREATE TABLE IF NOT EXISTS lead_routing_decisions (
   tenant_id uuid NOT NULL, rep_id uuid, score numeric(8,2), reason text, candidates jsonb NOT NULL DEFAULT '[]'::jsonb,
   assigned_at timestamptz, created_at timestamptz NOT NULL DEFAULT now()
 );
--- LeadX additive schema compatibility sweep: reconcile pre-existing table shapes.
--- CREATE TABLE IF NOT EXISTS does not alter legacy tables. Missing columns are added
--- before downstream indexes/views/functions reference them. Constraints remain defined by
--- the canonical CREATE TABLE on clean installs; existing installs keep their data intact.
-ALTER TABLE IF EXISTS public.lead_routing_decisions ADD COLUMN IF NOT EXISTS id uuid;
-ALTER TABLE IF EXISTS public.lead_routing_decisions ADD COLUMN IF NOT EXISTS tenant_id uuid;
-ALTER TABLE IF EXISTS public.lead_routing_decisions ADD COLUMN IF NOT EXISTS assigned_at timestamptz;
-ALTER TABLE IF EXISTS public.lead_routing_decisions ADD COLUMN IF NOT EXISTS created_at timestamptz;
-
 CREATE INDEX IF NOT EXISTS idx_lead_routing_tenant ON lead_routing_decisions(tenant_id, assigned_at DESC);
 
 CREATE TABLE IF NOT EXISTS lead_delivery_events (
@@ -8056,14 +7786,6 @@ CREATE TABLE IF NOT EXISTS lead_delivery_events (
   tenant_id uuid NOT NULL, action text NOT NULL, channel text, recipient_id uuid, reason text,
   payload jsonb NOT NULL DEFAULT '{}'::jsonb, delivered_at timestamptz, created_at timestamptz NOT NULL DEFAULT now()
 );
--- LeadX additive schema compatibility sweep: reconcile pre-existing table shapes.
--- CREATE TABLE IF NOT EXISTS does not alter legacy tables. Missing columns are added
--- before downstream indexes/views/functions reference them. Constraints remain defined by
--- the canonical CREATE TABLE on clean installs; existing installs keep their data intact.
-ALTER TABLE IF EXISTS public.lead_delivery_events ADD COLUMN IF NOT EXISTS id uuid;
-ALTER TABLE IF EXISTS public.lead_delivery_events ADD COLUMN IF NOT EXISTS tenant_id uuid;
-ALTER TABLE IF EXISTS public.lead_delivery_events ADD COLUMN IF NOT EXISTS payload jsonb;
-
 CREATE INDEX IF NOT EXISTS idx_lead_delivery_tenant ON lead_delivery_events(tenant_id, created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_lead_delivery_lead ON lead_delivery_events(lead_id, created_at DESC);
 
@@ -8073,16 +7795,6 @@ CREATE TABLE IF NOT EXISTS lead_verification_observations (
   provider text NOT NULL, status text, confidence numeric(6,2), metadata jsonb NOT NULL DEFAULT '{}'::jsonb,
   verified_at timestamptz NOT NULL DEFAULT now(), expires_at timestamptz
 );
--- LeadX additive schema compatibility sweep: reconcile pre-existing table shapes.
--- CREATE TABLE IF NOT EXISTS does not alter legacy tables. Missing columns are added
--- before downstream indexes/views/functions reference them. Constraints remain defined by
--- the canonical CREATE TABLE on clean installs; existing installs keep their data intact.
-ALTER TABLE IF EXISTS public.lead_verification_observations ADD COLUMN IF NOT EXISTS id uuid;
-ALTER TABLE IF EXISTS public.lead_verification_observations ADD COLUMN IF NOT EXISTS tenant_id uuid;
-ALTER TABLE IF EXISTS public.lead_verification_observations ADD COLUMN IF NOT EXISTS contact_type text;
-ALTER TABLE IF EXISTS public.lead_verification_observations ADD COLUMN IF NOT EXISTS provider text;
-ALTER TABLE IF EXISTS public.lead_verification_observations ADD COLUMN IF NOT EXISTS verified_at timestamptz;
-
 CREATE INDEX IF NOT EXISTS idx_lead_verification_contact ON lead_verification_observations(lead_id, contact_type, verified_at DESC);
 CREATE INDEX IF NOT EXISTS idx_lead_verification_provider ON lead_verification_observations(provider, contact_type, verified_at DESC);
 
@@ -8091,15 +7803,6 @@ CREATE TABLE IF NOT EXISTS lead_provider_telemetry (
   calls integer NOT NULL DEFAULT 0, hits integer NOT NULL DEFAULT 0, accepted integer NOT NULL DEFAULT 0,
   latency_ms integer, estimated_cost numeric(12,4) NOT NULL DEFAULT 0, observed_at timestamptz NOT NULL DEFAULT now(), metadata jsonb NOT NULL DEFAULT '{}'::jsonb
 );
--- LeadX additive schema compatibility sweep: reconcile pre-existing table shapes.
--- CREATE TABLE IF NOT EXISTS does not alter legacy tables. Missing columns are added
--- before downstream indexes/views/functions reference them. Constraints remain defined by
--- the canonical CREATE TABLE on clean installs; existing installs keep their data intact.
-ALTER TABLE IF EXISTS public.lead_provider_telemetry ADD COLUMN IF NOT EXISTS id uuid;
-ALTER TABLE IF EXISTS public.lead_provider_telemetry ADD COLUMN IF NOT EXISTS calls integer;
-ALTER TABLE IF EXISTS public.lead_provider_telemetry ADD COLUMN IF NOT EXISTS latency_ms integer;
-ALTER TABLE IF EXISTS public.lead_provider_telemetry ADD COLUMN IF NOT EXISTS estimated_cost numeric(12,4);
-
 CREATE INDEX IF NOT EXISTS idx_lead_provider_telemetry ON lead_provider_telemetry(provider, field_name, observed_at DESC);
 
 CREATE TABLE IF NOT EXISTS lead_outcome_events (
@@ -8108,14 +7811,9 @@ CREATE TABLE IF NOT EXISTS lead_outcome_events (
   metadata jsonb NOT NULL DEFAULT '{}'::jsonb, occurred_at timestamptz NOT NULL DEFAULT now(),
   assignment_id uuid, note text, recorded_at timestamptz NOT NULL DEFAULT now()
 );
--- LeadX additive schema compatibility sweep: reconcile pre-existing table shapes.
--- This table has historical CRM outcome rows (recorded_at/assignment_id/note) and
--- intelligence outcome rows (occurred_at/signal/value/positive/metadata). Keep both
--- timestamp representations rather than redefining the table with CREATE IF NOT EXISTS.
-ALTER TABLE IF EXISTS public.lead_outcome_events ADD COLUMN IF NOT EXISTS id uuid;
-ALTER TABLE IF EXISTS public.lead_outcome_events ADD COLUMN IF NOT EXISTS tenant_id uuid;
+-- Reconcile the earlier CRM outcome-event shape (recorded_at/assignment_id/note)
+-- with the intelligence shape (occurred_at/signal/value/positive/metadata).
 ALTER TABLE IF EXISTS public.lead_outcome_events ADD COLUMN IF NOT EXISTS assignment_id uuid;
-ALTER TABLE IF EXISTS public.lead_outcome_events ADD COLUMN IF NOT EXISTS outcome text;
 ALTER TABLE IF EXISTS public.lead_outcome_events ADD COLUMN IF NOT EXISTS note text;
 ALTER TABLE IF EXISTS public.lead_outcome_events ADD COLUMN IF NOT EXISTS recorded_at timestamptz NOT NULL DEFAULT now();
 ALTER TABLE IF EXISTS public.lead_outcome_events ADD COLUMN IF NOT EXISTS signal text;
@@ -8123,7 +7821,6 @@ ALTER TABLE IF EXISTS public.lead_outcome_events ADD COLUMN IF NOT EXISTS value 
 ALTER TABLE IF EXISTS public.lead_outcome_events ADD COLUMN IF NOT EXISTS positive boolean;
 ALTER TABLE IF EXISTS public.lead_outcome_events ADD COLUMN IF NOT EXISTS metadata jsonb NOT NULL DEFAULT '{}'::jsonb;
 ALTER TABLE IF EXISTS public.lead_outcome_events ADD COLUMN IF NOT EXISTS occurred_at timestamptz NOT NULL DEFAULT now();
-
 CREATE INDEX IF NOT EXISTS idx_lead_outcomes_tenant_time ON lead_outcome_events(tenant_id, occurred_at DESC);
 CREATE INDEX IF NOT EXISTS idx_lead_outcomes_lead ON lead_outcome_events(lead_id, occurred_at DESC);
 
@@ -8132,14 +7829,6 @@ CREATE TABLE IF NOT EXISTS tenant_icp_learning (
   profile jsonb NOT NULL DEFAULT '{}'::jsonb, sample_size integer NOT NULL DEFAULT 0, positive_rate numeric(8,4) NOT NULL DEFAULT 0,
   updated_at timestamptz NOT NULL DEFAULT now(), UNIQUE(tenant_id, model_version)
 );
--- LeadX additive schema compatibility sweep: reconcile pre-existing table shapes.
--- CREATE TABLE IF NOT EXISTS does not alter legacy tables. Missing columns are added
--- before downstream indexes/views/functions reference them. Constraints remain defined by
--- the canonical CREATE TABLE on clean installs; existing installs keep their data intact.
-ALTER TABLE IF EXISTS public.tenant_icp_learning ADD COLUMN IF NOT EXISTS id uuid;
-ALTER TABLE IF EXISTS public.tenant_icp_learning ADD COLUMN IF NOT EXISTS profile jsonb;
-ALTER TABLE IF EXISTS public.tenant_icp_learning ADD COLUMN IF NOT EXISTS updated_at timestamptz;
-
 
 CREATE TABLE IF NOT EXISTS lead_quality_credits (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(), tenant_id uuid NOT NULL, lead_id uuid NOT NULL REFERENCES leads_global(id) ON DELETE CASCADE,
@@ -8147,15 +7836,6 @@ CREATE TABLE IF NOT EXISTS lead_quality_credits (
   root_causes jsonb NOT NULL DEFAULT '[]'::jsonb, replacement_lead_id uuid REFERENCES leads_global(id) ON DELETE SET NULL,
   created_at timestamptz NOT NULL DEFAULT now(), resolved_at timestamptz
 );
--- LeadX additive schema compatibility sweep: reconcile pre-existing table shapes.
--- CREATE TABLE IF NOT EXISTS does not alter legacy tables. Missing columns are added
--- before downstream indexes/views/functions reference them. Constraints remain defined by
--- the canonical CREATE TABLE on clean installs; existing installs keep their data intact.
-ALTER TABLE IF EXISTS public.lead_quality_credits ADD COLUMN IF NOT EXISTS id uuid;
-ALTER TABLE IF EXISTS public.lead_quality_credits ADD COLUMN IF NOT EXISTS assignment_id uuid;
-ALTER TABLE IF EXISTS public.lead_quality_credits ADD COLUMN IF NOT EXISTS root_causes jsonb;
-ALTER TABLE IF EXISTS public.lead_quality_credits ADD COLUMN IF NOT EXISTS created_at timestamptz;
-
 CREATE INDEX IF NOT EXISTS idx_quality_credits_tenant ON lead_quality_credits(tenant_id, status, created_at DESC);
 
 -- Tenant isolation. Service-role/server jobs bypass RLS; browser access is tenant scoped.
@@ -8257,21 +7937,6 @@ create table if not exists public.leadx_event_log (
   metadata jsonb not null default '{}'::jsonb,
   created_at timestamptz not null default now()
 );
--- LeadX additive schema compatibility sweep: reconcile pre-existing table shapes.
--- CREATE TABLE IF NOT EXISTS does not alter legacy tables. Missing columns are added
--- before downstream indexes/views/functions reference them. Constraints remain defined by
--- the canonical CREATE TABLE on clean installs; existing installs keep their data intact.
-ALTER TABLE IF EXISTS public.leadx_event_log ADD COLUMN IF NOT EXISTS id uuid;
-ALTER TABLE IF EXISTS public.leadx_event_log ADD COLUMN IF NOT EXISTS tenant_id uuid;
-ALTER TABLE IF EXISTS public.leadx_event_log ADD COLUMN IF NOT EXISTS actor_id text;
-ALTER TABLE IF EXISTS public.leadx_event_log ADD COLUMN IF NOT EXISTS actor_type text;
-ALTER TABLE IF EXISTS public.leadx_event_log ADD COLUMN IF NOT EXISTS action text;
-ALTER TABLE IF EXISTS public.leadx_event_log ADD COLUMN IF NOT EXISTS resource_type text;
-ALTER TABLE IF EXISTS public.leadx_event_log ADD COLUMN IF NOT EXISTS resource_id text;
-ALTER TABLE IF EXISTS public.leadx_event_log ADD COLUMN IF NOT EXISTS summary text;
-ALTER TABLE IF EXISTS public.leadx_event_log ADD COLUMN IF NOT EXISTS metadata jsonb;
-ALTER TABLE IF EXISTS public.leadx_event_log ADD COLUMN IF NOT EXISTS created_at timestamptz;
-
 
 create index if not exists idx_leadx_event_log_tenant_created
   on public.leadx_event_log (tenant_id, created_at desc, id desc);
@@ -8295,6 +7960,9 @@ begin
   row_data := case when TG_OP = 'DELETE' then to_jsonb(OLD) else to_jsonb(NEW) end;
   begin tid := nullif(row_data->>'tenant_id','')::uuid; exception when others then tid := null; end;
   rid := coalesce(row_data->>'id', row_data->>'assignment_id');
+  if TG_TABLE_NAME = 'notifications' and lower(coalesce(row_data->>'scope', 'tenant')) <> 'tenant' then
+    tid := null;
+  end if;
   if tid is not null then
     insert into public.leadx_event_log(tenant_id, actor_type, action, resource_type, resource_id, summary)
     values (tid, 'system', lower('db.' || TG_TABLE_NAME || '.' || TG_OP), TG_TABLE_NAME, rid,
@@ -8329,19 +7997,40 @@ create trigger leadx_event_broadcast
 after insert on public.leadx_event_log
 for each row execute function public.leadx_broadcast_event();
 
+-- Browser roles cannot inspect or mutate the operational event trail.
+revoke all on table public.leadx_event_log from public, anon, authenticated;
+grant select, insert on table public.leadx_event_log to service_role;
+revoke all on function public.leadx_capture_event() from public, anon, authenticated;
+revoke all on function public.leadx_broadcast_event() from public, anon, authenticated;
+grant execute on function public.leadx_capture_event() to service_role;
+grant execute on function public.leadx_broadcast_event() to service_role;
+
 do $$
 declare
   t text;
   tables text[] := array[
+    'pipeline_runs','discovery_requests','pipeline_stages',
     'lead_assignments','lead_state_history','lead_score_snapshots','lead_quality_gates',
     'lead_routing_decisions','lead_delivery_events','lead_verification_observations',
-    'lead_outcome_events','activities','deals','contacts','companies','notifications','agent_runs','jobs','email_sequences','email_sequence_steps','email_sequence_enrollments','email_sequence_sends','tenant_members'
+    'lead_outcome_events','lead_activities','lead_tasks',
+    'companies','company_locations','contacts','contact_roles','deals','deal_stages',
+    'activities','tasks','notes','agent_runs','jobs',
+    'email_sequences','email_sequence_enrollments','email_sequence_sends','email_replies',
+    'workflow_definitions','workflow_runs','automation_events',
+    'tenant_members','tenant_invites','notifications','audit_log','crm_audit_log',
+    'usage_log','provider_usage_daily','learning_snapshots','tenant_icp_learning',
+    'tenant_icp_recommendations','support_conversations'
   ];
 begin
   foreach t in array tables loop
     if to_regclass('public.' || t) is not null then
       execute format('drop trigger if exists leadx_event_capture on public.%I', t);
       execute format('create trigger leadx_event_capture after insert or update or delete on public.%I for each row execute function public.leadx_capture_event()', t);
+      begin
+        execute format('alter table public.%I replica identity full', t);
+        execute format('alter publication supabase_realtime add table public.%I', t);
+      exception when duplicate_object or undefined_table or undefined_object then null;
+      end;
     end if;
   end loop;
 end $$;
@@ -8359,6 +8048,7 @@ create policy leadx_workspace_broadcast_read
   for select to authenticated
   using (
     extension = 'broadcast'
+    and realtime.topic() ~* '^crm:[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$'
     and exists (
       select 1
       from public.tenant_members tm
@@ -8421,26 +8111,6 @@ CREATE TABLE IF NOT EXISTS public.automation_events (
   processed_at timestamptz,
   UNIQUE(tenant_id,idempotency_key)
 );
--- LeadX additive schema compatibility sweep: reconcile pre-existing table shapes.
--- CREATE TABLE IF NOT EXISTS does not alter legacy tables. Missing columns are added
--- before downstream indexes/views/functions reference them. Constraints remain defined by
--- the canonical CREATE TABLE on clean installs; existing installs keep their data intact.
-ALTER TABLE IF EXISTS public.automation_events ADD COLUMN IF NOT EXISTS id uuid;
-ALTER TABLE IF EXISTS public.automation_events ADD COLUMN IF NOT EXISTS tenant_id uuid;
-ALTER TABLE IF EXISTS public.automation_events ADD COLUMN IF NOT EXISTS event_type text;
-ALTER TABLE IF EXISTS public.automation_events ADD COLUMN IF NOT EXISTS subject_type text;
-ALTER TABLE IF EXISTS public.automation_events ADD COLUMN IF NOT EXISTS subject_id text;
-ALTER TABLE IF EXISTS public.automation_events ADD COLUMN IF NOT EXISTS payload jsonb;
-ALTER TABLE IF EXISTS public.automation_events ADD COLUMN IF NOT EXISTS idempotency_key text;
-ALTER TABLE IF EXISTS public.automation_events ADD COLUMN IF NOT EXISTS status text;
-ALTER TABLE IF EXISTS public.automation_events ADD COLUMN IF NOT EXISTS attempts integer;
-ALTER TABLE IF EXISTS public.automation_events ADD COLUMN IF NOT EXISTS available_at timestamptz;
-ALTER TABLE IF EXISTS public.automation_events ADD COLUMN IF NOT EXISTS locked_at timestamptz;
-ALTER TABLE IF EXISTS public.automation_events ADD COLUMN IF NOT EXISTS locked_by text;
-ALTER TABLE IF EXISTS public.automation_events ADD COLUMN IF NOT EXISTS error text;
-ALTER TABLE IF EXISTS public.automation_events ADD COLUMN IF NOT EXISTS created_at timestamptz;
-ALTER TABLE IF EXISTS public.automation_events ADD COLUMN IF NOT EXISTS processed_at timestamptz;
-
 CREATE INDEX IF NOT EXISTS idx_automation_events_due ON automation_events(status, available_at, created_at);
 CREATE INDEX IF NOT EXISTS idx_automation_events_tenant ON automation_events(tenant_id, created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_automation_events_subject ON automation_events(tenant_id, subject_type, subject_id, created_at DESC);
@@ -8527,7 +8197,7 @@ END; $$;
 -- ============================================================================
 
 -- LeadX 10.0: CRM scale, keyset-friendly indexes, automation safety and tenant-scoped observability.
--- Inspired by documented Salesforce/HubSpot patterns: selective indexes, async bulk work
+-- Inspired by documented Salesforce/HubSpot patterns: selective indexes, async bulk work,
 -- tenant-aware access paths, associations, and audit trails.
 
 CREATE INDEX IF NOT EXISTS idx_lead_assignments_tenant_delivered_id
@@ -8561,10 +8231,20 @@ END $$;
 
 DO $$ BEGIN
   CREATE INDEX IF NOT EXISTS idx_leads_global_name_trgm ON leads_global USING gin (name gin_trgm_ops);
+EXCEPTION WHEN undefined_object OR undefined_column OR undefined_table OR insufficient_privilege THEN
+  RAISE NOTICE 'trigram index on leads_global skipped';
+END $$;
+
+DO $$ BEGIN
   CREATE INDEX IF NOT EXISTS idx_companies_name_trgm ON companies USING gin (name gin_trgm_ops);
+EXCEPTION WHEN undefined_object OR undefined_column OR undefined_table OR insufficient_privilege THEN
+  RAISE NOTICE 'trigram index on companies skipped';
+END $$;
+
+DO $$ BEGIN
   CREATE INDEX IF NOT EXISTS idx_contacts_name_trgm ON contacts USING gin (full_name gin_trgm_ops);
-EXCEPTION WHEN undefined_object OR insufficient_privilege THEN
-  RAISE NOTICE 'trigram indexes skipped';
+EXCEPTION WHEN undefined_object OR undefined_column OR undefined_table OR insufficient_privilege THEN
+  RAISE NOTICE 'trigram index on contacts skipped';
 END $$;
 
 -- Prevent workflow capacity counters from becoming unbounded.
@@ -8599,21 +8279,6 @@ CREATE TABLE IF NOT EXISTS public.jobs (
   locked_at timestamptz, started_at timestamptz, finished_at timestamptz, result jsonb, error text,
   created_at timestamptz NOT NULL DEFAULT now()
 );
--- LeadX additive schema compatibility sweep: reconcile pre-existing table shapes.
--- CREATE TABLE IF NOT EXISTS does not alter legacy tables. Missing columns are added
--- before downstream indexes/views/functions reference them. Constraints remain defined by
--- the canonical CREATE TABLE on clean installs; existing installs keep their data intact.
-ALTER TABLE IF EXISTS public.jobs ADD COLUMN IF NOT EXISTS id uuid;
-ALTER TABLE IF EXISTS public.jobs ADD COLUMN IF NOT EXISTS payload jsonb;
-ALTER TABLE IF EXISTS public.jobs ADD COLUMN IF NOT EXISTS priority int;
-ALTER TABLE IF EXISTS public.jobs ADD COLUMN IF NOT EXISTS run_after timestamptz;
-ALTER TABLE IF EXISTS public.jobs ADD COLUMN IF NOT EXISTS locked_at timestamptz;
-ALTER TABLE IF EXISTS public.jobs ADD COLUMN IF NOT EXISTS started_at timestamptz;
-ALTER TABLE IF EXISTS public.jobs ADD COLUMN IF NOT EXISTS finished_at timestamptz;
-ALTER TABLE IF EXISTS public.jobs ADD COLUMN IF NOT EXISTS result jsonb;
-ALTER TABLE IF EXISTS public.jobs ADD COLUMN IF NOT EXISTS error text;
-ALTER TABLE IF EXISTS public.jobs ADD COLUMN IF NOT EXISTS created_at timestamptz;
-
 ALTER TABLE public.jobs ADD COLUMN IF NOT EXISTS tenant_id uuid;
 ALTER TABLE public.jobs ADD COLUMN IF NOT EXISTS payload jsonb NOT NULL DEFAULT '{}';
 ALTER TABLE public.jobs ADD COLUMN IF NOT EXISTS status text NOT NULL DEFAULT 'queued';
@@ -8643,32 +8308,12 @@ CREATE TABLE IF NOT EXISTS public.integration_connections (
   last_sync_at timestamptz, last_error text, created_at timestamptz NOT NULL DEFAULT now(), updated_at timestamptz NOT NULL DEFAULT now(),
   UNIQUE(tenant_id,provider,external_account_id)
 );
--- LeadX additive schema compatibility sweep: reconcile pre-existing table shapes.
--- CREATE TABLE IF NOT EXISTS does not alter legacy tables. Missing columns are added
--- before downstream indexes/views/functions reference them. Constraints remain defined by
--- the canonical CREATE TABLE on clean installs; existing installs keep their data intact.
-ALTER TABLE IF EXISTS public.integration_connections ADD COLUMN IF NOT EXISTS id uuid;
-ALTER TABLE IF EXISTS public.integration_connections ADD COLUMN IF NOT EXISTS provider text;
-ALTER TABLE IF EXISTS public.integration_connections ADD COLUMN IF NOT EXISTS secret_ref text;
-ALTER TABLE IF EXISTS public.integration_connections ADD COLUMN IF NOT EXISTS scopes text[];
-ALTER TABLE IF EXISTS public.integration_connections ADD COLUMN IF NOT EXISTS last_sync_at timestamptz;
-ALTER TABLE IF EXISTS public.integration_connections ADD COLUMN IF NOT EXISTS last_error text;
-ALTER TABLE IF EXISTS public.integration_connections ADD COLUMN IF NOT EXISTS created_at timestamptz;
-
 CREATE INDEX IF NOT EXISTS idx_integrations_tenant ON public.integration_connections(tenant_id,status);
 CREATE TABLE IF NOT EXISTS public.outbound_webhooks (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(), tenant_id uuid NOT NULL REFERENCES public.tenants(id) ON DELETE CASCADE,
   name text NOT NULL, endpoint_url text NOT NULL, secret_ref text, events text[] NOT NULL DEFAULT '{}',
   active boolean NOT NULL DEFAULT true, retry_limit int NOT NULL DEFAULT 6, created_at timestamptz NOT NULL DEFAULT now(), updated_at timestamptz NOT NULL DEFAULT now()
 );
--- LeadX additive schema compatibility sweep: reconcile pre-existing table shapes.
--- CREATE TABLE IF NOT EXISTS does not alter legacy tables. Missing columns are added
--- before downstream indexes/views/functions reference them. Constraints remain defined by
--- the canonical CREATE TABLE on clean installs; existing installs keep their data intact.
-ALTER TABLE IF EXISTS public.outbound_webhooks ADD COLUMN IF NOT EXISTS id uuid;
-ALTER TABLE IF EXISTS public.outbound_webhooks ADD COLUMN IF NOT EXISTS name text;
-ALTER TABLE IF EXISTS public.outbound_webhooks ADD COLUMN IF NOT EXISTS active boolean;
-
 CREATE INDEX IF NOT EXISTS idx_outbound_webhooks_tenant ON public.outbound_webhooks(tenant_id,active);
 CREATE TABLE IF NOT EXISTS public.webhook_deliveries (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(), webhook_id uuid NOT NULL REFERENCES public.outbound_webhooks(id) ON DELETE CASCADE,
@@ -8677,16 +8322,6 @@ CREATE TABLE IF NOT EXISTS public.webhook_deliveries (
   next_attempt_at timestamptz NOT NULL DEFAULT now(), response_status int, response_body text, last_error text,
   created_at timestamptz NOT NULL DEFAULT now(), delivered_at timestamptz
 );
--- LeadX additive schema compatibility sweep: reconcile pre-existing table shapes.
--- CREATE TABLE IF NOT EXISTS does not alter legacy tables. Missing columns are added
--- before downstream indexes/views/functions reference them. Constraints remain defined by
--- the canonical CREATE TABLE on clean installs; existing installs keep their data intact.
-ALTER TABLE IF EXISTS public.webhook_deliveries ADD COLUMN IF NOT EXISTS id uuid;
-ALTER TABLE IF EXISTS public.webhook_deliveries ADD COLUMN IF NOT EXISTS tenant_id uuid;
-ALTER TABLE IF EXISTS public.webhook_deliveries ADD COLUMN IF NOT EXISTS payload jsonb;
-ALTER TABLE IF EXISTS public.webhook_deliveries ADD COLUMN IF NOT EXISTS next_attempt_at timestamptz;
-ALTER TABLE IF EXISTS public.webhook_deliveries ADD COLUMN IF NOT EXISTS created_at timestamptz;
-
 CREATE INDEX IF NOT EXISTS idx_webhook_delivery_due ON public.webhook_deliveries(status,next_attempt_at);
 CREATE INDEX IF NOT EXISTS idx_webhook_delivery_tenant ON public.webhook_deliveries(tenant_id,created_at DESC);
 
@@ -8697,20 +8332,6 @@ CREATE TABLE IF NOT EXISTS public.company_locations (
   country text, postal_code text, phone text, website text, latitude numeric(10,7), longitude numeric(10,7),
   is_primary boolean NOT NULL DEFAULT false, source text, source_key text, created_at timestamptz NOT NULL DEFAULT now(), updated_at timestamptz NOT NULL DEFAULT now()
 );
--- LeadX additive schema compatibility sweep: reconcile pre-existing table shapes.
--- CREATE TABLE IF NOT EXISTS does not alter legacy tables. Missing columns are added
--- before downstream indexes/views/functions reference them. Constraints remain defined by
--- the canonical CREATE TABLE on clean installs; existing installs keep their data intact.
-ALTER TABLE IF EXISTS public.company_locations ADD COLUMN IF NOT EXISTS id uuid;
-ALTER TABLE IF EXISTS public.company_locations ADD COLUMN IF NOT EXISTS company_id uuid;
-ALTER TABLE IF EXISTS public.company_locations ADD COLUMN IF NOT EXISTS country text;
-ALTER TABLE IF EXISTS public.company_locations ADD COLUMN IF NOT EXISTS postal_code text;
-ALTER TABLE IF EXISTS public.company_locations ADD COLUMN IF NOT EXISTS phone text;
-ALTER TABLE IF EXISTS public.company_locations ADD COLUMN IF NOT EXISTS website text;
-ALTER TABLE IF EXISTS public.company_locations ADD COLUMN IF NOT EXISTS latitude numeric(10,7);
-ALTER TABLE IF EXISTS public.company_locations ADD COLUMN IF NOT EXISTS longitude numeric(10,7);
-ALTER TABLE IF EXISTS public.company_locations ADD COLUMN IF NOT EXISTS is_primary boolean;
-
 CREATE INDEX IF NOT EXISTS idx_company_locations_company ON public.company_locations(company_id);
 CREATE INDEX IF NOT EXISTS idx_company_locations_geo ON public.company_locations(state,city);
 CREATE TABLE IF NOT EXISTS public.contact_roles (
@@ -8720,16 +8341,6 @@ CREATE TABLE IF NOT EXISTS public.contact_roles (
   buying_authority int CHECK (buying_authority IS NULL OR buying_authority BETWEEN 0 AND 100), verified_at timestamptz,
   evidence jsonb NOT NULL DEFAULT '{}', created_at timestamptz NOT NULL DEFAULT now(), UNIQUE(tenant_id,contact_id,role_type)
 );
--- LeadX additive schema compatibility sweep: reconcile pre-existing table shapes.
--- CREATE TABLE IF NOT EXISTS does not alter legacy tables. Missing columns are added
--- before downstream indexes/views/functions reference them. Constraints remain defined by
--- the canonical CREATE TABLE on clean installs; existing installs keep their data intact.
-ALTER TABLE IF EXISTS public.contact_roles ADD COLUMN IF NOT EXISTS id uuid;
-ALTER TABLE IF EXISTS public.contact_roles ADD COLUMN IF NOT EXISTS contact_id uuid;
-ALTER TABLE IF EXISTS public.contact_roles ADD COLUMN IF NOT EXISTS influence_score int;
-ALTER TABLE IF EXISTS public.contact_roles ADD COLUMN IF NOT EXISTS buying_authority int;
-ALTER TABLE IF EXISTS public.contact_roles ADD COLUMN IF NOT EXISTS evidence jsonb;
-
 CREATE INDEX IF NOT EXISTS idx_contact_roles_company ON public.contact_roles(tenant_id,role_type,influence_score DESC);
 CREATE TABLE IF NOT EXISTS public.prospect_audits (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(), tenant_id uuid REFERENCES public.tenants(id) ON DELETE CASCADE,
@@ -8737,17 +8348,6 @@ CREATE TABLE IF NOT EXISTS public.prospect_audits (
   public_token text UNIQUE NOT NULL, status text NOT NULL DEFAULT 'draft', title text, summary text, sections jsonb NOT NULL DEFAULT '{}',
   expires_at timestamptz, created_by text, created_at timestamptz NOT NULL DEFAULT now(), updated_at timestamptz NOT NULL DEFAULT now()
 );
--- LeadX additive schema compatibility sweep: reconcile pre-existing table shapes.
--- CREATE TABLE IF NOT EXISTS does not alter legacy tables. Missing columns are added
--- before downstream indexes/views/functions reference them. Constraints remain defined by
--- the canonical CREATE TABLE on clean installs; existing installs keep their data intact.
-ALTER TABLE IF EXISTS public.prospect_audits ADD COLUMN IF NOT EXISTS id uuid;
-ALTER TABLE IF EXISTS public.prospect_audits ADD COLUMN IF NOT EXISTS lead_id uuid;
-ALTER TABLE IF EXISTS public.prospect_audits ADD COLUMN IF NOT EXISTS public_token text;
-ALTER TABLE IF EXISTS public.prospect_audits ADD COLUMN IF NOT EXISTS expires_at timestamptz;
-ALTER TABLE IF EXISTS public.prospect_audits ADD COLUMN IF NOT EXISTS created_by text;
-ALTER TABLE IF EXISTS public.prospect_audits ADD COLUMN IF NOT EXISTS created_at timestamptz;
-
 CREATE INDEX IF NOT EXISTS idx_prospect_audits_tenant ON public.prospect_audits(tenant_id,created_at DESC);
 
 -- Support copilot (source: sql/032_SUPPORT_CHAT.sql)
@@ -8756,14 +8356,6 @@ CREATE TABLE IF NOT EXISTS public.support_faq (
   keywords text[] NOT NULL DEFAULT '{}', priority int NOT NULL DEFAULT 0, active boolean NOT NULL DEFAULT true,
   created_at timestamptz NOT NULL DEFAULT now(), updated_at timestamptz NOT NULL DEFAULT now()
 );
--- LeadX additive schema compatibility sweep: reconcile pre-existing table shapes.
--- CREATE TABLE IF NOT EXISTS does not alter legacy tables. Missing columns are added
--- before downstream indexes/views/functions reference them. Constraints remain defined by
--- the canonical CREATE TABLE on clean installs; existing installs keep their data intact.
-ALTER TABLE IF EXISTS public.support_faq ADD COLUMN IF NOT EXISTS id uuid;
-ALTER TABLE IF EXISTS public.support_faq ADD COLUMN IF NOT EXISTS keywords text[];
-ALTER TABLE IF EXISTS public.support_faq ADD COLUMN IF NOT EXISTS created_at timestamptz;
-
 CREATE INDEX IF NOT EXISTS idx_support_faq_active ON public.support_faq(active,priority DESC);
 CREATE TABLE IF NOT EXISTS public.support_conversations (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(), tenant_id uuid NOT NULL REFERENCES public.tenants(id) ON DELETE CASCADE,
@@ -8772,18 +8364,6 @@ CREATE TABLE IF NOT EXISTS public.support_conversations (
   needs_human boolean NOT NULL DEFAULT false, assigned_admin text, last_message_at timestamptz NOT NULL DEFAULT now(),
   metadata jsonb NOT NULL DEFAULT '{}', created_at timestamptz NOT NULL DEFAULT now(), updated_at timestamptz NOT NULL DEFAULT now()
 );
--- LeadX additive schema compatibility sweep: reconcile pre-existing table shapes.
--- CREATE TABLE IF NOT EXISTS does not alter legacy tables. Missing columns are added
--- before downstream indexes/views/functions reference them. Constraints remain defined by
--- the canonical CREATE TABLE on clean installs; existing installs keep their data intact.
-ALTER TABLE IF EXISTS public.support_conversations ADD COLUMN IF NOT EXISTS id uuid;
-ALTER TABLE IF EXISTS public.support_conversations ADD COLUMN IF NOT EXISTS user_id uuid;
-ALTER TABLE IF EXISTS public.support_conversations ADD COLUMN IF NOT EXISTS user_email text;
-ALTER TABLE IF EXISTS public.support_conversations ADD COLUMN IF NOT EXISTS subject text;
-ALTER TABLE IF EXISTS public.support_conversations ADD COLUMN IF NOT EXISTS status text;
-ALTER TABLE IF EXISTS public.support_conversations ADD COLUMN IF NOT EXISTS needs_human boolean;
-ALTER TABLE IF EXISTS public.support_conversations ADD COLUMN IF NOT EXISTS metadata jsonb;
-
 CREATE INDEX IF NOT EXISTS idx_support_conv_tenant ON public.support_conversations(tenant_id,updated_at DESC);
 CREATE INDEX IF NOT EXISTS idx_support_conv_escalated ON public.support_conversations(needs_human,updated_at DESC);
 CREATE TABLE IF NOT EXISTS public.support_messages (
@@ -8791,14 +8371,6 @@ CREATE TABLE IF NOT EXISTS public.support_messages (
   sender_type text NOT NULL CHECK(sender_type IN ('user','bot','admin','system')), sender_id text, body text NOT NULL,
   metadata jsonb NOT NULL DEFAULT '{}', created_at timestamptz NOT NULL DEFAULT now()
 );
--- LeadX additive schema compatibility sweep: reconcile pre-existing table shapes.
--- CREATE TABLE IF NOT EXISTS does not alter legacy tables. Missing columns are added
--- before downstream indexes/views/functions reference them. Constraints remain defined by
--- the canonical CREATE TABLE on clean installs; existing installs keep their data intact.
-ALTER TABLE IF EXISTS public.support_messages ADD COLUMN IF NOT EXISTS id uuid;
-ALTER TABLE IF EXISTS public.support_messages ADD COLUMN IF NOT EXISTS sender_type text;
-ALTER TABLE IF EXISTS public.support_messages ADD COLUMN IF NOT EXISTS metadata jsonb;
-
 CREATE INDEX IF NOT EXISTS idx_support_messages_conv ON public.support_messages(conversation_id,created_at);
 CREATE UNIQUE INDEX IF NOT EXISTS uq_support_faq_category_question ON public.support_faq(category,question);
 
@@ -8814,20 +8386,6 @@ CREATE TABLE IF NOT EXISTS public.saved_views (
   created_at timestamptz NOT NULL DEFAULT now(),
   updated_at timestamptz NOT NULL DEFAULT now()
 );
--- LeadX additive schema compatibility sweep: reconcile pre-existing table shapes.
--- CREATE TABLE IF NOT EXISTS does not alter legacy tables. Missing columns are added
--- before downstream indexes/views/functions reference them. Constraints remain defined by
--- the canonical CREATE TABLE on clean installs; existing installs keep their data intact.
-ALTER TABLE IF EXISTS public.saved_views ADD COLUMN IF NOT EXISTS id uuid;
-ALTER TABLE IF EXISTS public.saved_views ADD COLUMN IF NOT EXISTS tenant_id uuid;
-ALTER TABLE IF EXISTS public.saved_views ADD COLUMN IF NOT EXISTS entity text;
-ALTER TABLE IF EXISTS public.saved_views ADD COLUMN IF NOT EXISTS name text;
-ALTER TABLE IF EXISTS public.saved_views ADD COLUMN IF NOT EXISTS filters jsonb;
-ALTER TABLE IF EXISTS public.saved_views ADD COLUMN IF NOT EXISTS user_id text;
-ALTER TABLE IF EXISTS public.saved_views ADD COLUMN IF NOT EXISTS is_default boolean;
-ALTER TABLE IF EXISTS public.saved_views ADD COLUMN IF NOT EXISTS created_at timestamptz;
-ALTER TABLE IF EXISTS public.saved_views ADD COLUMN IF NOT EXISTS updated_at timestamptz;
-
 CREATE INDEX IF NOT EXISTS idx_saved_views_tenant_entity ON public.saved_views(tenant_id,entity);
 ALTER TABLE public.saved_views ENABLE ROW LEVEL SECURITY;
 REVOKE ALL ON public.saved_views FROM anon, authenticated;
@@ -8900,17 +8458,6 @@ CREATE TABLE IF NOT EXISTS public.connector_sync_cursors (
   updated_at timestamptz NOT NULL DEFAULT now(),
   UNIQUE(connection_id, resource)
 );
--- LeadX additive schema compatibility sweep: reconcile pre-existing table shapes.
--- CREATE TABLE IF NOT EXISTS does not alter legacy tables. Missing columns are added
--- before downstream indexes/views/functions reference them. Constraints remain defined by
--- the canonical CREATE TABLE on clean installs; existing installs keep their data intact.
-ALTER TABLE IF EXISTS public.connector_sync_cursors ADD COLUMN IF NOT EXISTS id uuid;
-ALTER TABLE IF EXISTS public.connector_sync_cursors ADD COLUMN IF NOT EXISTS tenant_id uuid;
-ALTER TABLE IF EXISTS public.connector_sync_cursors ADD COLUMN IF NOT EXISTS connection_id uuid;
-ALTER TABLE IF EXISTS public.connector_sync_cursors ADD COLUMN IF NOT EXISTS resource text;
-ALTER TABLE IF EXISTS public.connector_sync_cursors ADD COLUMN IF NOT EXISTS cursor text;
-ALTER TABLE IF EXISTS public.connector_sync_cursors ADD COLUMN IF NOT EXISTS updated_at timestamptz;
-
 CREATE INDEX IF NOT EXISTS idx_connector_sync_cursors_tenant ON public.connector_sync_cursors(tenant_id, updated_at DESC);
 
 CREATE TABLE IF NOT EXISTS public.connector_events (
@@ -8927,22 +8474,6 @@ CREATE TABLE IF NOT EXISTS public.connector_events (
   error text,
   UNIQUE(tenant_id, provider, external_event_id)
 );
--- LeadX additive schema compatibility sweep: reconcile pre-existing table shapes.
--- CREATE TABLE IF NOT EXISTS does not alter legacy tables. Missing columns are added
--- before downstream indexes/views/functions reference them. Constraints remain defined by
--- the canonical CREATE TABLE on clean installs; existing installs keep their data intact.
-ALTER TABLE IF EXISTS public.connector_events ADD COLUMN IF NOT EXISTS id uuid;
-ALTER TABLE IF EXISTS public.connector_events ADD COLUMN IF NOT EXISTS tenant_id uuid;
-ALTER TABLE IF EXISTS public.connector_events ADD COLUMN IF NOT EXISTS connection_id uuid;
-ALTER TABLE IF EXISTS public.connector_events ADD COLUMN IF NOT EXISTS provider text;
-ALTER TABLE IF EXISTS public.connector_events ADD COLUMN IF NOT EXISTS event_type text;
-ALTER TABLE IF EXISTS public.connector_events ADD COLUMN IF NOT EXISTS external_event_id text;
-ALTER TABLE IF EXISTS public.connector_events ADD COLUMN IF NOT EXISTS status text;
-ALTER TABLE IF EXISTS public.connector_events ADD COLUMN IF NOT EXISTS payload jsonb;
-ALTER TABLE IF EXISTS public.connector_events ADD COLUMN IF NOT EXISTS received_at timestamptz;
-ALTER TABLE IF EXISTS public.connector_events ADD COLUMN IF NOT EXISTS processed_at timestamptz;
-ALTER TABLE IF EXISTS public.connector_events ADD COLUMN IF NOT EXISTS error text;
-
 CREATE INDEX IF NOT EXISTS idx_connector_events_tenant_time ON public.connector_events(tenant_id, received_at DESC);
 CREATE INDEX IF NOT EXISTS idx_connector_events_connection_time ON public.connector_events(connection_id, received_at DESC);
 
@@ -8971,14 +8502,6 @@ CREATE TABLE IF NOT EXISTS public.tenant_agent_settings (
   outreach_auto_approve boolean NOT NULL DEFAULT false,
   updated_at timestamptz NOT NULL DEFAULT now()
 );
--- LeadX additive schema compatibility sweep: reconcile pre-existing table shapes.
--- CREATE TABLE IF NOT EXISTS does not alter legacy tables. Missing columns are added
--- before downstream indexes/views/functions reference them. Constraints remain defined by
--- the canonical CREATE TABLE on clean installs; existing installs keep their data intact.
-ALTER TABLE IF EXISTS public.tenant_agent_settings ADD COLUMN IF NOT EXISTS tenant_id uuid;
-ALTER TABLE IF EXISTS public.tenant_agent_settings ADD COLUMN IF NOT EXISTS outreach_auto_approve boolean;
-ALTER TABLE IF EXISTS public.tenant_agent_settings ADD COLUMN IF NOT EXISTS updated_at timestamptz;
-
 CREATE TABLE IF NOT EXISTS public.agent_approval_items (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(), tenant_id uuid NOT NULL REFERENCES public.tenants(id) ON DELETE CASCADE,
   run_id uuid REFERENCES public.agent_runs(id) ON DELETE SET NULL, agent_id text NOT NULL, action_type text NOT NULL,
@@ -8987,40 +8510,16 @@ CREATE TABLE IF NOT EXISTS public.agent_approval_items (
   payload jsonb NOT NULL DEFAULT '{}', reviewed_by uuid, reviewed_at timestamptz, executed_at timestamptz, error text,
   created_at timestamptz NOT NULL DEFAULT now(), updated_at timestamptz NOT NULL DEFAULT now()
 );
--- LeadX additive schema compatibility sweep: reconcile pre-existing table shapes.
--- CREATE TABLE IF NOT EXISTS does not alter legacy tables. Missing columns are added
--- before downstream indexes/views/functions reference them. Constraints remain defined by
--- the canonical CREATE TABLE on clean installs; existing installs keep their data intact.
-ALTER TABLE IF EXISTS public.agent_approval_items ADD COLUMN IF NOT EXISTS id uuid;
-ALTER TABLE IF EXISTS public.agent_approval_items ADD COLUMN IF NOT EXISTS run_id uuid;
-ALTER TABLE IF EXISTS public.agent_approval_items ADD COLUMN IF NOT EXISTS status text;
-ALTER TABLE IF EXISTS public.agent_approval_items ADD COLUMN IF NOT EXISTS lead_id uuid;
-ALTER TABLE IF EXISTS public.agent_approval_items ADD COLUMN IF NOT EXISTS payload jsonb;
-ALTER TABLE IF EXISTS public.agent_approval_items ADD COLUMN IF NOT EXISTS created_at timestamptz;
-
 CREATE INDEX IF NOT EXISTS idx_agent_approval_tenant_status ON agent_approval_items(tenant_id,status,created_at DESC);
 CREATE TABLE IF NOT EXISTS public.agent_run_evidence (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(), tenant_id uuid NOT NULL REFERENCES public.tenants(id) ON DELETE CASCADE,
   run_id uuid REFERENCES public.agent_runs(id) ON DELETE CASCADE, agent_id text NOT NULL, event_type text NOT NULL, payload jsonb NOT NULL DEFAULT '{}', created_at timestamptz NOT NULL DEFAULT now()
 );
--- LeadX additive schema compatibility sweep: reconcile pre-existing table shapes.
--- CREATE TABLE IF NOT EXISTS does not alter legacy tables. Missing columns are added
--- before downstream indexes/views/functions reference them. Constraints remain defined by
--- the canonical CREATE TABLE on clean installs; existing installs keep their data intact.
-ALTER TABLE IF EXISTS public.agent_run_evidence ADD COLUMN IF NOT EXISTS id uuid;
-ALTER TABLE IF EXISTS public.agent_run_evidence ADD COLUMN IF NOT EXISTS run_id uuid;
-
 CREATE INDEX IF NOT EXISTS idx_agent_run_evidence_run ON agent_run_evidence(tenant_id,run_id,created_at DESC);
 CREATE TABLE IF NOT EXISTS public.vertical_score_shadow_weights (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(), vertical text NOT NULL, feature text NOT NULL, baseline_weight numeric NOT NULL DEFAULT 1, proposed_weight numeric NOT NULL DEFAULT 1, sample_size integer NOT NULL DEFAULT 0, mode text NOT NULL DEFAULT 'shadow', lift numeric, calculated_at timestamptz NOT NULL DEFAULT now(),
   UNIQUE(vertical,feature)
 );
--- LeadX additive schema compatibility sweep: reconcile pre-existing table shapes.
--- CREATE TABLE IF NOT EXISTS does not alter legacy tables. Missing columns are added
--- before downstream indexes/views/functions reference them. Constraints remain defined by
--- the canonical CREATE TABLE on clean installs; existing installs keep their data intact.
-ALTER TABLE IF EXISTS public.vertical_score_shadow_weights ADD COLUMN IF NOT EXISTS id uuid;
-
 CREATE INDEX IF NOT EXISTS idx_vertical_shadow ON vertical_score_shadow_weights(vertical,calculated_at DESC);
 DO $$ BEGIN
   ALTER TABLE tenant_agent_settings ENABLE ROW LEVEL SECURITY;
@@ -9188,14 +8687,6 @@ CREATE TABLE IF NOT EXISTS public.provider_intelligence_stats (
   snapshot jsonb NOT NULL DEFAULT '{}'::jsonb,
   updated_at timestamptz NOT NULL DEFAULT now()
 );
--- LeadX additive schema compatibility sweep: reconcile pre-existing table shapes.
--- CREATE TABLE IF NOT EXISTS does not alter legacy tables. Missing columns are added
--- before downstream indexes/views/functions reference them. Constraints remain defined by
--- the canonical CREATE TABLE on clean installs; existing installs keep their data intact.
-ALTER TABLE IF EXISTS public.provider_intelligence_stats ADD COLUMN IF NOT EXISTS id text;
-ALTER TABLE IF EXISTS public.provider_intelligence_stats ADD COLUMN IF NOT EXISTS snapshot jsonb;
-ALTER TABLE IF EXISTS public.provider_intelligence_stats ADD COLUMN IF NOT EXISTS updated_at timestamptz;
-
 
 CREATE TABLE IF NOT EXISTS public.provider_execution_log (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -9214,26 +8705,6 @@ CREATE TABLE IF NOT EXISTS public.provider_execution_log (
   metadata jsonb NOT NULL DEFAULT '{}'::jsonb,
   observed_at timestamptz NOT NULL DEFAULT now()
 );
--- LeadX additive schema compatibility sweep: reconcile pre-existing table shapes.
--- CREATE TABLE IF NOT EXISTS does not alter legacy tables. Missing columns are added
--- before downstream indexes/views/functions reference them. Constraints remain defined by
--- the canonical CREATE TABLE on clean installs; existing installs keep their data intact.
-ALTER TABLE IF EXISTS public.provider_execution_log ADD COLUMN IF NOT EXISTS id uuid;
-ALTER TABLE IF EXISTS public.provider_execution_log ADD COLUMN IF NOT EXISTS tenant_id uuid;
-ALTER TABLE IF EXISTS public.provider_execution_log ADD COLUMN IF NOT EXISTS run_id uuid;
-ALTER TABLE IF EXISTS public.provider_execution_log ADD COLUMN IF NOT EXISTS provider text;
-ALTER TABLE IF EXISTS public.provider_execution_log ADD COLUMN IF NOT EXISTS field_name text;
-ALTER TABLE IF EXISTS public.provider_execution_log ADD COLUMN IF NOT EXISTS source_class text;
-ALTER TABLE IF EXISTS public.provider_execution_log ADD COLUMN IF NOT EXISTS hit boolean;
-ALTER TABLE IF EXISTS public.provider_execution_log ADD COLUMN IF NOT EXISTS verified boolean;
-ALTER TABLE IF EXISTS public.provider_execution_log ADD COLUMN IF NOT EXISTS failed boolean;
-ALTER TABLE IF EXISTS public.provider_execution_log ADD COLUMN IF NOT EXISTS latency_ms integer;
-ALTER TABLE IF EXISTS public.provider_execution_log ADD COLUMN IF NOT EXISTS cost numeric(12,5);
-ALTER TABLE IF EXISTS public.provider_execution_log ADD COLUMN IF NOT EXISTS region text;
-ALTER TABLE IF EXISTS public.provider_execution_log ADD COLUMN IF NOT EXISTS vertical text;
-ALTER TABLE IF EXISTS public.provider_execution_log ADD COLUMN IF NOT EXISTS metadata jsonb;
-ALTER TABLE IF EXISTS public.provider_execution_log ADD COLUMN IF NOT EXISTS observed_at timestamptz;
-
 CREATE INDEX IF NOT EXISTS idx_provider_exec_tenant_time ON public.provider_execution_log(tenant_id, observed_at DESC);
 CREATE INDEX IF NOT EXISTS idx_provider_exec_provider_field ON public.provider_execution_log(provider, field_name, observed_at DESC);
 
@@ -9252,24 +8723,6 @@ CREATE TABLE IF NOT EXISTS public.field_evidence_observations (
   observed_at timestamptz NOT NULL DEFAULT now(),
   metadata jsonb NOT NULL DEFAULT '{}'::jsonb
 );
--- LeadX additive schema compatibility sweep: reconcile pre-existing table shapes.
--- CREATE TABLE IF NOT EXISTS does not alter legacy tables. Missing columns are added
--- before downstream indexes/views/functions reference them. Constraints remain defined by
--- the canonical CREATE TABLE on clean installs; existing installs keep their data intact.
-ALTER TABLE IF EXISTS public.field_evidence_observations ADD COLUMN IF NOT EXISTS id uuid;
-ALTER TABLE IF EXISTS public.field_evidence_observations ADD COLUMN IF NOT EXISTS tenant_id uuid;
-ALTER TABLE IF EXISTS public.field_evidence_observations ADD COLUMN IF NOT EXISTS lead_id uuid;
-ALTER TABLE IF EXISTS public.field_evidence_observations ADD COLUMN IF NOT EXISTS field_name text;
-ALTER TABLE IF EXISTS public.field_evidence_observations ADD COLUMN IF NOT EXISTS value_hash text;
-ALTER TABLE IF EXISTS public.field_evidence_observations ADD COLUMN IF NOT EXISTS value_preview text;
-ALTER TABLE IF EXISTS public.field_evidence_observations ADD COLUMN IF NOT EXISTS source text;
-ALTER TABLE IF EXISTS public.field_evidence_observations ADD COLUMN IF NOT EXISTS source_class text;
-ALTER TABLE IF EXISTS public.field_evidence_observations ADD COLUMN IF NOT EXISTS source_url text;
-ALTER TABLE IF EXISTS public.field_evidence_observations ADD COLUMN IF NOT EXISTS confidence numeric(6,5);
-ALTER TABLE IF EXISTS public.field_evidence_observations ADD COLUMN IF NOT EXISTS evidence_strength numeric(6,5);
-ALTER TABLE IF EXISTS public.field_evidence_observations ADD COLUMN IF NOT EXISTS observed_at timestamptz;
-ALTER TABLE IF EXISTS public.field_evidence_observations ADD COLUMN IF NOT EXISTS metadata jsonb;
-
 CREATE INDEX IF NOT EXISTS idx_field_evidence_lead_field ON public.field_evidence_observations(tenant_id, lead_id, field_name, observed_at DESC);
 CREATE INDEX IF NOT EXISTS idx_field_evidence_hash ON public.field_evidence_observations(tenant_id, field_name, value_hash);
 
@@ -9290,26 +8743,6 @@ CREATE TABLE IF NOT EXISTS public.discovery_plan_runs (
   coverage jsonb NOT NULL DEFAULT '{}'::jsonb,
   created_at timestamptz NOT NULL DEFAULT now()
 );
--- LeadX additive schema compatibility sweep: reconcile pre-existing table shapes.
--- CREATE TABLE IF NOT EXISTS does not alter legacy tables. Missing columns are added
--- before downstream indexes/views/functions reference them. Constraints remain defined by
--- the canonical CREATE TABLE on clean installs; existing installs keep their data intact.
-ALTER TABLE IF EXISTS public.discovery_plan_runs ADD COLUMN IF NOT EXISTS id uuid;
-ALTER TABLE IF EXISTS public.discovery_plan_runs ADD COLUMN IF NOT EXISTS tenant_id uuid;
-ALTER TABLE IF EXISTS public.discovery_plan_runs ADD COLUMN IF NOT EXISTS run_id uuid;
-ALTER TABLE IF EXISTS public.discovery_plan_runs ADD COLUMN IF NOT EXISTS vertical text;
-ALTER TABLE IF EXISTS public.discovery_plan_runs ADD COLUMN IF NOT EXISTS locations jsonb;
-ALTER TABLE IF EXISTS public.discovery_plan_runs ADD COLUMN IF NOT EXISTS queries jsonb;
-ALTER TABLE IF EXISTS public.discovery_plan_runs ADD COLUMN IF NOT EXISTS surfaces jsonb;
-ALTER TABLE IF EXISTS public.discovery_plan_runs ADD COLUMN IF NOT EXISTS round_number integer;
-ALTER TABLE IF EXISTS public.discovery_plan_runs ADD COLUMN IF NOT EXISTS raw_found integer;
-ALTER TABLE IF EXISTS public.discovery_plan_runs ADD COLUMN IF NOT EXISTS unique_new integer;
-ALTER TABLE IF EXISTS public.discovery_plan_runs ADD COLUMN IF NOT EXISTS duplicates integer;
-ALTER TABLE IF EXISTS public.discovery_plan_runs ADD COLUMN IF NOT EXISTS source_counts jsonb;
-ALTER TABLE IF EXISTS public.discovery_plan_runs ADD COLUMN IF NOT EXISTS saturated boolean;
-ALTER TABLE IF EXISTS public.discovery_plan_runs ADD COLUMN IF NOT EXISTS coverage jsonb;
-ALTER TABLE IF EXISTS public.discovery_plan_runs ADD COLUMN IF NOT EXISTS created_at timestamptz;
-
 CREATE INDEX IF NOT EXISTS idx_discovery_plan_runs_tenant ON public.discovery_plan_runs(tenant_id, created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_discovery_plan_runs_run ON public.discovery_plan_runs(run_id, round_number);
 
@@ -9324,20 +8757,6 @@ CREATE TABLE IF NOT EXISTS public.agent_execution_policies (
   destructive_approval boolean NOT NULL DEFAULT true,
   updated_at timestamptz NOT NULL DEFAULT now()
 );
--- LeadX additive schema compatibility sweep: reconcile pre-existing table shapes.
--- CREATE TABLE IF NOT EXISTS does not alter legacy tables. Missing columns are added
--- before downstream indexes/views/functions reference them. Constraints remain defined by
--- the canonical CREATE TABLE on clean installs; existing installs keep their data intact.
-ALTER TABLE IF EXISTS public.agent_execution_policies ADD COLUMN IF NOT EXISTS tenant_id uuid;
-ALTER TABLE IF EXISTS public.agent_execution_policies ADD COLUMN IF NOT EXISTS daily_cost_limit numeric(12,4);
-ALTER TABLE IF EXISTS public.agent_execution_policies ADD COLUMN IF NOT EXISTS per_run_cost_limit numeric(12,4);
-ALTER TABLE IF EXISTS public.agent_execution_policies ADD COLUMN IF NOT EXISTS read_auto boolean;
-ALTER TABLE IF EXISTS public.agent_execution_policies ADD COLUMN IF NOT EXISTS low_write_auto boolean;
-ALTER TABLE IF EXISTS public.agent_execution_policies ADD COLUMN IF NOT EXISTS high_write_approval boolean;
-ALTER TABLE IF EXISTS public.agent_execution_policies ADD COLUMN IF NOT EXISTS external_send_approval boolean;
-ALTER TABLE IF EXISTS public.agent_execution_policies ADD COLUMN IF NOT EXISTS destructive_approval boolean;
-ALTER TABLE IF EXISTS public.agent_execution_policies ADD COLUMN IF NOT EXISTS updated_at timestamptz;
-
 
 ALTER TABLE public.provider_intelligence_stats ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.provider_execution_log ENABLE ROW LEVEL SECURITY;
@@ -9378,22 +8797,6 @@ create table if not exists public.agent_missions (
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
--- LeadX additive schema compatibility sweep: reconcile pre-existing table shapes.
--- CREATE TABLE IF NOT EXISTS does not alter legacy tables. Missing columns are added
--- before downstream indexes/views/functions reference them. Constraints remain defined by
--- the canonical CREATE TABLE on clean installs; existing installs keep their data intact.
-ALTER TABLE IF EXISTS public.agent_missions ADD COLUMN IF NOT EXISTS id uuid;
-ALTER TABLE IF EXISTS public.agent_missions ADD COLUMN IF NOT EXISTS tenant_id uuid;
-ALTER TABLE IF EXISTS public.agent_missions ADD COLUMN IF NOT EXISTS objective text;
-ALTER TABLE IF EXISTS public.agent_missions ADD COLUMN IF NOT EXISTS input_data jsonb;
-ALTER TABLE IF EXISTS public.agent_missions ADD COLUMN IF NOT EXISTS mode text;
-ALTER TABLE IF EXISTS public.agent_missions ADD COLUMN IF NOT EXISTS parent_agent_id text DEFAULT 'gtm';
-ALTER TABLE IF EXISTS public.agent_missions ADD COLUMN IF NOT EXISTS graph_version text DEFAULT 'gtm-v1';
-ALTER TABLE IF EXISTS public.agent_missions ADD COLUMN IF NOT EXISTS graph_count integer DEFAULT 30;
-ALTER TABLE IF EXISTS public.agent_missions ADD COLUMN IF NOT EXISTS status text;
-ALTER TABLE IF EXISTS public.agent_missions ADD COLUMN IF NOT EXISTS created_at timestamptz;
-ALTER TABLE IF EXISTS public.agent_missions ADD COLUMN IF NOT EXISTS updated_at timestamptz;
-
 
 create table if not exists public.agent_mission_tasks (
   id uuid primary key default gen_random_uuid(),
@@ -9415,29 +8818,6 @@ create table if not exists public.agent_mission_tasks (
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
--- LeadX additive schema compatibility sweep: reconcile pre-existing table shapes.
--- CREATE TABLE IF NOT EXISTS does not alter legacy tables. Missing columns are added
--- before downstream indexes/views/functions reference them. Constraints remain defined by
--- the canonical CREATE TABLE on clean installs; existing installs keep their data intact.
-ALTER TABLE IF EXISTS public.agent_mission_tasks ADD COLUMN IF NOT EXISTS id uuid;
-ALTER TABLE IF EXISTS public.agent_mission_tasks ADD COLUMN IF NOT EXISTS mission_id uuid;
-ALTER TABLE IF EXISTS public.agent_mission_tasks ADD COLUMN IF NOT EXISTS tenant_id uuid;
-ALTER TABLE IF EXISTS public.agent_mission_tasks ADD COLUMN IF NOT EXISTS agent_id text;
-ALTER TABLE IF EXISTS public.agent_mission_tasks ADD COLUMN IF NOT EXISTS objective text;
-ALTER TABLE IF EXISTS public.agent_mission_tasks ADD COLUMN IF NOT EXISTS task_id text;
-ALTER TABLE IF EXISTS public.agent_mission_tasks ADD COLUMN IF NOT EXISTS topological_order integer;
-ALTER TABLE IF EXISTS public.agent_mission_tasks ADD COLUMN IF NOT EXISTS executor_key text;
-ALTER TABLE IF EXISTS public.agent_mission_tasks ADD COLUMN IF NOT EXISTS depends_on jsonb;
-ALTER TABLE IF EXISTS public.agent_mission_tasks ADD COLUMN IF NOT EXISTS input_data jsonb;
-ALTER TABLE IF EXISTS public.agent_mission_tasks ADD COLUMN IF NOT EXISTS output_data jsonb;
-ALTER TABLE IF EXISTS public.agent_mission_tasks ADD COLUMN IF NOT EXISTS status text;
-ALTER TABLE IF EXISTS public.agent_mission_tasks ADD COLUMN IF NOT EXISTS agent_run_id uuid;
-ALTER TABLE IF EXISTS public.agent_mission_tasks ADD COLUMN IF NOT EXISTS error text;
-ALTER TABLE IF EXISTS public.agent_mission_tasks ADD COLUMN IF NOT EXISTS started_at timestamptz;
-ALTER TABLE IF EXISTS public.agent_mission_tasks ADD COLUMN IF NOT EXISTS finished_at timestamptz;
-ALTER TABLE IF EXISTS public.agent_mission_tasks ADD COLUMN IF NOT EXISTS created_at timestamptz;
-ALTER TABLE IF EXISTS public.agent_mission_tasks ADD COLUMN IF NOT EXISTS updated_at timestamptz;
-
 
 create table if not exists public.agent_mission_events (
   id uuid primary key default gen_random_uuid(),
@@ -9448,18 +8828,6 @@ create table if not exists public.agent_mission_events (
   payload jsonb not null default '{}'::jsonb,
   created_at timestamptz not null default now()
 );
--- LeadX additive schema compatibility sweep: reconcile pre-existing table shapes.
--- CREATE TABLE IF NOT EXISTS does not alter legacy tables. Missing columns are added
--- before downstream indexes/views/functions reference them. Constraints remain defined by
--- the canonical CREATE TABLE on clean installs; existing installs keep their data intact.
-ALTER TABLE IF EXISTS public.agent_mission_events ADD COLUMN IF NOT EXISTS id uuid;
-ALTER TABLE IF EXISTS public.agent_mission_events ADD COLUMN IF NOT EXISTS mission_id uuid;
-ALTER TABLE IF EXISTS public.agent_mission_events ADD COLUMN IF NOT EXISTS task_id uuid;
-ALTER TABLE IF EXISTS public.agent_mission_events ADD COLUMN IF NOT EXISTS tenant_id uuid;
-ALTER TABLE IF EXISTS public.agent_mission_events ADD COLUMN IF NOT EXISTS event_type text;
-ALTER TABLE IF EXISTS public.agent_mission_events ADD COLUMN IF NOT EXISTS payload jsonb;
-ALTER TABLE IF EXISTS public.agent_mission_events ADD COLUMN IF NOT EXISTS created_at timestamptz;
-
 
 create index if not exists agent_missions_tenant_created_idx on public.agent_missions(tenant_id, created_at desc);
 create index if not exists agent_mission_tasks_mission_status_idx on public.agent_mission_tasks(tenant_id, mission_id, status);
@@ -9489,485 +8857,6 @@ notify pgrst, 'reload schema';
 -- LeadX 15.4 security + reliability hardening.
 -- Applies safely to existing 15.0/15.1/15.2/15.3 installations and is also
 -- included in SUPABASE_FULL_MIGRATION.sql for clean installs.
-
--- Backend-owned data: deny direct client access by default. The service role
--- used by the FastAPI API bypasses RLS; tenant access is enforced in the API.
-DO $$ DECLARE t text; BEGIN
-  FOREACH t IN ARRAY ARRAY[
-    'platform_admins','audit_log','security_events','queue_metrics','provider_health',
-    'data_lineage','lead_signals','lead_opportunities','contact_graph_edges','company_change_events',
-    'website_audits','technographics','lead_quality_reports','lead_replacement_events','campaign_guardrails',
-    'email_domain_health','compliance_events','workflow_definitions','workflow_runs','product_events',
-    'daily_briefs','next_best_actions','export_audit','data_subject_requests','feature_flags',
-    'ai_model_versions','ai_claims','ai_claim_evidence','review_insights','discovery_frontier',
-    'inventory_freshness','unit_economics_snapshots'
-  ] LOOP
-    EXECUTE format('ALTER TABLE IF EXISTS %I ENABLE ROW LEVEL SECURITY', t);
-  END LOOP;
-END $$;
-
--- LeadX runtime schema repair / compatibility migration.
--- Safe to run against an existing installation. This repairs runtime tables that
--- were referenced by application code but were missing from older migration
--- chains, and backfills columns on automation tables created by early builds.
-
--- ---------------------------------------------------------------------------
--- Replies / inbound email
-CREATE TABLE IF NOT EXISTS email_replies (
-  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-  tenant_id uuid NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
-  assignment_id uuid REFERENCES lead_assignments(id) ON DELETE SET NULL,
-  from_email text NOT NULL,
-  subject text,
-  body_text text,
-  category text NOT NULL DEFAULT 'unclassified',
-  message_id text,
-  metadata jsonb NOT NULL DEFAULT '{}',
-  received_at timestamptz NOT NULL DEFAULT now(),
-  created_at timestamptz NOT NULL DEFAULT now()
-);
--- LeadX additive schema compatibility sweep: reconcile pre-existing table shapes.
--- CREATE TABLE IF NOT EXISTS does not alter legacy tables. Missing columns are added
--- before downstream indexes/views/functions reference them. Constraints remain defined by
--- the canonical CREATE TABLE on clean installs; existing installs keep their data intact.
-ALTER TABLE IF EXISTS public.email_replies ADD COLUMN IF NOT EXISTS id uuid;
-ALTER TABLE IF EXISTS public.email_replies ADD COLUMN IF NOT EXISTS tenant_id uuid;
-ALTER TABLE IF EXISTS public.email_replies ADD COLUMN IF NOT EXISTS assignment_id uuid;
-ALTER TABLE IF EXISTS public.email_replies ADD COLUMN IF NOT EXISTS from_email text;
-ALTER TABLE IF EXISTS public.email_replies ADD COLUMN IF NOT EXISTS subject text;
-ALTER TABLE IF EXISTS public.email_replies ADD COLUMN IF NOT EXISTS body_text text;
-ALTER TABLE IF EXISTS public.email_replies ADD COLUMN IF NOT EXISTS category text;
-ALTER TABLE IF EXISTS public.email_replies ADD COLUMN IF NOT EXISTS message_id text;
-ALTER TABLE IF EXISTS public.email_replies ADD COLUMN IF NOT EXISTS metadata jsonb;
-ALTER TABLE IF EXISTS public.email_replies ADD COLUMN IF NOT EXISTS received_at timestamptz;
-ALTER TABLE IF EXISTS public.email_replies ADD COLUMN IF NOT EXISTS created_at timestamptz;
-
-ALTER TABLE email_replies ADD COLUMN IF NOT EXISTS assignment_id uuid;
-ALTER TABLE email_replies ADD COLUMN IF NOT EXISTS from_email text;
-ALTER TABLE email_replies ADD COLUMN IF NOT EXISTS subject text;
-ALTER TABLE email_replies ADD COLUMN IF NOT EXISTS body_text text;
-ALTER TABLE email_replies ADD COLUMN IF NOT EXISTS category text NOT NULL DEFAULT 'unclassified';
-ALTER TABLE email_replies ADD COLUMN IF NOT EXISTS message_id text;
-ALTER TABLE email_replies ADD COLUMN IF NOT EXISTS metadata jsonb NOT NULL DEFAULT '{}';
-ALTER TABLE email_replies ADD COLUMN IF NOT EXISTS received_at timestamptz NOT NULL DEFAULT now();
-ALTER TABLE email_replies ADD COLUMN IF NOT EXISTS created_at timestamptz NOT NULL DEFAULT now();
-CREATE INDEX IF NOT EXISTS idx_email_replies_tenant_received ON email_replies(tenant_id, received_at DESC);
-CREATE INDEX IF NOT EXISTS idx_email_replies_assignment ON email_replies(assignment_id, received_at DESC);
-CREATE INDEX IF NOT EXISTS idx_email_replies_category ON email_replies(tenant_id, category, received_at DESC);
-
--- ---------------------------------------------------------------------------
--- Tenant/global opt-out ledger. The application intentionally fails closed if
--- this table cannot be read, so it must exist before email automation is used.
-CREATE TABLE IF NOT EXISTS email_optouts (
-  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-  tenant_id uuid REFERENCES tenants(id) ON DELETE CASCADE,
-  email text NOT NULL,
-  reason text,
-  source text,
-  created_at timestamptz NOT NULL DEFAULT now(),
-  updated_at timestamptz NOT NULL DEFAULT now()
-);
--- LeadX additive schema compatibility sweep: reconcile pre-existing table shapes.
--- CREATE TABLE IF NOT EXISTS does not alter legacy tables. Missing columns are added
--- before downstream indexes/views/functions reference them. Constraints remain defined by
--- the canonical CREATE TABLE on clean installs; existing installs keep their data intact.
-ALTER TABLE IF EXISTS public.email_optouts ADD COLUMN IF NOT EXISTS id uuid;
-ALTER TABLE IF EXISTS public.email_optouts ADD COLUMN IF NOT EXISTS tenant_id uuid;
-ALTER TABLE IF EXISTS public.email_optouts ADD COLUMN IF NOT EXISTS email text;
-ALTER TABLE IF EXISTS public.email_optouts ADD COLUMN IF NOT EXISTS reason text;
-ALTER TABLE IF EXISTS public.email_optouts ADD COLUMN IF NOT EXISTS source text;
-ALTER TABLE IF EXISTS public.email_optouts ADD COLUMN IF NOT EXISTS created_at timestamptz;
-ALTER TABLE IF EXISTS public.email_optouts ADD COLUMN IF NOT EXISTS updated_at timestamptz;
-
-ALTER TABLE email_optouts ADD COLUMN IF NOT EXISTS reason text;
-ALTER TABLE email_optouts ADD COLUMN IF NOT EXISTS source text;
-ALTER TABLE email_optouts ADD COLUMN IF NOT EXISTS updated_at timestamptz NOT NULL DEFAULT now();
-CREATE UNIQUE INDEX IF NOT EXISTS uq_email_optouts_tenant_email ON email_optouts(tenant_id, email);
-CREATE INDEX IF NOT EXISTS idx_email_optouts_email ON email_optouts(lower(email));
-
--- ---------------------------------------------------------------------------
--- Lead contact/touch history used by send-policy minimum-gap protection.
-CREATE TABLE IF NOT EXISTS lead_touches (
-  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-  tenant_id uuid REFERENCES tenants(id) ON DELETE CASCADE,
-  assignment_id uuid REFERENCES lead_assignments(id) ON DELETE SET NULL,
-  channel text NOT NULL,
-  meta jsonb NOT NULL DEFAULT '{}',
-  touched_at timestamptz NOT NULL DEFAULT now(),
-  created_at timestamptz NOT NULL DEFAULT now()
-);
--- LeadX additive schema compatibility sweep: reconcile pre-existing table shapes.
--- CREATE TABLE IF NOT EXISTS does not alter legacy tables. Missing columns are added
--- before downstream indexes/views/functions reference them. Constraints remain defined by
--- the canonical CREATE TABLE on clean installs; existing installs keep their data intact.
-ALTER TABLE IF EXISTS public.lead_touches ADD COLUMN IF NOT EXISTS id uuid;
-ALTER TABLE IF EXISTS public.lead_touches ADD COLUMN IF NOT EXISTS tenant_id uuid;
-ALTER TABLE IF EXISTS public.lead_touches ADD COLUMN IF NOT EXISTS assignment_id uuid;
-ALTER TABLE IF EXISTS public.lead_touches ADD COLUMN IF NOT EXISTS channel text;
-ALTER TABLE IF EXISTS public.lead_touches ADD COLUMN IF NOT EXISTS meta jsonb;
-ALTER TABLE IF EXISTS public.lead_touches ADD COLUMN IF NOT EXISTS touched_at timestamptz;
-ALTER TABLE IF EXISTS public.lead_touches ADD COLUMN IF NOT EXISTS created_at timestamptz;
-
-ALTER TABLE lead_touches ADD COLUMN IF NOT EXISTS tenant_id uuid;
-ALTER TABLE lead_touches ADD COLUMN IF NOT EXISTS assignment_id uuid;
-ALTER TABLE lead_touches ADD COLUMN IF NOT EXISTS channel text;
-ALTER TABLE lead_touches ADD COLUMN IF NOT EXISTS meta jsonb NOT NULL DEFAULT '{}';
-ALTER TABLE lead_touches ADD COLUMN IF NOT EXISTS touched_at timestamptz NOT NULL DEFAULT now();
-ALTER TABLE lead_touches ADD COLUMN IF NOT EXISTS created_at timestamptz NOT NULL DEFAULT now();
-CREATE INDEX IF NOT EXISTS idx_lead_touches_assignment ON lead_touches(assignment_id, touched_at DESC);
-CREATE INDEX IF NOT EXISTS idx_lead_touches_tenant ON lead_touches(tenant_id, touched_at DESC);
-
--- ---------------------------------------------------------------------------
--- AI email/template experiment ledger.
-CREATE TABLE IF NOT EXISTS template_variant_stats (
-  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-  tenant_id uuid REFERENCES tenants(id) ON DELETE CASCADE,
-  category text NOT NULL,
-  variant_key text NOT NULL,
-  sent int NOT NULL DEFAULT 0,
-  opened int NOT NULL DEFAULT 0,
-  replied int NOT NULL DEFAULT 0,
-  positive int NOT NULL DEFAULT 0,
-  created_at timestamptz NOT NULL DEFAULT now(),
-  updated_at timestamptz NOT NULL DEFAULT now()
-);
--- LeadX additive schema compatibility sweep: reconcile pre-existing table shapes.
--- CREATE TABLE IF NOT EXISTS does not alter legacy tables. Missing columns are added
--- before downstream indexes/views/functions reference them. Constraints remain defined by
--- the canonical CREATE TABLE on clean installs; existing installs keep their data intact.
-ALTER TABLE IF EXISTS public.template_variant_stats ADD COLUMN IF NOT EXISTS id uuid;
-ALTER TABLE IF EXISTS public.template_variant_stats ADD COLUMN IF NOT EXISTS tenant_id uuid;
-ALTER TABLE IF EXISTS public.template_variant_stats ADD COLUMN IF NOT EXISTS category text;
-ALTER TABLE IF EXISTS public.template_variant_stats ADD COLUMN IF NOT EXISTS variant_key text;
-ALTER TABLE IF EXISTS public.template_variant_stats ADD COLUMN IF NOT EXISTS sent int;
-ALTER TABLE IF EXISTS public.template_variant_stats ADD COLUMN IF NOT EXISTS opened int;
-ALTER TABLE IF EXISTS public.template_variant_stats ADD COLUMN IF NOT EXISTS replied int;
-ALTER TABLE IF EXISTS public.template_variant_stats ADD COLUMN IF NOT EXISTS positive int;
-ALTER TABLE IF EXISTS public.template_variant_stats ADD COLUMN IF NOT EXISTS created_at timestamptz;
-ALTER TABLE IF EXISTS public.template_variant_stats ADD COLUMN IF NOT EXISTS updated_at timestamptz;
-
-ALTER TABLE template_variant_stats ADD COLUMN IF NOT EXISTS sent int NOT NULL DEFAULT 0;
-ALTER TABLE template_variant_stats ADD COLUMN IF NOT EXISTS opened int NOT NULL DEFAULT 0;
-ALTER TABLE template_variant_stats ADD COLUMN IF NOT EXISTS replied int NOT NULL DEFAULT 0;
-ALTER TABLE template_variant_stats ADD COLUMN IF NOT EXISTS positive int NOT NULL DEFAULT 0;
-ALTER TABLE template_variant_stats ADD COLUMN IF NOT EXISTS created_at timestamptz NOT NULL DEFAULT now();
-ALTER TABLE template_variant_stats ADD COLUMN IF NOT EXISTS updated_at timestamptz NOT NULL DEFAULT now();
-CREATE UNIQUE INDEX IF NOT EXISTS uq_template_variant_stats_tenant ON template_variant_stats(tenant_id, category, variant_key) WHERE tenant_id IS NOT NULL;
-CREATE UNIQUE INDEX IF NOT EXISTS uq_template_variant_stats_global ON template_variant_stats(category, variant_key) WHERE tenant_id IS NULL;
-
--- ---------------------------------------------------------------------------
--- Webhook idempotency ledger.
-CREATE TABLE IF NOT EXISTS webhook_events (
-  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-  event_id text NOT NULL UNIQUE,
-  source text NOT NULL,
-  metadata jsonb NOT NULL DEFAULT '{}',
-  received_at timestamptz NOT NULL DEFAULT now(),
-  created_at timestamptz NOT NULL DEFAULT now()
-);
--- LeadX additive schema compatibility sweep: reconcile pre-existing table shapes.
--- CREATE TABLE IF NOT EXISTS does not alter legacy tables. Missing columns are added
--- before downstream indexes/views/functions reference them. Constraints remain defined by
--- the canonical CREATE TABLE on clean installs; existing installs keep their data intact.
-ALTER TABLE IF EXISTS public.webhook_events ADD COLUMN IF NOT EXISTS id uuid;
-ALTER TABLE IF EXISTS public.webhook_events ADD COLUMN IF NOT EXISTS event_id text;
-ALTER TABLE IF EXISTS public.webhook_events ADD COLUMN IF NOT EXISTS source text;
-ALTER TABLE IF EXISTS public.webhook_events ADD COLUMN IF NOT EXISTS metadata jsonb;
-ALTER TABLE IF EXISTS public.webhook_events ADD COLUMN IF NOT EXISTS received_at timestamptz;
-ALTER TABLE IF EXISTS public.webhook_events ADD COLUMN IF NOT EXISTS created_at timestamptz;
-
-ALTER TABLE webhook_events ADD COLUMN IF NOT EXISTS source text;
-ALTER TABLE webhook_events ADD COLUMN IF NOT EXISTS metadata jsonb NOT NULL DEFAULT '{}';
-ALTER TABLE webhook_events ADD COLUMN IF NOT EXISTS received_at timestamptz NOT NULL DEFAULT now();
-ALTER TABLE webhook_events ADD COLUMN IF NOT EXISTS created_at timestamptz NOT NULL DEFAULT now();
-CREATE UNIQUE INDEX IF NOT EXISTS uq_webhook_events_event_id ON webhook_events(event_id);
-CREATE INDEX IF NOT EXISTS idx_webhook_events_received ON webhook_events(received_at DESC);
-
--- ---------------------------------------------------------------------------
--- Automation compatibility backfill. Older installs may have created these
--- tables with a subset of the current columns. CREATE TABLE IF NOT EXISTS does
--- not add columns, so explicitly repair them here. The CREATE guards also make
--- this repair file safe to run by itself after a partially-applied migration.
-CREATE TABLE IF NOT EXISTS campaign_schedules (
-  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-  tenant_id uuid NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
-  name text NOT NULL,
-  icp_id uuid,
-  industry text,
-  locations jsonb NOT NULL DEFAULT '[]',
-  queries jsonb NOT NULL DEFAULT '[]',
-  params jsonb NOT NULL DEFAULT '{}',
-  target_new_leads int NOT NULL DEFAULT 25,
-  interval_hours int NOT NULL DEFAULT 24,
-  auto_enroll_sequence_id uuid,
-  active boolean NOT NULL DEFAULT true,
-  last_run_at timestamptz,
-  last_status text,
-  last_result jsonb,
-  next_run_at timestamptz NOT NULL DEFAULT now(),
-  created_by text DEFAULT 'admin',
-  created_at timestamptz NOT NULL DEFAULT now(),
-  updated_at timestamptz NOT NULL DEFAULT now()
-);
--- LeadX additive schema compatibility sweep: reconcile pre-existing table shapes.
--- CREATE TABLE IF NOT EXISTS does not alter legacy tables. Missing columns are added
--- before downstream indexes/views/functions reference them. Constraints remain defined by
--- the canonical CREATE TABLE on clean installs; existing installs keep their data intact.
-ALTER TABLE IF EXISTS public.campaign_schedules ADD COLUMN IF NOT EXISTS id uuid;
-ALTER TABLE IF EXISTS public.campaign_schedules ADD COLUMN IF NOT EXISTS tenant_id uuid;
-ALTER TABLE IF EXISTS public.campaign_schedules ADD COLUMN IF NOT EXISTS name text;
-ALTER TABLE IF EXISTS public.campaign_schedules ADD COLUMN IF NOT EXISTS icp_id uuid;
-ALTER TABLE IF EXISTS public.campaign_schedules ADD COLUMN IF NOT EXISTS industry text;
-ALTER TABLE IF EXISTS public.campaign_schedules ADD COLUMN IF NOT EXISTS locations jsonb;
-ALTER TABLE IF EXISTS public.campaign_schedules ADD COLUMN IF NOT EXISTS queries jsonb;
-ALTER TABLE IF EXISTS public.campaign_schedules ADD COLUMN IF NOT EXISTS params jsonb;
-ALTER TABLE IF EXISTS public.campaign_schedules ADD COLUMN IF NOT EXISTS target_new_leads int;
-ALTER TABLE IF EXISTS public.campaign_schedules ADD COLUMN IF NOT EXISTS interval_hours int;
-ALTER TABLE IF EXISTS public.campaign_schedules ADD COLUMN IF NOT EXISTS auto_enroll_sequence_id uuid;
-ALTER TABLE IF EXISTS public.campaign_schedules ADD COLUMN IF NOT EXISTS active boolean;
-ALTER TABLE IF EXISTS public.campaign_schedules ADD COLUMN IF NOT EXISTS last_run_at timestamptz;
-ALTER TABLE IF EXISTS public.campaign_schedules ADD COLUMN IF NOT EXISTS last_status text;
-ALTER TABLE IF EXISTS public.campaign_schedules ADD COLUMN IF NOT EXISTS last_result jsonb;
-ALTER TABLE IF EXISTS public.campaign_schedules ADD COLUMN IF NOT EXISTS next_run_at timestamptz;
-ALTER TABLE IF EXISTS public.campaign_schedules ADD COLUMN IF NOT EXISTS created_by text DEFAULT 'admin';
-ALTER TABLE IF EXISTS public.campaign_schedules ADD COLUMN IF NOT EXISTS created_at timestamptz;
-ALTER TABLE IF EXISTS public.campaign_schedules ADD COLUMN IF NOT EXISTS updated_at timestamptz;
-
-ALTER TABLE campaign_schedules ADD COLUMN IF NOT EXISTS icp_id uuid;
-ALTER TABLE campaign_schedules ADD COLUMN IF NOT EXISTS industry text;
-ALTER TABLE campaign_schedules ADD COLUMN IF NOT EXISTS locations jsonb NOT NULL DEFAULT '[]';
-ALTER TABLE campaign_schedules ADD COLUMN IF NOT EXISTS queries jsonb NOT NULL DEFAULT '[]';
-ALTER TABLE campaign_schedules ADD COLUMN IF NOT EXISTS params jsonb NOT NULL DEFAULT '{}';
-ALTER TABLE campaign_schedules ADD COLUMN IF NOT EXISTS target_new_leads int NOT NULL DEFAULT 25;
-ALTER TABLE campaign_schedules ADD COLUMN IF NOT EXISTS interval_hours int NOT NULL DEFAULT 24;
-ALTER TABLE campaign_schedules ADD COLUMN IF NOT EXISTS auto_enroll_sequence_id uuid;
-ALTER TABLE campaign_schedules ADD COLUMN IF NOT EXISTS active boolean NOT NULL DEFAULT true;
-ALTER TABLE campaign_schedules ADD COLUMN IF NOT EXISTS last_run_at timestamptz;
-ALTER TABLE campaign_schedules ADD COLUMN IF NOT EXISTS last_status text;
-ALTER TABLE campaign_schedules ADD COLUMN IF NOT EXISTS last_result jsonb;
-ALTER TABLE campaign_schedules ADD COLUMN IF NOT EXISTS next_run_at timestamptz NOT NULL DEFAULT now();
-ALTER TABLE campaign_schedules ADD COLUMN IF NOT EXISTS created_by text DEFAULT 'admin';
-ALTER TABLE campaign_schedules ADD COLUMN IF NOT EXISTS created_at timestamptz NOT NULL DEFAULT now();
-ALTER TABLE campaign_schedules ADD COLUMN IF NOT EXISTS updated_at timestamptz NOT NULL DEFAULT now();
-CREATE INDEX IF NOT EXISTS idx_schedules_due_runtime ON campaign_schedules(next_run_at) WHERE active;
-CREATE INDEX IF NOT EXISTS idx_schedules_tenant_runtime ON campaign_schedules(tenant_id, created_at DESC);
-
-CREATE TABLE IF NOT EXISTS autonomous_campaigns (
-  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-  tenant_id uuid NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
-  name text NOT NULL,
-  icp_id uuid,
-  sequence_id uuid,
-  status text NOT NULL DEFAULT 'draft',
-  locations jsonb NOT NULL DEFAULT '[]',
-  queries jsonb NOT NULL DEFAULT '[]',
-  offer text,
-  goal text,
-  daily_new_lead_limit int NOT NULL DEFAULT 25,
-  daily_email_limit int NOT NULL DEFAULT 25,
-  max_active_enrollments int NOT NULL DEFAULT 5000,
-  send_window_start time NOT NULL DEFAULT '09:00',
-  send_window_end time NOT NULL DEFAULT '17:00',
-  timezone text NOT NULL DEFAULT 'America/New_York',
-  generate_ai_copy boolean NOT NULL DEFAULT true,
-  auto_followup boolean NOT NULL DEFAULT true,
-  stop_on_reply boolean NOT NULL DEFAULT true,
-  stop_on_optout boolean NOT NULL DEFAULT true,
-  require_verified_email boolean NOT NULL DEFAULT true,
-  score_threshold int NOT NULL DEFAULT 70,
-  schedule_hours int NOT NULL DEFAULT 24,
-  next_discovery_at timestamptz,
-  last_discovery_at timestamptz,
-  last_discovery_result jsonb NOT NULL DEFAULT '{}',
-  created_by text NOT NULL DEFAULT 'admin',
-  created_at timestamptz NOT NULL DEFAULT now(),
-  updated_at timestamptz NOT NULL DEFAULT now()
-);
--- LeadX additive schema compatibility sweep: reconcile pre-existing table shapes.
--- CREATE TABLE IF NOT EXISTS does not alter legacy tables. Missing columns are added
--- before downstream indexes/views/functions reference them. Constraints remain defined by
--- the canonical CREATE TABLE on clean installs; existing installs keep their data intact.
-ALTER TABLE IF EXISTS public.autonomous_campaigns ADD COLUMN IF NOT EXISTS id uuid;
-ALTER TABLE IF EXISTS public.autonomous_campaigns ADD COLUMN IF NOT EXISTS tenant_id uuid;
-ALTER TABLE IF EXISTS public.autonomous_campaigns ADD COLUMN IF NOT EXISTS name text;
-ALTER TABLE IF EXISTS public.autonomous_campaigns ADD COLUMN IF NOT EXISTS icp_id uuid;
-ALTER TABLE IF EXISTS public.autonomous_campaigns ADD COLUMN IF NOT EXISTS sequence_id uuid;
-ALTER TABLE IF EXISTS public.autonomous_campaigns ADD COLUMN IF NOT EXISTS status text;
-ALTER TABLE IF EXISTS public.autonomous_campaigns ADD COLUMN IF NOT EXISTS locations jsonb;
-ALTER TABLE IF EXISTS public.autonomous_campaigns ADD COLUMN IF NOT EXISTS queries jsonb;
-ALTER TABLE IF EXISTS public.autonomous_campaigns ADD COLUMN IF NOT EXISTS offer text;
-ALTER TABLE IF EXISTS public.autonomous_campaigns ADD COLUMN IF NOT EXISTS goal text;
-ALTER TABLE IF EXISTS public.autonomous_campaigns ADD COLUMN IF NOT EXISTS daily_new_lead_limit int;
-ALTER TABLE IF EXISTS public.autonomous_campaigns ADD COLUMN IF NOT EXISTS daily_email_limit int;
-ALTER TABLE IF EXISTS public.autonomous_campaigns ADD COLUMN IF NOT EXISTS max_active_enrollments int;
-ALTER TABLE IF EXISTS public.autonomous_campaigns ADD COLUMN IF NOT EXISTS send_window_start time;
-ALTER TABLE IF EXISTS public.autonomous_campaigns ADD COLUMN IF NOT EXISTS send_window_end time;
-ALTER TABLE IF EXISTS public.autonomous_campaigns ADD COLUMN IF NOT EXISTS timezone text;
-ALTER TABLE IF EXISTS public.autonomous_campaigns ADD COLUMN IF NOT EXISTS generate_ai_copy boolean;
-ALTER TABLE IF EXISTS public.autonomous_campaigns ADD COLUMN IF NOT EXISTS auto_followup boolean;
-ALTER TABLE IF EXISTS public.autonomous_campaigns ADD COLUMN IF NOT EXISTS stop_on_reply boolean;
-ALTER TABLE IF EXISTS public.autonomous_campaigns ADD COLUMN IF NOT EXISTS stop_on_optout boolean;
-ALTER TABLE IF EXISTS public.autonomous_campaigns ADD COLUMN IF NOT EXISTS require_verified_email boolean;
-ALTER TABLE IF EXISTS public.autonomous_campaigns ADD COLUMN IF NOT EXISTS score_threshold int;
-ALTER TABLE IF EXISTS public.autonomous_campaigns ADD COLUMN IF NOT EXISTS schedule_hours int;
-ALTER TABLE IF EXISTS public.autonomous_campaigns ADD COLUMN IF NOT EXISTS next_discovery_at timestamptz;
-ALTER TABLE IF EXISTS public.autonomous_campaigns ADD COLUMN IF NOT EXISTS last_discovery_at timestamptz;
-ALTER TABLE IF EXISTS public.autonomous_campaigns ADD COLUMN IF NOT EXISTS last_discovery_result jsonb;
-ALTER TABLE IF EXISTS public.autonomous_campaigns ADD COLUMN IF NOT EXISTS created_by text;
-ALTER TABLE IF EXISTS public.autonomous_campaigns ADD COLUMN IF NOT EXISTS created_at timestamptz;
-ALTER TABLE IF EXISTS public.autonomous_campaigns ADD COLUMN IF NOT EXISTS updated_at timestamptz;
-
-ALTER TABLE autonomous_campaigns ADD COLUMN IF NOT EXISTS icp_id uuid;
-ALTER TABLE autonomous_campaigns ADD COLUMN IF NOT EXISTS sequence_id uuid;
-ALTER TABLE autonomous_campaigns ADD COLUMN IF NOT EXISTS status text NOT NULL DEFAULT 'draft';
-ALTER TABLE autonomous_campaigns ADD COLUMN IF NOT EXISTS locations jsonb NOT NULL DEFAULT '[]';
-ALTER TABLE autonomous_campaigns ADD COLUMN IF NOT EXISTS queries jsonb NOT NULL DEFAULT '[]';
-ALTER TABLE autonomous_campaigns ADD COLUMN IF NOT EXISTS offer text;
-ALTER TABLE autonomous_campaigns ADD COLUMN IF NOT EXISTS goal text;
-ALTER TABLE autonomous_campaigns ADD COLUMN IF NOT EXISTS daily_new_lead_limit int NOT NULL DEFAULT 25;
-ALTER TABLE autonomous_campaigns ADD COLUMN IF NOT EXISTS daily_email_limit int NOT NULL DEFAULT 25;
-ALTER TABLE autonomous_campaigns ADD COLUMN IF NOT EXISTS max_active_enrollments int NOT NULL DEFAULT 5000;
-ALTER TABLE autonomous_campaigns ADD COLUMN IF NOT EXISTS send_window_start time NOT NULL DEFAULT '09:00';
-ALTER TABLE autonomous_campaigns ADD COLUMN IF NOT EXISTS send_window_end time NOT NULL DEFAULT '17:00';
-ALTER TABLE autonomous_campaigns ADD COLUMN IF NOT EXISTS timezone text NOT NULL DEFAULT 'America/New_York';
-ALTER TABLE autonomous_campaigns ADD COLUMN IF NOT EXISTS generate_ai_copy boolean NOT NULL DEFAULT true;
-ALTER TABLE autonomous_campaigns ADD COLUMN IF NOT EXISTS auto_followup boolean NOT NULL DEFAULT true;
-ALTER TABLE autonomous_campaigns ADD COLUMN IF NOT EXISTS stop_on_reply boolean NOT NULL DEFAULT true;
-ALTER TABLE autonomous_campaigns ADD COLUMN IF NOT EXISTS stop_on_optout boolean NOT NULL DEFAULT true;
-ALTER TABLE autonomous_campaigns ADD COLUMN IF NOT EXISTS require_verified_email boolean NOT NULL DEFAULT true;
-ALTER TABLE autonomous_campaigns ADD COLUMN IF NOT EXISTS score_threshold int NOT NULL DEFAULT 70;
-ALTER TABLE autonomous_campaigns ADD COLUMN IF NOT EXISTS schedule_hours int NOT NULL DEFAULT 24;
-ALTER TABLE autonomous_campaigns ADD COLUMN IF NOT EXISTS next_discovery_at timestamptz;
-ALTER TABLE autonomous_campaigns ADD COLUMN IF NOT EXISTS last_discovery_at timestamptz;
-ALTER TABLE autonomous_campaigns ADD COLUMN IF NOT EXISTS last_discovery_result jsonb NOT NULL DEFAULT '{}';
-ALTER TABLE autonomous_campaigns ADD COLUMN IF NOT EXISTS created_by text NOT NULL DEFAULT 'admin';
-ALTER TABLE autonomous_campaigns ADD COLUMN IF NOT EXISTS created_at timestamptz NOT NULL DEFAULT now();
-ALTER TABLE autonomous_campaigns ADD COLUMN IF NOT EXISTS updated_at timestamptz NOT NULL DEFAULT now();
-CREATE INDEX IF NOT EXISTS idx_autonomous_campaigns_due_runtime ON autonomous_campaigns(next_discovery_at) WHERE status = 'active';
-
--- The operator tenant flag is required by admin automation/prospecting.
-ALTER TABLE tenants ADD COLUMN IF NOT EXISTS is_operator boolean NOT NULL DEFAULT false;
-CREATE UNIQUE INDEX IF NOT EXISTS idx_tenants_single_operator_runtime ON tenants(is_operator) WHERE is_operator;
-
--- ---------------------------------------------------------------------------
--- Lightweight schema verification view/function for diagnostics. It does not
--- expose secrets and is safe for the service-key backend to query.
-CREATE OR REPLACE FUNCTION leadx_runtime_schema_status()
-RETURNS TABLE(object_name text, object_kind text, present boolean)
-LANGUAGE sql STABLE AS $$
-  SELECT x.name, x.kind,
-    CASE WHEN x.kind = 'table' THEN to_regclass('public.' || x.name) IS NOT NULL
-         WHEN x.kind = 'view' THEN to_regclass('public.' || x.name) IS NOT NULL
-         ELSE false END AS present
-  FROM (VALUES
-    ('email_replies','table'),
-    ('email_optouts','table'),
-    ('lead_touches','table'),
-    ('template_variant_stats','table'),
-    ('webhook_events','table'),
-    ('campaign_schedules','table'),
-    ('autonomous_campaigns','table'),
-    ('crm_lead_cards','view')
-  ) AS x(name,kind);
-$$;
-
--- Supabase/PostgREST may retain a schema cache briefly after DDL. Ask it to
--- reload so newly repaired tables are visible immediately to REST clients.
-NOTIFY pgrst, 'reload schema';
-
--- PostgREST schema-cache refresh for runtime repair objects.
-DO $$
-BEGIN
-  PERFORM pg_notify('pgrst', 'reload schema');
-EXCEPTION WHEN OTHERS THEN
-  NULL;
-END $$;
-
-
--- ============================================================================
--- RUNTIME COMPATIBILITY: notifications
--- ============================================================================
-
-
--- ---------------------------------------------------------------------------
--- In-app notifications. Required by tenant/admin notification feeds and by
--- pipeline/SES/job handlers. Keep this in the runtime repair so an installation
--- that ran only the consolidated/safe migration cannot miss this table.
-CREATE TABLE IF NOT EXISTS public.notifications (
-  id          uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-  scope       text NOT NULL DEFAULT 'tenant'
-              CHECK (scope IN ('tenant', 'admin')),
-  tenant_id   uuid,
-  kind        text NOT NULL,
-  severity    text NOT NULL DEFAULT 'info'
-              CHECK (severity IN ('info', 'warning', 'critical')),
-  title       text NOT NULL,
-  body        text NOT NULL DEFAULT '',
-  link        text,
-  meta        jsonb NOT NULL DEFAULT '{}'::jsonb,
-  read_at     timestamptz,
-  created_at  timestamptz NOT NULL DEFAULT now()
-);
--- LeadX additive schema compatibility sweep: reconcile pre-existing table shapes.
--- CREATE TABLE IF NOT EXISTS does not alter legacy tables. Missing columns are added
--- before downstream indexes/views/functions reference them. Constraints remain defined by
--- the canonical CREATE TABLE on clean installs; existing installs keep their data intact.
-ALTER TABLE IF EXISTS public.notifications ADD COLUMN IF NOT EXISTS id uuid;
-ALTER TABLE IF EXISTS public.notifications ADD COLUMN IF NOT EXISTS scope text;
-ALTER TABLE IF EXISTS public.notifications ADD COLUMN IF NOT EXISTS tenant_id uuid;
-ALTER TABLE IF EXISTS public.notifications ADD COLUMN IF NOT EXISTS kind text;
-ALTER TABLE IF EXISTS public.notifications ADD COLUMN IF NOT EXISTS severity text;
-ALTER TABLE IF EXISTS public.notifications ADD COLUMN IF NOT EXISTS title text;
-ALTER TABLE IF EXISTS public.notifications ADD COLUMN IF NOT EXISTS body text;
-ALTER TABLE IF EXISTS public.notifications ADD COLUMN IF NOT EXISTS link text;
-ALTER TABLE IF EXISTS public.notifications ADD COLUMN IF NOT EXISTS meta jsonb;
-ALTER TABLE IF EXISTS public.notifications ADD COLUMN IF NOT EXISTS read_at timestamptz;
-ALTER TABLE IF EXISTS public.notifications ADD COLUMN IF NOT EXISTS created_at timestamptz;
-
-ALTER TABLE public.notifications ADD COLUMN IF NOT EXISTS scope text NOT NULL DEFAULT 'tenant';
-ALTER TABLE public.notifications ADD COLUMN IF NOT EXISTS tenant_id uuid;
-ALTER TABLE public.notifications ADD COLUMN IF NOT EXISTS kind text NOT NULL DEFAULT 'system';
-ALTER TABLE public.notifications ADD COLUMN IF NOT EXISTS severity text NOT NULL DEFAULT 'info';
-ALTER TABLE public.notifications ADD COLUMN IF NOT EXISTS title text NOT NULL DEFAULT '';
-ALTER TABLE public.notifications ADD COLUMN IF NOT EXISTS body text NOT NULL DEFAULT '';
-ALTER TABLE public.notifications ADD COLUMN IF NOT EXISTS link text;
-ALTER TABLE public.notifications ADD COLUMN IF NOT EXISTS meta jsonb NOT NULL DEFAULT '{}'::jsonb;
-ALTER TABLE public.notifications ADD COLUMN IF NOT EXISTS read_at timestamptz;
-ALTER TABLE public.notifications ADD COLUMN IF NOT EXISTS created_at timestamptz NOT NULL DEFAULT now();
-CREATE INDEX IF NOT EXISTS idx_notifications_scope_created ON public.notifications(scope, created_at DESC);
-CREATE INDEX IF NOT EXISTS idx_notifications_tenant_unread ON public.notifications(tenant_id, created_at DESC) WHERE read_at IS NULL;
-CREATE INDEX IF NOT EXISTS idx_notifications_admin_unread ON public.notifications(scope, created_at DESC) WHERE scope = 'admin' AND read_at IS NULL;
-ALTER TABLE public.notifications ENABLE ROW LEVEL SECURITY;
-DROP POLICY IF EXISTS "service_all_notifications" ON public.notifications;
-CREATE POLICY "service_all_notifications" ON public.notifications FOR ALL TO service_role USING (true) WITH CHECK (true);
-
-NOTIFY pgrst, 'reload schema';
-DO $$
-BEGIN
-  PERFORM pg_notify('pgrst', 'reload schema');
-EXCEPTION WHEN OTHERS THEN
-  NULL;
-END $$;
-
--- LeadX realtime hardening (idempotent; safe after CRM tables exist)
-DO $$
-DECLARE t text;
-BEGIN
-  FOREACH t IN ARRAY ARRAY[
-    'companies','contacts','deals','deal_stages','activities','tasks','notes','pipeline_stages',
-    'lead_assignments','lead_activities','lead_tasks','notifications','discovery_requests'
-  ] LOOP
-    BEGIN
-      EXECUTE format('ALTER TABLE public.%I REPLICA IDENTITY FULL', t);
-      EXECUTE format('ALTER PUBLICATION supabase_realtime ADD TABLE public.%I', t);
-    EXCEPTION WHEN duplicate_object THEN NULL;
-    WHEN undefined_table THEN NULL;
-    WHEN undefined_object THEN NULL;
-    END;
-  END LOOP;
-END $$;
-
-
 
 -- ---------------------------------------------------------------------------
 -- 1. Complete runtime column contract.
@@ -10021,7 +8910,7 @@ ALTER TABLE public.tenants
 ALTER TABLE public.tenants ALTER COLUMN plan SET DEFAULT 'free';
 
 -- ---------------------------------------------------------------------------
--- 3. Durable HTTP idempotency: user/session + body binding, stale reclaim
+-- 3. Durable HTTP idempotency: user/session + body binding, stale reclaim,
 --    and retention cleanup. Existing rows remain readable.
 -- ---------------------------------------------------------------------------
 DROP FUNCTION IF EXISTS public.claim_operation_idempotency(text,text,uuid);
@@ -10150,7 +9039,7 @@ GRANT EXECUTE ON FUNCTION public.cleanup_operation_idempotency(integer) TO servi
 
 -- ---------------------------------------------------------------------------
 -- 4. Complete RLS hardening. LeadX's browser talks to FastAPI, not PostgREST;
---    therefore public tables are service-role owned. This closes every table
+--    therefore public tables are service-role owned. This closes every table,
 --    including platform_admins, jobs, integrations, verification codes and
 --    global suppression data. Future public tables inherit revoked privileges.
 -- ---------------------------------------------------------------------------
@@ -10242,9 +9131,6 @@ ALTER TABLE IF EXISTS public.tenants
   ADD CONSTRAINT tenants_pending_plan_check_15_5
   CHECK (pending_plan IS NULL OR pending_plan IN ('free','starter','growth','agency'));
 
-NOTIFY pgrst, 'reload schema';
-
-
 -- ============================================================================
 -- CANONICAL MIGRATION 21: 20261001000500_leadx_15_7_oauth_security.sql
 -- ============================================================================
@@ -10260,19 +9146,6 @@ CREATE TABLE IF NOT EXISTS public.oauth_states (
   used_at timestamptz,
   created_at timestamptz NOT NULL DEFAULT now()
 );
--- LeadX additive schema compatibility sweep: reconcile pre-existing table shapes.
--- CREATE TABLE IF NOT EXISTS does not alter legacy tables. Missing columns are added
--- before downstream indexes/views/functions reference them. Constraints remain defined by
--- the canonical CREATE TABLE on clean installs; existing installs keep their data intact.
-ALTER TABLE IF EXISTS public.oauth_states ADD COLUMN IF NOT EXISTS id uuid;
-ALTER TABLE IF EXISTS public.oauth_states ADD COLUMN IF NOT EXISTS tenant_id uuid;
-ALTER TABLE IF EXISTS public.oauth_states ADD COLUMN IF NOT EXISTS user_id uuid;
-ALTER TABLE IF EXISTS public.oauth_states ADD COLUMN IF NOT EXISTS provider text;
-ALTER TABLE IF EXISTS public.oauth_states ADD COLUMN IF NOT EXISTS nonce_hash text;
-ALTER TABLE IF EXISTS public.oauth_states ADD COLUMN IF NOT EXISTS expires_at timestamptz;
-ALTER TABLE IF EXISTS public.oauth_states ADD COLUMN IF NOT EXISTS used_at timestamptz;
-ALTER TABLE IF EXISTS public.oauth_states ADD COLUMN IF NOT EXISTS created_at timestamptz;
-
 CREATE INDEX IF NOT EXISTS idx_oauth_states_expiry ON public.oauth_states(expires_at);
 CREATE INDEX IF NOT EXISTS idx_oauth_states_binding ON public.oauth_states(tenant_id,user_id,provider,expires_at);
 ALTER TABLE public.oauth_states ENABLE ROW LEVEL SECURITY;
@@ -10425,14 +9298,24 @@ NOTIFY pgrst, 'reload schema';
 -- ============================================================================
 -- CANONICAL MIGRATION 24: 20261001000800_leadx_15_9_durable_job_accounting.sql
 -- ============================================================================
+
 -- LeadX 15.9: additive durable job identity and fail-closed accounting boundary.
--- Existing jobs, HTTP idempotency, billing, credit/refund, and status contracts
--- remain unchanged; job-aware submissions use this additive ledger.
+--
+-- This migration deliberately leaves public.jobs statuses, existing
+-- operation_idempotency behavior, billing ledgers, and credit/refund functions
+-- unchanged. New job-aware submissions use job_operations and the RPC below;
+-- older application versions continue to read their existing tables normally.
+
+-- The reservation column already exists in the canonical chain, but retaining
+-- IF NOT EXISTS makes this migration safe for supported older installations.
 ALTER TABLE IF EXISTS public.usage_log
   ADD COLUMN IF NOT EXISTS quota_reserved integer NOT NULL DEFAULT 0;
 ALTER TABLE IF EXISTS public.usage_log
   ADD COLUMN IF NOT EXISTS rollover_credits integer NOT NULL DEFAULT 0;
 
+-- One durable operation identity per normalized operation/idempotency key.
+-- The unique operation/key constraint intentionally makes a scope or request
+-- mismatch a conflict instead of allowing a second job for the same key.
 CREATE TABLE IF NOT EXISTS public.job_operations (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   tenant_id uuid NOT NULL REFERENCES public.tenants(id) ON DELETE CASCADE,
@@ -10452,6 +9335,10 @@ CREATE TABLE IF NOT EXISTS public.job_operations (
   updated_at timestamptz NOT NULL DEFAULT now(),
   UNIQUE (operation_kind, idempotency_key)
 );
+
+-- Existing installations may have a pre-created compatible table. These
+-- additive declarations keep the RPC's referenced columns available without
+-- rewriting or deleting existing rows.
 ALTER TABLE IF EXISTS public.job_operations
   ADD COLUMN IF NOT EXISTS id uuid,
   ADD COLUMN IF NOT EXISTS tenant_id uuid,
@@ -10467,6 +9354,7 @@ ALTER TABLE IF EXISTS public.job_operations
   ADD COLUMN IF NOT EXISTS accounting_period date,
   ADD COLUMN IF NOT EXISTS created_at timestamptz,
   ADD COLUMN IF NOT EXISTS updated_at timestamptz;
+
 CREATE UNIQUE INDEX IF NOT EXISTS uq_job_operations_operation_key
   ON public.job_operations(operation_kind, idempotency_key);
 CREATE UNIQUE INDEX IF NOT EXISTS uq_job_operations_job
@@ -10475,10 +9363,18 @@ CREATE INDEX IF NOT EXISTS idx_job_operations_tenant_created
   ON public.job_operations(tenant_id, created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_job_operations_accounting
   ON public.job_operations(accounting_status, updated_at DESC);
+
+-- This ledger is backend-only. Explicit RLS/revocation protects deployments
+-- where default privileges were established before this table was introduced.
 ALTER TABLE IF EXISTS public.job_operations ENABLE ROW LEVEL SECURITY;
 REVOKE ALL ON TABLE public.job_operations FROM PUBLIC, anon, authenticated;
 GRANT ALL ON TABLE public.job_operations TO service_role;
 
+-- Atomically claim/replay one job identity and reserve monthly quota before a
+-- provider-bound worker is allowed to begin. The caller supplies the result of
+-- the existing authentication/authorization boundary in p_authorized; this
+-- function never grants authorization based on a tenant id supplied by a
+-- browser. It is executable only by the trusted backend service role.
 CREATE OR REPLACE FUNCTION public.leadx_prepare_job(
   p_tenant_id uuid,
   p_operation_kind text,
@@ -10494,7 +9390,10 @@ CREATE OR REPLACE FUNCTION public.leadx_prepare_job(
   p_max_attempts integer DEFAULT 3,
   p_created_by text DEFAULT 'api'
 ) RETURNS jsonb
-LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
 DECLARE
   v_operation_kind text := lower(btrim(coalesce(p_operation_kind, '')));
   v_idempotency_key text := btrim(coalesce(p_idempotency_key, ''));
@@ -10513,137 +9412,246 @@ DECLARE
   v_new boolean;
   v_response jsonb;
 BEGIN
+  -- Reject malformed identities before any durable side effect.
   IF p_tenant_id IS NULL OR v_operation_kind = '' OR v_idempotency_key = ''
      OR v_scope_hash = '' OR v_request_hash = '' OR v_job_kind = '' THEN
-    RETURN jsonb_build_object('ok', false, 'outcome', 'invalid_request', 'reason', 'durable_job_identity_required');
+    RETURN jsonb_build_object(
+      'ok', false, 'outcome', 'invalid_request',
+      'reason', 'durable_job_identity_required'
+    );
   END IF;
   IF length(v_idempotency_key) > 200 OR length(v_operation_kind) > 160
      OR length(v_scope_hash) > 256 OR length(v_request_hash) > 256
      OR length(v_job_kind) > 160 THEN
-    RETURN jsonb_build_object('ok', false, 'outcome', 'invalid_request', 'reason', 'durable_job_identity_too_large');
+    RETURN jsonb_build_object(
+      'ok', false, 'outcome', 'invalid_request', 'reason', 'durable_job_identity_too_large'
+    );
   END IF;
-  IF p_requested_credits IS NULL OR p_requested_credits < 0 OR p_requested_credits > 100000
+  IF p_requested_credits IS NULL OR p_requested_credits < 0
+     OR p_requested_credits > 100000
      OR p_max_attempts IS NULL OR p_max_attempts < 1 OR p_max_attempts > 100
      OR p_delay_seconds IS NULL OR p_delay_seconds < 0 OR p_delay_seconds > 31536000 THEN
-    RETURN jsonb_build_object('ok', false, 'outcome', 'invalid_request', 'reason', 'durable_job_parameters_invalid');
+    RETURN jsonb_build_object(
+      'ok', false, 'outcome', 'invalid_request', 'reason', 'durable_job_parameters_invalid'
+    );
   END IF;
 
-  SELECT t.id, COALESCE(t.leads_per_month_limit, 0) INTO v_tenant_id, v_limit
-  FROM public.tenants t WHERE t.id = p_tenant_id FOR UPDATE;
+  -- Serialize quota reservations for the tenant and prove that the tenant is
+  -- still present before writing an operation row with its foreign key.
+  SELECT t.id, COALESCE(t.leads_per_month_limit, 0)
+    INTO v_tenant_id, v_limit
+  FROM public.tenants t
+  WHERE t.id = p_tenant_id
+  FOR UPDATE;
   IF NOT FOUND THEN
-    RETURN jsonb_build_object('ok', false, 'outcome', 'rejected', 'reason', 'tenant_not_found');
+    RETURN jsonb_build_object(
+      'ok', false, 'outcome', 'rejected', 'reason', 'tenant_not_found'
+    );
   END IF;
 
+  -- The unique operation/key index plus the tenant lock make the insert/replay
+  -- decision deterministic for concurrent requests from the same tenant.
   INSERT INTO public.job_operations(
     tenant_id, operation_kind, idempotency_key, scope_hash, request_hash,
     status, response, accounting_status, accounting_amount, created_at, updated_at
   ) VALUES (
     p_tenant_id, v_operation_kind, v_idempotency_key, v_scope_hash, v_request_hash,
     'processing', '{}'::jsonb, 'none', 0, now(), now()
-  ) ON CONFLICT (operation_kind, idempotency_key) DO NOTHING RETURNING * INTO v_existing;
+  )
+  ON CONFLICT (operation_kind, idempotency_key) DO NOTHING
+  RETURNING * INTO v_existing;
   v_new := FOUND;
 
   IF NOT v_new THEN
-    SELECT * INTO v_existing FROM public.job_operations
-    WHERE operation_kind = v_operation_kind AND idempotency_key = v_idempotency_key FOR UPDATE;
+    SELECT * INTO v_existing
+    FROM public.job_operations
+    WHERE operation_kind = v_operation_kind
+      AND idempotency_key = v_idempotency_key
+    FOR UPDATE;
+
     IF v_existing.tenant_id IS DISTINCT FROM p_tenant_id
-       OR v_existing.scope_hash <> v_scope_hash OR v_existing.request_hash <> v_request_hash THEN
-      RETURN jsonb_build_object('ok', false, 'outcome', 'conflict', 'reason', 'idempotency_mismatch');
+       OR v_existing.scope_hash <> v_scope_hash
+       OR v_existing.request_hash <> v_request_hash THEN
+      RETURN jsonb_build_object(
+        'ok', false, 'outcome', 'conflict', 'reason', 'idempotency_mismatch'
+      );
     END IF;
+
+    -- Never disclose an existing job or response to a caller that failed the
+    -- existing API authorization boundary, even when the identity is known.
     IF NOT COALESCE(p_authorized, false) THEN
-      RETURN jsonb_build_object('ok', false, 'outcome', 'rejected', 'reason', 'unauthorized');
+      RETURN jsonb_build_object(
+        'ok', false, 'outcome', 'rejected', 'reason', 'unauthorized'
+      );
     END IF;
+
     IF v_existing.status IN ('completed', 'rejected', 'cancelled') THEN
       RETURN COALESCE(v_existing.response, '{}'::jsonb) || jsonb_build_object(
         'ok', CASE WHEN v_existing.status = 'rejected' THEN false ELSE true END,
-        'outcome', 'replay', 'replayed', true, 'job_id', v_existing.job_id,
-        'status', v_existing.status, 'accounting_status', v_existing.accounting_status);
+        'outcome', 'replay', 'replayed', true,
+        'job_id', v_existing.job_id,
+        'status', v_existing.status,
+        'accounting_status', v_existing.accounting_status
+      );
     END IF;
-    RETURN jsonb_build_object('ok', true, 'outcome', 'in_progress', 'replayed', false,
+
+    RETURN jsonb_build_object(
+      'ok', true, 'outcome', 'in_progress', 'replayed', false,
       'job_id', v_existing.job_id, 'status', v_existing.status,
-      'accounting_status', v_existing.accounting_status);
+      'accounting_status', v_existing.accounting_status
+    );
   END IF;
 
+  -- Authorization is decided by the existing API boundary. Persist a safe
+  -- denial so a retry with the same identity cannot create provider work.
   IF NOT COALESCE(p_authorized, false) THEN
-    v_response := jsonb_build_object('ok', false, 'outcome', 'rejected', 'reason', 'unauthorized');
-    UPDATE public.job_operations SET status = 'rejected', response = v_response,
-      accounting_status = 'rejected', updated_at = now() WHERE id = v_existing.id;
+    v_response := jsonb_build_object(
+      'ok', false, 'outcome', 'rejected', 'reason', 'unauthorized'
+    );
+    UPDATE public.job_operations
+    SET status = 'rejected', response = v_response,
+        accounting_status = 'rejected', updated_at = now()
+    WHERE id = v_existing.id;
     RETURN v_response;
   END IF;
 
+  -- Lock/create the monthly usage row and reserve before inserting the job.
+  -- rollover_credits is included in the existing free-before-paid quota
+  -- contract; this migration does not alter paid-credit or refund behavior.
   IF p_requested_credits > 0 THEN
-    INSERT INTO public.usage_log(tenant_id, period, leads_delivered, quota_reserved, rollover_credits, updated_at)
-    VALUES (p_tenant_id, v_period, 0, 0, 0, now()) ON CONFLICT (tenant_id, period) DO NOTHING;
-    SELECT COALESCE(ul.leads_delivered, 0), COALESCE(ul.quota_reserved, 0),
-      COALESCE(ul.rollover_credits, 0) INTO v_used, v_reserved, v_rollover
-    FROM public.usage_log ul WHERE ul.tenant_id = p_tenant_id AND ul.period = v_period FOR UPDATE;
+    INSERT INTO public.usage_log(
+      tenant_id, period, leads_delivered, quota_reserved, rollover_credits, updated_at
+    ) VALUES (p_tenant_id, v_period, 0, 0, 0, now())
+    ON CONFLICT (tenant_id, period) DO NOTHING;
+
+    SELECT COALESCE(ul.leads_delivered, 0),
+           COALESCE(ul.quota_reserved, 0),
+           COALESCE(ul.rollover_credits, 0)
+      INTO v_used, v_reserved, v_rollover
+    FROM public.usage_log ul
+    WHERE ul.tenant_id = p_tenant_id AND ul.period = v_period
+    FOR UPDATE;
+
     v_available := GREATEST(v_limit + v_rollover - v_used - v_reserved, 0);
     IF v_available < p_requested_credits THEN
-      v_response := jsonb_build_object('ok', false, 'outcome', 'rejected',
-        'reason', 'insufficient_credits', 'requested', p_requested_credits,
-        'available', v_available, 'period', v_period);
-      UPDATE public.job_operations SET status = 'rejected', response = v_response,
-        accounting_status = 'rejected', accounting_period = v_period,
-        accounting_amount = p_requested_credits, updated_at = now() WHERE id = v_existing.id;
+      v_response := jsonb_build_object(
+        'ok', false, 'outcome', 'rejected', 'reason', 'insufficient_credits',
+        'requested', p_requested_credits, 'available', v_available,
+        'period', v_period
+      );
+      UPDATE public.job_operations
+      SET status = 'rejected', response = v_response,
+          accounting_status = 'rejected', accounting_period = v_period,
+          accounting_amount = p_requested_credits, updated_at = now()
+      WHERE id = v_existing.id;
       RETURN v_response;
     END IF;
-    UPDATE public.usage_log SET quota_reserved = quota_reserved + p_requested_credits, updated_at = now()
+
+    UPDATE public.usage_log
+    SET quota_reserved = quota_reserved + p_requested_credits, updated_at = now()
     WHERE tenant_id = p_tenant_id AND period = v_period;
   END IF;
 
   v_job_id := gen_random_uuid();
-  INSERT INTO public.jobs(id, tenant_id, kind, payload, status, priority, attempts, max_attempts,
-    run_after, created_by)
-  VALUES (v_job_id, p_tenant_id, v_job_kind, COALESCE(p_payload, '{}'::jsonb), 'queued',
-    COALESCE(p_priority, 0), 0, p_max_attempts, now() + make_interval(secs => p_delay_seconds),
-    left(coalesce(p_created_by, 'api'), 160));
-  v_response := jsonb_build_object('ok', true, 'outcome', 'accepted', 'replayed', false,
+  INSERT INTO public.jobs(
+    id, tenant_id, kind, payload, status, priority, attempts, max_attempts,
+    run_after, created_by
+  ) VALUES (
+    v_job_id, p_tenant_id, v_job_kind, COALESCE(p_payload, '{}'::jsonb), 'queued',
+    COALESCE(p_priority, 0), 0, p_max_attempts,
+    now() + make_interval(secs => p_delay_seconds),
+    left(coalesce(p_created_by, 'api'), 160)
+  );
+
+  v_response := jsonb_build_object(
+    'ok', true, 'outcome', 'accepted', 'replayed', false,
     'job_id', v_job_id, 'status', 'queued',
     'accounting_status', CASE WHEN p_requested_credits > 0 THEN 'reserved' ELSE 'none' END,
     'accounting_amount', p_requested_credits,
-    'accounting_period', CASE WHEN p_requested_credits > 0 THEN v_period ELSE NULL END);
-  UPDATE public.job_operations SET job_id = v_job_id, status = 'processing', response = v_response,
-    accounting_status = CASE WHEN p_requested_credits > 0 THEN 'reserved' ELSE 'none' END,
-    accounting_amount = p_requested_credits,
-    accounting_period = CASE WHEN p_requested_credits > 0 THEN v_period ELSE NULL END,
-    updated_at = now() WHERE id = v_existing.id;
-  RETURN v_response;
-END; $$;
+    'accounting_period', CASE WHEN p_requested_credits > 0 THEN v_period ELSE NULL END
+  );
+  UPDATE public.job_operations
+  SET job_id = v_job_id, status = 'processing', response = v_response,
+      accounting_status = CASE WHEN p_requested_credits > 0 THEN 'reserved' ELSE 'none' END,
+      accounting_amount = p_requested_credits,
+      accounting_period = CASE WHEN p_requested_credits > 0 THEN v_period ELSE NULL END,
+      updated_at = now()
+  WHERE id = v_existing.id;
 
+  RETURN v_response;
+END;
+$$;
+
+-- Finish the durable idempotency record without changing the existing HTTP
+-- operation_idempotency RPCs. This is intentionally separate from worker job
+-- state transitions; task 10 will call it only after durable job outcomes are
+-- known.
 CREATE OR REPLACE FUNCTION public.leadx_finish_job_operation(
-  p_job_id uuid, p_status text, p_response jsonb DEFAULT '{}'::jsonb
-) RETURNS jsonb LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
-DECLARE v_status text := lower(btrim(coalesce(p_status, ''))); v_row public.job_operations%ROWTYPE;
+  p_job_id uuid,
+  p_status text,
+  p_response jsonb DEFAULT '{}'::jsonb
+) RETURNS jsonb
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+DECLARE
+  v_status text := lower(btrim(coalesce(p_status, '')));
+  v_row public.job_operations%ROWTYPE;
 BEGIN
   IF p_job_id IS NULL OR v_status NOT IN ('completed', 'rejected', 'cancelled') THEN
     RETURN jsonb_build_object('ok', false, 'reason', 'invalid_job_operation_status');
   END IF;
-  SELECT * INTO v_row FROM public.job_operations WHERE job_id = p_job_id FOR UPDATE;
-  IF NOT FOUND THEN RETURN jsonb_build_object('ok', false, 'reason', 'job_operation_not_found'); END IF;
+  SELECT * INTO v_row
+  FROM public.job_operations
+  WHERE job_id = p_job_id
+  FOR UPDATE;
+  IF NOT FOUND THEN
+    RETURN jsonb_build_object('ok', false, 'reason', 'job_operation_not_found');
+  END IF;
   IF v_row.status IN ('completed', 'rejected', 'cancelled') THEN
     RETURN COALESCE(v_row.response, '{}'::jsonb) || jsonb_build_object(
-      'ok', v_row.status = 'completed', 'outcome', 'replay', 'replayed', true);
+      'ok', v_row.status = 'completed', 'outcome', 'replay', 'replayed', true
+    );
   END IF;
-  UPDATE public.job_operations SET status = v_status, response = COALESCE(p_response, '{}'::jsonb), updated_at = now()
+  UPDATE public.job_operations
+  SET status = v_status, response = COALESCE(p_response, '{}'::jsonb), updated_at = now()
   WHERE id = v_row.id;
-  RETURN jsonb_build_object('ok', v_status = 'completed', 'outcome', v_status, 'job_id', p_job_id)
-    || COALESCE(p_response, '{}'::jsonb);
-END; $$;
+  RETURN jsonb_build_object(
+    'ok', v_status = 'completed', 'outcome', v_status, 'job_id', p_job_id
+  ) || COALESCE(p_response, '{}'::jsonb);
+END;
+$$;
 
 REVOKE ALL ON FUNCTION public.leadx_prepare_job(uuid,text,text,text,text,text,jsonb,integer,boolean,integer,integer,integer,text)
   FROM PUBLIC, anon, authenticated;
-REVOKE ALL ON FUNCTION public.leadx_finish_job_operation(uuid,text,jsonb) FROM PUBLIC, anon, authenticated;
-GRANT EXECUTE ON FUNCTION public.leadx_prepare_job(uuid,text,text,text,text,text,jsonb,integer,boolean,integer,integer,integer,text) TO service_role;
-GRANT EXECUTE ON FUNCTION public.leadx_finish_job_operation(uuid,text,jsonb) TO service_role;
+REVOKE ALL ON FUNCTION public.leadx_finish_job_operation(uuid,text,jsonb)
+  FROM PUBLIC, anon, authenticated;
+GRANT EXECUTE ON FUNCTION public.leadx_prepare_job(uuid,text,text,text,text,text,jsonb,integer,boolean,integer,integer,integer,text)
+  TO service_role;
+GRANT EXECUTE ON FUNCTION public.leadx_finish_job_operation(uuid,text,jsonb)
+  TO service_role;
+
 NOTIFY pgrst, 'reload schema';
+
 -- ============================================================================
 -- CANONICAL MIGRATION 25: 20261001000900_leadx_15_10_durable_handoff.sql
 -- ============================================================================
 
--- Settle task-9 reservations exactly once at terminal job completion/cancel/fail.
+-- LeadX 15.10: settle task-9 accounting reservations at one terminal outcome.
+-- Additive replacement: queued/running jobs and existing operation rows remain
+-- valid; retries leave a reservation in place until completion, cancellation,
+-- or terminal failure is durably finalized.
+
 CREATE OR REPLACE FUNCTION public.leadx_finish_job_operation(
-  p_job_id uuid, p_status text, p_response jsonb DEFAULT '{}'::jsonb
-) RETURNS jsonb LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
+  p_job_id uuid,
+  p_status text,
+  p_response jsonb DEFAULT '{}'::jsonb
+) RETURNS jsonb
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
 DECLARE
   v_status text := lower(btrim(coalesce(p_status, '')));
   v_row public.job_operations%ROWTYPE;
@@ -10652,79 +9660,155 @@ BEGIN
   IF p_job_id IS NULL OR v_status NOT IN ('completed', 'rejected', 'cancelled') THEN
     RETURN jsonb_build_object('ok', false, 'reason', 'invalid_job_operation_status');
   END IF;
-  SELECT * INTO v_row FROM public.job_operations WHERE job_id = p_job_id FOR UPDATE;
-  IF NOT FOUND THEN RETURN jsonb_build_object('ok', false, 'reason', 'job_operation_not_found'); END IF;
+
+  SELECT * INTO v_row
+  FROM public.job_operations
+  WHERE job_id = p_job_id
+  FOR UPDATE;
+  IF NOT FOUND THEN
+    RETURN jsonb_build_object('ok', false, 'reason', 'job_operation_not_found');
+  END IF;
+
+  -- Completion callbacks and worker retries are safe replays. The first
+  -- terminal transition owns accounting settlement; later callbacks return
+  -- the original response without touching quota again.
   IF v_row.status IN ('completed', 'rejected', 'cancelled') THEN
     RETURN COALESCE(v_row.response, '{}'::jsonb) || jsonb_build_object(
-      'ok', v_row.status = 'completed', 'outcome', 'replay', 'replayed', true);
+      'ok', v_row.status = 'completed', 'outcome', 'replay', 'replayed', true
+    );
   END IF;
-  IF v_row.accounting_status = 'reserved' AND COALESCE(v_row.accounting_amount, 0) > 0
+
+  IF v_row.accounting_status = 'reserved'
+     AND COALESCE(v_row.accounting_amount, 0) > 0
      AND v_row.accounting_period IS NOT NULL THEN
     UPDATE public.usage_log
-    SET quota_reserved = GREATEST(COALESCE(quota_reserved, 0) - v_row.accounting_amount,
-                                  0),
-        leads_delivered = CASE WHEN v_status = 'completed'
-          THEN COALESCE(leads_delivered, 0) + v_row.accounting_amount
-          ELSE COALESCE(leads_delivered, 0) END,
+    SET quota_reserved = GREATEST(COALESCE(quota_reserved, 0) - v_row.accounting_amount, 0),
+        leads_delivered = CASE
+          WHEN v_status = 'completed'
+            THEN COALESCE(leads_delivered, 0) + v_row.accounting_amount
+          ELSE COALESCE(leads_delivered, 0)
+        END,
         updated_at = now()
-    WHERE tenant_id = v_row.tenant_id AND period = v_row.accounting_period;
-    IF NOT FOUND THEN RAISE EXCEPTION 'durable accounting reservation row missing'; END IF;
-    v_accounting_status := CASE WHEN v_status = 'completed' THEN 'consumed' ELSE 'released' END;
+    WHERE tenant_id = v_row.tenant_id
+      AND period = v_row.accounting_period;
+    IF NOT FOUND THEN
+      RAISE EXCEPTION 'durable accounting reservation row missing';
+    END IF;
+    v_accounting_status := CASE
+      WHEN v_status = 'completed' THEN 'consumed'
+      ELSE 'released'
+    END;
   ELSE
-    v_accounting_status := v_row.accounting_status;
+    v_accounting_status := CASE
+      WHEN v_status = 'completed' AND v_row.accounting_status = 'none' THEN 'none'
+      ELSE v_row.accounting_status
+    END;
   END IF;
-  UPDATE public.job_operations SET status = v_status,
-    response = COALESCE(p_response, '{}'::jsonb), accounting_status = v_accounting_status,
-    updated_at = now() WHERE id = v_row.id;
-  RETURN jsonb_build_object('ok', v_status = 'completed', 'outcome', v_status,
-    'job_id', p_job_id, 'accounting_status', v_accounting_status)
-    || COALESCE(p_response, '{}'::jsonb);
-END; $$;
-REVOKE ALL ON FUNCTION public.leadx_finish_job_operation(uuid,text,jsonb) FROM PUBLIC, anon, authenticated;
-GRANT EXECUTE ON FUNCTION public.leadx_finish_job_operation(uuid,text,jsonb) TO service_role;
+
+  UPDATE public.job_operations
+  SET status = v_status,
+      response = COALESCE(p_response, '{}'::jsonb),
+      accounting_status = v_accounting_status,
+      updated_at = now()
+  WHERE id = v_row.id;
+
+  RETURN jsonb_build_object(
+    'ok', v_status = 'completed',
+    'outcome', v_status,
+    'job_id', p_job_id,
+    'accounting_status', v_accounting_status
+  ) || COALESCE(p_response, '{}'::jsonb);
+END;
+$$;
+
+REVOKE ALL ON FUNCTION public.leadx_finish_job_operation(uuid,text,jsonb)
+  FROM PUBLIC, anon, authenticated;
+GRANT EXECUTE ON FUNCTION public.leadx_finish_job_operation(uuid,text,jsonb)
+  TO service_role;
+
 NOTIFY pgrst, 'reload schema';
--- Reopen a terminal operation only for an explicit retry, re-reserving quota.
-CREATE OR REPLACE FUNCTION public.leadx_reopen_job_operation(p_job_id uuid)
-RETURNS jsonb LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
+
+-- Reopen only an exhausted/cancelled operation for an explicit admin retry.
+-- This re-reserves the original amount before the worker can run again.
+CREATE OR REPLACE FUNCTION public.leadx_reopen_job_operation(
+  p_job_id uuid
+) RETURNS jsonb
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
 DECLARE
   v_row public.job_operations%ROWTYPE;
-  v_limit integer; v_used integer; v_reserved integer; v_rollover integer; v_available integer;
+  v_limit integer;
+  v_used integer;
+  v_reserved integer;
+  v_rollover integer;
+  v_available integer;
 BEGIN
-  SELECT * INTO v_row FROM public.job_operations WHERE job_id = p_job_id FOR UPDATE;
-  IF NOT FOUND THEN RETURN jsonb_build_object('ok', true, 'reason', 'job_operation_not_found'); END IF;
-  IF v_row.status = 'processing' THEN RETURN jsonb_build_object('ok', false, 'reason', 'job_operation_in_progress'); END IF;
-  IF v_row.status = 'completed' THEN RETURN jsonb_build_object('ok', false, 'reason', 'job_operation_completed'); END IF;
-  IF COALESCE(v_row.accounting_amount, 0) > 0 AND v_row.accounting_period IS NOT NULL
+  SELECT * INTO v_row
+  FROM public.job_operations
+  WHERE job_id = p_job_id
+  FOR UPDATE;
+  IF NOT FOUND THEN
+    RETURN jsonb_build_object('ok', true, 'reason', 'job_operation_not_found');
+  END IF;
+  IF v_row.status = 'processing' THEN
+    RETURN jsonb_build_object('ok', false, 'reason', 'job_operation_in_progress');
+  END IF;
+  IF v_row.status = 'completed' THEN
+    RETURN jsonb_build_object('ok', false, 'reason', 'job_operation_completed');
+  END IF;
+
+  IF COALESCE(v_row.accounting_amount, 0) > 0
+     AND v_row.accounting_period IS NOT NULL
      AND COALESCE(v_row.accounting_status, 'none') <> 'reserved' THEN
-    SELECT COALESCE(t.leads_per_month_limit, 0) INTO v_limit FROM public.tenants t
-      WHERE t.id = v_row.tenant_id FOR UPDATE;
-    INSERT INTO public.usage_log(tenant_id, period, leads_delivered, quota_reserved,
-      rollover_credits, updated_at) VALUES (v_row.tenant_id, v_row.accounting_period, 0, 0, 0, now())
-      ON CONFLICT (tenant_id, period) DO NOTHING;
+    SELECT COALESCE(t.leads_per_month_limit, 0) INTO v_limit
+    FROM public.tenants t WHERE t.id = v_row.tenant_id FOR UPDATE;
+    INSERT INTO public.usage_log(
+      tenant_id, period, leads_delivered, quota_reserved, rollover_credits, updated_at
+    ) VALUES (v_row.tenant_id, v_row.accounting_period, 0, 0, 0, now())
+    ON CONFLICT (tenant_id, period) DO NOTHING;
     SELECT COALESCE(leads_delivered, 0), COALESCE(quota_reserved, 0),
-      COALESCE(rollover_credits, 0) INTO v_used, v_reserved, v_rollover
-      FROM public.usage_log WHERE tenant_id = v_row.tenant_id AND period = v_row.accounting_period FOR UPDATE;
+           COALESCE(rollover_credits, 0)
+      INTO v_used, v_reserved, v_rollover
+    FROM public.usage_log
+    WHERE tenant_id = v_row.tenant_id AND period = v_row.accounting_period
+    FOR UPDATE;
     v_available := GREATEST(v_limit + v_rollover - v_used - v_reserved, 0);
     IF v_available < v_row.accounting_amount THEN
-      RETURN jsonb_build_object('ok', false, 'reason', 'insufficient_credits',
-        'requested', v_row.accounting_amount, 'available', v_available);
+      RETURN jsonb_build_object(
+        'ok', false, 'reason', 'insufficient_credits',
+        'requested', v_row.accounting_amount, 'available', v_available
+      );
     END IF;
-    UPDATE public.usage_log SET quota_reserved = quota_reserved + v_row.accounting_amount, updated_at = now()
-      WHERE tenant_id = v_row.tenant_id AND period = v_row.accounting_period;
+    UPDATE public.usage_log
+    SET quota_reserved = quota_reserved + v_row.accounting_amount, updated_at = now()
+    WHERE tenant_id = v_row.tenant_id AND period = v_row.accounting_period;
   END IF;
-  UPDATE public.job_operations SET status = 'processing', response = '{}'::jsonb,
-    accounting_status = CASE WHEN COALESCE(accounting_amount, 0) > 0 THEN 'reserved' ELSE accounting_status END,
-    updated_at = now() WHERE id = v_row.id;
+
+  UPDATE public.job_operations
+  SET status = 'processing', response = '{}'::jsonb,
+      accounting_status = CASE WHEN COALESCE(accounting_amount, 0) > 0
+        THEN 'reserved' ELSE accounting_status END,
+      updated_at = now()
+  WHERE id = v_row.id;
   RETURN jsonb_build_object('ok', true, 'outcome', 'reopened', 'job_id', p_job_id);
-END; $$;
-REVOKE ALL ON FUNCTION public.leadx_reopen_job_operation(uuid) FROM PUBLIC, anon, authenticated;
-GRANT EXECUTE ON FUNCTION public.leadx_reopen_job_operation(uuid) TO service_role;
+END;
+$$;
+
+REVOKE ALL ON FUNCTION public.leadx_reopen_job_operation(uuid)
+  FROM PUBLIC, anon, authenticated;
+GRANT EXECUTE ON FUNCTION public.leadx_reopen_job_operation(uuid)
+  TO service_role;
+
 -- ============================================================================
 -- CANONICAL MIGRATION 26: 20261001000950_leadx_16_durable_task_recovery.sql
 -- ============================================================================
+
 -- LeadX 16.0: additive durable task recovery and accounting identity.
 -- This migration preserves all existing status values, rows, RLS, and job
--- operation semantics. New columns are nullable/defaulted for old rows.
+-- operation semantics.  New columns are nullable/defaulted for old rows.
+
 ALTER TABLE IF EXISTS public.jobs ADD COLUMN IF NOT EXISTS lease_expires_at timestamptz;
 ALTER TABLE IF EXISTS public.jobs ADD COLUMN IF NOT EXISTS retry_after timestamptz;
 ALTER TABLE IF EXISTS public.jobs ADD COLUMN IF NOT EXISTS error_category text;
@@ -10733,10 +9817,12 @@ ALTER TABLE IF EXISTS public.jobs ADD COLUMN IF NOT EXISTS terminal_result jsonb
 ALTER TABLE IF EXISTS public.jobs ADD COLUMN IF NOT EXISTS accounting_reconciliation_status text DEFAULT 'not_required';
 CREATE INDEX IF NOT EXISTS idx_jobs_due_lease ON public.jobs(status, run_after, lease_expires_at);
 CREATE INDEX IF NOT EXISTS idx_jobs_retry_after ON public.jobs(retry_after) WHERE status = 'queued';
+
 ALTER TABLE IF EXISTS public.job_operations ADD COLUMN IF NOT EXISTS principal_scope text NOT NULL DEFAULT '';
 ALTER TABLE IF EXISTS public.job_operations ADD COLUMN IF NOT EXISTS terminal_result jsonb;
 ALTER TABLE IF EXISTS public.job_operations ADD COLUMN IF NOT EXISTS settlement_key text;
 CREATE INDEX IF NOT EXISTS idx_job_operations_principal ON public.job_operations(tenant_id, principal_scope, operation_kind, idempotency_key);
+
 ALTER TABLE IF EXISTS public.agent_missions ADD COLUMN IF NOT EXISTS progress_total integer NOT NULL DEFAULT 0;
 ALTER TABLE IF EXISTS public.agent_missions ADD COLUMN IF NOT EXISTS progress_completed integer NOT NULL DEFAULT 0;
 ALTER TABLE IF EXISTS public.agent_missions ADD COLUMN IF NOT EXISTS progress_failed integer NOT NULL DEFAULT 0;
@@ -10745,6 +9831,7 @@ ALTER TABLE IF EXISTS public.agent_missions ADD COLUMN IF NOT EXISTS progress_re
 ALTER TABLE IF EXISTS public.agent_missions ADD COLUMN IF NOT EXISTS failure_summary jsonb;
 ALTER TABLE IF EXISTS public.agent_missions ADD COLUMN IF NOT EXISTS terminal_result jsonb;
 ALTER TABLE IF EXISTS public.agent_missions ADD COLUMN IF NOT EXISTS completed_at timestamptz;
+
 ALTER TABLE IF EXISTS public.agent_mission_tasks ADD COLUMN IF NOT EXISTS attempts integer NOT NULL DEFAULT 0;
 ALTER TABLE IF EXISTS public.agent_mission_tasks ADD COLUMN IF NOT EXISTS max_attempts integer NOT NULL DEFAULT 3;
 ALTER TABLE IF EXISTS public.agent_mission_tasks ADD COLUMN IF NOT EXISTS run_after timestamptz NOT NULL DEFAULT now();
@@ -10754,29 +9841,90 @@ ALTER TABLE IF EXISTS public.agent_mission_tasks ADD COLUMN IF NOT EXISTS lease_
 ALTER TABLE IF EXISTS public.agent_mission_tasks ADD COLUMN IF NOT EXISTS error_category text;
 ALTER TABLE IF EXISTS public.agent_mission_tasks ADD COLUMN IF NOT EXISTS dependency_outcome text;
 ALTER TABLE IF EXISTS public.agent_mission_tasks ADD COLUMN IF NOT EXISTS terminal_result jsonb;
-CREATE INDEX IF NOT EXISTS idx_mission_tasks_due_lease ON public.agent_mission_tasks(status, run_after, lease_expires_at);
-CREATE INDEX IF NOT EXISTS idx_mission_tasks_owner ON public.agent_mission_tasks(tenant_id, lease_owner) WHERE status = 'running';
-CREATE TABLE IF NOT EXISTS public.job_attempts (id uuid PRIMARY KEY DEFAULT gen_random_uuid(), job_id uuid NOT NULL REFERENCES public.jobs(id) ON DELETE CASCADE, tenant_id uuid REFERENCES public.tenants(id) ON DELETE CASCADE, attempt integer NOT NULL CHECK (attempt > 0), owner text, claimed_at timestamptz NOT NULL DEFAULT now(), lease_expires_at timestamptz, finished_at timestamptz, outcome text, retryable boolean, error_category text, error text, result jsonb, UNIQUE(job_id, attempt));
+CREATE INDEX IF NOT EXISTS idx_mission_tasks_due_lease
+  ON public.agent_mission_tasks(status, run_after, lease_expires_at);
+CREATE INDEX IF NOT EXISTS idx_mission_tasks_owner
+  ON public.agent_mission_tasks(tenant_id, lease_owner) WHERE status = 'running';
+
+CREATE TABLE IF NOT EXISTS public.job_attempts (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  job_id uuid NOT NULL REFERENCES public.jobs(id) ON DELETE CASCADE,
+  tenant_id uuid REFERENCES public.tenants(id) ON DELETE CASCADE,
+  attempt integer NOT NULL CHECK (attempt > 0),
+  owner text,
+  claimed_at timestamptz NOT NULL DEFAULT now(),
+  lease_expires_at timestamptz,
+  finished_at timestamptz,
+  outcome text,
+  retryable boolean,
+  error_category text,
+  error text,
+  result jsonb,
+  UNIQUE(job_id, attempt)
+);
 CREATE INDEX IF NOT EXISTS idx_job_attempts_tenant_job ON public.job_attempts(tenant_id, job_id, attempt);
 ALTER TABLE public.job_attempts ENABLE ROW LEVEL SECURITY;
 REVOKE ALL ON TABLE public.job_attempts FROM PUBLIC, anon, authenticated;
 GRANT ALL ON TABLE public.job_attempts TO service_role;
-CREATE TABLE IF NOT EXISTS public.agent_mission_task_attempts (id uuid PRIMARY KEY DEFAULT gen_random_uuid(), task_id uuid NOT NULL REFERENCES public.agent_mission_tasks(id) ON DELETE CASCADE, mission_id uuid NOT NULL REFERENCES public.agent_missions(id) ON DELETE CASCADE, tenant_id uuid NOT NULL REFERENCES public.tenants(id) ON DELETE CASCADE, attempt integer NOT NULL CHECK (attempt > 0), owner text NOT NULL, claimed_at timestamptz NOT NULL DEFAULT now(), lease_expires_at timestamptz, finished_at timestamptz, outcome text, retryable boolean, error_category text, error text, result jsonb, UNIQUE(task_id, attempt));
+
+CREATE TABLE IF NOT EXISTS public.agent_mission_task_attempts (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  task_id uuid NOT NULL REFERENCES public.agent_mission_tasks(id) ON DELETE CASCADE,
+  mission_id uuid NOT NULL REFERENCES public.agent_missions(id) ON DELETE CASCADE,
+  tenant_id uuid NOT NULL REFERENCES public.tenants(id) ON DELETE CASCADE,
+  attempt integer NOT NULL CHECK (attempt > 0),
+  owner text NOT NULL,
+  claimed_at timestamptz NOT NULL DEFAULT now(),
+  lease_expires_at timestamptz,
+  finished_at timestamptz,
+  outcome text,
+  retryable boolean,
+  error_category text,
+  error text,
+  result jsonb,
+  UNIQUE(task_id, attempt)
+);
 CREATE INDEX IF NOT EXISTS idx_mission_task_attempts_task ON public.agent_mission_task_attempts(tenant_id, task_id, attempt);
 ALTER TABLE public.agent_mission_task_attempts ENABLE ROW LEVEL SECURITY;
 REVOKE ALL ON TABLE public.agent_mission_task_attempts FROM PUBLIC, anon, authenticated;
 GRANT ALL ON TABLE public.agent_mission_task_attempts TO service_role;
-CREATE TABLE IF NOT EXISTS public.quota_reservations (id uuid PRIMARY KEY DEFAULT gen_random_uuid(), tenant_id uuid NOT NULL REFERENCES public.tenants(id) ON DELETE CASCADE, job_id uuid REFERENCES public.jobs(id) ON DELETE SET NULL, operation_id uuid REFERENCES public.job_operations(id) ON DELETE SET NULL, requested_quantity integer NOT NULL DEFAULT 0 CHECK (requested_quantity >= 0), reserved_quantity integer NOT NULL DEFAULT 0 CHECK (reserved_quantity >= 0), committed_quantity integer NOT NULL DEFAULT 0 CHECK (committed_quantity >= 0), released_quantity integer NOT NULL DEFAULT 0 CHECK (released_quantity >= 0), status text NOT NULL DEFAULT 'reserved' CHECK (status IN ('reserved','committed','released','rejected')), settlement_key text NOT NULL, created_at timestamptz NOT NULL DEFAULT now(), updated_at timestamptz NOT NULL DEFAULT now(), UNIQUE(tenant_id, settlement_key));
+
+CREATE TABLE IF NOT EXISTS public.quota_reservations (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  tenant_id uuid NOT NULL REFERENCES public.tenants(id) ON DELETE CASCADE,
+  job_id uuid REFERENCES public.jobs(id) ON DELETE SET NULL,
+  operation_id uuid REFERENCES public.job_operations(id) ON DELETE SET NULL,
+  requested_quantity integer NOT NULL DEFAULT 0 CHECK (requested_quantity >= 0),
+  reserved_quantity integer NOT NULL DEFAULT 0 CHECK (reserved_quantity >= 0),
+  committed_quantity integer NOT NULL DEFAULT 0 CHECK (committed_quantity >= 0),
+  released_quantity integer NOT NULL DEFAULT 0 CHECK (released_quantity >= 0),
+  status text NOT NULL DEFAULT 'reserved' CHECK (status IN ('reserved','committed','released','rejected')),
+  settlement_key text NOT NULL,
+  created_at timestamptz NOT NULL DEFAULT now(),
+  updated_at timestamptz NOT NULL DEFAULT now(),
+  UNIQUE(tenant_id, settlement_key)
+);
 CREATE INDEX IF NOT EXISTS idx_quota_reservations_job ON public.quota_reservations(tenant_id, job_id);
 CREATE INDEX IF NOT EXISTS idx_quota_reservations_status ON public.quota_reservations(tenant_id, status, updated_at);
 ALTER TABLE public.quota_reservations ENABLE ROW LEVEL SECURITY;
 REVOKE ALL ON TABLE public.quota_reservations FROM PUBLIC, anon, authenticated;
 GRANT ALL ON TABLE public.quota_reservations TO service_role;
-CREATE TABLE IF NOT EXISTS public.quota_settlements (id uuid PRIMARY KEY DEFAULT gen_random_uuid(), reservation_id uuid NOT NULL REFERENCES public.quota_reservations(id) ON DELETE CASCADE, tenant_id uuid NOT NULL REFERENCES public.tenants(id) ON DELETE CASCADE, settlement_key text NOT NULL, outcome text NOT NULL CHECK (outcome IN ('committed','released','rejected')), quantity integer NOT NULL DEFAULT 0 CHECK (quantity >= 0), created_at timestamptz NOT NULL DEFAULT now(), UNIQUE(reservation_id, settlement_key));
+
+CREATE TABLE IF NOT EXISTS public.quota_settlements (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  reservation_id uuid NOT NULL REFERENCES public.quota_reservations(id) ON DELETE CASCADE,
+  tenant_id uuid NOT NULL REFERENCES public.tenants(id) ON DELETE CASCADE,
+  settlement_key text NOT NULL,
+  outcome text NOT NULL CHECK (outcome IN ('committed','released','rejected')),
+  quantity integer NOT NULL DEFAULT 0 CHECK (quantity >= 0),
+  created_at timestamptz NOT NULL DEFAULT now(),
+  UNIQUE(reservation_id, settlement_key)
+);
 CREATE INDEX IF NOT EXISTS idx_quota_settlements_tenant ON public.quota_settlements(tenant_id, created_at DESC);
 ALTER TABLE public.quota_settlements ENABLE ROW LEVEL SECURITY;
 REVOKE ALL ON TABLE public.quota_settlements FROM PUBLIC, anon, authenticated;
 GRANT ALL ON TABLE public.quota_settlements TO service_role;
+
 ALTER TABLE IF EXISTS public.worker_heartbeats ADD COLUMN IF NOT EXISTS queue_capability boolean NOT NULL DEFAULT false;
 ALTER TABLE IF EXISTS public.worker_heartbeats ADD COLUMN IF NOT EXISTS queue_checked_at timestamptz;
 ALTER TABLE IF EXISTS public.worker_heartbeats ADD COLUMN IF NOT EXISTS reclaim_capability boolean NOT NULL DEFAULT false;
@@ -10784,90 +9932,464 @@ ALTER TABLE IF EXISTS public.worker_heartbeats ADD COLUMN IF NOT EXISTS reclaim_
 ALTER TABLE IF EXISTS public.worker_heartbeats ADD COLUMN IF NOT EXISTS last_terminal_error_category text;
 CREATE INDEX IF NOT EXISTS idx_worker_heartbeats_capability ON public.worker_heartbeats(status, queue_checked_at, reclaim_checked_at);
 
-CREATE OR REPLACE FUNCTION public.leadx_claim_next_job(p_worker_id text, p_kinds text[] DEFAULT NULL) RETURNS SETOF public.jobs LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$ DECLARE r public.jobs%rowtype; v_lease_seconds integer := GREATEST(30, COALESCE(NULLIF(current_setting('app.job_lease_seconds', true), '')::integer, 2700)); BEGIN SELECT * INTO r FROM public.jobs WHERE status='queued' AND run_after <= now() AND (p_kinds IS NULL OR kind = ANY(p_kinds)) ORDER BY priority DESC, created_at FOR UPDATE SKIP LOCKED LIMIT 1; IF r.id IS NULL THEN RETURN; END IF; UPDATE public.jobs SET status='running', locked_by=p_worker_id, locked_at=now(), lease_renewed_at=now(), lease_expires_at=now() + make_interval(secs => v_lease_seconds), started_at=COALESCE(started_at, now()), attempts=COALESCE(attempts,0)+1, error_category=NULL, dependency_outcome='claimed' WHERE id=r.id AND status='queued' RETURNING * INTO r; INSERT INTO public.job_attempts(job_id,tenant_id,attempt,owner,lease_expires_at) VALUES(r.id,r.tenant_id,r.attempts,p_worker_id,r.lease_expires_at) ON CONFLICT(job_id,attempt) DO NOTHING; RETURN NEXT r; END $$;
+CREATE OR REPLACE FUNCTION public.leadx_claim_next_job(p_worker_id text, p_kinds text[] DEFAULT NULL)
+RETURNS SETOF public.jobs LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
+DECLARE r public.jobs%rowtype; v_lease_seconds integer := GREATEST(30, COALESCE(NULLIF(current_setting('app.job_lease_seconds', true), '')::integer, 2700));
+BEGIN
+  SELECT * INTO r FROM public.jobs
+   WHERE status = 'queued' AND run_after <= now()
+     AND (p_kinds IS NULL OR kind = ANY(p_kinds))
+   ORDER BY priority DESC, created_at
+   FOR UPDATE SKIP LOCKED LIMIT 1;
+  IF r.id IS NULL THEN RETURN; END IF;
+  UPDATE public.jobs SET status='running', locked_by=p_worker_id, locked_at=now(), lease_renewed_at=now(),
+    lease_expires_at=now() + make_interval(secs => v_lease_seconds), started_at=COALESCE(started_at, now()),
+    attempts=COALESCE(attempts,0)+1, error_category=NULL, dependency_outcome='claimed'
+   WHERE id=r.id AND status='queued' RETURNING * INTO r;
+  INSERT INTO public.job_attempts(job_id,tenant_id,attempt,owner,lease_expires_at)
+    VALUES(r.id,r.tenant_id,r.attempts,p_worker_id,r.lease_expires_at)
+    ON CONFLICT(job_id,attempt) DO NOTHING;
+  RETURN NEXT r;
+END $$;
 REVOKE ALL ON FUNCTION public.leadx_claim_next_job(text,text[]) FROM PUBLIC, anon, authenticated;
 GRANT EXECUTE ON FUNCTION public.leadx_claim_next_job(text,text[]) TO service_role;
-CREATE OR REPLACE FUNCTION public.leadx_probe_queue_capability(p_worker_id text, p_checked_at timestamptz DEFAULT now()) RETURNS jsonb LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$ BEGIN IF p_worker_id IS NULL OR btrim(p_worker_id) = '' THEN RETURN jsonb_build_object('ok',false,'reclaim_capability',false,'reason','worker_id_required'); END IF; RETURN jsonb_build_object('ok',true,'worker_id',p_worker_id,'checked_at',COALESCE(p_checked_at,now()),'queue_capability',true,'reclaim_capability',to_regprocedure('public.leadx_reap_stale_mission_tasks(integer)') IS NOT NULL); END $$;
+
+CREATE OR REPLACE FUNCTION public.leadx_probe_queue_capability(p_worker_id text, p_checked_at timestamptz DEFAULT now())
+RETURNS jsonb LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
+BEGIN
+  IF p_worker_id IS NULL OR btrim(p_worker_id) = '' THEN
+    RETURN jsonb_build_object('ok',false,'reclaim_capability',false,'reason','worker_id_required');
+  END IF;
+  RETURN jsonb_build_object('ok',true,'worker_id',p_worker_id,'checked_at',COALESCE(p_checked_at,now()),
+    'queue_capability',true,'reclaim_capability',to_regprocedure('public.leadx_reap_stale_mission_tasks(integer)') IS NOT NULL);
+END $$;
 REVOKE ALL ON FUNCTION public.leadx_probe_queue_capability(text,timestamptz) FROM PUBLIC, anon, authenticated;
 GRANT EXECUTE ON FUNCTION public.leadx_probe_queue_capability(text,timestamptz) TO service_role;
-CREATE OR REPLACE FUNCTION public.leadx_claim_mission_task(p_task_id uuid, p_tenant_id uuid, p_owner text, p_lease_seconds integer DEFAULT 900) RETURNS SETOF public.agent_mission_tasks LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$ DECLARE r public.agent_mission_tasks%rowtype; v_attempt integer; BEGIN SELECT * INTO r FROM public.agent_mission_tasks WHERE id=p_task_id AND tenant_id=p_tenant_id AND status='queued' AND run_after <= now() FOR UPDATE SKIP LOCKED; IF r.id IS NULL THEN RETURN; END IF; v_attempt := COALESCE(r.attempts,0)+1; UPDATE public.agent_mission_tasks SET status='running', attempts=v_attempt, lease_owner=p_owner, lease_renewed_at=now(), lease_expires_at=now()+make_interval(secs=>GREATEST(30,p_lease_seconds)), started_at=COALESCE(started_at,now()), error=NULL, error_category=NULL, dependency_outcome='claimed', updated_at=now() WHERE id=r.id AND tenant_id=p_tenant_id AND status='queued' RETURNING * INTO r; INSERT INTO public.agent_mission_task_attempts(task_id,mission_id,tenant_id,attempt,owner,lease_expires_at) VALUES(r.id,r.mission_id,r.tenant_id,r.attempts,r.lease_owner,r.lease_expires_at) ON CONFLICT(task_id,attempt) DO NOTHING; RETURN NEXT r; END $$;
+
+CREATE OR REPLACE FUNCTION public.leadx_claim_mission_task(
+  p_task_id uuid, p_tenant_id uuid, p_owner text, p_lease_seconds integer DEFAULT 900
+) RETURNS SETOF public.agent_mission_tasks LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
+DECLARE r public.agent_mission_tasks%rowtype; v_attempt integer;
+BEGIN
+  SELECT * INTO r FROM public.agent_mission_tasks WHERE id=p_task_id AND tenant_id=p_tenant_id
+    AND status='queued' AND run_after <= now() FOR UPDATE SKIP LOCKED;
+  IF r.id IS NULL THEN RETURN; END IF;
+  v_attempt := COALESCE(r.attempts,0)+1;
+  UPDATE public.agent_mission_tasks SET status='running', attempts=v_attempt,
+    lease_owner=p_owner, lease_renewed_at=now(), lease_expires_at=now()+make_interval(secs=>GREATEST(30,p_lease_seconds)),
+    started_at=COALESCE(started_at,now()), error=NULL, error_category=NULL, dependency_outcome='claimed', updated_at=now()
+    WHERE id=r.id AND tenant_id=p_tenant_id AND status='queued' RETURNING * INTO r;
+  INSERT INTO public.agent_mission_task_attempts(task_id,mission_id,tenant_id,attempt,owner,lease_expires_at)
+    VALUES(r.id,r.mission_id,r.tenant_id,r.attempts,r.lease_owner,r.lease_expires_at)
+    ON CONFLICT(task_id,attempt) DO NOTHING;
+  RETURN NEXT r;
+END $$;
 REVOKE ALL ON FUNCTION public.leadx_claim_mission_task(uuid,uuid,text,integer) FROM PUBLIC, anon, authenticated;
 GRANT EXECUTE ON FUNCTION public.leadx_claim_mission_task(uuid,uuid,text,integer) TO service_role;
-CREATE OR REPLACE FUNCTION public.leadx_renew_mission_task(p_task_id uuid, p_tenant_id uuid, p_owner text, p_lease_seconds integer DEFAULT 900) RETURNS SETOF public.agent_mission_tasks LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$ BEGIN RETURN QUERY UPDATE public.agent_mission_tasks SET lease_renewed_at=now(), lease_expires_at=now()+make_interval(secs=>GREATEST(30,p_lease_seconds)), updated_at=now() WHERE id=p_task_id AND tenant_id=p_tenant_id AND status='running' AND lease_owner=p_owner AND (lease_expires_at IS NULL OR lease_expires_at > now()) RETURNING *; END $$;
+
+CREATE OR REPLACE FUNCTION public.leadx_renew_mission_task(
+  p_task_id uuid, p_tenant_id uuid, p_owner text, p_lease_seconds integer DEFAULT 900
+) RETURNS SETOF public.agent_mission_tasks LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
+BEGIN
+  RETURN QUERY UPDATE public.agent_mission_tasks SET lease_renewed_at=now(),
+    lease_expires_at=now()+make_interval(secs=>GREATEST(30,p_lease_seconds)), updated_at=now()
+   WHERE id=p_task_id AND tenant_id=p_tenant_id AND status='running' AND lease_owner=p_owner
+     AND (lease_expires_at IS NULL OR lease_expires_at > now()) RETURNING *;
+END $$;
 REVOKE ALL ON FUNCTION public.leadx_renew_mission_task(uuid,uuid,text,integer) FROM PUBLIC, anon, authenticated;
 GRANT EXECUTE ON FUNCTION public.leadx_renew_mission_task(uuid,uuid,text,integer) TO service_role;
-CREATE OR REPLACE FUNCTION public.leadx_reap_stale_mission_tasks(p_limit integer DEFAULT 500) RETURNS SETOF public.agent_mission_tasks LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$ DECLARE r public.agent_mission_tasks%rowtype; v_status text; BEGIN FOR r IN SELECT * FROM public.agent_mission_tasks WHERE status='running' AND lease_expires_at IS NOT NULL AND lease_expires_at < now() ORDER BY lease_expires_at LIMIT GREATEST(1,LEAST(p_limit,500)) FOR UPDATE SKIP LOCKED LOOP v_status := CASE WHEN COALESCE(r.attempts,0) < COALESCE(r.max_attempts,3) THEN 'queued' ELSE 'failed' END; UPDATE public.agent_mission_tasks SET status=v_status, lease_owner=NULL, lease_expires_at=NULL, error='worker_lost_reaped', error_category='lease_expired', dependency_outcome=CASE WHEN v_status='queued' THEN 'recovered' ELSE 'terminal' END, run_after=CASE WHEN v_status='queued' THEN now()+make_interval(secs=>LEAST(3600,60*2^GREATEST(0,r.attempts-1))) ELSE now() END, finished_at=CASE WHEN v_status='failed' THEN now() ELSE NULL END, terminal_result=CASE WHEN v_status='failed' THEN jsonb_build_object('status','failed','error_category','lease_expired') ELSE NULL END, updated_at=now() WHERE id=r.id AND status='running' AND lease_expires_at < now() RETURNING * INTO r; UPDATE public.agent_mission_task_attempts SET finished_at=now(), outcome=v_status, retryable=(v_status='queued'), error_category='lease_expired' WHERE task_id=r.id AND attempt=r.attempts AND finished_at IS NULL; RETURN NEXT r; END LOOP; END $$;
+
+CREATE OR REPLACE FUNCTION public.leadx_reap_stale_mission_tasks(p_limit integer DEFAULT 500)
+RETURNS SETOF public.agent_mission_tasks LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
+DECLARE r public.agent_mission_tasks%rowtype; v_status text;
+BEGIN
+  FOR r IN SELECT * FROM public.agent_mission_tasks
+    WHERE status='running' AND lease_expires_at IS NOT NULL AND lease_expires_at < now()
+    ORDER BY lease_expires_at LIMIT GREATEST(1,LEAST(p_limit,500)) FOR UPDATE SKIP LOCKED LOOP
+    v_status := CASE WHEN COALESCE(r.attempts,0) < COALESCE(r.max_attempts,3) THEN 'queued' ELSE 'failed' END;
+    UPDATE public.agent_mission_tasks SET status=v_status, lease_owner=NULL, lease_expires_at=NULL,
+      error='worker_lost_reaped', error_category='lease_expired', dependency_outcome=CASE WHEN v_status='queued' THEN 'recovered' ELSE 'terminal' END,
+      run_after=CASE WHEN v_status='queued' THEN now()+make_interval(secs=>LEAST(3600,60*2^GREATEST(0,r.attempts-1))) ELSE now() END,
+      finished_at=CASE WHEN v_status='failed' THEN now() ELSE NULL END,
+      terminal_result=CASE WHEN v_status='failed' THEN jsonb_build_object('status','failed','error_category','lease_expired') ELSE NULL END,
+      updated_at=now()
+      WHERE id=r.id AND status='running' AND lease_expires_at < now() RETURNING * INTO r;
+    UPDATE public.agent_mission_task_attempts SET finished_at=now(), outcome=v_status, retryable=(v_status='queued'), error_category='lease_expired'
+      WHERE task_id=r.id AND attempt=r.attempts AND finished_at IS NULL;
+    RETURN NEXT r;
+  END LOOP;
+END $$;
 REVOKE ALL ON FUNCTION public.leadx_reap_stale_mission_tasks(integer) FROM PUBLIC, anon, authenticated;
 GRANT EXECUTE ON FUNCTION public.leadx_reap_stale_mission_tasks(integer) TO service_role;
-CREATE OR REPLACE FUNCTION public.leadx_record_quota_settlement(p_reservation_id uuid, p_tenant_id uuid, p_settlement_key text, p_outcome text, p_quantity integer DEFAULT 0) RETURNS jsonb LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$ DECLARE r public.quota_reservations%rowtype; v_outcome text := lower(btrim(coalesce(p_outcome,''))); BEGIN IF v_outcome NOT IN ('committed','released','rejected') OR p_quantity < 0 THEN RETURN jsonb_build_object('ok',false,'reason','invalid_settlement'); END IF; SELECT * INTO r FROM public.quota_reservations WHERE id=p_reservation_id AND tenant_id=p_tenant_id FOR UPDATE; IF NOT FOUND THEN RETURN jsonb_build_object('ok',false,'reason','reservation_not_found'); END IF; INSERT INTO public.quota_settlements(reservation_id,tenant_id,settlement_key,outcome,quantity) VALUES(r.id,r.tenant_id,p_settlement_key,v_outcome,p_quantity) ON CONFLICT(reservation_id,settlement_key) DO NOTHING; IF NOT FOUND THEN RETURN jsonb_build_object('ok',true,'outcome','replay','settlement_key',p_settlement_key); END IF; IF r.status <> 'reserved' THEN RETURN jsonb_build_object('ok',true,'outcome','replay','status',r.status); END IF; UPDATE public.quota_reservations SET status=v_outcome, committed_quantity=CASE WHEN v_outcome='committed' THEN p_quantity ELSE committed_quantity END, released_quantity=CASE WHEN v_outcome IN ('released','rejected') THEN p_quantity ELSE released_quantity END, updated_at=now() WHERE id=r.id; RETURN jsonb_build_object('ok',true,'outcome',v_outcome,'settlement_key',p_settlement_key); END $$;
+
+CREATE OR REPLACE FUNCTION public.leadx_record_quota_settlement(
+  p_reservation_id uuid, p_tenant_id uuid, p_settlement_key text, p_outcome text, p_quantity integer DEFAULT 0
+) RETURNS jsonb LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
+DECLARE r public.quota_reservations%rowtype; v_outcome text := lower(btrim(coalesce(p_outcome,'')));
+BEGIN
+  IF v_outcome NOT IN ('committed','released','rejected') OR p_quantity < 0 THEN
+    RETURN jsonb_build_object('ok',false,'reason','invalid_settlement');
+  END IF;
+  SELECT * INTO r FROM public.quota_reservations WHERE id=p_reservation_id AND tenant_id=p_tenant_id FOR UPDATE;
+  IF NOT FOUND THEN RETURN jsonb_build_object('ok',false,'reason','reservation_not_found'); END IF;
+  INSERT INTO public.quota_settlements(reservation_id,tenant_id,settlement_key,outcome,quantity)
+    VALUES(r.id,r.tenant_id,p_settlement_key,v_outcome,p_quantity)
+    ON CONFLICT(reservation_id,settlement_key) DO NOTHING;
+  IF NOT FOUND THEN RETURN jsonb_build_object('ok',true,'outcome','replay','settlement_key',p_settlement_key); END IF;
+  IF r.status <> 'reserved' THEN RETURN jsonb_build_object('ok',true,'outcome','replay','status',r.status); END IF;
+  UPDATE public.quota_reservations SET status=v_outcome,
+    committed_quantity=CASE WHEN v_outcome='committed' THEN p_quantity ELSE committed_quantity END,
+    released_quantity=CASE WHEN v_outcome IN ('released','rejected') THEN p_quantity ELSE released_quantity END,
+    updated_at=now() WHERE id=r.id;
+  RETURN jsonb_build_object('ok',true,'outcome',v_outcome,'settlement_key',p_settlement_key);
+END $$;
 REVOKE ALL ON FUNCTION public.leadx_record_quota_settlement(uuid,uuid,text,text,integer) FROM PUBLIC, anon, authenticated;
 GRANT EXECUTE ON FUNCTION public.leadx_record_quota_settlement(uuid,uuid,text,text,integer) TO service_role;
+
 NOTIFY pgrst, 'reload schema';
+
 -- ============================================================================
 -- CANONICAL MIGRATION 27: 20261001001000_leadx_16_migration_preflight.sql
 -- ============================================================================
--- ============================================================================
+
+-- LeadX 16.0: additive durable migration preflight.
+-- This database-only preflight is intentionally callable by startup before any
+-- provider-bound work. It reports missing durable objects without changing data.
+
 CREATE OR REPLACE FUNCTION public.leadx_verify_durable_preflight()
-RETURNS jsonb LANGUAGE plpgsql STABLE SECURITY DEFINER
-SET search_path = pg_catalog, public AS $$
-DECLARE v_missing text[] := ARRAY[]::text[]; v_rls boolean;
+RETURNS jsonb
+LANGUAGE plpgsql
+STABLE
+SECURITY DEFINER
+SET search_path = pg_catalog, public
+AS $$
+DECLARE
+  v_missing text[] := ARRAY[]::text[];
+  v_rls boolean;
 BEGIN
-  IF to_regclass('public.job_operations') IS NULL THEN v_missing := v_missing || 'table:job_operations'; END IF;
-  IF to_regclass('public.job_attempts') IS NULL THEN v_missing := v_missing || 'table:job_attempts'; END IF;
-  IF to_regclass('public.agent_mission_task_attempts') IS NULL THEN v_missing := v_missing || 'table:agent_mission_task_attempts'; END IF;
-  IF to_regclass('public.quota_reservations') IS NULL THEN v_missing := v_missing || 'table:quota_reservations'; END IF;
-  IF to_regprocedure('public.leadx_reap_stale_mission_tasks(integer)') IS NULL THEN v_missing := v_missing || 'function:leadx_reap_stale_mission_tasks'; END IF;
-  IF to_regprocedure('public.leadx_probe_queue_capability(text,timestamptz)') IS NULL THEN v_missing := v_missing || 'function:leadx_probe_queue_capability'; END IF;
-  IF to_regclass('public.uq_job_operations_operation_key') IS NULL THEN v_missing := v_missing || 'index:uq_job_operations_operation_key'; END IF;
-  IF to_regclass('public.uq_job_operations_job') IS NULL THEN v_missing := v_missing || 'index:uq_job_operations_job'; END IF;
-  IF to_regclass('public.idx_job_operations_tenant_created') IS NULL THEN v_missing := v_missing || 'index:idx_job_operations_tenant_created'; END IF;
-  IF to_regprocedure('public.leadx_prepare_job(uuid,text,text,text,text,text,jsonb,integer,boolean,integer,integer,integer,text)') IS NULL THEN v_missing := v_missing || 'function:leadx_prepare_job'; END IF;
-  IF to_regprocedure('public.leadx_finish_job_operation(uuid,text,jsonb)') IS NULL THEN v_missing := v_missing || 'function:leadx_finish_job_operation'; END IF;
-  IF to_regprocedure('public.leadx_reopen_job_operation(uuid)') IS NULL THEN v_missing := v_missing || 'function:leadx_reopen_job_operation'; END IF;
-  SELECT c.relrowsecurity INTO v_rls FROM pg_class c JOIN pg_namespace n ON n.oid=c.relnamespace WHERE n.nspname='public' AND c.relname='job_operations';
-  IF COALESCE(v_rls,false) IS NOT TRUE THEN v_missing := v_missing || 'rls:job_operations'; END IF;
-  IF to_regclass('public.job_operations') IS NOT NULL AND NOT has_table_privilege('service_role','public.job_operations','SELECT') THEN v_missing := v_missing || 'grant:service_role.job_operations'; END IF;
-  IF to_regprocedure('public.leadx_prepare_job(uuid,text,text,text,text,text,jsonb,integer,boolean,integer,integer,integer,text)') IS NOT NULL AND NOT has_function_privilege('service_role','public.leadx_prepare_job(uuid,text,text,text,text,text,jsonb,integer,boolean,integer,integer,integer,text)','EXECUTE') THEN v_missing := v_missing || 'grant:service_role.leadx_prepare_job'; END IF;
-  RETURN jsonb_build_object('ok',cardinality(v_missing)=0,'migration_chain','20261001000800..20261001000950','checked_at',clock_timestamp(),'missing',to_jsonb(v_missing),'safe_to_start_provider_work',cardinality(v_missing)=0);
-END; $$;
-CREATE OR REPLACE FUNCTION public.leadx_require_durable_preflight() RETURNS jsonb LANGUAGE plpgsql SECURITY DEFINER SET search_path=pg_catalog,public AS $$
-DECLARE v_result jsonb;
-BEGIN v_result := public.leadx_verify_durable_preflight(); IF COALESCE((v_result->>'ok')::boolean,false) IS NOT TRUE THEN RAISE EXCEPTION 'durable migration preflight failed: %',v_result->'missing'; END IF; RETURN v_result; END; $$;
-REVOKE ALL ON FUNCTION public.leadx_verify_durable_preflight() FROM PUBLIC,anon,authenticated;
-REVOKE ALL ON FUNCTION public.leadx_require_durable_preflight() FROM PUBLIC,anon,authenticated;
+  IF to_regclass('public.job_operations') IS NULL THEN
+    v_missing := v_missing || 'table:job_operations';
+  END IF;
+  IF to_regclass('public.job_attempts') IS NULL THEN
+    v_missing := v_missing || 'table:job_attempts';
+  END IF;
+  IF to_regclass('public.agent_mission_task_attempts') IS NULL THEN
+    v_missing := v_missing || 'table:agent_mission_task_attempts';
+  END IF;
+  IF to_regclass('public.quota_reservations') IS NULL THEN
+    v_missing := v_missing || 'table:quota_reservations';
+  END IF;
+  IF to_regprocedure('public.leadx_reap_stale_mission_tasks(integer)') IS NULL THEN
+    v_missing := v_missing || 'function:leadx_reap_stale_mission_tasks';
+  END IF;
+  IF to_regprocedure('public.leadx_probe_queue_capability(text,timestamptz)') IS NULL THEN
+    v_missing := v_missing || 'function:leadx_probe_queue_capability';
+  END IF;
+  IF to_regclass('public.uq_job_operations_operation_key') IS NULL THEN
+    v_missing := v_missing || 'index:uq_job_operations_operation_key';
+  END IF;
+  IF to_regclass('public.uq_job_operations_job') IS NULL THEN
+    v_missing := v_missing || 'index:uq_job_operations_job';
+  END IF;
+  IF to_regclass('public.idx_job_operations_tenant_created') IS NULL THEN
+    v_missing := v_missing || 'index:idx_job_operations_tenant_created';
+  END IF;
+  IF to_regprocedure('public.leadx_prepare_job(uuid,text,text,text,text,text,jsonb,integer,boolean,integer,integer,integer,text)') IS NULL THEN
+    v_missing := v_missing || 'function:leadx_prepare_job';
+  END IF;
+  IF to_regprocedure('public.leadx_finish_job_operation(uuid,text,jsonb)') IS NULL THEN
+    v_missing := v_missing || 'function:leadx_finish_job_operation';
+  END IF;
+  IF to_regprocedure('public.leadx_reopen_job_operation(uuid)') IS NULL THEN
+    v_missing := v_missing || 'function:leadx_reopen_job_operation';
+  END IF;
+
+  SELECT c.relrowsecurity INTO v_rls
+  FROM pg_class c
+  JOIN pg_namespace n ON n.oid = c.relnamespace
+  WHERE n.nspname = 'public' AND c.relname = 'job_operations';
+  IF COALESCE(v_rls, false) IS NOT TRUE THEN
+    v_missing := v_missing || 'rls:job_operations';
+  END IF;
+  IF to_regclass('public.job_operations') IS NOT NULL
+     AND NOT has_table_privilege('service_role', 'public.job_operations', 'SELECT') THEN
+    v_missing := v_missing || 'grant:service_role.job_operations';
+  END IF;
+  IF to_regprocedure('public.leadx_prepare_job(uuid,text,text,text,text,text,jsonb,integer,boolean,integer,integer,integer,text)') IS NOT NULL
+     AND NOT has_function_privilege('service_role', 'public.leadx_prepare_job(uuid,text,text,text,text,text,jsonb,integer,boolean,integer,integer,integer,text)', 'EXECUTE') THEN
+    v_missing := v_missing || 'grant:service_role.leadx_prepare_job';
+  END IF;
+
+  RETURN jsonb_build_object(
+    'ok', cardinality(v_missing) = 0,
+    'migration_chain', '20261001000800..20261001000950',
+    'checked_at', clock_timestamp(),
+    'missing', to_jsonb(v_missing),
+    'safe_to_start_provider_work', cardinality(v_missing) = 0
+  );
+END;
+$$;
+
+CREATE OR REPLACE FUNCTION public.leadx_require_durable_preflight()
+RETURNS jsonb
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = pg_catalog, public
+AS $$
+DECLARE
+  v_result jsonb;
+BEGIN
+  v_result := public.leadx_verify_durable_preflight();
+  IF COALESCE((v_result ->> 'ok')::boolean, false) IS NOT TRUE THEN
+    RAISE EXCEPTION 'durable migration preflight failed: %', v_result -> 'missing';
+  END IF;
+  RETURN v_result;
+END;
+$$;
+
+REVOKE ALL ON FUNCTION public.leadx_verify_durable_preflight() FROM PUBLIC, anon, authenticated;
+REVOKE ALL ON FUNCTION public.leadx_require_durable_preflight() FROM PUBLIC, anon, authenticated;
 GRANT EXECUTE ON FUNCTION public.leadx_verify_durable_preflight() TO service_role;
 GRANT EXECUTE ON FUNCTION public.leadx_require_durable_preflight() TO service_role;
+
+COMMENT ON FUNCTION public.leadx_verify_durable_preflight() IS
+  'Reports required durable job/accounting objects; callers must fail closed before provider work.';
+COMMENT ON FUNCTION public.leadx_require_durable_preflight() IS
+  'Raises when the durable job/accounting boundary is incomplete.';
+
+NOTIFY pgrst, 'reload schema';
 
 -- ============================================================================
 -- CANONICAL MIGRATION 28: 20261001001100_leadx_16_canonical_data_plane.sql
 -- ============================================================================
-CREATE TABLE IF NOT EXISTS public.canonical_accounts (id uuid PRIMARY KEY DEFAULT gen_random_uuid(), tenant_id uuid NOT NULL REFERENCES public.tenants(id) ON DELETE CASCADE, source_company_id uuid REFERENCES public.companies(id) ON DELETE SET NULL, source_lead_id uuid REFERENCES public.leads_global(id) ON DELETE SET NULL, canonical_key text NOT NULL, name text NOT NULL, normalized_domain text, website text, phone text, field_confidence jsonb NOT NULL DEFAULT '{}'::jsonb, provenance jsonb NOT NULL DEFAULT '{}'::jsonb, created_at timestamptz NOT NULL DEFAULT now(), updated_at timestamptz NOT NULL DEFAULT now(), UNIQUE(tenant_id,canonical_key));
-CREATE TABLE IF NOT EXISTS public.canonical_locations (id uuid PRIMARY KEY DEFAULT gen_random_uuid(), tenant_id uuid NOT NULL REFERENCES public.tenants(id) ON DELETE CASCADE, account_id uuid NOT NULL REFERENCES public.canonical_accounts(id) ON DELETE CASCADE, location_key text NOT NULL, address_line1 text, address_line2 text, city text, state text, postal_code text, country text, latitude numeric(9,6), longitude numeric(9,6), is_primary boolean NOT NULL DEFAULT false, field_confidence jsonb NOT NULL DEFAULT '{}'::jsonb, provenance jsonb NOT NULL DEFAULT '{}'::jsonb, created_at timestamptz NOT NULL DEFAULT now(), updated_at timestamptz NOT NULL DEFAULT now(), UNIQUE(tenant_id,account_id,location_key));
-CREATE TABLE IF NOT EXISTS public.canonical_people (id uuid PRIMARY KEY DEFAULT gen_random_uuid(), tenant_id uuid NOT NULL REFERENCES public.tenants(id) ON DELETE CASCADE, account_id uuid NOT NULL REFERENCES public.canonical_accounts(id) ON DELETE CASCADE, source_contact_id uuid REFERENCES public.contacts(id) ON DELETE SET NULL, source_lead_contact_id uuid REFERENCES public.lead_contacts(id) ON DELETE SET NULL, canonical_key text NOT NULL, first_name text, last_name text, full_name text, field_confidence jsonb NOT NULL DEFAULT '{}'::jsonb, provenance jsonb NOT NULL DEFAULT '{}'::jsonb, created_at timestamptz NOT NULL DEFAULT now(), updated_at timestamptz NOT NULL DEFAULT now(), UNIQUE(tenant_id,canonical_key));
-CREATE TABLE IF NOT EXISTS public.canonical_contact_methods (id uuid PRIMARY KEY DEFAULT gen_random_uuid(), tenant_id uuid NOT NULL REFERENCES public.tenants(id) ON DELETE CASCADE, person_id uuid NOT NULL REFERENCES public.canonical_people(id) ON DELETE CASCADE, method_type text NOT NULL CHECK(method_type IN ('email','phone','mobile','linkedin','other')), normalized_value text NOT NULL, value_hash text NOT NULL, is_primary boolean NOT NULL DEFAULT false, field_confidence numeric(5,4) CHECK(field_confidence IS NULL OR field_confidence BETWEEN 0 AND 1), provenance jsonb NOT NULL DEFAULT '{}'::jsonb, created_at timestamptz NOT NULL DEFAULT now(), updated_at timestamptz NOT NULL DEFAULT now(), UNIQUE(tenant_id,method_type,value_hash));
-CREATE TABLE IF NOT EXISTS public.canonical_titles (id uuid PRIMARY KEY DEFAULT gen_random_uuid(), tenant_id uuid NOT NULL REFERENCES public.tenants(id) ON DELETE CASCADE, person_id uuid NOT NULL REFERENCES public.canonical_people(id) ON DELETE CASCADE, title text NOT NULL, normalized_title text NOT NULL, is_current boolean NOT NULL DEFAULT true, confidence numeric(5,4) CHECK(confidence IS NULL OR confidence BETWEEN 0 AND 1), observed_at timestamptz NOT NULL DEFAULT now(), UNIQUE(tenant_id,person_id,normalized_title));
-CREATE TABLE IF NOT EXISTS public.canonical_buying_groups (id uuid PRIMARY KEY DEFAULT gen_random_uuid(), tenant_id uuid NOT NULL REFERENCES public.tenants(id) ON DELETE CASCADE, account_id uuid NOT NULL REFERENCES public.canonical_accounts(id) ON DELETE CASCADE, group_key text NOT NULL, name text NOT NULL, description text, created_at timestamptz NOT NULL DEFAULT now(), UNIQUE(tenant_id,account_id,group_key));
-CREATE TABLE IF NOT EXISTS public.canonical_buying_group_roles (id uuid PRIMARY KEY DEFAULT gen_random_uuid(), tenant_id uuid NOT NULL REFERENCES public.tenants(id) ON DELETE CASCADE, buying_group_id uuid NOT NULL REFERENCES public.canonical_buying_groups(id) ON DELETE CASCADE, person_id uuid NOT NULL REFERENCES public.canonical_people(id) ON DELETE CASCADE, role_type text NOT NULL, influence_score numeric(5,4) CHECK(influence_score IS NULL OR influence_score BETWEEN 0 AND 1), buying_authority text, evidence jsonb NOT NULL DEFAULT '{}'::jsonb, UNIQUE(tenant_id,buying_group_id,person_id,role_type));
-CREATE TABLE IF NOT EXISTS public.canonical_field_evidence (id uuid PRIMARY KEY DEFAULT gen_random_uuid(), tenant_id uuid NOT NULL REFERENCES public.tenants(id) ON DELETE CASCADE, account_id uuid REFERENCES public.canonical_accounts(id) ON DELETE CASCADE, person_id uuid REFERENCES public.canonical_people(id) ON DELETE CASCADE, contact_method_id uuid REFERENCES public.canonical_contact_methods(id) ON DELETE CASCADE, field_name text NOT NULL, value jsonb NOT NULL DEFAULT '{}'::jsonb, source_type text NOT NULL, source_ref text, source_url text, observed_at timestamptz NOT NULL DEFAULT now(), confidence numeric(5,4) CHECK(confidence IS NULL OR confidence BETWEEN 0 AND 1), evidence_hash text NOT NULL, is_current boolean NOT NULL DEFAULT true, created_at timestamptz NOT NULL DEFAULT now(), CHECK(num_nonnulls(account_id,person_id,contact_method_id)=1), UNIQUE(tenant_id,evidence_hash));
-CREATE TABLE IF NOT EXISTS public.canonical_freshness (id uuid PRIMARY KEY DEFAULT gen_random_uuid(), tenant_id uuid NOT NULL REFERENCES public.tenants(id) ON DELETE CASCADE, subject_type text NOT NULL CHECK(subject_type IN ('account','location','person','contact_method')), subject_id uuid NOT NULL, field_name text NOT NULL, observed_at timestamptz NOT NULL, expires_at timestamptz, freshness_score numeric(5,4) CHECK(freshness_score IS NULL OR freshness_score BETWEEN 0 AND 1), source_evidence_id uuid REFERENCES public.canonical_field_evidence(id) ON DELETE SET NULL, created_at timestamptz NOT NULL DEFAULT now(), UNIQUE(tenant_id,subject_type,subject_id,field_name));
-CREATE TABLE IF NOT EXISTS public.canonical_consents (id uuid PRIMARY KEY DEFAULT gen_random_uuid(), tenant_id uuid NOT NULL REFERENCES public.tenants(id) ON DELETE CASCADE, person_id uuid REFERENCES public.canonical_people(id) ON DELETE CASCADE, contact_method_id uuid REFERENCES public.canonical_contact_methods(id) ON DELETE CASCADE, purpose text NOT NULL, state text NOT NULL CHECK(state IN ('granted','denied','unknown','withdrawn','expired')), source text NOT NULL, captured_at timestamptz NOT NULL DEFAULT now(), expires_at timestamptz, evidence_id uuid REFERENCES public.canonical_field_evidence(id) ON DELETE SET NULL, CHECK(num_nonnulls(person_id,contact_method_id)=1));
-CREATE TABLE IF NOT EXISTS public.canonical_suppressions (id uuid PRIMARY KEY DEFAULT gen_random_uuid(), tenant_id uuid NOT NULL REFERENCES public.tenants(id) ON DELETE CASCADE, person_id uuid REFERENCES public.canonical_people(id) ON DELETE CASCADE, contact_method_id uuid REFERENCES public.canonical_contact_methods(id) ON DELETE CASCADE, channel text NOT NULL CHECK(channel IN ('email','phone','all')), reason text NOT NULL, source text NOT NULL, active boolean NOT NULL DEFAULT true, suppressed_at timestamptz NOT NULL DEFAULT now(), expires_at timestamptz, CHECK(num_nonnulls(person_id,contact_method_id)=1));
-CREATE INDEX IF NOT EXISTS idx_canonical_accounts_tenant_name ON public.canonical_accounts(tenant_id,lower(name));
-CREATE INDEX IF NOT EXISTS idx_canonical_locations_account ON public.canonical_locations(tenant_id,account_id,is_primary DESC);
-CREATE INDEX IF NOT EXISTS idx_canonical_people_account ON public.canonical_people(tenant_id,account_id,lower(full_name));
-CREATE INDEX IF NOT EXISTS idx_canonical_methods_person ON public.canonical_contact_methods(tenant_id,person_id,method_type);
-CREATE INDEX IF NOT EXISTS idx_canonical_evidence_subject ON public.canonical_field_evidence(tenant_id,observed_at DESC);
-CREATE INDEX IF NOT EXISTS idx_canonical_freshness_expiry ON public.canonical_freshness(tenant_id,expires_at);
-CREATE INDEX IF NOT EXISTS idx_canonical_consent_active ON public.canonical_consents(tenant_id,state,expires_at);
-CREATE INDEX IF NOT EXISTS idx_canonical_suppression_active ON public.canonical_suppressions(tenant_id,active,channel);
-ALTER TABLE public.canonical_accounts ENABLE ROW LEVEL SECURITY; ALTER TABLE public.canonical_locations ENABLE ROW LEVEL SECURITY; ALTER TABLE public.canonical_people ENABLE ROW LEVEL SECURITY; ALTER TABLE public.canonical_contact_methods ENABLE ROW LEVEL SECURITY; ALTER TABLE public.canonical_titles ENABLE ROW LEVEL SECURITY; ALTER TABLE public.canonical_buying_groups ENABLE ROW LEVEL SECURITY; ALTER TABLE public.canonical_buying_group_roles ENABLE ROW LEVEL SECURITY; ALTER TABLE public.canonical_field_evidence ENABLE ROW LEVEL SECURITY; ALTER TABLE public.canonical_freshness ENABLE ROW LEVEL SECURITY; ALTER TABLE public.canonical_consents ENABLE ROW LEVEL SECURITY; ALTER TABLE public.canonical_suppressions ENABLE ROW LEVEL SECURITY;
-REVOKE ALL ON TABLE public.canonical_accounts,public.canonical_locations,public.canonical_people,public.canonical_contact_methods,public.canonical_titles,public.canonical_buying_groups,public.canonical_buying_group_roles,public.canonical_field_evidence,public.canonical_freshness,public.canonical_consents,public.canonical_suppressions FROM PUBLIC,anon,authenticated;
-GRANT SELECT,INSERT,UPDATE,DELETE ON TABLE public.canonical_accounts,public.canonical_locations,public.canonical_people,public.canonical_contact_methods,public.canonical_titles,public.canonical_buying_groups,public.canonical_buying_group_roles,public.canonical_field_evidence,public.canonical_freshness,public.canonical_consents,public.canonical_suppressions TO service_role;
+
+-- LeadX 16.0: additive canonical account/contact/evidence projections.
+-- Existing companies, contacts, lead_contacts, lead_evidence, CRM views, and
+-- their statuses remain untouched. These projections are service-role owned.
+
+CREATE TABLE IF NOT EXISTS public.canonical_accounts (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  tenant_id uuid NOT NULL REFERENCES public.tenants(id) ON DELETE CASCADE,
+  source_company_id uuid REFERENCES public.companies(id) ON DELETE SET NULL,
+  source_lead_id uuid REFERENCES public.leads_global(id) ON DELETE SET NULL,
+  canonical_key text NOT NULL,
+  name text NOT NULL,
+  normalized_domain text,
+  website text,
+  phone text,
+  field_confidence jsonb NOT NULL DEFAULT '{}'::jsonb,
+  provenance jsonb NOT NULL DEFAULT '{}'::jsonb,
+  created_at timestamptz NOT NULL DEFAULT now(),
+  updated_at timestamptz NOT NULL DEFAULT now(),
+  UNIQUE (tenant_id, canonical_key)
+);
+
+CREATE TABLE IF NOT EXISTS public.canonical_locations (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  tenant_id uuid NOT NULL REFERENCES public.tenants(id) ON DELETE CASCADE,
+  account_id uuid NOT NULL REFERENCES public.canonical_accounts(id) ON DELETE CASCADE,
+  location_key text NOT NULL,
+  address_line1 text,
+  address_line2 text,
+  city text,
+  state text,
+  postal_code text,
+  country text,
+  latitude numeric(9,6),
+  longitude numeric(9,6),
+  is_primary boolean NOT NULL DEFAULT false,
+  field_confidence jsonb NOT NULL DEFAULT '{}'::jsonb,
+  provenance jsonb NOT NULL DEFAULT '{}'::jsonb,
+  created_at timestamptz NOT NULL DEFAULT now(),
+  updated_at timestamptz NOT NULL DEFAULT now(),
+  UNIQUE (tenant_id, account_id, location_key)
+);
+
+CREATE TABLE IF NOT EXISTS public.canonical_people (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  tenant_id uuid NOT NULL REFERENCES public.tenants(id) ON DELETE CASCADE,
+  account_id uuid NOT NULL REFERENCES public.canonical_accounts(id) ON DELETE CASCADE,
+  source_contact_id uuid REFERENCES public.contacts(id) ON DELETE SET NULL,
+  source_lead_contact_id uuid REFERENCES public.lead_contacts(id) ON DELETE SET NULL,
+  canonical_key text NOT NULL,
+  first_name text,
+  last_name text,
+  full_name text,
+  field_confidence jsonb NOT NULL DEFAULT '{}'::jsonb,
+  provenance jsonb NOT NULL DEFAULT '{}'::jsonb,
+  created_at timestamptz NOT NULL DEFAULT now(),
+  updated_at timestamptz NOT NULL DEFAULT now(),
+  UNIQUE (tenant_id, canonical_key)
+);
+
+CREATE TABLE IF NOT EXISTS public.canonical_contact_methods (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  tenant_id uuid NOT NULL REFERENCES public.tenants(id) ON DELETE CASCADE,
+  person_id uuid NOT NULL REFERENCES public.canonical_people(id) ON DELETE CASCADE,
+  method_type text NOT NULL CHECK (method_type IN ('email','phone','mobile','linkedin','other')),
+  normalized_value text NOT NULL,
+  value_hash text NOT NULL,
+  is_primary boolean NOT NULL DEFAULT false,
+  field_confidence numeric(5,4) CHECK (field_confidence IS NULL OR field_confidence BETWEEN 0 AND 1),
+  provenance jsonb NOT NULL DEFAULT '{}'::jsonb,
+  created_at timestamptz NOT NULL DEFAULT now(),
+  updated_at timestamptz NOT NULL DEFAULT now(),
+  UNIQUE (tenant_id, method_type, value_hash)
+);
+
+CREATE TABLE IF NOT EXISTS public.canonical_titles (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  tenant_id uuid NOT NULL REFERENCES public.tenants(id) ON DELETE CASCADE,
+  person_id uuid NOT NULL REFERENCES public.canonical_people(id) ON DELETE CASCADE,
+  title text NOT NULL,
+  normalized_title text NOT NULL,
+  is_current boolean NOT NULL DEFAULT true,
+  confidence numeric(5,4) CHECK (confidence IS NULL OR confidence BETWEEN 0 AND 1),
+  observed_at timestamptz NOT NULL DEFAULT now(),
+  UNIQUE (tenant_id, person_id, normalized_title)
+);
+
+CREATE TABLE IF NOT EXISTS public.canonical_buying_groups (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  tenant_id uuid NOT NULL REFERENCES public.tenants(id) ON DELETE CASCADE,
+  account_id uuid NOT NULL REFERENCES public.canonical_accounts(id) ON DELETE CASCADE,
+  group_key text NOT NULL,
+  name text NOT NULL,
+  description text,
+  created_at timestamptz NOT NULL DEFAULT now(),
+  UNIQUE (tenant_id, account_id, group_key)
+);
+
+CREATE TABLE IF NOT EXISTS public.canonical_buying_group_roles (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  tenant_id uuid NOT NULL REFERENCES public.tenants(id) ON DELETE CASCADE,
+  buying_group_id uuid NOT NULL REFERENCES public.canonical_buying_groups(id) ON DELETE CASCADE,
+  person_id uuid NOT NULL REFERENCES public.canonical_people(id) ON DELETE CASCADE,
+  role_type text NOT NULL,
+  influence_score numeric(5,4) CHECK (influence_score IS NULL OR influence_score BETWEEN 0 AND 1),
+  buying_authority text,
+  evidence jsonb NOT NULL DEFAULT '{}'::jsonb,
+  UNIQUE (tenant_id, buying_group_id, person_id, role_type)
+);
+
+CREATE TABLE IF NOT EXISTS public.canonical_field_evidence (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  tenant_id uuid NOT NULL REFERENCES public.tenants(id) ON DELETE CASCADE,
+  account_id uuid REFERENCES public.canonical_accounts(id) ON DELETE CASCADE,
+  person_id uuid REFERENCES public.canonical_people(id) ON DELETE CASCADE,
+  contact_method_id uuid REFERENCES public.canonical_contact_methods(id) ON DELETE CASCADE,
+  field_name text NOT NULL,
+  value jsonb NOT NULL DEFAULT '{}'::jsonb,
+  source_type text NOT NULL,
+  source_ref text,
+  source_url text,
+  observed_at timestamptz NOT NULL DEFAULT now(),
+  confidence numeric(5,4) CHECK (confidence IS NULL OR confidence BETWEEN 0 AND 1),
+  evidence_hash text NOT NULL,
+  is_current boolean NOT NULL DEFAULT true,
+  created_at timestamptz NOT NULL DEFAULT now(),
+  CHECK (num_nonnulls(account_id, person_id, contact_method_id) = 1),
+  UNIQUE (tenant_id, evidence_hash)
+);
+
+CREATE TABLE IF NOT EXISTS public.canonical_freshness (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  tenant_id uuid NOT NULL REFERENCES public.tenants(id) ON DELETE CASCADE,
+  subject_type text NOT NULL CHECK (subject_type IN ('account','location','person','contact_method')),
+  subject_id uuid NOT NULL,
+  field_name text NOT NULL,
+  observed_at timestamptz NOT NULL,
+  expires_at timestamptz,
+  freshness_score numeric(5,4) CHECK (freshness_score IS NULL OR freshness_score BETWEEN 0 AND 1),
+  source_evidence_id uuid REFERENCES public.canonical_field_evidence(id) ON DELETE SET NULL,
+  created_at timestamptz NOT NULL DEFAULT now(),
+  UNIQUE (tenant_id, subject_type, subject_id, field_name)
+);
+
+CREATE TABLE IF NOT EXISTS public.canonical_consents (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  tenant_id uuid NOT NULL REFERENCES public.tenants(id) ON DELETE CASCADE,
+  person_id uuid REFERENCES public.canonical_people(id) ON DELETE CASCADE,
+  contact_method_id uuid REFERENCES public.canonical_contact_methods(id) ON DELETE CASCADE,
+  purpose text NOT NULL,
+  state text NOT NULL CHECK (state IN ('granted','denied','unknown','withdrawn','expired')),
+  source text NOT NULL,
+  captured_at timestamptz NOT NULL DEFAULT now(),
+  expires_at timestamptz,
+  evidence_id uuid REFERENCES public.canonical_field_evidence(id) ON DELETE SET NULL,
+  CHECK (num_nonnulls(person_id, contact_method_id) = 1)
+);
+
+CREATE TABLE IF NOT EXISTS public.canonical_suppressions (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  tenant_id uuid NOT NULL REFERENCES public.tenants(id) ON DELETE CASCADE,
+  person_id uuid REFERENCES public.canonical_people(id) ON DELETE CASCADE,
+  contact_method_id uuid REFERENCES public.canonical_contact_methods(id) ON DELETE CASCADE,
+  channel text NOT NULL CHECK (channel IN ('email','phone','all')),
+  reason text NOT NULL,
+  source text NOT NULL,
+  active boolean NOT NULL DEFAULT true,
+  suppressed_at timestamptz NOT NULL DEFAULT now(),
+  expires_at timestamptz,
+  CHECK (num_nonnulls(person_id, contact_method_id) = 1)
+);
+
+CREATE INDEX IF NOT EXISTS idx_canonical_accounts_tenant_name
+  ON public.canonical_accounts(tenant_id, lower(name));
+CREATE INDEX IF NOT EXISTS idx_canonical_locations_account
+  ON public.canonical_locations(tenant_id, account_id, is_primary DESC);
+CREATE INDEX IF NOT EXISTS idx_canonical_people_account
+  ON public.canonical_people(tenant_id, account_id, lower(full_name));
+CREATE INDEX IF NOT EXISTS idx_canonical_methods_person
+  ON public.canonical_contact_methods(tenant_id, person_id, method_type);
+CREATE INDEX IF NOT EXISTS idx_canonical_evidence_subject
+  ON public.canonical_field_evidence(tenant_id, observed_at DESC);
+CREATE INDEX IF NOT EXISTS idx_canonical_freshness_expiry
+  ON public.canonical_freshness(tenant_id, expires_at);
+CREATE INDEX IF NOT EXISTS idx_canonical_consent_active
+  ON public.canonical_consents(tenant_id, state, expires_at);
+CREATE INDEX IF NOT EXISTS idx_canonical_suppression_active
+  ON public.canonical_suppressions(tenant_id, active, channel);
+
+ALTER TABLE public.canonical_accounts ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.canonical_locations ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.canonical_people ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.canonical_contact_methods ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.canonical_titles ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.canonical_buying_groups ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.canonical_buying_group_roles ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.canonical_field_evidence ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.canonical_freshness ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.canonical_consents ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.canonical_suppressions ENABLE ROW LEVEL SECURITY;
+
+REVOKE ALL ON TABLE public.canonical_accounts, public.canonical_locations,
+  public.canonical_people, public.canonical_contact_methods, public.canonical_titles,
+  public.canonical_buying_groups, public.canonical_buying_group_roles,
+  public.canonical_field_evidence, public.canonical_freshness,
+  public.canonical_consents, public.canonical_suppressions
+  FROM PUBLIC, anon, authenticated;
+GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE public.canonical_accounts,
+  public.canonical_locations, public.canonical_people, public.canonical_contact_methods,
+  public.canonical_titles, public.canonical_buying_groups,
+  public.canonical_buying_group_roles, public.canonical_field_evidence,
+  public.canonical_freshness, public.canonical_consents, public.canonical_suppressions
+  TO service_role;
+
+COMMENT ON TABLE public.canonical_people IS
+  'Additive person projection; lead_contacts remains the scraped legacy projection.';
+COMMENT ON TABLE public.canonical_field_evidence IS
+  'Immutable-source-compatible evidence projection with field confidence and provenance.';
+
+NOTIFY pgrst, 'reload schema';
 
 -- ============================================================================
 -- CANONICAL MIGRATION 29: 20261001001150_leadx_task4_approval_scheduling.sql
 -- ============================================================================
+
 -- LeadX Task 4: approval CAS, durable automation executions, and sequence transitions.
+-- Additive and safe for existing installs; all provider work remains behind jobs.
+
 ALTER TABLE IF EXISTS public.discovery_requests
   ADD COLUMN IF NOT EXISTS expires_at timestamptz,
   ADD COLUMN IF NOT EXISTS decision_actor text,
@@ -10876,92 +10398,556 @@ ALTER TABLE IF EXISTS public.discovery_requests
   ADD COLUMN IF NOT EXISTS approved_by text,
   ADD COLUMN IF NOT EXISTS approved_at timestamptz,
   ADD COLUMN IF NOT EXISTS approved_leads integer;
-DO $$ DECLARE c record; BEGIN
-  FOR c IN SELECT conname FROM pg_constraint WHERE conrelid='public.discovery_requests'::regclass AND contype='c' AND pg_get_constraintdef(oid) ILIKE '%status%' LOOP
+
+-- Existing deployments used several constraint names. Replace only the status
+-- check so expiry is a first-class terminal, non-executable state.
+DO $$
+DECLARE c record;
+BEGIN
+  FOR c IN
+    SELECT conname FROM pg_constraint
+    WHERE conrelid = 'public.discovery_requests'::regclass
+      AND contype = 'c' AND pg_get_constraintdef(oid) ILIKE '%status%'
+  LOOP
     EXECUTE format('ALTER TABLE public.discovery_requests DROP CONSTRAINT IF EXISTS %I', c.conname);
   END LOOP;
-EXCEPTION WHEN undefined_table THEN NULL; END $$;
+EXCEPTION WHEN undefined_table THEN NULL;
+END $$;
 DO $$ BEGIN
-  ALTER TABLE public.discovery_requests ADD CONSTRAINT discovery_requests_status_check CHECK (status IN ('pending_approval','approved','queued','running','completed','partially_completed','rejected','expired','cancelled','failed'));
-EXCEPTION WHEN duplicate_object THEN NULL; END $$;
-CREATE INDEX IF NOT EXISTS idx_discovery_requests_expiry ON public.discovery_requests(status,expires_at) WHERE status='pending_approval';
-CREATE OR REPLACE FUNCTION public.leadx_transition_discovery_request(p_request_id uuid,p_decision text,p_actor text,p_reason text DEFAULT '',p_approved_leads integer DEFAULT NULL,p_now timestamptz DEFAULT now()) RETURNS jsonb LANGUAGE plpgsql SECURITY DEFINER SET search_path=public AS $$
-DECLARE r public.discovery_requests%rowtype; v_status text; v_release integer:=0; v_settlement_key text;
+  ALTER TABLE public.discovery_requests ADD CONSTRAINT discovery_requests_status_check
+    CHECK (status IN ('pending_approval','approved','queued','running','completed','partially_completed','rejected','expired','cancelled','failed'));
+EXCEPTION WHEN duplicate_object THEN NULL;
+END $$;
+CREATE INDEX IF NOT EXISTS idx_discovery_requests_expiry
+  ON public.discovery_requests(status, expires_at) WHERE status = 'pending_approval';
+
+-- One transaction owns the request CAS and, for terminal decisions, the
+-- reservation settlement. Application fallbacks retain the same status CAS for
+-- older schemas, but production installs should use this function.
+CREATE OR REPLACE FUNCTION public.leadx_transition_discovery_request(
+  p_request_id uuid, p_decision text, p_actor text, p_reason text DEFAULT '',
+  p_approved_leads integer DEFAULT NULL, p_now timestamptz DEFAULT now()
+) RETURNS jsonb LANGUAGE plpgsql SECURITY DEFINER SET search_path=public AS $$
+DECLARE r public.discovery_requests%rowtype; v_status text; v_release integer := 0; v_settlement_key text;
 BEGIN
- SELECT * INTO r FROM public.discovery_requests WHERE id=p_request_id FOR UPDATE;
- IF NOT FOUND THEN RETURN jsonb_build_object('ok',false,'reason','not_found'); END IF;
- IF r.status<>'pending_approval' THEN RETURN jsonb_build_object('ok',false,'reason','already_decided','status',r.status,'request',row_to_json(r)); END IF;
- IF p_decision NOT IN ('approve','reject','expire') THEN RETURN jsonb_build_object('ok',false,'reason','invalid_decision'); END IF;
- IF p_decision='approve' THEN IF coalesce(p_approved_leads,0)<1 OR p_approved_leads>coalesce(r.requested_leads,p_approved_leads) THEN RETURN jsonb_build_object('ok',false,'reason','invalid_approved_leads'); END IF; v_status:='approved'; ELSIF p_decision='reject' THEN v_status:='rejected'; ELSE v_status:='expired'; END IF;
- UPDATE public.discovery_requests SET status=v_status,approved_leads=CASE WHEN p_decision='approve' THEN p_approved_leads ELSE approved_leads END,admin_reason=CASE WHEN p_decision='approve' THEN p_reason ELSE admin_reason END,rejection_reason=CASE WHEN p_decision<>'approve' THEN p_reason ELSE rejection_reason END,approved_by=CASE WHEN p_decision='approve' THEN nullif(btrim(p_actor),'') ELSE approved_by END,approved_at=CASE WHEN p_decision='approve' THEN p_now ELSE approved_at END,decision_actor=nullif(btrim(p_actor),''),decision_at=p_now,updated_at=p_now,transition_error=NULL WHERE id=p_request_id AND status='pending_approval';
- IF NOT FOUND THEN RETURN jsonb_build_object('ok',false,'reason','already_decided'); END IF;
- IF p_decision<>'approve' AND r.reservation_id IS NOT NULL THEN v_release:=greatest(coalesce(r.requested_leads,0),0); v_settlement_key:=coalesce(r.settlement_key,'discovery:'||r.id::text||':'||v_status); INSERT INTO public.quota_settlements(reservation_id,tenant_id,settlement_key,outcome,quantity,released_quantity) VALUES(r.reservation_id,r.tenant_id,v_settlement_key,'released',v_release,v_release) ON CONFLICT(reservation_id,settlement_key) DO NOTHING; UPDATE public.quota_reservations SET status='released',released_quantity=v_release,updated_at=p_now WHERE id=r.reservation_id AND tenant_id=r.tenant_id AND status='reserved'; END IF;
- SELECT * INTO r FROM public.discovery_requests WHERE id=p_request_id; RETURN jsonb_build_object('ok',true,'status',v_status,'released',v_release,'request',row_to_json(r));
+  SELECT * INTO r FROM public.discovery_requests WHERE id=p_request_id FOR UPDATE;
+  IF NOT FOUND THEN RETURN jsonb_build_object('ok',false,'reason','not_found'); END IF;
+  IF r.status <> 'pending_approval' THEN
+    RETURN jsonb_build_object('ok',false,'reason','already_decided','status',r.status,'request',row_to_json(r));
+  END IF;
+  IF p_decision NOT IN ('approve','reject','expire') THEN
+    RETURN jsonb_build_object('ok',false,'reason','invalid_decision');
+  END IF;
+  IF p_decision='approve' THEN
+    IF coalesce(p_approved_leads,0) < 1 OR p_approved_leads > coalesce(r.requested_leads,p_approved_leads) THEN
+      RETURN jsonb_build_object('ok',false,'reason','invalid_approved_leads');
+    END IF;
+    v_status := 'approved';
+  ELSIF p_decision='reject' THEN v_status := 'rejected';
+  ELSE v_status := 'expired';
+  END IF;
+  UPDATE public.discovery_requests SET
+    status=v_status, approved_leads=CASE WHEN p_decision='approve' THEN p_approved_leads ELSE approved_leads END,
+    admin_reason=CASE WHEN p_decision='approve' THEN p_reason ELSE admin_reason END,
+    rejection_reason=CASE WHEN p_decision<>'approve' THEN p_reason ELSE rejection_reason END,
+    approved_by=CASE WHEN p_decision='approve' THEN nullif(btrim(p_actor),'') ELSE approved_by END,
+    approved_at=CASE WHEN p_decision='approve' THEN p_now ELSE approved_at END,
+    decision_actor=nullif(btrim(p_actor),''), decision_at=p_now, updated_at=p_now,
+    transition_error=NULL
+  WHERE id=p_request_id AND status='pending_approval';
+  IF NOT FOUND THEN RETURN jsonb_build_object('ok',false,'reason','already_decided'); END IF;
+  IF p_decision <> 'approve' AND r.reservation_id IS NOT NULL THEN
+    v_release := greatest(coalesce(r.requested_leads,0),0);
+    v_settlement_key := coalesce(r.settlement_key, 'discovery:'||r.id::text||':'||v_status);
+    INSERT INTO public.quota_settlements(reservation_id,tenant_id,settlement_key,outcome,quantity,released_quantity)
+      VALUES(r.reservation_id,r.tenant_id,v_settlement_key,'released',v_release, v_release)
+      ON CONFLICT(reservation_id,settlement_key) DO NOTHING;
+    UPDATE public.quota_reservations SET status='released', released_quantity=v_release, updated_at=p_now
+      WHERE id=r.reservation_id AND tenant_id=r.tenant_id AND status='reserved';
+  END IF;
+  SELECT * INTO r FROM public.discovery_requests WHERE id=p_request_id;
+  RETURN jsonb_build_object('ok',true,'status',v_status,'released',v_release,'request',row_to_json(r));
 END $$;
 REVOKE ALL ON FUNCTION public.leadx_transition_discovery_request(uuid,text,text,text,integer,timestamptz) FROM PUBLIC,anon,authenticated;
 GRANT EXECUTE ON FUNCTION public.leadx_transition_discovery_request(uuid,text,text,text,integer,timestamptz) TO service_role;
-CREATE TABLE IF NOT EXISTS public.automation_executions (execution_id uuid PRIMARY KEY,tenant_id uuid NOT NULL REFERENCES public.tenants(id) ON DELETE CASCADE,source_event_id uuid NOT NULL REFERENCES public.automation_events(id) ON DELETE CASCADE,workflow_id uuid REFERENCES public.workflow_definitions(id) ON DELETE CASCADE,due_at timestamptz NOT NULL DEFAULT now(),rule_version integer NOT NULL DEFAULT 1,action_version integer NOT NULL DEFAULT 1,status text NOT NULL DEFAULT 'queued' CHECK(status IN ('queued','processing','completed','retryable','failed','cancelled')),attempts integer NOT NULL DEFAULT 0,retry_at timestamptz,terminal_reason text,job_id uuid REFERENCES public.jobs(id) ON DELETE SET NULL,created_at timestamptz NOT NULL DEFAULT now(),updated_at timestamptz NOT NULL DEFAULT now(),UNIQUE(tenant_id,source_event_id,workflow_id));
-CREATE INDEX IF NOT EXISTS idx_automation_executions_due ON public.automation_executions(status,due_at,retry_at); CREATE INDEX IF NOT EXISTS idx_automation_executions_tenant ON public.automation_executions(tenant_id,created_at DESC); ALTER TABLE public.automation_executions ENABLE ROW LEVEL SECURITY; REVOKE ALL ON TABLE public.automation_executions FROM PUBLIC,anon,authenticated; GRANT ALL ON TABLE public.automation_executions TO service_role;
-ALTER TABLE IF EXISTS public.email_sequences ADD COLUMN IF NOT EXISTS last_transition_error text,ADD COLUMN IF NOT EXISTS transitioned_at timestamptz; ALTER TABLE IF EXISTS public.email_sequence_enrollments ADD COLUMN IF NOT EXISTS paused_at timestamptz; CREATE INDEX IF NOT EXISTS idx_email_sequence_enrollments_paused ON public.email_sequence_enrollments(sequence_id,status,next_send_at);
-ALTER TABLE IF EXISTS public.automation_events ADD COLUMN IF NOT EXISTS due_at timestamptz,ADD COLUMN IF NOT EXISTS rule_version integer NOT NULL DEFAULT 1,ADD COLUMN IF NOT EXISTS action_version integer NOT NULL DEFAULT 1; CREATE INDEX IF NOT EXISTS idx_automation_events_tenant_source ON public.automation_events(tenant_id,id,available_at);
-NOTIFY pgrst,'reload schema';
+
+CREATE TABLE IF NOT EXISTS public.automation_executions (
+  execution_id uuid PRIMARY KEY,
+  tenant_id uuid NOT NULL REFERENCES public.tenants(id) ON DELETE CASCADE,
+  source_event_id uuid NOT NULL REFERENCES public.automation_events(id) ON DELETE CASCADE,
+  workflow_id uuid REFERENCES public.workflow_definitions(id) ON DELETE CASCADE,
+  due_at timestamptz NOT NULL DEFAULT now(),
+  rule_version integer NOT NULL DEFAULT 1,
+  action_version integer NOT NULL DEFAULT 1,
+  status text NOT NULL DEFAULT 'queued' CHECK (status IN ('queued','processing','completed','retryable','failed','cancelled')),
+  attempts integer NOT NULL DEFAULT 0,
+  retry_at timestamptz,
+  terminal_reason text,
+  job_id uuid REFERENCES public.jobs(id) ON DELETE SET NULL,
+  created_at timestamptz NOT NULL DEFAULT now(),
+  updated_at timestamptz NOT NULL DEFAULT now(),
+  UNIQUE(tenant_id,source_event_id,workflow_id)
+);
+CREATE INDEX IF NOT EXISTS idx_automation_executions_due ON public.automation_executions(status,due_at,retry_at);
+CREATE INDEX IF NOT EXISTS idx_automation_executions_tenant ON public.automation_executions(tenant_id,created_at DESC);
+ALTER TABLE public.automation_executions ENABLE ROW LEVEL SECURITY;
+REVOKE ALL ON TABLE public.automation_executions FROM PUBLIC,anon,authenticated;
+GRANT ALL ON TABLE public.automation_executions TO service_role;
+
+ALTER TABLE IF EXISTS public.email_sequences
+  ADD COLUMN IF NOT EXISTS last_transition_error text,
+  ADD COLUMN IF NOT EXISTS transitioned_at timestamptz;
+ALTER TABLE IF EXISTS public.email_sequence_enrollments
+  ADD COLUMN IF NOT EXISTS paused_at timestamptz;
+CREATE INDEX IF NOT EXISTS idx_email_sequence_enrollments_paused ON public.email_sequence_enrollments(sequence_id,status,next_send_at);
+
+NOTIFY pgrst, 'reload schema';
+
+ALTER TABLE IF EXISTS public.automation_events
+  ADD COLUMN IF NOT EXISTS due_at timestamptz,
+  ADD COLUMN IF NOT EXISTS rule_version integer NOT NULL DEFAULT 1,
+  ADD COLUMN IF NOT EXISTS action_version integer NOT NULL DEFAULT 1;
+CREATE INDEX IF NOT EXISTS idx_automation_events_tenant_source
+  ON public.automation_events(tenant_id,id,available_at);
 
 -- ============================================================================
 -- CANONICAL MIGRATION 30: 20261001001200_leadx_16_verification_quality.sql
 -- ============================================================================
-CREATE TABLE IF NOT EXISTS public.canonical_contact_states (id uuid PRIMARY KEY DEFAULT gen_random_uuid(),tenant_id uuid NOT NULL REFERENCES public.tenants(id) ON DELETE CASCADE,person_id uuid REFERENCES public.canonical_people(id) ON DELETE CASCADE,contact_method_id uuid REFERENCES public.canonical_contact_methods(id) ON DELETE CASCADE,state text NOT NULL CHECK(state IN ('unknown','probable','verified','risky','catch-all','invalid','unreachable','suppressed','expired')),state_reason text,verification_id uuid,verified_at timestamptz,freshness_expires_at timestamptz,replacement_eligible boolean NOT NULL DEFAULT false,credit_reason text,updated_at timestamptz NOT NULL DEFAULT now(),CHECK(num_nonnulls(person_id,contact_method_id)=1),UNIQUE(tenant_id,person_id),UNIQUE(tenant_id,contact_method_id));
-CREATE TABLE IF NOT EXISTS public.canonical_verification_observations (id uuid PRIMARY KEY DEFAULT gen_random_uuid(),tenant_id uuid NOT NULL REFERENCES public.tenants(id) ON DELETE CASCADE,person_id uuid REFERENCES public.canonical_people(id) ON DELETE CASCADE,contact_method_id uuid REFERENCES public.canonical_contact_methods(id) ON DELETE CASCADE,state text NOT NULL CHECK(state IN ('unknown','probable','verified','risky','catch-all','invalid','unreachable','suppressed','expired')),provider text NOT NULL,provider_operation_id text,confidence numeric(5,4) CHECK(confidence IS NULL OR confidence BETWEEN 0 AND 1),evidence jsonb NOT NULL DEFAULT '{}'::jsonb,verified_at timestamptz NOT NULL DEFAULT now(),freshness_expires_at timestamptz,bounce_code text,bounce_feedback text,replacement_eligible boolean NOT NULL DEFAULT false,credit_reason text,observation_key text NOT NULL,created_at timestamptz NOT NULL DEFAULT now(),CHECK(num_nonnulls(person_id,contact_method_id)=1),UNIQUE(tenant_id,observation_key));
-CREATE TABLE IF NOT EXISTS public.canonical_bounce_feedback (id uuid PRIMARY KEY DEFAULT gen_random_uuid(),tenant_id uuid NOT NULL REFERENCES public.tenants(id) ON DELETE CASCADE,contact_method_id uuid REFERENCES public.canonical_contact_methods(id) ON DELETE SET NULL,provider text NOT NULL,provider_event_id text,bounce_class text NOT NULL CHECK(bounce_class IN ('hard','soft','blocked','unknown')),code text,safe_message text,observed_at timestamptz NOT NULL DEFAULT now(),feedback_key text NOT NULL,created_at timestamptz NOT NULL DEFAULT now(),UNIQUE(tenant_id,feedback_key));
-CREATE TABLE IF NOT EXISTS public.canonical_quality_decisions (id uuid PRIMARY KEY DEFAULT gen_random_uuid(),tenant_id uuid NOT NULL REFERENCES public.tenants(id) ON DELETE CASCADE,lead_id uuid REFERENCES public.leads_global(id) ON DELETE SET NULL,assignment_id uuid REFERENCES public.lead_assignments(id) ON DELETE SET NULL,decision text NOT NULL CHECK(decision IN ('accepted','rejected','degraded')),quality_score numeric(8,4) CHECK(quality_score IS NULL OR quality_score BETWEEN 0 AND 100),reasons jsonb NOT NULL DEFAULT '[]'::jsonb,required_states jsonb NOT NULL DEFAULT '{}'::jsonb,guarantee_version text NOT NULL,decided_at timestamptz NOT NULL DEFAULT now(),UNIQUE(tenant_id,assignment_id,guarantee_version));
-CREATE TABLE IF NOT EXISTS public.canonical_replacement_requests (id uuid PRIMARY KEY DEFAULT gen_random_uuid(),tenant_id uuid NOT NULL REFERENCES public.tenants(id) ON DELETE CASCADE,idempotency_key text NOT NULL,original_assignment_id uuid REFERENCES public.lead_assignments(id) ON DELETE SET NULL,original_lead_id uuid REFERENCES public.leads_global(id) ON DELETE SET NULL,reason text NOT NULL,credit_reason text NOT NULL,status text NOT NULL DEFAULT 'requested' CHECK(status IN ('requested','credited','fulfilled','rejected','cancelled')),credit_amount integer NOT NULL DEFAULT 1 CHECK(credit_amount>=0),credit_result jsonb NOT NULL DEFAULT '{}'::jsonb,replacement_assignment_id uuid REFERENCES public.lead_assignments(id) ON DELETE SET NULL,requested_at timestamptz NOT NULL DEFAULT now(),credited_at timestamptz,fulfilled_at timestamptz,UNIQUE(tenant_id,idempotency_key));
-CREATE INDEX IF NOT EXISTS idx_canonical_states_tenant_state ON public.canonical_contact_states(tenant_id,state,replacement_eligible); CREATE INDEX IF NOT EXISTS idx_canonical_verification_subject ON public.canonical_verification_observations(tenant_id,contact_method_id,verified_at DESC); CREATE INDEX IF NOT EXISTS idx_canonical_verification_expiry ON public.canonical_verification_observations(tenant_id,freshness_expires_at); CREATE INDEX IF NOT EXISTS idx_canonical_bounce_method ON public.canonical_bounce_feedback(tenant_id,contact_method_id,observed_at DESC); CREATE INDEX IF NOT EXISTS idx_canonical_quality_assignment ON public.canonical_quality_decisions(tenant_id,assignment_id,decided_at DESC); CREATE INDEX IF NOT EXISTS idx_canonical_replacement_status ON public.canonical_replacement_requests(tenant_id,status,requested_at DESC);
-ALTER TABLE public.canonical_contact_states ENABLE ROW LEVEL SECURITY; ALTER TABLE public.canonical_verification_observations ENABLE ROW LEVEL SECURITY; ALTER TABLE public.canonical_bounce_feedback ENABLE ROW LEVEL SECURITY; ALTER TABLE public.canonical_quality_decisions ENABLE ROW LEVEL SECURITY; ALTER TABLE public.canonical_replacement_requests ENABLE ROW LEVEL SECURITY;
-REVOKE ALL ON TABLE public.canonical_contact_states,public.canonical_verification_observations,public.canonical_bounce_feedback,public.canonical_quality_decisions,public.canonical_replacement_requests FROM PUBLIC,anon,authenticated;
-GRANT SELECT,INSERT,UPDATE ON TABLE public.canonical_contact_states,public.canonical_verification_observations,public.canonical_bounce_feedback,public.canonical_quality_decisions,public.canonical_replacement_requests TO service_role;
+
+-- LeadX 16.0: additive verification, quality, bounce, and replacement economics.
+-- Existing lead/assignment/contact statuses and lead_quality_credits rows remain
+-- readable. The canonical vocabulary is enforced only in these projections.
+
+CREATE TABLE IF NOT EXISTS public.canonical_contact_states (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  tenant_id uuid NOT NULL REFERENCES public.tenants(id) ON DELETE CASCADE,
+  person_id uuid REFERENCES public.canonical_people(id) ON DELETE CASCADE,
+  contact_method_id uuid REFERENCES public.canonical_contact_methods(id) ON DELETE CASCADE,
+  state text NOT NULL CHECK (state IN ('unknown','probable','verified','risky','catch-all','invalid','unreachable','suppressed','expired')),
+  state_reason text,
+  verification_id uuid,
+  verified_at timestamptz,
+  freshness_expires_at timestamptz,
+  replacement_eligible boolean NOT NULL DEFAULT false,
+  credit_reason text,
+  updated_at timestamptz NOT NULL DEFAULT now(),
+  CHECK (num_nonnulls(person_id, contact_method_id) = 1),
+  UNIQUE (tenant_id, person_id),
+  UNIQUE (tenant_id, contact_method_id)
+);
+
+CREATE TABLE IF NOT EXISTS public.canonical_verification_observations (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  tenant_id uuid NOT NULL REFERENCES public.tenants(id) ON DELETE CASCADE,
+  person_id uuid REFERENCES public.canonical_people(id) ON DELETE CASCADE,
+  contact_method_id uuid REFERENCES public.canonical_contact_methods(id) ON DELETE CASCADE,
+  state text NOT NULL CHECK (state IN ('unknown','probable','verified','risky','catch-all','invalid','unreachable','suppressed','expired')),
+  provider text NOT NULL,
+  provider_operation_id text,
+  confidence numeric(5,4) CHECK (confidence IS NULL OR confidence BETWEEN 0 AND 1),
+  evidence jsonb NOT NULL DEFAULT '{}'::jsonb,
+  verified_at timestamptz NOT NULL DEFAULT now(),
+  freshness_expires_at timestamptz,
+  bounce_code text,
+  bounce_feedback text,
+  replacement_eligible boolean NOT NULL DEFAULT false,
+  credit_reason text,
+  observation_key text NOT NULL,
+  created_at timestamptz NOT NULL DEFAULT now(),
+  CHECK (num_nonnulls(person_id, contact_method_id) = 1),
+  UNIQUE (tenant_id, observation_key)
+);
+
+CREATE TABLE IF NOT EXISTS public.canonical_bounce_feedback (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  tenant_id uuid NOT NULL REFERENCES public.tenants(id) ON DELETE CASCADE,
+  contact_method_id uuid REFERENCES public.canonical_contact_methods(id) ON DELETE SET NULL,
+  provider text NOT NULL,
+  provider_event_id text,
+  bounce_class text NOT NULL CHECK (bounce_class IN ('hard','soft','blocked','unknown')),
+  code text,
+  safe_message text,
+  observed_at timestamptz NOT NULL DEFAULT now(),
+  feedback_key text NOT NULL,
+  created_at timestamptz NOT NULL DEFAULT now(),
+  UNIQUE (tenant_id, feedback_key)
+);
+
+CREATE TABLE IF NOT EXISTS public.canonical_quality_decisions (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  tenant_id uuid NOT NULL REFERENCES public.tenants(id) ON DELETE CASCADE,
+  lead_id uuid REFERENCES public.leads_global(id) ON DELETE SET NULL,
+  assignment_id uuid REFERENCES public.lead_assignments(id) ON DELETE SET NULL,
+  decision text NOT NULL CHECK (decision IN ('accepted','rejected','degraded')),
+  quality_score numeric(8,4) CHECK (quality_score IS NULL OR quality_score BETWEEN 0 AND 100),
+  reasons jsonb NOT NULL DEFAULT '[]'::jsonb,
+  required_states jsonb NOT NULL DEFAULT '{}'::jsonb,
+  guarantee_version text NOT NULL,
+  decided_at timestamptz NOT NULL DEFAULT now(),
+  UNIQUE (tenant_id, assignment_id, guarantee_version)
+);
+
+CREATE TABLE IF NOT EXISTS public.canonical_replacement_requests (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  tenant_id uuid NOT NULL REFERENCES public.tenants(id) ON DELETE CASCADE,
+  idempotency_key text NOT NULL,
+  original_assignment_id uuid REFERENCES public.lead_assignments(id) ON DELETE SET NULL,
+  original_lead_id uuid REFERENCES public.leads_global(id) ON DELETE SET NULL,
+  reason text NOT NULL,
+  credit_reason text NOT NULL,
+  status text NOT NULL DEFAULT 'requested'
+    CHECK (status IN ('requested','credited','fulfilled','rejected','cancelled')),
+  credit_amount integer NOT NULL DEFAULT 1 CHECK (credit_amount >= 0),
+  credit_result jsonb NOT NULL DEFAULT '{}'::jsonb,
+  replacement_assignment_id uuid REFERENCES public.lead_assignments(id) ON DELETE SET NULL,
+  requested_at timestamptz NOT NULL DEFAULT now(),
+  credited_at timestamptz,
+  fulfilled_at timestamptz,
+  UNIQUE (tenant_id, idempotency_key)
+);
+
+CREATE INDEX IF NOT EXISTS idx_canonical_states_tenant_state
+  ON public.canonical_contact_states(tenant_id, state, replacement_eligible);
+CREATE INDEX IF NOT EXISTS idx_canonical_verification_subject
+  ON public.canonical_verification_observations(tenant_id, contact_method_id, verified_at DESC);
+CREATE INDEX IF NOT EXISTS idx_canonical_verification_expiry
+  ON public.canonical_verification_observations(tenant_id, freshness_expires_at);
+CREATE INDEX IF NOT EXISTS idx_canonical_bounce_method
+  ON public.canonical_bounce_feedback(tenant_id, contact_method_id, observed_at DESC);
+CREATE INDEX IF NOT EXISTS idx_canonical_quality_assignment
+  ON public.canonical_quality_decisions(tenant_id, assignment_id, decided_at DESC);
+CREATE INDEX IF NOT EXISTS idx_canonical_replacement_status
+  ON public.canonical_replacement_requests(tenant_id, status, requested_at DESC);
+
+ALTER TABLE public.canonical_contact_states ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.canonical_verification_observations ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.canonical_bounce_feedback ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.canonical_quality_decisions ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.canonical_replacement_requests ENABLE ROW LEVEL SECURITY;
+
+REVOKE ALL ON TABLE public.canonical_contact_states,
+  public.canonical_verification_observations, public.canonical_bounce_feedback,
+  public.canonical_quality_decisions, public.canonical_replacement_requests
+  FROM PUBLIC, anon, authenticated;
+GRANT SELECT, INSERT, UPDATE ON TABLE public.canonical_contact_states,
+  public.canonical_verification_observations, public.canonical_bounce_feedback,
+  public.canonical_quality_decisions, public.canonical_replacement_requests
+  TO service_role;
+
+COMMENT ON TABLE public.canonical_contact_states IS
+  'Task-7 canonical state projection; legacy free-text statuses are not rewritten.';
+COMMENT ON TABLE public.canonical_replacement_requests IS
+  'Idempotent quality-credit request boundary; credit_result records the exact outcome.';
+
+NOTIFY pgrst, 'reload schema';
 
 -- ============================================================================
 -- CANONICAL MIGRATION 31: 20261001001300_leadx_16_delivery_outbox.sql
 -- ============================================================================
-ALTER TABLE IF EXISTS public.delivery_outbox ADD COLUMN IF NOT EXISTS stable_event_id text, ADD COLUMN IF NOT EXISTS destination text NOT NULL DEFAULT 'portal', ADD COLUMN IF NOT EXISTS provider text, ADD COLUMN IF NOT EXISTS payload_hash text, ADD COLUMN IF NOT EXISTS outbox_state text NOT NULL DEFAULT 'pending', ADD COLUMN IF NOT EXISTS next_attempt_at timestamptz, ADD COLUMN IF NOT EXISTS safe_error_code text, ADD COLUMN IF NOT EXISTS safe_error_detail text, ADD COLUMN IF NOT EXISTS replay_count integer NOT NULL DEFAULT 0, ADD COLUMN IF NOT EXISTS replay_of_id uuid, ADD COLUMN IF NOT EXISTS reconciled_at timestamptz, ADD COLUMN IF NOT EXISTS reconciliation_key text;
-DO $$ BEGIN ALTER TABLE public.delivery_outbox ADD CONSTRAINT delivery_outbox_outbox_state_check CHECK(outbox_state IN ('pending','processing','delivered','retryable','dead-letter','cancelled')) NOT VALID; EXCEPTION WHEN duplicate_object THEN NULL; END $$;
-DO $$ BEGIN ALTER TABLE public.delivery_outbox ADD CONSTRAINT delivery_outbox_destination_check CHECK(destination IN ('email','webhook','salesforce','hubspot','pipedrive','close','gohighlevel','export','portal')) NOT VALID; EXCEPTION WHEN duplicate_object THEN NULL; END $$;
-CREATE UNIQUE INDEX IF NOT EXISTS uq_delivery_outbox_stable_destination ON public.delivery_outbox(tenant_id,stable_event_id,destination) WHERE stable_event_id IS NOT NULL;
-CREATE INDEX IF NOT EXISTS idx_delivery_outbox_canonical_ready ON public.delivery_outbox(outbox_state,next_attempt_at,created_at) WHERE outbox_state IN ('pending','retryable');
-CREATE TABLE IF NOT EXISTS public.delivery_outbox_attempts (id uuid PRIMARY KEY DEFAULT gen_random_uuid(),tenant_id uuid NOT NULL REFERENCES public.tenants(id) ON DELETE CASCADE,outbox_id uuid NOT NULL REFERENCES public.delivery_outbox(id) ON DELETE CASCADE,attempt_number integer NOT NULL CHECK(attempt_number>0),state text NOT NULL CHECK(state IN ('processing','delivered','retryable','dead-letter','cancelled')),provider_operation_id text,http_status integer,safe_error_code text,safe_error_detail text,started_at timestamptz NOT NULL DEFAULT now(),finished_at timestamptz,UNIQUE(outbox_id,attempt_number));
-CREATE TABLE IF NOT EXISTS public.delivery_reconciliations (id uuid PRIMARY KEY DEFAULT gen_random_uuid(),tenant_id uuid NOT NULL REFERENCES public.tenants(id) ON DELETE CASCADE,outbox_id uuid NOT NULL REFERENCES public.delivery_outbox(id) ON DELETE CASCADE,stable_event_id text NOT NULL,destination text NOT NULL,external_id text,state text NOT NULL CHECK(state IN ('unconfirmed','matched','mismatched','not-found')),safe_detail text,observed_at timestamptz NOT NULL DEFAULT now(),resolved_at timestamptz,UNIQUE(tenant_id,stable_event_id,destination));
-CREATE INDEX IF NOT EXISTS idx_delivery_attempts_outbox ON public.delivery_outbox_attempts(tenant_id,outbox_id,attempt_number DESC); CREATE INDEX IF NOT EXISTS idx_delivery_reconciliations_state ON public.delivery_reconciliations(tenant_id,state,observed_at DESC);
-ALTER TABLE public.delivery_outbox ENABLE ROW LEVEL SECURITY; ALTER TABLE public.delivery_outbox_attempts ENABLE ROW LEVEL SECURITY; ALTER TABLE public.delivery_reconciliations ENABLE ROW LEVEL SECURITY;
-REVOKE ALL ON TABLE public.delivery_outbox,public.delivery_outbox_attempts,public.delivery_reconciliations FROM PUBLIC,anon,authenticated; GRANT SELECT,INSERT,UPDATE ON TABLE public.delivery_outbox TO service_role; GRANT SELECT,INSERT ON TABLE public.delivery_outbox_attempts,public.delivery_reconciliations TO service_role;
-CREATE OR REPLACE FUNCTION public.leadx_replay_delivery_outbox(p_outbox_id uuid,p_reason text) RETURNS jsonb LANGUAGE plpgsql SECURITY DEFINER SET search_path=pg_catalog,public AS $$ DECLARE v_row public.delivery_outbox%ROWTYPE; BEGIN IF p_outbox_id IS NULL OR nullif(btrim(coalesce(p_reason,'')),'') IS NULL THEN RETURN jsonb_build_object('ok',false,'reason','replay_reason_required'); END IF; SELECT * INTO v_row FROM public.delivery_outbox WHERE id=p_outbox_id FOR UPDATE; IF NOT FOUND THEN RETURN jsonb_build_object('ok',false,'reason','outbox_not_found'); END IF; IF v_row.outbox_state='delivered' THEN RETURN jsonb_build_object('ok',false,'reason','already_delivered','outbox_id',p_outbox_id); END IF; IF v_row.outbox_state='cancelled' THEN RETURN jsonb_build_object('ok',false,'reason','outbox_cancelled','outbox_id',p_outbox_id); END IF; UPDATE public.delivery_outbox SET outbox_state='pending',next_attempt_at=now(),replay_count=coalesce(replay_count,0)+1,safe_error_code=NULL,safe_error_detail=left(btrim(p_reason),500) WHERE id=p_outbox_id; RETURN jsonb_build_object('ok',true,'outcome','replayed','outbox_id',p_outbox_id,'stable_event_id',v_row.stable_event_id,'destination',v_row.destination); END; $$;
-REVOKE ALL ON FUNCTION public.leadx_replay_delivery_outbox(uuid,text) FROM PUBLIC,anon,authenticated; GRANT EXECUTE ON FUNCTION public.leadx_replay_delivery_outbox(uuid,text) TO service_role;
+
+-- LeadX 16.0: additive durable delivery and CRM outbox state.
+-- Existing delivery_outbox.status values (pending/processing/delivered/failed)
+-- remain unchanged. outbox_state is the canonical Task-8 vocabulary.
+
+ALTER TABLE IF EXISTS public.delivery_outbox
+  ADD COLUMN IF NOT EXISTS stable_event_id text,
+  ADD COLUMN IF NOT EXISTS destination text NOT NULL DEFAULT 'portal',
+  ADD COLUMN IF NOT EXISTS provider text,
+  ADD COLUMN IF NOT EXISTS payload_hash text,
+  ADD COLUMN IF NOT EXISTS outbox_state text NOT NULL DEFAULT 'pending',
+  ADD COLUMN IF NOT EXISTS next_attempt_at timestamptz,
+  ADD COLUMN IF NOT EXISTS safe_error_code text,
+  ADD COLUMN IF NOT EXISTS safe_error_detail text,
+  ADD COLUMN IF NOT EXISTS replay_count integer NOT NULL DEFAULT 0,
+  ADD COLUMN IF NOT EXISTS replay_of_id uuid,
+  ADD COLUMN IF NOT EXISTS reconciled_at timestamptz,
+  ADD COLUMN IF NOT EXISTS reconciliation_key text;
+
+DO $$
+BEGIN
+  ALTER TABLE public.delivery_outbox
+    ADD CONSTRAINT delivery_outbox_outbox_state_check
+    CHECK (outbox_state IN ('pending','processing','delivered','retryable','dead-letter','cancelled'))
+    NOT VALID;
+EXCEPTION WHEN duplicate_object THEN NULL;
+END;
+$$;
+
+DO $$
+BEGIN
+  ALTER TABLE public.delivery_outbox
+    ADD CONSTRAINT delivery_outbox_destination_check
+    CHECK (destination IN ('email','webhook','salesforce','hubspot','pipedrive','close','gohighlevel','export','portal'))
+    NOT VALID;
+EXCEPTION WHEN duplicate_object THEN NULL;
+END;
+$$;
+
+CREATE UNIQUE INDEX IF NOT EXISTS uq_delivery_outbox_stable_destination
+  ON public.delivery_outbox(tenant_id, stable_event_id, destination)
+  WHERE stable_event_id IS NOT NULL;
+CREATE INDEX IF NOT EXISTS idx_delivery_outbox_canonical_ready
+  ON public.delivery_outbox(outbox_state, next_attempt_at, created_at)
+  WHERE outbox_state IN ('pending','retryable');
+CREATE INDEX IF NOT EXISTS idx_delivery_outbox_reconcile
+  ON public.delivery_outbox(tenant_id, reconciliation_key)
+  WHERE reconciliation_key IS NOT NULL;
+
+CREATE TABLE IF NOT EXISTS public.delivery_outbox_attempts (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  tenant_id uuid NOT NULL REFERENCES public.tenants(id) ON DELETE CASCADE,
+  outbox_id uuid NOT NULL REFERENCES public.delivery_outbox(id) ON DELETE CASCADE,
+  attempt_number integer NOT NULL CHECK (attempt_number > 0),
+  state text NOT NULL CHECK (state IN ('processing','delivered','retryable','dead-letter','cancelled')),
+  provider_operation_id text,
+  http_status integer,
+  safe_error_code text,
+  safe_error_detail text,
+  started_at timestamptz NOT NULL DEFAULT now(),
+  finished_at timestamptz,
+  UNIQUE (outbox_id, attempt_number)
+);
+
+CREATE TABLE IF NOT EXISTS public.delivery_reconciliations (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  tenant_id uuid NOT NULL REFERENCES public.tenants(id) ON DELETE CASCADE,
+  outbox_id uuid NOT NULL REFERENCES public.delivery_outbox(id) ON DELETE CASCADE,
+  stable_event_id text NOT NULL,
+  destination text NOT NULL,
+  external_id text,
+  state text NOT NULL CHECK (state IN ('unconfirmed','matched','mismatched','not-found')),
+  safe_detail text,
+  observed_at timestamptz NOT NULL DEFAULT now(),
+  resolved_at timestamptz,
+  UNIQUE (tenant_id, stable_event_id, destination)
+);
+
+CREATE INDEX IF NOT EXISTS idx_delivery_attempts_outbox
+  ON public.delivery_outbox_attempts(tenant_id, outbox_id, attempt_number DESC);
+CREATE INDEX IF NOT EXISTS idx_delivery_reconciliations_state
+  ON public.delivery_reconciliations(tenant_id, state, observed_at DESC);
+
+ALTER TABLE public.delivery_outbox ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.delivery_outbox_attempts ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.delivery_reconciliations ENABLE ROW LEVEL SECURITY;
+REVOKE ALL ON TABLE public.delivery_outbox, public.delivery_outbox_attempts,
+  public.delivery_reconciliations FROM PUBLIC, anon, authenticated;
+GRANT SELECT, INSERT, UPDATE ON TABLE public.delivery_outbox TO service_role;
+GRANT SELECT, INSERT ON TABLE public.delivery_outbox_attempts,
+  public.delivery_reconciliations TO service_role;
+
+CREATE OR REPLACE FUNCTION public.leadx_replay_delivery_outbox(
+  p_outbox_id uuid,
+  p_reason text
+) RETURNS jsonb
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = pg_catalog, public
+AS $$
+DECLARE
+  v_row public.delivery_outbox%ROWTYPE;
+BEGIN
+  IF p_outbox_id IS NULL OR nullif(btrim(coalesce(p_reason, '')), '') IS NULL THEN
+    RETURN jsonb_build_object('ok', false, 'reason', 'replay_reason_required');
+  END IF;
+  SELECT * INTO v_row FROM public.delivery_outbox WHERE id = p_outbox_id FOR UPDATE;
+  IF NOT FOUND THEN
+    RETURN jsonb_build_object('ok', false, 'reason', 'outbox_not_found');
+  END IF;
+  IF v_row.outbox_state = 'delivered' THEN
+    RETURN jsonb_build_object('ok', false, 'reason', 'already_delivered', 'outbox_id', p_outbox_id);
+  END IF;
+  IF v_row.outbox_state = 'cancelled' THEN
+    RETURN jsonb_build_object('ok', false, 'reason', 'outbox_cancelled', 'outbox_id', p_outbox_id);
+  END IF;
+  UPDATE public.delivery_outbox
+  SET outbox_state = 'pending',
+      next_attempt_at = now(),
+      replay_count = coalesce(replay_count, 0) + 1,
+      safe_error_code = NULL,
+      safe_error_detail = left(btrim(p_reason), 500)
+  WHERE id = p_outbox_id;
+  RETURN jsonb_build_object('ok', true, 'outcome', 'replayed', 'outbox_id', p_outbox_id,
+    'stable_event_id', v_row.stable_event_id, 'destination', v_row.destination);
+END;
+$$;
+
+REVOKE ALL ON FUNCTION public.leadx_replay_delivery_outbox(uuid,text) FROM PUBLIC, anon, authenticated;
+GRANT EXECUTE ON FUNCTION public.leadx_replay_delivery_outbox(uuid,text) TO service_role;
+COMMENT ON FUNCTION public.leadx_replay_delivery_outbox(uuid,text) IS
+  'Requeues one durable event in place; it never creates a second assignment or email event.';
+
+NOTIFY pgrst, 'reload schema';
 
 -- ============================================================================
 -- CANONICAL MIGRATION 32: 20261001001400_leadx_16_economic_ledger.sql
 -- ============================================================================
-CREATE TABLE IF NOT EXISTS public.economic_ledger_events (id uuid PRIMARY KEY DEFAULT gen_random_uuid(),tenant_id uuid NOT NULL REFERENCES public.tenants(id) ON DELETE CASCADE,event_key text NOT NULL,event_type text NOT NULL CHECK(event_type IN ('requested','reserved','reservation_released','consumed','provider_usage','delivery_outcome','refund','replacement_credit','stripe_report')),direction text NOT NULL CHECK(direction IN ('debit','credit','informational')),quantity numeric(20,6) NOT NULL CHECK(quantity>=0),unit text NOT NULL CHECK(unit IN ('lead','credit','provider_call','usd_cents','event')),source_type text NOT NULL,source_id text,job_operation_id uuid,provider text,period date,assignment_id uuid,metadata jsonb NOT NULL DEFAULT '{}'::jsonb,occurred_at timestamptz NOT NULL DEFAULT now(),created_at timestamptz NOT NULL DEFAULT now(),UNIQUE(tenant_id,event_key));
-CREATE INDEX IF NOT EXISTS idx_economic_ledger_tenant_period ON public.economic_ledger_events(tenant_id,period,occurred_at DESC); CREATE INDEX IF NOT EXISTS idx_economic_ledger_source ON public.economic_ledger_events(tenant_id,source_type,source_id); CREATE INDEX IF NOT EXISTS idx_economic_ledger_job ON public.economic_ledger_events(tenant_id,job_operation_id) WHERE job_operation_id IS NOT NULL;
-CREATE OR REPLACE FUNCTION public.leadx_reject_economic_ledger_mutation() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN RAISE EXCEPTION 'economic ledger events are immutable'; END; $$;
-DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM pg_trigger WHERE tgrelid='public.economic_ledger_events'::regclass AND tgname='trg_economic_ledger_immutable' AND NOT tgisinternal) THEN CREATE TRIGGER trg_economic_ledger_immutable BEFORE UPDATE OR DELETE ON public.economic_ledger_events FOR EACH ROW EXECUTE FUNCTION public.leadx_reject_economic_ledger_mutation(); END IF; END $$;
-ALTER TABLE public.economic_ledger_events ENABLE ROW LEVEL SECURITY; REVOKE ALL ON TABLE public.economic_ledger_events FROM PUBLIC,anon,authenticated; GRANT SELECT,INSERT ON TABLE public.economic_ledger_events TO service_role;
-CREATE OR REPLACE FUNCTION public.leadx_append_economic_ledger_event(p_tenant_id uuid,p_event_key text,p_event_type text,p_direction text,p_quantity numeric,p_unit text,p_source_type text,p_source_id text DEFAULT NULL,p_job_operation_id uuid DEFAULT NULL,p_provider text DEFAULT NULL,p_period date DEFAULT NULL,p_assignment_id uuid DEFAULT NULL,p_metadata jsonb DEFAULT '{}'::jsonb,p_occurred_at timestamptz DEFAULT now()) RETURNS jsonb LANGUAGE plpgsql SECURITY DEFINER SET search_path=pg_catalog,public AS $$ DECLARE v_id uuid; v_existing public.economic_ledger_events%ROWTYPE; BEGIN IF p_tenant_id IS NULL OR nullif(btrim(coalesce(p_event_key,'')),'') IS NULL OR p_quantity IS NULL OR p_quantity<0 THEN RETURN jsonb_build_object('ok',false,'reason','ledger_event_invalid'); END IF; INSERT INTO public.economic_ledger_events(tenant_id,event_key,event_type,direction,quantity,unit,source_type,source_id,job_operation_id,provider,period,assignment_id,metadata,occurred_at) VALUES(p_tenant_id,btrim(p_event_key),p_event_type,p_direction,p_quantity,p_unit,btrim(p_source_type),p_source_id,p_job_operation_id,p_provider,p_period,p_assignment_id,coalesce(p_metadata,'{}'::jsonb),coalesce(p_occurred_at,now())) ON CONFLICT(tenant_id,event_key) DO NOTHING RETURNING id INTO v_id; IF v_id IS NULL THEN SELECT * INTO v_existing FROM public.economic_ledger_events WHERE tenant_id=p_tenant_id AND event_key=btrim(p_event_key); RETURN jsonb_build_object('ok',true,'outcome','replay','replayed',true,'event_id',v_existing.id,'event_key',v_existing.event_key); END IF; RETURN jsonb_build_object('ok',true,'outcome','accepted','replayed',false,'event_id',v_id,'event_key',btrim(p_event_key)); END; $$;
-REVOKE ALL ON FUNCTION public.leadx_reject_economic_ledger_mutation() FROM PUBLIC,anon,authenticated; REVOKE ALL ON FUNCTION public.leadx_append_economic_ledger_event(uuid,text,text,text,numeric,text,text,text,uuid,text,date,uuid,jsonb,timestamptz) FROM PUBLIC,anon,authenticated; GRANT EXECUTE ON FUNCTION public.leadx_append_economic_ledger_event(uuid,text,text,text,numeric,text,text,text,uuid,text,date,uuid,jsonb,timestamptz) TO service_role;
-CREATE OR REPLACE VIEW public.economic_ledger_balances AS SELECT tenant_id,period,unit,sum(CASE WHEN direction='debit' THEN quantity ELSE 0 END) AS debited,sum(CASE WHEN direction='credit' THEN quantity ELSE 0 END) AS credited,sum(CASE WHEN direction='debit' THEN quantity WHEN direction='credit' THEN -quantity ELSE 0 END) AS net,count(*) AS event_count FROM public.economic_ledger_events GROUP BY tenant_id,period,unit;
-CREATE OR REPLACE VIEW public.economic_ledger_reconciliation AS SELECT tenant_id,period,sum(quantity) FILTER(WHERE event_type='requested') AS requested_quantity,sum(quantity) FILTER(WHERE event_type='reserved') AS reserved_quantity,sum(quantity) FILTER(WHERE event_type='consumed') AS consumed_quantity,sum(quantity) FILTER(WHERE event_type IN ('refund','replacement_credit')) AS refunded_quantity,sum(quantity) FILTER(WHERE event_type='provider_usage') AS provider_quantity,sum(quantity) FILTER(WHERE event_type='stripe_report') AS stripe_quantity,count(*) AS ledger_event_count FROM public.economic_ledger_events GROUP BY tenant_id,period;
-REVOKE ALL ON public.economic_ledger_balances,public.economic_ledger_reconciliation FROM PUBLIC,anon,authenticated; GRANT SELECT ON public.economic_ledger_balances,public.economic_ledger_reconciliation TO service_role;
 
--- ##### 20261020_exclusivity_learning_quota_correction.sql #####
--- Explicit competitive offer locks, approval-gated learning, and quota truth.
--- Missing/generic offers are shared. Target vertical is never a lock key.
+-- LeadX 16.0: immutable provider, usage, delivery, refund, replacement,
+-- reservation, and Stripe-reporting ledger support.
+-- Existing jobs, usage_log, lead_credits, provider tables, and billing functions
+-- remain authoritative for compatibility; this is an append-only reconciliation
+-- bridge with exact-once event keys.
+
+CREATE TABLE IF NOT EXISTS public.economic_ledger_events (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  tenant_id uuid NOT NULL REFERENCES public.tenants(id) ON DELETE CASCADE,
+  event_key text NOT NULL,
+  event_type text NOT NULL CHECK (event_type IN (
+    'requested','reserved','reservation_released','consumed','provider_usage',
+    'delivery_outcome','refund','replacement_credit','stripe_report'
+  )),
+  direction text NOT NULL CHECK (direction IN ('debit','credit','informational')),
+  quantity numeric(20,6) NOT NULL CHECK (quantity >= 0),
+  unit text NOT NULL CHECK (unit IN ('lead','credit','provider_call','usd_cents','event')),
+  source_type text NOT NULL,
+  source_id text,
+  job_operation_id uuid,
+  provider text,
+  period date,
+  assignment_id uuid,
+  metadata jsonb NOT NULL DEFAULT '{}'::jsonb,
+  occurred_at timestamptz NOT NULL DEFAULT now(),
+  created_at timestamptz NOT NULL DEFAULT now(),
+  UNIQUE (tenant_id, event_key)
+);
+
+CREATE INDEX IF NOT EXISTS idx_economic_ledger_tenant_period
+  ON public.economic_ledger_events(tenant_id, period, occurred_at DESC);
+CREATE INDEX IF NOT EXISTS idx_economic_ledger_source
+  ON public.economic_ledger_events(tenant_id, source_type, source_id);
+CREATE INDEX IF NOT EXISTS idx_economic_ledger_job
+  ON public.economic_ledger_events(tenant_id, job_operation_id)
+  WHERE job_operation_id IS NOT NULL;
+CREATE INDEX IF NOT EXISTS idx_economic_ledger_event_type
+  ON public.economic_ledger_events(tenant_id, event_type, occurred_at DESC);
+
+CREATE OR REPLACE FUNCTION public.leadx_reject_economic_ledger_mutation()
+RETURNS trigger
+LANGUAGE plpgsql
+AS $$
+BEGIN
+  RAISE EXCEPTION 'economic ledger events are immutable';
+END;
+$$;
+
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_trigger
+    WHERE tgrelid = 'public.economic_ledger_events'::regclass
+      AND tgname = 'trg_economic_ledger_immutable'
+      AND NOT tgisinternal
+  ) THEN
+    CREATE TRIGGER trg_economic_ledger_immutable
+      BEFORE UPDATE OR DELETE ON public.economic_ledger_events
+      FOR EACH ROW EXECUTE FUNCTION public.leadx_reject_economic_ledger_mutation();
+  END IF;
+END;
+$$;
+
+ALTER TABLE public.economic_ledger_events ENABLE ROW LEVEL SECURITY;
+REVOKE ALL ON TABLE public.economic_ledger_events FROM PUBLIC, anon, authenticated;
+GRANT SELECT, INSERT ON TABLE public.economic_ledger_events TO service_role;
+
+CREATE OR REPLACE FUNCTION public.leadx_append_economic_ledger_event(
+  p_tenant_id uuid,
+  p_event_key text,
+  p_event_type text,
+  p_direction text,
+  p_quantity numeric,
+  p_unit text,
+  p_source_type text,
+  p_source_id text DEFAULT NULL,
+  p_job_operation_id uuid DEFAULT NULL,
+  p_provider text DEFAULT NULL,
+  p_period date DEFAULT NULL,
+  p_assignment_id uuid DEFAULT NULL,
+  p_metadata jsonb DEFAULT '{}'::jsonb,
+  p_occurred_at timestamptz DEFAULT now()
+) RETURNS jsonb
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = pg_catalog, public
+AS $$
+DECLARE
+  v_id uuid;
+  v_existing public.economic_ledger_events%ROWTYPE;
+BEGIN
+  IF p_tenant_id IS NULL OR nullif(btrim(coalesce(p_event_key, '')), '') IS NULL
+     OR p_quantity IS NULL OR p_quantity < 0 THEN
+    RETURN jsonb_build_object('ok', false, 'reason', 'ledger_event_invalid');
+  END IF;
+  INSERT INTO public.economic_ledger_events(
+    tenant_id, event_key, event_type, direction, quantity, unit, source_type,
+    source_id, job_operation_id, provider, period, assignment_id, metadata, occurred_at
+  ) VALUES (
+    p_tenant_id, btrim(p_event_key), p_event_type, p_direction, p_quantity, p_unit,
+    btrim(p_source_type), p_source_id, p_job_operation_id, p_provider, p_period,
+    p_assignment_id, coalesce(p_metadata, '{}'::jsonb), coalesce(p_occurred_at, now())
+  )
+  ON CONFLICT (tenant_id, event_key) DO NOTHING
+  RETURNING id INTO v_id;
+  IF v_id IS NULL THEN
+    SELECT * INTO v_existing FROM public.economic_ledger_events
+    WHERE tenant_id = p_tenant_id AND event_key = btrim(p_event_key);
+    RETURN jsonb_build_object('ok', true, 'outcome', 'replay', 'replayed', true,
+      'event_id', v_existing.id, 'event_key', v_existing.event_key,
+      'event_type', v_existing.event_type, 'quantity', v_existing.quantity);
+  END IF;
+  RETURN jsonb_build_object('ok', true, 'outcome', 'accepted', 'replayed', false,
+    'event_id', v_id, 'event_key', btrim(p_event_key));
+END;
+$$;
+
+REVOKE ALL ON FUNCTION public.leadx_reject_economic_ledger_mutation() FROM PUBLIC, anon, authenticated;
+REVOKE ALL ON FUNCTION public.leadx_append_economic_ledger_event(uuid,text,text,text,numeric,text,text,text,uuid,text,date,uuid,jsonb,timestamptz)
+  FROM PUBLIC, anon, authenticated;
+GRANT EXECUTE ON FUNCTION public.leadx_append_economic_ledger_event(uuid,text,text,text,numeric,text,text,text,uuid,text,date,uuid,jsonb,timestamptz)
+  TO service_role;
+
+CREATE OR REPLACE VIEW public.economic_ledger_balances AS
+SELECT tenant_id, period, unit,
+  sum(CASE WHEN direction = 'debit' THEN quantity ELSE 0 END) AS debited,
+  sum(CASE WHEN direction = 'credit' THEN quantity ELSE 0 END) AS credited,
+  sum(CASE WHEN direction = 'debit' THEN quantity WHEN direction = 'credit' THEN -quantity ELSE 0 END) AS net,
+  count(*) AS event_count
+FROM public.economic_ledger_events
+GROUP BY tenant_id, period, unit;
+
+CREATE OR REPLACE VIEW public.economic_ledger_reconciliation AS
+SELECT tenant_id, period,
+  sum(quantity) FILTER (WHERE event_type = 'requested') AS requested_quantity,
+  sum(quantity) FILTER (WHERE event_type = 'reserved') AS reserved_quantity,
+  sum(quantity) FILTER (WHERE event_type = 'consumed') AS consumed_quantity,
+  sum(quantity) FILTER (WHERE event_type IN ('refund','replacement_credit')) AS refunded_quantity,
+  sum(quantity) FILTER (WHERE event_type = 'provider_usage') AS provider_quantity,
+  sum(quantity) FILTER (WHERE event_type = 'stripe_report') AS stripe_quantity,
+  count(*) AS ledger_event_count
+FROM public.economic_ledger_events
+GROUP BY tenant_id, period;
+
+REVOKE ALL ON public.economic_ledger_balances, public.economic_ledger_reconciliation FROM PUBLIC, anon, authenticated;
+GRANT SELECT ON public.economic_ledger_balances, public.economic_ledger_reconciliation TO service_role;
+
+COMMENT ON TABLE public.economic_ledger_events IS
+  'Append-only exact-once economic event bridge; existing usage/credit tables remain compatible sources.';
+COMMENT ON VIEW public.economic_ledger_reconciliation IS
+  'Admin reconciliation projection for requested, reserved, consumed, refunded, provider, and Stripe quantities.';
+
+NOTIFY pgrst, 'reload schema';
 
 -- ============================================================================
 -- CANONICAL MIGRATION 33: 20261020001500_leadx_exclusivity_learning_quota.sql
 -- ============================================================================
+
+-- LeadX exclusivity, quota truth, and approval-gated learning correction.
+-- Safe to run after the existing 16.x migrations.
+
 ALTER TABLE public.icp_profiles
   ALTER COLUMN exclusivity SET DEFAULT 'shared';
 UPDATE public.icp_profiles SET exclusivity = 'shared'
 WHERE exclusivity IS NULL OR lower(trim(exclusivity)) NOT IN ('exclusive', 'shared');
--- Older installs generated an offer from the target vertical. Clear only that
--- generated shape; an explicitly named product/use-case remains untouched.
 UPDATE public.icp_profiles
 SET offer_category = NULL, exclusivity = 'shared'
 WHERE NULLIF(trim(offer_category), '') IS NOT NULL
@@ -10982,9 +10968,7 @@ CREATE OR REPLACE FUNCTION public.check_exclusivity(
   p_offer_category text DEFAULT NULL
 ) RETURNS boolean
 LANGUAGE plpgsql STABLE AS $$
-DECLARE
-  conflict_exists boolean;
-  v_offer text;
+DECLARE conflict_exists boolean; v_offer text;
 BEGIN
   v_offer := lower(regexp_replace(trim(COALESCE(p_offer_category, '')), '\s+', '_', 'g'));
   IF v_offer IS NULL OR v_offer = '' OR v_offer IN ('default','general','generic','unknown','any','all','shared','lead_gen_service','lead_generation','service') THEN
@@ -11050,6 +11034,7 @@ CREATE INDEX IF NOT EXISTS idx_tenant_icp_recommendations_status ON public.tenan
 -- ============================================================================
 -- CANONICAL MIGRATION 34: 20261020001600_leadx_21_realtime_capture.sql
 -- ============================================================================
+
 -- LeadX task 21: tenant-safe database change signals.
 -- Broadcast is an invalidation hint; APIs remain authoritative. The lists below
 -- contain only tables whose changed row has a tenant_id ownership boundary.
@@ -11205,99 +11190,9 @@ CREATE POLICY leadx_workspace_broadcast_read
 
 COMMENT ON TABLE public.leadx_event_log IS
   'Tenant-scoped append-only metadata events; browser roles have no table privileges.';
--- ============================================================================
--- Additive durable leases, attempt history, quota settlement identity, and
--- fresh worker capability evidence.  Mirrors the standalone migration.
-ALTER TABLE IF EXISTS public.jobs ADD COLUMN IF NOT EXISTS lease_expires_at timestamptz;
-ALTER TABLE IF EXISTS public.jobs ADD COLUMN IF NOT EXISTS retry_after timestamptz;
-ALTER TABLE IF EXISTS public.jobs ADD COLUMN IF NOT EXISTS error_category text;
-ALTER TABLE IF EXISTS public.jobs ADD COLUMN IF NOT EXISTS dependency_outcome text;
-ALTER TABLE IF EXISTS public.jobs ADD COLUMN IF NOT EXISTS terminal_result jsonb;
-ALTER TABLE IF EXISTS public.jobs ADD COLUMN IF NOT EXISTS accounting_reconciliation_status text DEFAULT 'not_required';
-ALTER TABLE IF EXISTS public.job_operations ADD COLUMN IF NOT EXISTS principal_scope text NOT NULL DEFAULT '';
-ALTER TABLE IF EXISTS public.job_operations ADD COLUMN IF NOT EXISTS terminal_result jsonb;
-ALTER TABLE IF EXISTS public.job_operations ADD COLUMN IF NOT EXISTS settlement_key text;
-ALTER TABLE IF EXISTS public.agent_missions ADD COLUMN IF NOT EXISTS progress_total integer NOT NULL DEFAULT 0;
-ALTER TABLE IF EXISTS public.agent_missions ADD COLUMN IF NOT EXISTS progress_completed integer NOT NULL DEFAULT 0;
-ALTER TABLE IF EXISTS public.agent_missions ADD COLUMN IF NOT EXISTS progress_failed integer NOT NULL DEFAULT 0;
-ALTER TABLE IF EXISTS public.agent_missions ADD COLUMN IF NOT EXISTS progress_skipped integer NOT NULL DEFAULT 0;
-ALTER TABLE IF EXISTS public.agent_missions ADD COLUMN IF NOT EXISTS progress_remaining integer NOT NULL DEFAULT 30;
-ALTER TABLE IF EXISTS public.agent_missions ADD COLUMN IF NOT EXISTS failure_summary jsonb;
-ALTER TABLE IF EXISTS public.agent_missions ADD COLUMN IF NOT EXISTS terminal_result jsonb;
-ALTER TABLE IF EXISTS public.agent_missions ADD COLUMN IF NOT EXISTS completed_at timestamptz;
-ALTER TABLE IF EXISTS public.agent_mission_tasks ADD COLUMN IF NOT EXISTS attempts integer NOT NULL DEFAULT 0;
-ALTER TABLE IF EXISTS public.agent_mission_tasks ADD COLUMN IF NOT EXISTS max_attempts integer NOT NULL DEFAULT 3;
-ALTER TABLE IF EXISTS public.agent_mission_tasks ADD COLUMN IF NOT EXISTS run_after timestamptz NOT NULL DEFAULT now();
-ALTER TABLE IF EXISTS public.agent_mission_tasks ADD COLUMN IF NOT EXISTS lease_owner text;
-ALTER TABLE IF EXISTS public.agent_mission_tasks ADD COLUMN IF NOT EXISTS lease_expires_at timestamptz;
-ALTER TABLE IF EXISTS public.agent_mission_tasks ADD COLUMN IF NOT EXISTS lease_renewed_at timestamptz;
-ALTER TABLE IF EXISTS public.agent_mission_tasks ADD COLUMN IF NOT EXISTS error_category text;
-ALTER TABLE IF EXISTS public.agent_mission_tasks ADD COLUMN IF NOT EXISTS dependency_outcome text;
-ALTER TABLE IF EXISTS public.agent_mission_tasks ADD COLUMN IF NOT EXISTS terminal_result jsonb;
-CREATE INDEX IF NOT EXISTS idx_jobs_due_lease ON public.jobs(status,run_after,lease_expires_at);
-CREATE INDEX IF NOT EXISTS idx_mission_tasks_due_lease ON public.agent_mission_tasks(status,run_after,lease_expires_at);
-CREATE TABLE IF NOT EXISTS public.job_attempts (
-  id uuid PRIMARY KEY DEFAULT gen_random_uuid(), job_id uuid NOT NULL REFERENCES public.jobs(id) ON DELETE CASCADE,
-  tenant_id uuid REFERENCES public.tenants(id) ON DELETE CASCADE, attempt integer NOT NULL,
-  owner text, claimed_at timestamptz NOT NULL DEFAULT now(), lease_expires_at timestamptz,
-  finished_at timestamptz, outcome text, retryable boolean, error_category text, error text, result jsonb,
-  UNIQUE(job_id,attempt)
-);
-CREATE TABLE IF NOT EXISTS public.agent_mission_task_attempts (
-  id uuid PRIMARY KEY DEFAULT gen_random_uuid(), task_id uuid NOT NULL REFERENCES public.agent_mission_tasks(id) ON DELETE CASCADE,
-  mission_id uuid NOT NULL REFERENCES public.agent_missions(id) ON DELETE CASCADE,
-  tenant_id uuid NOT NULL REFERENCES public.tenants(id) ON DELETE CASCADE, attempt integer NOT NULL,
-  owner text NOT NULL, claimed_at timestamptz NOT NULL DEFAULT now(), lease_expires_at timestamptz,
-  finished_at timestamptz, outcome text, retryable boolean, error_category text, error text, result jsonb,
-  UNIQUE(task_id,attempt)
-);
-CREATE TABLE IF NOT EXISTS public.quota_reservations (
-  id uuid PRIMARY KEY DEFAULT gen_random_uuid(), tenant_id uuid NOT NULL REFERENCES public.tenants(id) ON DELETE CASCADE,
-  job_id uuid REFERENCES public.jobs(id) ON DELETE SET NULL, operation_id uuid REFERENCES public.job_operations(id) ON DELETE SET NULL,
-  requested_quantity integer NOT NULL DEFAULT 0, reserved_quantity integer NOT NULL DEFAULT 0,
-  committed_quantity integer NOT NULL DEFAULT 0, released_quantity integer NOT NULL DEFAULT 0,
-  status text NOT NULL DEFAULT 'reserved' CHECK(status IN ('reserved','committed','released','rejected')),
-  settlement_key text NOT NULL, created_at timestamptz NOT NULL DEFAULT now(), updated_at timestamptz NOT NULL DEFAULT now(),
-  UNIQUE(tenant_id,settlement_key)
-);
-CREATE TABLE IF NOT EXISTS public.quota_settlements (
-  id uuid PRIMARY KEY DEFAULT gen_random_uuid(), reservation_id uuid NOT NULL REFERENCES public.quota_reservations(id) ON DELETE CASCADE,
-  tenant_id uuid NOT NULL REFERENCES public.tenants(id) ON DELETE CASCADE, settlement_key text NOT NULL,
-  outcome text NOT NULL CHECK(outcome IN ('committed','released','rejected')), quantity integer NOT NULL DEFAULT 0,
-  created_at timestamptz NOT NULL DEFAULT now(), UNIQUE(reservation_id,settlement_key)
-);
-ALTER TABLE IF EXISTS public.worker_heartbeats ADD COLUMN IF NOT EXISTS queue_capability boolean NOT NULL DEFAULT false;
-ALTER TABLE IF EXISTS public.worker_heartbeats ADD COLUMN IF NOT EXISTS queue_checked_at timestamptz;
-ALTER TABLE IF EXISTS public.worker_heartbeats ADD COLUMN IF NOT EXISTS reclaim_capability boolean NOT NULL DEFAULT false;
-ALTER TABLE IF EXISTS public.worker_heartbeats ADD COLUMN IF NOT EXISTS reclaim_checked_at timestamptz;
-ALTER TABLE IF EXISTS public.worker_heartbeats ADD COLUMN IF NOT EXISTS last_terminal_error_category text;
-ALTER TABLE public.job_attempts ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.agent_mission_task_attempts ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.quota_reservations ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.quota_settlements ENABLE ROW LEVEL SECURITY;
-REVOKE ALL ON TABLE public.job_attempts, public.agent_mission_task_attempts, public.quota_reservations, public.quota_settlements FROM PUBLIC,anon,authenticated;
-GRANT ALL ON TABLE public.job_attempts, public.agent_mission_task_attempts, public.quota_reservations, public.quota_settlements TO service_role;
-CREATE OR REPLACE FUNCTION public.leadx_claim_next_job(p_worker_id text,p_kinds text[] DEFAULT NULL) RETURNS SETOF public.jobs LANGUAGE plpgsql SECURITY DEFINER SET search_path=public AS $$
-DECLARE r public.jobs%rowtype; BEGIN SELECT * INTO r FROM public.jobs WHERE status='queued' AND run_after<=now() AND (p_kinds IS NULL OR kind=ANY(p_kinds)) ORDER BY priority DESC,created_at FOR UPDATE SKIP LOCKED LIMIT 1; IF r.id IS NULL THEN RETURN; END IF; UPDATE public.jobs SET status='running',locked_by=p_worker_id,locked_at=now(),lease_renewed_at=now(),lease_expires_at=now()+make_interval(secs=>greatest(30,2700)),started_at=coalesce(started_at,now()),attempts=coalesce(attempts,0)+1,dependency_outcome='claimed' WHERE id=r.id AND status='queued' RETURNING * INTO r; INSERT INTO public.job_attempts(job_id,tenant_id,attempt,owner,lease_expires_at) VALUES(r.id,r.tenant_id,r.attempts,p_worker_id,r.lease_expires_at) ON CONFLICT(job_id,attempt) DO NOTHING; RETURN NEXT r; END $$;
-REVOKE ALL ON FUNCTION public.leadx_claim_next_job(text,text[]) FROM PUBLIC,anon,authenticated;
-GRANT EXECUTE ON FUNCTION public.leadx_claim_next_job(text,text[]) TO service_role;
-CREATE OR REPLACE FUNCTION public.leadx_probe_queue_capability(p_worker_id text,p_checked_at timestamptz DEFAULT now()) RETURNS jsonb LANGUAGE sql SECURITY DEFINER SET search_path=public AS $$
-  SELECT jsonb_build_object('ok',p_worker_id IS NOT NULL AND btrim(p_worker_id)<>'','worker_id',p_worker_id,'checked_at',coalesce(p_checked_at,now()),'queue_capability',true,'reclaim_capability',to_regprocedure('public.leadx_reap_stale_mission_tasks(integer)') IS NOT NULL)
-$$;
-CREATE OR REPLACE FUNCTION public.leadx_claim_mission_task(p_task_id uuid,p_tenant_id uuid,p_owner text,p_lease_seconds integer DEFAULT 900) RETURNS SETOF public.agent_mission_tasks LANGUAGE sql SECURITY DEFINER SET search_path=public AS $$
-  UPDATE public.agent_mission_tasks SET status='running',attempts=coalesce(attempts,0)+1,lease_owner=p_owner,lease_renewed_at=now(),lease_expires_at=now()+make_interval(secs=>greatest(30,p_lease_seconds)),updated_at=now() WHERE id=p_task_id AND tenant_id=p_tenant_id AND status='queued' AND run_after<=now() RETURNING *
-$$;
-CREATE OR REPLACE FUNCTION public.leadx_renew_mission_task(p_task_id uuid,p_tenant_id uuid,p_owner text,p_lease_seconds integer DEFAULT 900) RETURNS SETOF public.agent_mission_tasks LANGUAGE sql SECURITY DEFINER SET search_path=public AS $$
-  UPDATE public.agent_mission_tasks SET lease_renewed_at=now(),lease_expires_at=now()+make_interval(secs=>greatest(30,p_lease_seconds)),updated_at=now() WHERE id=p_task_id AND tenant_id=p_tenant_id AND status='running' AND lease_owner=p_owner AND (lease_expires_at IS NULL OR lease_expires_at>now()) RETURNING *
-$$;
-CREATE OR REPLACE FUNCTION public.leadx_reap_stale_mission_tasks(p_limit integer DEFAULT 500) RETURNS SETOF public.agent_mission_tasks LANGUAGE plpgsql SECURITY DEFINER SET search_path=public AS $$
-DECLARE r public.agent_mission_tasks%rowtype; v_status text; BEGIN FOR r IN SELECT * FROM public.agent_mission_tasks WHERE status='running' AND lease_expires_at IS NOT NULL AND lease_expires_at<now() ORDER BY lease_expires_at LIMIT greatest(1,least(p_limit,500)) FOR UPDATE SKIP LOCKED LOOP v_status:=case when coalesce(r.attempts,0)<coalesce(r.max_attempts,3) then 'queued' else 'failed' end; UPDATE public.agent_mission_tasks SET status=v_status,lease_owner=NULL,lease_expires_at=NULL,error='worker_lost_reaped',error_category='lease_expired',dependency_outcome=case when v_status='queued' then 'recovered' else 'terminal' end,run_after=now(),finished_at=case when v_status='failed' then now() else NULL end,updated_at=now() WHERE id=r.id AND status='running' AND lease_expires_at<now() RETURNING * INTO r; RETURN NEXT r; END LOOP; END $$;
-CREATE OR REPLACE FUNCTION public.leadx_record_quota_settlement(p_reservation_id uuid,p_tenant_id uuid,p_settlement_key text,p_outcome text,p_quantity integer DEFAULT 0) RETURNS jsonb LANGUAGE plpgsql SECURITY DEFINER SET search_path=public AS $$
-DECLARE r public.quota_reservations%rowtype; BEGIN SELECT * INTO r FROM public.quota_reservations WHERE id=p_reservation_id AND tenant_id=p_tenant_id FOR UPDATE; IF NOT FOUND THEN RETURN jsonb_build_object('ok',false,'reason','reservation_not_found'); END IF; INSERT INTO public.quota_settlements(reservation_id,tenant_id,settlement_key,outcome,quantity) VALUES(r.id,r.tenant_id,p_settlement_key,lower(p_outcome),greatest(0,p_quantity)) ON CONFLICT(reservation_id,settlement_key) DO NOTHING; IF NOT FOUND THEN RETURN jsonb_build_object('ok',true,'outcome','replay'); END IF; UPDATE public.quota_reservations SET status=lower(p_outcome),committed_quantity=case when lower(p_outcome)='committed' then p_quantity else committed_quantity end,released_quantity=case when lower(p_outcome) in ('released','rejected') then p_quantity else released_quantity end,updated_at=now() WHERE id=r.id AND status='reserved'; RETURN jsonb_build_object('ok',true,'outcome',lower(p_outcome),'settlement_key',p_settlement_key); END $$;
-REVOKE ALL ON FUNCTION public.leadx_probe_queue_capability(text,timestamptz), public.leadx_claim_mission_task(uuid,uuid,text,integer), public.leadx_renew_mission_task(uuid,uuid,text,integer), public.leadx_reap_stale_mission_tasks(integer), public.leadx_record_quota_settlement(uuid,uuid,text,text,integer) FROM PUBLIC, anon, authenticated;
-GRANT EXECUTE ON FUNCTION public.leadx_probe_queue_capability(text,timestamptz), public.leadx_claim_mission_task(uuid,uuid,text,integer), public.leadx_renew_mission_task(uuid,uuid,text,integer), public.leadx_reap_stale_mission_tasks(integer), public.leadx_record_quota_settlement(uuid,uuid,text,text,integer) TO service_role;
-NOTIFY pgrst, 'reload schema';
+
 -- Task 3: local-first discovery identity, persisted progress, and quota settlement.
+-- Additive and safe for existing discovery requests and Task 2 reservations.
 ALTER TABLE IF EXISTS public.discovery_requests
   ADD COLUMN IF NOT EXISTS mission_id uuid,
   ADD COLUMN IF NOT EXISTS job_id uuid,
@@ -11312,54 +11207,113 @@ ALTER TABLE IF EXISTS public.discovery_requests
   ADD COLUMN IF NOT EXISTS progress_qualifying integer NOT NULL DEFAULT 0,
   ADD COLUMN IF NOT EXISTS progress_billable integer NOT NULL DEFAULT 0,
   ADD COLUMN IF NOT EXISTS progress_shortfall integer NOT NULL DEFAULT 0;
-CREATE UNIQUE INDEX IF NOT EXISTS uq_discovery_requests_settlement_key ON public.discovery_requests(tenant_id, settlement_key) WHERE settlement_key IS NOT NULL;
-ALTER TABLE IF EXISTS public.quota_reservations ADD COLUMN IF NOT EXISTS request_id uuid;
-ALTER TABLE IF EXISTS public.quota_settlements ADD COLUMN IF NOT EXISTS committed_quantity integer NOT NULL DEFAULT 0, ADD COLUMN IF NOT EXISTS released_quantity integer NOT NULL DEFAULT 0;
+CREATE UNIQUE INDEX IF NOT EXISTS uq_discovery_requests_settlement_key
+  ON public.discovery_requests(tenant_id, settlement_key) WHERE settlement_key IS NOT NULL;
+ALTER TABLE IF EXISTS public.quota_reservations
+  ADD COLUMN IF NOT EXISTS request_id uuid;
+ALTER TABLE IF EXISTS public.quota_settlements
+  ADD COLUMN IF NOT EXISTS committed_quantity integer NOT NULL DEFAULT 0,
+  ADD COLUMN IF NOT EXISTS released_quantity integer NOT NULL DEFAULT 0;
+
 CREATE TABLE IF NOT EXISTS public.discovery_tasks (
-  id uuid PRIMARY KEY DEFAULT gen_random_uuid(), request_id uuid NOT NULL REFERENCES public.discovery_requests(id) ON DELETE CASCADE,
-  tenant_id uuid NOT NULL REFERENCES public.tenants(id) ON DELETE CASCADE, task_key text NOT NULL,
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  request_id uuid NOT NULL REFERENCES public.discovery_requests(id) ON DELETE CASCADE,
+  tenant_id uuid NOT NULL REFERENCES public.tenants(id) ON DELETE CASCADE,
+  task_key text NOT NULL,
   status text NOT NULL DEFAULT 'queued' CHECK (status IN ('queued','running','completed','failed','skipped','cancelled')),
-  provider text, started_at timestamptz, finished_at timestamptz, error_category text,
-  created_at timestamptz NOT NULL DEFAULT now(), updated_at timestamptz NOT NULL DEFAULT now(), UNIQUE(request_id,task_key)
+  provider text,
+  started_at timestamptz,
+  finished_at timestamptz,
+  error_category text,
+  created_at timestamptz NOT NULL DEFAULT now(),
+  updated_at timestamptz NOT NULL DEFAULT now(),
+  UNIQUE(request_id, task_key)
 );
-CREATE INDEX IF NOT EXISTS idx_discovery_tasks_projection ON public.discovery_tasks(request_id,tenant_id,status);
+CREATE INDEX IF NOT EXISTS idx_discovery_tasks_projection ON public.discovery_tasks(request_id, tenant_id, status);
+
 CREATE TABLE IF NOT EXISTS public.discovery_provider_results (
-  id uuid PRIMARY KEY DEFAULT gen_random_uuid(), request_id uuid NOT NULL REFERENCES public.discovery_requests(id) ON DELETE CASCADE,
-  tenant_id uuid NOT NULL REFERENCES public.tenants(id) ON DELETE CASCADE, lead_id uuid, task_id uuid REFERENCES public.discovery_tasks(id) ON DELETE SET NULL,
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  request_id uuid NOT NULL REFERENCES public.discovery_requests(id) ON DELETE CASCADE,
+  tenant_id uuid NOT NULL REFERENCES public.tenants(id) ON DELETE CASCADE,
+  lead_id uuid,
+  task_id uuid REFERENCES public.discovery_tasks(id) ON DELETE SET NULL,
   status text NOT NULL DEFAULT 'persisted' CHECK (status IN ('persisted','completed','qualified','failed','skipped')),
-  persisted boolean NOT NULL DEFAULT true, qualifying boolean NOT NULL DEFAULT false, billable boolean NOT NULL DEFAULT false,
-  source text, provenance jsonb NOT NULL DEFAULT '{}'::jsonb, result jsonb NOT NULL DEFAULT '{}'::jsonb,
-  created_at timestamptz NOT NULL DEFAULT now(), updated_at timestamptz NOT NULL DEFAULT now(), UNIQUE(request_id,lead_id)
+  persisted boolean NOT NULL DEFAULT true,
+  qualifying boolean NOT NULL DEFAULT false,
+  billable boolean NOT NULL DEFAULT false,
+  source text,
+  provenance jsonb NOT NULL DEFAULT '{}'::jsonb,
+  result jsonb NOT NULL DEFAULT '{}'::jsonb,
+  created_at timestamptz NOT NULL DEFAULT now(),
+  updated_at timestamptz NOT NULL DEFAULT now(),
+  UNIQUE(request_id, lead_id)
 );
-CREATE INDEX IF NOT EXISTS idx_discovery_results_projection ON public.discovery_provider_results(request_id,tenant_id,status);
-ALTER TABLE public.discovery_tasks ENABLE ROW LEVEL SECURITY; ALTER TABLE public.discovery_provider_results ENABLE ROW LEVEL SECURITY;
-REVOKE ALL ON TABLE public.discovery_tasks,public.discovery_provider_results FROM PUBLIC,anon,authenticated;
-GRANT ALL ON TABLE public.discovery_tasks,public.discovery_provider_results TO service_role;
-CREATE OR REPLACE FUNCTION public.leadx_reserve_discovery_quota(p_reservation_id uuid,p_tenant_id uuid,p_request_id uuid,p_requested integer,p_settlement_key text) RETURNS jsonb LANGUAGE plpgsql SECURITY DEFINER SET search_path=public AS $$
-DECLARE v_period date:=date_trunc('month',now())::date; v_limit integer; v_used integer; v_reserved integer; v_available integer; v_existing public.quota_reservations%ROWTYPE;
+CREATE INDEX IF NOT EXISTS idx_discovery_results_projection ON public.discovery_provider_results(request_id, tenant_id, status);
+ALTER TABLE public.discovery_tasks ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.discovery_provider_results ENABLE ROW LEVEL SECURITY;
+REVOKE ALL ON TABLE public.discovery_tasks, public.discovery_provider_results FROM PUBLIC, anon, authenticated;
+GRANT ALL ON TABLE public.discovery_tasks, public.discovery_provider_results TO service_role;
+
+CREATE OR REPLACE FUNCTION public.leadx_reserve_discovery_quota(
+  p_reservation_id uuid, p_tenant_id uuid, p_request_id uuid,
+  p_requested integer, p_settlement_key text
+) RETURNS jsonb LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
+DECLARE
+  v_period date := date_trunc('month', now())::date;
+  v_limit integer; v_used integer; v_reserved integer; v_available integer;
+  v_existing public.quota_reservations%ROWTYPE;
 BEGIN
- IF p_reservation_id IS NULL OR p_tenant_id IS NULL OR p_request_id IS NULL OR p_requested IS NULL OR p_requested<=0 OR nullif(btrim(coalesce(p_settlement_key,'')),'') IS NULL THEN RETURN jsonb_build_object('ok',false,'reason','invalid_reservation'); END IF;
- SELECT leads_per_month_limit INTO v_limit FROM public.tenants WHERE id=p_tenant_id FOR UPDATE; IF NOT FOUND THEN RETURN jsonb_build_object('ok',false,'reason','tenant_not_found'); END IF;
- SELECT * INTO v_existing FROM public.quota_reservations WHERE tenant_id=p_tenant_id AND settlement_key=p_settlement_key FOR UPDATE; IF FOUND THEN RETURN jsonb_build_object('ok',true,'replayed',true,'reservation_id',v_existing.id,'granted',v_existing.reserved_quantity,'status',v_existing.status); END IF;
- INSERT INTO public.usage_log(tenant_id,period,leads_delivered,quota_reserved) VALUES(p_tenant_id,v_period,0,0) ON CONFLICT(tenant_id,period) DO NOTHING;
- SELECT coalesce(leads_delivered,0),coalesce(quota_reserved,0) INTO v_used,v_reserved FROM public.usage_log WHERE tenant_id=p_tenant_id AND period=v_period FOR UPDATE;
- v_available:=greatest(coalesce(v_limit,0)-v_used-v_reserved,0); IF v_available<p_requested THEN RETURN jsonb_build_object('ok',false,'reason','quota_exhausted','granted',v_available); END IF;
- INSERT INTO public.quota_reservations(id,tenant_id,request_id,requested_quantity,reserved_quantity,settlement_key) VALUES(p_reservation_id,p_tenant_id,p_request_id,p_requested,p_requested,p_settlement_key);
- UPDATE public.usage_log SET quota_reserved=quota_reserved+p_requested,updated_at=now() WHERE tenant_id=p_tenant_id AND period=v_period;
- RETURN jsonb_build_object('ok',true,'replayed',false,'reservation_id',p_reservation_id,'granted',p_requested);
+  IF p_reservation_id IS NULL OR p_tenant_id IS NULL OR p_request_id IS NULL
+     OR p_requested IS NULL OR p_requested <= 0 OR nullif(btrim(coalesce(p_settlement_key,'')),'') IS NULL THEN
+    RETURN jsonb_build_object('ok',false,'reason','invalid_reservation');
+  END IF;
+  SELECT leads_per_month_limit INTO v_limit FROM public.tenants WHERE id=p_tenant_id FOR UPDATE;
+  IF NOT FOUND THEN RETURN jsonb_build_object('ok',false,'reason','tenant_not_found'); END IF;
+  SELECT * INTO v_existing FROM public.quota_reservations WHERE tenant_id=p_tenant_id AND settlement_key=p_settlement_key FOR UPDATE;
+  IF FOUND THEN RETURN jsonb_build_object('ok',true,'replayed',true,'reservation_id',v_existing.id,'granted',v_existing.reserved_quantity,'status',v_existing.status); END IF;
+  INSERT INTO public.usage_log(tenant_id,period,leads_delivered,quota_reserved)
+    VALUES(p_tenant_id,v_period,0,0) ON CONFLICT(tenant_id,period) DO NOTHING;
+  SELECT coalesce(leads_delivered,0),coalesce(quota_reserved,0) INTO v_used,v_reserved
+    FROM public.usage_log WHERE tenant_id=p_tenant_id AND period=v_period FOR UPDATE;
+  v_available := greatest(coalesce(v_limit,0) - v_used - v_reserved, 0);
+  IF v_available < p_requested THEN
+    RETURN jsonb_build_object('ok',false,'reason','quota_exhausted','granted',v_available);
+  END IF;
+  INSERT INTO public.quota_reservations(id,tenant_id,request_id,requested_quantity,reserved_quantity,settlement_key)
+    VALUES(p_reservation_id,p_tenant_id,p_request_id,p_requested,p_requested,p_settlement_key);
+  UPDATE public.usage_log SET quota_reserved=quota_reserved+p_requested,updated_at=now()
+    WHERE tenant_id=p_tenant_id AND period=v_period;
+  RETURN jsonb_build_object('ok',true,'replayed',false,'reservation_id',p_reservation_id,'granted',p_requested);
 END $$;
-CREATE OR REPLACE FUNCTION public.leadx_settle_discovery_reservation(p_reservation_id uuid,p_tenant_id uuid,p_settlement_key text,p_committed integer DEFAULT 0,p_released integer DEFAULT 0) RETURNS jsonb LANGUAGE plpgsql SECURITY DEFINER SET search_path=public AS $$
-DECLARE r public.quota_reservations%ROWTYPE; v_period date:=date_trunc('month',now())::date;
+
+CREATE OR REPLACE FUNCTION public.leadx_settle_discovery_reservation(
+  p_reservation_id uuid, p_tenant_id uuid, p_settlement_key text,
+  p_committed integer DEFAULT 0, p_released integer DEFAULT 0
+) RETURNS jsonb LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
+DECLARE r public.quota_reservations%ROWTYPE; v_period date := date_trunc('month',now())::date;
 BEGIN
- IF p_committed<0 OR p_released<0 OR nullif(btrim(coalesce(p_settlement_key,'')),'') IS NULL THEN RETURN jsonb_build_object('ok',false,'reason','invalid_settlement'); END IF;
- SELECT * INTO r FROM public.quota_reservations WHERE id=p_reservation_id AND tenant_id=p_tenant_id FOR UPDATE; IF NOT FOUND THEN RETURN jsonb_build_object('ok',false,'reason','reservation_not_found'); END IF;
- IF r.status<>'reserved' THEN RETURN jsonb_build_object('ok',true,'replayed',true,'status',r.status,'committed',r.committed_quantity,'released',r.released_quantity); END IF;
- IF p_committed+p_released>r.reserved_quantity THEN RETURN jsonb_build_object('ok',false,'reason','settlement_exceeds_reservation'); END IF;
- INSERT INTO public.quota_settlements(reservation_id,tenant_id,settlement_key,outcome,quantity,committed_quantity,released_quantity) VALUES(r.id,r.tenant_id,p_settlement_key,CASE WHEN p_committed>0 THEN 'committed' ELSE 'released' END,p_committed,p_committed,p_released) ON CONFLICT(reservation_id,settlement_key) DO NOTHING;
- IF NOT FOUND THEN RETURN jsonb_build_object('ok',true,'replayed',true,'status',r.status); END IF;
- UPDATE public.quota_reservations SET status=CASE WHEN p_committed>0 THEN 'committed' ELSE 'released' END,committed_quantity=p_committed,released_quantity=p_released,updated_at=now() WHERE id=r.id;
- UPDATE public.usage_log SET quota_reserved=greatest(quota_reserved-p_committed-p_released,0),leads_delivered=leads_delivered+p_committed,updated_at=now() WHERE tenant_id=p_tenant_id AND period=v_period;
- RETURN jsonb_build_object('ok',true,'replayed',false,'status',CASE WHEN p_committed>0 THEN 'committed' ELSE 'released' END,'committed',p_committed,'released',p_released,'settlement_key',p_settlement_key);
+  IF p_committed < 0 OR p_released < 0 OR nullif(btrim(coalesce(p_settlement_key,'')),'') IS NULL THEN
+    RETURN jsonb_build_object('ok',false,'reason','invalid_settlement');
+  END IF;
+  SELECT * INTO r FROM public.quota_reservations WHERE id=p_reservation_id AND tenant_id=p_tenant_id FOR UPDATE;
+  IF NOT FOUND THEN RETURN jsonb_build_object('ok',false,'reason','reservation_not_found'); END IF;
+  IF r.status <> 'reserved' THEN
+    RETURN jsonb_build_object('ok',true,'replayed',true,'status',r.status,'committed',r.committed_quantity,'released',r.released_quantity);
+  END IF;
+  IF p_committed + p_released > r.reserved_quantity THEN
+    RETURN jsonb_build_object('ok',false,'reason','settlement_exceeds_reservation');
+  END IF;
+  INSERT INTO public.quota_settlements(reservation_id,tenant_id,settlement_key,outcome,quantity,committed_quantity,released_quantity)
+    VALUES(r.id,r.tenant_id,p_settlement_key,CASE WHEN p_committed > 0 THEN 'committed' ELSE 'released' END,p_committed,p_committed,p_released)
+    ON CONFLICT(reservation_id,settlement_key) DO NOTHING;
+  IF NOT FOUND THEN RETURN jsonb_build_object('ok',true,'replayed',true,'status',r.status); END IF;
+  UPDATE public.quota_reservations SET status=CASE WHEN p_committed > 0 THEN 'committed' ELSE 'released' END,
+    committed_quantity=p_committed,released_quantity=p_released,updated_at=now() WHERE id=r.id;
+  UPDATE public.usage_log SET quota_reserved=greatest(quota_reserved-p_committed-p_released,0),
+    leads_delivered=leads_delivered+p_committed,updated_at=now()
+    WHERE tenant_id=p_tenant_id AND period=v_period;
+  RETURN jsonb_build_object('ok',true,'replayed',false,'status',CASE WHEN p_committed > 0 THEN 'committed' ELSE 'released' END,
+    'committed',p_committed,'released',p_released,'settlement_key',p_settlement_key);
 END $$;
 REVOKE ALL ON FUNCTION public.leadx_reserve_discovery_quota(uuid,uuid,uuid,integer,text), public.leadx_settle_discovery_reservation(uuid,uuid,text,integer,integer) FROM PUBLIC, anon, authenticated;
 GRANT EXECUTE ON FUNCTION public.leadx_reserve_discovery_quota(uuid,uuid,uuid,integer,text), public.leadx_settle_discovery_reservation(uuid,uuid,text,integer,integer) TO service_role;
@@ -11368,9 +11322,17 @@ NOTIFY pgrst, 'reload schema';
 -- ============================================================================
 -- CANONICAL MIGRATION 35: 20261020001700_leadx_5_tenant_scope_hardening.sql
 -- ============================================================================
+
 -- LeadX Task 5: additive tenant scope and security checks.
+-- Browser roles remain denied; FastAPI/worker service-role calls must supply
+-- verified membership/tenant scope before reaching these backend-only tables.
+
 ALTER TABLE IF EXISTS public.job_operations
   ADD COLUMN IF NOT EXISTS principal_scope text NOT NULL DEFAULT '';
+
+-- Bind every durable operation to the derived principal scope. The existing
+-- global operation/key uniqueness is retained for compatibility; this scoped
+-- index and lookup path prevent a replay/fallback from crossing tenants.
 UPDATE public.job_operations
 SET principal_scope = COALESCE(NULLIF(principal_scope, ''), NULLIF(scope_hash, ''), 'legacy')
 WHERE principal_scope IS NULL OR principal_scope = '';
@@ -11378,8 +11340,13 @@ CREATE UNIQUE INDEX IF NOT EXISTS uq_job_operations_scoped_identity
   ON public.job_operations(tenant_id, principal_scope, operation_kind, idempotency_key);
 CREATE INDEX IF NOT EXISTS idx_job_operations_tenant_principal
   ON public.job_operations(tenant_id, principal_scope, operation_kind, idempotency_key);
+
 CREATE OR REPLACE FUNCTION public.leadx_set_job_operation_scope()
-RETURNS trigger LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
+RETURNS trigger
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
 BEGIN
   IF NEW.principal_scope IS NULL OR btrim(NEW.principal_scope) = '' THEN
     NEW.principal_scope := COALESCE(NULLIF(btrim(NEW.scope_hash), ''), 'legacy');
@@ -11393,6 +11360,9 @@ BEFORE INSERT OR UPDATE OF scope_hash, principal_scope ON public.job_operations
 FOR EACH ROW EXECUTE FUNCTION public.leadx_set_job_operation_scope();
 REVOKE ALL ON FUNCTION public.leadx_set_job_operation_scope() FROM PUBLIC, anon, authenticated;
 GRANT EXECUTE ON FUNCTION public.leadx_set_job_operation_scope() TO service_role;
+
+-- Explicitly keep all protected data-plane tables backend-only and RLS-gated,
+-- including newer tables that were added after the original tenant policies.
 DO $$
 DECLARE table_name text;
 BEGIN
@@ -11409,6 +11379,10 @@ BEGIN
     END IF;
   END LOOP;
 END $$;
+
+-- Reassert semantic policies for direct PostgREST deployments. FastAPI uses
+-- service_role and performs the same checks in require_tenant/require_admin;
+-- these policies are additive defense-in-depth for authenticated database use.
 DO $$
 BEGIN
   IF to_regclass('public.audit_log') IS NOT NULL THEN
@@ -11422,291 +11396,462 @@ BEGIN
       USING (tenant_id IS NULL OR public.is_tenant_member(tenant_id));
   END IF;
 END $$;
+
+-- A service-role-only, non-disclosing preflight proves the expected security
+-- boundary without returning rows, tenant names, membership, or credentials.
 CREATE OR REPLACE FUNCTION public.leadx_verify_tenant_security()
-RETURNS jsonb LANGUAGE plpgsql STABLE SECURITY DEFINER SET search_path = pg_catalog, public AS $$
-DECLARE table_name text; missing_rls text[] := ARRAY[]::text[];
+RETURNS jsonb
+LANGUAGE plpgsql
+STABLE
+SECURITY DEFINER
+SET search_path = pg_catalog, public
+AS $$
+DECLARE
+  table_name text;
+  missing_rls text[] := ARRAY[]::text[];
 BEGIN
   FOREACH table_name IN ARRAY ARRAY[
     'tenants','tenant_members','jobs','job_operations','operation_idempotency',
     'agent_missions','agent_mission_tasks','quota_reservations','audit_log','security_events',
     'companies','contacts','deals','activities','tasks','notes','sequences','automations'
   ] LOOP
-    IF to_regclass('public.' || table_name) IS NOT NULL AND NOT EXISTS (
-      SELECT 1 FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace
-      WHERE n.nspname = 'public' AND c.relname = table_name AND c.relrowsecurity
-    ) THEN
-      missing_rls := missing_rls || ('rls:' || table_name);
+    IF to_regclass('public.' || table_name) IS NOT NULL THEN
+      IF NOT EXISTS (
+        SELECT 1 FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace
+        WHERE n.nspname = 'public' AND c.relname = table_name AND c.relrowsecurity
+      ) THEN
+        missing_rls := missing_rls || ('rls:' || table_name);
+      END IF;
     END IF;
   END LOOP;
-  RETURN jsonb_build_object('ok', cardinality(missing_rls) = 0, 'missing', to_jsonb(missing_rls), 'browser_roles', 'revoked', 'checked_at', clock_timestamp());
+  RETURN jsonb_build_object(
+    'ok', cardinality(missing_rls) = 0,
+    'missing', to_jsonb(missing_rls),
+    'browser_roles', 'revoked',
+    'checked_at', clock_timestamp()
+  );
 END;
 $$;
 REVOKE ALL ON FUNCTION public.leadx_verify_tenant_security() FROM PUBLIC, anon, authenticated;
 GRANT EXECUTE ON FUNCTION public.leadx_verify_tenant_security() TO service_role;
-NOTIFY pgrst,'reload schema';
 
--- Canonical migration parity repair for 20261001000950_leadx_16_durable_task_recovery.sql.
--- Keep the clean-install mirror behaviorally identical to the ordered file.
-CREATE INDEX IF NOT EXISTS idx_jobs_retry_after ON public.jobs(retry_after) WHERE status = 'queued';
-CREATE INDEX IF NOT EXISTS idx_job_operations_principal ON public.job_operations(tenant_id, principal_scope, operation_kind, idempotency_key);
-CREATE INDEX IF NOT EXISTS idx_mission_tasks_owner ON public.agent_mission_tasks(tenant_id, lease_owner) WHERE status = 'running';
-CREATE INDEX IF NOT EXISTS idx_job_attempts_tenant_job ON public.job_attempts(tenant_id, job_id, attempt);
-CREATE INDEX IF NOT EXISTS idx_mission_task_attempts_task ON public.agent_mission_task_attempts(tenant_id, task_id, attempt);
-CREATE INDEX IF NOT EXISTS idx_quota_reservations_job ON public.quota_reservations(tenant_id, job_id);
-CREATE INDEX IF NOT EXISTS idx_quota_reservations_status ON public.quota_reservations(tenant_id, status, updated_at);
-CREATE INDEX IF NOT EXISTS idx_quota_settlements_tenant ON public.quota_settlements(tenant_id, created_at DESC);
-CREATE INDEX IF NOT EXISTS idx_worker_heartbeats_capability ON public.worker_heartbeats(status, queue_checked_at, reclaim_checked_at);
+NOTIFY pgrst, 'reload schema';
 
-CREATE OR REPLACE FUNCTION public.leadx_claim_mission_task(
-  p_task_id uuid, p_tenant_id uuid, p_owner text, p_lease_seconds integer DEFAULT 900
-) RETURNS SETOF public.agent_mission_tasks LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
-DECLARE r public.agent_mission_tasks%rowtype; v_attempt integer;
-BEGIN
-  SELECT * INTO r FROM public.agent_mission_tasks WHERE id=p_task_id AND tenant_id=p_tenant_id
-    AND status='queued' AND run_after <= now() FOR UPDATE SKIP LOCKED;
-  IF r.id IS NULL THEN RETURN; END IF;
-  v_attempt := COALESCE(r.attempts,0)+1;
-  UPDATE public.agent_mission_tasks SET status='running', attempts=v_attempt,
-    lease_owner=p_owner, lease_renewed_at=now(), lease_expires_at=now()+make_interval(secs=>GREATEST(30,p_lease_seconds)),
-    started_at=COALESCE(started_at,now()), error=NULL, error_category=NULL, dependency_outcome='claimed', updated_at=now()
-    WHERE id=r.id AND tenant_id=p_tenant_id AND status='queued' RETURNING * INTO r;
-  INSERT INTO public.agent_mission_task_attempts(task_id,mission_id,tenant_id,attempt,owner,lease_expires_at)
-    VALUES(r.id,r.mission_id,r.tenant_id,r.attempts,r.lease_owner,r.lease_expires_at)
-    ON CONFLICT(task_id,attempt) DO NOTHING;
-  RETURN NEXT r;
-END $$;
-
-CREATE OR REPLACE FUNCTION public.leadx_reap_stale_mission_tasks(p_limit integer DEFAULT 500)
-RETURNS SETOF public.agent_mission_tasks LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
-DECLARE r public.agent_mission_tasks%rowtype; v_status text;
-BEGIN
-  FOR r IN SELECT * FROM public.agent_mission_tasks
-    WHERE status='running' AND lease_expires_at IS NOT NULL AND lease_expires_at < now()
-    ORDER BY lease_expires_at LIMIT GREATEST(1,LEAST(p_limit,500)) FOR UPDATE SKIP LOCKED LOOP
-    v_status := CASE WHEN COALESCE(r.attempts,0) < COALESCE(r.max_attempts,3) THEN 'queued' ELSE 'failed' END;
-    UPDATE public.agent_mission_tasks SET status=v_status, lease_owner=NULL, lease_expires_at=NULL,
-      error='worker_lost_reaped', error_category='lease_expired', dependency_outcome=CASE WHEN v_status='queued' THEN 'recovered' ELSE 'terminal' END,
-      run_after=CASE WHEN v_status='queued' THEN now()+make_interval(secs=>LEAST(3600,60*2^GREATEST(0,r.attempts-1))) ELSE now() END,
-      finished_at=CASE WHEN v_status='failed' THEN now() ELSE NULL END,
-      terminal_result=CASE WHEN v_status='failed' THEN jsonb_build_object('status','failed','error_category','lease_expired') ELSE NULL END,
-      updated_at=now()
-      WHERE id=r.id AND status='running' AND lease_expires_at < now() RETURNING * INTO r;
-    UPDATE public.agent_mission_task_attempts SET finished_at=now(), outcome=v_status, retryable=(v_status='queued'), error_category='lease_expired'
-      WHERE task_id=r.id AND attempt=r.attempts AND finished_at IS NULL;
-    RETURN NEXT r;
-  END LOOP;
-END $$;
 -- ============================================================================
 -- CANONICAL MIGRATION 36: 20261025000100_leadx_scoped_work_transitions.sql
 -- ============================================================================
--- Clean-install mirror of the additive scoped transition RPC. The executable
--- migration contains the full comments; this mirror keeps the same function,
--- lock predicates, terminal labels, lease cleanup, and accounting calls.
+
+-- LeadX additive scoped-work transition primitive.
+-- This function only locks rows selected by one explicit run or tenant scope.
+-- It does not delete data, create an operation ledger, or infer a global scope.
+
 CREATE OR REPLACE FUNCTION public.leadx_transition_scoped_work(
-  p_scope_kind text, p_run_id uuid DEFAULT NULL, p_tenant_id uuid DEFAULT NULL,
+  p_scope_kind text,
+  p_run_id uuid DEFAULT NULL,
+  p_tenant_id uuid DEFAULT NULL,
   p_cutoff timestamptz DEFAULT NULL,
   p_status_allowlist text[] DEFAULT ARRAY['queued','running','retrying']::text[],
   p_apply boolean DEFAULT false
-) RETURNS jsonb LANGUAGE plpgsql SECURITY DEFINER SET search_path=public AS $$
+) RETURNS jsonb
+LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
 DECLARE
-  v_scope text := lower(btrim(coalesce(p_scope_kind,'')));
-  v_runs uuid[] := ARRAY[]::uuid[]; v_jobs uuid[] := ARRAY[]::uuid[];
-  v_missions uuid[] := ARRAY[]::uuid[]; v_tasks uuid[] := ARRAY[]::uuid[];
-  v_agent_runs uuid[] := ARRAY[]::uuid[]; v_reservations uuid[] := ARRAY[]::uuid[];
-  v_pending integer := 0; v_remaining integer := 0; v_remaining_stale integer := 0;
-  v_report_limit integer := 500; v_result jsonb;
+  v_scope text := lower(btrim(coalesce(p_scope_kind, '')));
+  v_active text[] := ARRAY['queued','running','retrying']::text[];
+  v_run_count integer := 0;
+  v_job_count integer := 0;
+  v_agent_run_count integer := 0;
+  v_mission_count integer := 0;
+  v_task_count integer := 0;
+  v_reservation_count integer := 0;
+  v_transitioned integer := 0;
+  v_changed integer := 0;
+  v_accounting_pending integer := 0;
+  v_remaining integer := 0;
+  v_remaining_active integer := 0;
+  v_remaining_stale integer := 0;
+  v_release integer;
+  v_run_changed integer := 0;
+  v_job_changed integer := 0;
+  v_agent_run_changed integer := 0;
+  v_task_changed integer := 0;
+  v_mission_changed integer := 0;
+  v_report_limit integer := 500;
   v_selected_by_status jsonb := '{}'::jsonb;
   v_transitioned_by_table jsonb := '{}'::jsonb;
   v_skipped_by_table jsonb := '{}'::jsonb;
   v_failed_reason_codes jsonb := '[]'::jsonb;
   v_skipped_reason_codes jsonb := '[]'::jsonb;
-  v_id uuid; v_tenant uuid; v_quantity integer;
+  v_result jsonb;
+  v_job_id uuid;
+  v_reservation_id uuid;
 BEGIN
   IF v_scope NOT IN ('run','tenant_active','tenant_stale') THEN
     RETURN jsonb_build_object('ok',false,'reason','unsupported_scope');
   END IF;
-  IF p_status_allowlist IS NULL OR cardinality(p_status_allowlist)=0
-     OR NOT (p_status_allowlist <@ ARRAY['queued','running','retrying']::text[]) THEN
+  IF p_status_allowlist IS NULL OR cardinality(p_status_allowlist) = 0
+     OR NOT (p_status_allowlist <@ v_active) THEN
     RETURN jsonb_build_object('ok',false,'reason','invalid_status_allowlist');
   END IF;
-  IF v_scope='run' AND (p_run_id IS NULL OR p_tenant_id IS NOT NULL OR p_cutoff IS NOT NULL) THEN
-    RETURN jsonb_build_object('ok',false,'reason','invalid_run_scope');
-  END IF;
-  IF v_scope<>'run' AND (p_tenant_id IS NULL OR p_run_id IS NOT NULL
-      OR (v_scope='tenant_stale' AND p_cutoff IS NULL)
-      OR (v_scope='tenant_active' AND p_cutoff IS NOT NULL)) THEN
+  IF v_scope = 'run' THEN
+    IF p_run_id IS NULL OR p_tenant_id IS NOT NULL OR p_cutoff IS NOT NULL THEN
+      RETURN jsonb_build_object('ok',false,'reason','invalid_run_scope');
+    END IF;
+  ELSIF p_tenant_id IS NULL OR p_run_id IS NOT NULL THEN
     RETURN jsonb_build_object('ok',false,'reason','invalid_tenant_scope');
+  ELSIF v_scope = 'tenant_stale' AND p_cutoff IS NULL THEN
+    RETURN jsonb_build_object('ok',false,'reason','cutoff_required');
+  ELSIF v_scope = 'tenant_active' AND p_cutoff IS NOT NULL THEN
+    RETURN jsonb_build_object('ok',false,'reason','cutoff_not_allowed');
   END IF;
 
-  SELECT coalesce(array_agg(x.id ORDER BY x.id),'{}') INTO v_runs
-  FROM (SELECT pr.id FROM public.pipeline_runs pr
-    WHERE pr.status=ANY(p_status_allowlist)
-      AND ((v_scope='run' AND pr.id=p_run_id) OR (v_scope<>'run' AND pr.tenant_id=p_tenant_id
-        AND (v_scope='tenant_active' OR coalesce(pr.updated_at,pr.started_at,pr.created_at)<=p_cutoff)))
-    ORDER BY pr.id FOR UPDATE) x;
-  SELECT coalesce(array_agg(x.id ORDER BY x.id),'{}') INTO v_jobs
-  FROM (SELECT j.id FROM public.jobs j
-    WHERE j.status=ANY(p_status_allowlist)
-      AND ((v_scope='run' AND (j.id=ANY(v_runs) OR j.payload->>'run_id'=ANY(v_runs::text[])))
-        OR (v_scope<>'run' AND j.tenant_id=p_tenant_id
-          AND (v_scope='tenant_active' OR coalesce(j.locked_at,j.created_at)<=p_cutoff)))
-    ORDER BY j.id FOR UPDATE) x;
-  SELECT coalesce(array_agg(x.id ORDER BY x.id),'{}') INTO v_agent_runs
-  FROM (SELECT ar.id FROM public.agent_runs ar
-    WHERE ar.status IN ('queued','running')
-      AND ((v_scope='run' AND ar.input_data->>'run_id'=ANY(v_runs::text[]))
-        OR (v_scope<>'run' AND ar.tenant_id=p_tenant_id
-          AND (v_scope='tenant_active' OR coalesce(ar.updated_at,ar.created_at)<=p_cutoff)))
-    ORDER BY ar.id FOR UPDATE) x;
-  SELECT coalesce(array_agg(x.id ORDER BY x.id),'{}') INTO v_missions
-  FROM (SELECT m.id FROM public.agent_missions m
-    WHERE m.status IN ('queued','running')
-      AND ((v_scope='run' AND m.input_data->>'run_id'=ANY(v_runs::text[]))
-        OR (v_scope<>'run' AND m.tenant_id=p_tenant_id
-          AND (v_scope='tenant_active' OR coalesce(m.updated_at,m.created_at)<=p_cutoff)))
-    ORDER BY m.id FOR UPDATE) x;
-  SELECT coalesce(array_agg(x.id ORDER BY x.id),'{}') INTO v_tasks
-  FROM (SELECT t.id FROM public.agent_mission_tasks t
-    WHERE (t.status=ANY(p_status_allowlist) OR t.status='blocked')
-      AND ((t.mission_id=ANY(v_missions)) OR (v_scope='run' AND t.agent_run_id=ANY(v_agent_runs))
-        OR (v_scope<>'run' AND t.tenant_id=p_tenant_id
-          AND (v_scope='tenant_active' OR coalesce(t.lease_expires_at,t.updated_at,t.created_at)<=p_cutoff)))
-    ORDER BY t.id FOR UPDATE) x;
-  SELECT coalesce(array_agg(x.id ORDER BY x.id),'{}') INTO v_reservations
-  FROM (SELECT q.id FROM public.quota_reservations q
-    WHERE q.status='reserved' AND (q.job_id=ANY(v_jobs) OR q.operation_id IN
-      (SELECT jo.id FROM public.job_operations jo WHERE jo.job_id=ANY(v_jobs)))
-    ORDER BY q.id FOR UPDATE) x;
+  CREATE TEMP TABLE IF NOT EXISTS _leadx_reset_runs(id uuid PRIMARY KEY) ON COMMIT DROP;
+  CREATE TEMP TABLE IF NOT EXISTS _leadx_reset_jobs(id uuid PRIMARY KEY) ON COMMIT DROP;
+  CREATE TEMP TABLE IF NOT EXISTS _leadx_reset_agent_runs(id uuid PRIMARY KEY) ON COMMIT DROP;
+  CREATE TEMP TABLE IF NOT EXISTS _leadx_reset_missions(id uuid PRIMARY KEY) ON COMMIT DROP;
+  CREATE TEMP TABLE IF NOT EXISTS _leadx_reset_tasks(id uuid PRIMARY KEY) ON COMMIT DROP;
+  CREATE TEMP TABLE IF NOT EXISTS _leadx_reset_reservations(id uuid PRIMARY KEY) ON COMMIT DROP;
+  TRUNCATE _leadx_reset_runs, _leadx_reset_jobs, _leadx_reset_agent_runs,
+    _leadx_reset_missions, _leadx_reset_tasks, _leadx_reset_reservations;
+
+  -- Lock parent runs first. The scope predicate is repeated by every child
+  -- selection, so a tenant or stale reset cannot widen through a join.
+  INSERT INTO _leadx_reset_runs(id)
+  SELECT pr.id
+  FROM public.pipeline_runs pr
+  WHERE pr.status = ANY(p_status_allowlist)
+    AND ((v_scope = 'run' AND pr.id = p_run_id)
+      OR (v_scope <> 'run' AND pr.tenant_id = p_tenant_id
+          AND (v_scope = 'tenant_active'
+            OR COALESCE(pr.updated_at, pr.started_at, pr.created_at) <= p_cutoff)))
+  ORDER BY pr.id
+  FOR UPDATE;
+  SELECT count(*) INTO v_run_count FROM _leadx_reset_runs;
+
+  INSERT INTO _leadx_reset_jobs(id)
+  SELECT j.id
+  FROM public.jobs j
+  WHERE j.status = ANY(p_status_allowlist)
+    AND ((v_scope = 'run' AND EXISTS (
+            SELECT 1 FROM _leadx_reset_runs r
+            WHERE j.id = r.id OR j.payload->>'run_id' = r.id::text))
+      OR (v_scope <> 'run' AND j.tenant_id = p_tenant_id
+          AND (v_scope = 'tenant_active'
+            OR COALESCE(j.locked_at, j.created_at) <= p_cutoff)))
+  ORDER BY j.id
+  FOR UPDATE;
+  SELECT count(*) INTO v_job_count FROM _leadx_reset_jobs;
+
+  -- Agent runs are selected by the pipeline linkage carried in input_data or
+  -- by a task already selected in this same transaction.
+  INSERT INTO _leadx_reset_agent_runs(id)
+  SELECT ar.id
+  FROM public.agent_runs ar
+  WHERE ar.status IN ('queued','running')
+    AND ((v_scope = 'run' AND EXISTS (
+            SELECT 1 FROM _leadx_reset_runs r
+            WHERE ar.input_data->>'run_id' = r.id::text))
+      OR (v_scope <> 'run' AND ar.tenant_id = p_tenant_id
+          AND (v_scope = 'tenant_active'
+            OR COALESCE(ar.updated_at, ar.created_at) <= p_cutoff)))
+  ORDER BY ar.id
+  FOR UPDATE;
+
+  INSERT INTO _leadx_reset_tasks(id)
+  SELECT t.id
+  FROM public.agent_mission_tasks t
+  WHERE t.tenant_id = CASE WHEN v_scope = 'run' THEN t.tenant_id ELSE p_tenant_id END
+    AND (t.status = ANY(p_status_allowlist) OR t.status = 'blocked')
+    AND ((v_scope = 'run' AND (
+            t.input_data->>'run_id' = p_run_id::text
+            OR t.agent_run_id IN (SELECT id FROM _leadx_reset_agent_runs)))
+      OR (v_scope <> 'run' AND (
+            t.tenant_id = p_tenant_id
+            AND (v_scope = 'tenant_active'
+              OR COALESCE(t.lease_expires_at, t.updated_at, t.created_at) <= p_cutoff))))
+  ORDER BY t.id
+  FOR UPDATE;
+
+  INSERT INTO _leadx_reset_missions(id)
+  SELECT DISTINCT t.mission_id
+  FROM public.agent_mission_tasks t
+  WHERE t.id IN (SELECT id FROM _leadx_reset_tasks)
+  ON CONFLICT DO NOTHING;
+  INSERT INTO _leadx_reset_missions(id)
+  SELECT m.id
+  FROM public.agent_missions m
+  WHERE m.status IN ('queued','running')
+    AND ((v_scope = 'run' AND m.input_data->>'run_id' = p_run_id::text)
+      OR (v_scope <> 'run' AND m.tenant_id = p_tenant_id
+          AND (v_scope = 'tenant_active'
+            OR COALESCE(m.updated_at, m.created_at) <= p_cutoff)))
+  ON CONFLICT DO NOTHING;
+
+  -- A selected mission owns all of its non-terminal child tasks, including
+  -- dependency-blocked children that otherwise could strand the parent.
+  INSERT INTO _leadx_reset_tasks(id)
+  SELECT t.id
+  FROM public.agent_mission_tasks t
+  WHERE t.mission_id IN (SELECT id FROM _leadx_reset_missions)
+    AND (t.status = ANY(p_status_allowlist) OR t.status = 'blocked')
+  ON CONFLICT DO NOTHING;
+  SELECT count(*) INTO v_task_count FROM _leadx_reset_tasks;
+
+  INSERT INTO _leadx_reset_agent_runs(id)
+  SELECT t.agent_run_id
+  FROM public.agent_mission_tasks t
+  WHERE t.id IN (SELECT id FROM _leadx_reset_tasks)
+    AND t.agent_run_id IS NOT NULL
+  ON CONFLICT DO NOTHING;
+  SELECT count(*) INTO v_agent_run_count FROM _leadx_reset_agent_runs;
+
+  INSERT INTO _leadx_reset_reservations(id)
+  SELECT qr.id
+  FROM public.quota_reservations qr
+  WHERE qr.status = 'reserved'
+    AND (qr.job_id IN (SELECT id FROM _leadx_reset_jobs)
+      OR qr.operation_id IN (
+        SELECT jo.id FROM public.job_operations jo
+        WHERE jo.job_id IN (SELECT id FROM _leadx_reset_jobs)))
+  ORDER BY qr.id
+  FOR UPDATE;
+  SELECT count(*) INTO v_reservation_count FROM _leadx_reset_reservations;
+  SELECT count(*) INTO v_mission_count
+  FROM public.agent_missions m
+  WHERE m.id IN (SELECT id FROM _leadx_reset_missions)
+    AND m.status IN ('queued','running');
+
+  -- Keep report detail bounded while retaining compatibility totals above.
   v_selected_by_status := jsonb_build_object(
-    'pipeline_runs',coalesce((SELECT jsonb_object_agg(status,least(row_count,v_report_limit)) FROM
-      (SELECT status,count(*)::integer AS row_count FROM public.pipeline_runs WHERE id=ANY(v_runs) GROUP BY status) s),'{}'::jsonb),
-    'jobs',coalesce((SELECT jsonb_object_agg(status,least(row_count,v_report_limit)) FROM
-      (SELECT status,count(*)::integer AS row_count FROM public.jobs WHERE id=ANY(v_jobs) GROUP BY status) s),'{}'::jsonb),
-    'agent_runs',coalesce((SELECT jsonb_object_agg(status,least(row_count,v_report_limit)) FROM
-      (SELECT status,count(*)::integer AS row_count FROM public.agent_runs WHERE id=ANY(v_agent_runs) GROUP BY status) s),'{}'::jsonb),
-    'missions',coalesce((SELECT jsonb_object_agg(status,least(row_count,v_report_limit)) FROM
-      (SELECT status,count(*)::integer AS row_count FROM public.agent_missions WHERE id=ANY(v_missions) GROUP BY status) s),'{}'::jsonb),
-    'mission_tasks',coalesce((SELECT jsonb_object_agg(status,least(row_count,v_report_limit)) FROM
-      (SELECT status,count(*)::integer AS row_count FROM public.agent_mission_tasks WHERE id=ANY(v_tasks) GROUP BY status) s),'{}'::jsonb),
-    'quota_reservations',coalesce((SELECT jsonb_object_agg(status,least(row_count,v_report_limit)) FROM
-      (SELECT status,count(*)::integer AS row_count FROM public.quota_reservations WHERE id=ANY(v_reservations) GROUP BY status) s),'{}'::jsonb));
+    'pipeline_runs', COALESCE((SELECT jsonb_object_agg(status, LEAST(row_count, v_report_limit)) FROM (
+      SELECT pr.status, count(*)::integer AS row_count FROM public.pipeline_runs pr
+      WHERE pr.id IN (SELECT id FROM _leadx_reset_runs) GROUP BY pr.status) s), '{}'::jsonb),
+    'jobs', COALESCE((SELECT jsonb_object_agg(status, LEAST(row_count, v_report_limit)) FROM (
+      SELECT j.status, count(*)::integer AS row_count FROM public.jobs j
+      WHERE j.id IN (SELECT id FROM _leadx_reset_jobs) GROUP BY j.status) s), '{}'::jsonb),
+    'agent_runs', COALESCE((SELECT jsonb_object_agg(status, LEAST(row_count, v_report_limit)) FROM (
+      SELECT ar.status, count(*)::integer AS row_count FROM public.agent_runs ar
+      WHERE ar.id IN (SELECT id FROM _leadx_reset_agent_runs) GROUP BY ar.status) s), '{}'::jsonb),
+    'missions', COALESCE((SELECT jsonb_object_agg(status, LEAST(row_count, v_report_limit)) FROM (
+      SELECT m.status, count(*)::integer AS row_count FROM public.agent_missions m
+      WHERE m.id IN (SELECT id FROM _leadx_reset_missions) GROUP BY m.status) s), '{}'::jsonb),
+    'mission_tasks', COALESCE((SELECT jsonb_object_agg(status, LEAST(row_count, v_report_limit)) FROM (
+      SELECT t.status, count(*)::integer AS row_count FROM public.agent_mission_tasks t
+      WHERE t.id IN (SELECT id FROM _leadx_reset_tasks) GROUP BY t.status) s), '{}'::jsonb),
+    'quota_reservations', COALESCE((SELECT jsonb_object_agg(status, LEAST(row_count, v_report_limit)) FROM (
+      SELECT qr.status, count(*)::integer AS row_count FROM public.quota_reservations qr
+      WHERE qr.id IN (SELECT id FROM _leadx_reset_reservations) GROUP BY qr.status) s), '{}'::jsonb)
+  );
 
   IF NOT p_apply THEN
-    RETURN jsonb_build_object('ok',true,'applied',false,'scope_kind',v_scope,
-      'selected',jsonb_build_object('pipeline_runs',LEAST(coalesce(array_length(v_runs,1),0),v_report_limit),
-        'jobs',LEAST(coalesce(array_length(v_jobs,1),0),v_report_limit),'agent_runs',LEAST(coalesce(array_length(v_agent_runs,1),0),v_report_limit),
-        'missions',LEAST(coalesce(array_length(v_missions,1),0),v_report_limit),'mission_tasks',LEAST(coalesce(array_length(v_tasks,1),0),v_report_limit),
-        'quota_reservations',LEAST(coalesce(array_length(v_reservations,1),0),v_report_limit)),
-      'counts',jsonb_build_object('selected_by_status',v_selected_by_status,
-        'transitioned_by_table',jsonb_build_object('pipeline_runs',0,'jobs',0,'agent_runs',0,'missions',0,'mission_tasks',0,'quota_reservations',0),
-        'skipped_by_table',jsonb_build_object('pipeline_runs',LEAST(coalesce(array_length(v_runs,1),0),v_report_limit),
-          'jobs',LEAST(coalesce(array_length(v_jobs,1),0),v_report_limit),'agent_runs',LEAST(coalesce(array_length(v_agent_runs,1),0),v_report_limit),
-          'missions',LEAST(coalesce(array_length(v_missions,1),0),v_report_limit),'mission_tasks',LEAST(coalesce(array_length(v_tasks,1),0),v_report_limit)),
-        'remaining',jsonb_build_object('active',0,'stale',0)),
-      'remaining_active',0,'remaining_stale',0,'accounting_pending',0,
-      'pending_reconciliation',jsonb_build_object('status','not_required','count',0,'reason_codes',v_failed_reason_codes),
-      'skipped_reason_codes','["dry_run"]'::jsonb,'failed_reason_codes',v_failed_reason_codes,
-      'ready_for_fresh_run',false);
+    v_skipped_by_table := jsonb_build_object(
+      'pipeline_runs', LEAST(v_run_count, v_report_limit), 'jobs', LEAST(v_job_count, v_report_limit),
+      'agent_runs', LEAST(v_agent_run_count, v_report_limit), 'missions', LEAST(v_mission_count, v_report_limit),
+      'mission_tasks', LEAST(v_task_count, v_report_limit), 'quota_reservations', LEAST(v_reservation_count, v_report_limit));
+    v_skipped_reason_codes := '["dry_run"]'::jsonb;
+    RETURN jsonb_build_object(
+      'ok', true, 'applied', false, 'scope_kind', v_scope,
+      'selected', jsonb_build_object('pipeline_runs',LEAST(v_run_count,v_report_limit),'jobs',LEAST(v_job_count,v_report_limit),
+        'agent_runs',LEAST(v_agent_run_count,v_report_limit),'missions',LEAST(v_mission_count,v_report_limit),
+        'mission_tasks',LEAST(v_task_count,v_report_limit),'quota_reservations',LEAST(v_reservation_count,v_report_limit)),
+      'counts', jsonb_build_object('selected_by_status', v_selected_by_status,
+        'transitioned_by_table', jsonb_build_object('pipeline_runs',0,'jobs',0,'agent_runs',0,'missions',0,'mission_tasks',0,'quota_reservations',0),
+        'skipped_by_table', v_skipped_by_table, 'remaining', jsonb_build_object('active',0,'stale',0)),
+      'transitioned', 0, 'accounting_pending', 0,
+      'pending_reconciliation', jsonb_build_object('status','not_required','count',0,'reason_codes',v_failed_reason_codes),
+      'skipped_reason_codes', v_skipped_reason_codes, 'failed_reason_codes', v_failed_reason_codes,
+      'remaining_active', 0, 'remaining_stale', 0, 'ready_for_fresh_run', false);
   END IF;
 
-  UPDATE public.pipeline_runs SET status='failed', error_message='scoped_reset', finished_at=now(),
-    meta=coalesce(meta,'{}'::jsonb)||jsonb_build_object(
-      'stage','failed','message','Stopped by scoped reset',
-      'recovery',jsonb_build_object('reason','scoped_reset','outcome','cancelled','source_run_id',id::text,'terminal',true))
-    WHERE id=ANY(v_runs) AND status=ANY(p_status_allowlist);
-  UPDATE public.jobs j SET status='cancelled', error='scoped_reset', error_category='scoped_reset',
-    dependency_outcome='terminal', terminal_result=jsonb_build_object(
-      'status','cancelled','reason','scoped_reset',
-      'recovery',jsonb_build_object('source_job_id',j.id::text,'outcome','cancelled','terminal',true)),
-    finished_at=now(), locked_by=NULL, locked_at=NULL, lease_expires_at=NULL,
-    lease_renewed_at=NULL, retry_after=NULL, accounting_reconciliation_status='pending'
-    WHERE id=ANY(v_jobs) AND status=ANY(p_status_allowlist);
-  UPDATE public.agent_runs SET status='cancelled', error='scoped_reset', finished_at=now(), updated_at=now()
-    WHERE id=ANY(v_agent_runs) AND status IN ('queued','running');
-  UPDATE public.agent_mission_tasks SET status='cancelled', error='scoped_reset', error_category='scoped_reset',
-    dependency_outcome='terminal', terminal_result=jsonb_build_object('status','cancelled','reason','scoped_reset'),
-    lease_owner=NULL, lease_expires_at=NULL, lease_renewed_at=NULL, run_after=now(), finished_at=now(), updated_at=now()
-    WHERE id=ANY(v_tasks) AND (status=ANY(p_status_allowlist) OR status='blocked');
-  UPDATE public.agent_missions SET status='cancelled', completed_at=now(), updated_at=now(),
-    failure_summary=jsonb_build_object('reason','scoped_reset'), terminal_result=jsonb_build_object('status','cancelled','reason','scoped_reset')
-    WHERE id=ANY(v_missions) AND status IN ('queued','running');
-  UPDATE public.job_attempts SET finished_at=coalesce(finished_at,now()), outcome='cancelled', retryable=false,
-    error_category='scoped_reset', error='scoped_reset' WHERE job_id=ANY(v_jobs) AND finished_at IS NULL;
-  UPDATE public.agent_mission_task_attempts SET finished_at=coalesce(finished_at,now()), outcome='cancelled', retryable=false,
-    error_category='scoped_reset', error='scoped_reset' WHERE task_id=ANY(v_tasks) AND finished_at IS NULL;
+  UPDATE public.pipeline_runs pr
+  SET status = 'failed',
+      error_message = 'scoped_reset',
+      finished_at = now(),
+      meta = COALESCE(pr.meta, '{}'::jsonb) || jsonb_build_object(
+        'stage','failed', 'message','Stopped by scoped reset',
+        'recovery', jsonb_build_object(
+          'reason','scoped_reset', 'outcome','cancelled',
+          'source_run_id',pr.id::text, 'terminal',true
+        )
+      )
+  WHERE pr.id IN (SELECT id FROM _leadx_reset_runs)
+    AND pr.status = ANY(p_status_allowlist);
+  GET DIAGNOSTICS v_run_changed = ROW_COUNT;
+  v_transitioned := v_run_changed;
 
-  FOREACH v_id IN ARRAY v_jobs LOOP
+  UPDATE public.jobs j
+  SET status = 'cancelled', error = 'scoped_reset', error_category = 'scoped_reset',
+      dependency_outcome = 'terminal',
+      terminal_result = jsonb_build_object(
+        'status','cancelled', 'reason','scoped_reset',
+        'recovery', jsonb_build_object('source_job_id',j.id::text, 'outcome','cancelled', 'terminal',true)
+      ),
+      finished_at = now(), locked_by = NULL, locked_at = NULL,
+      lease_expires_at = NULL, lease_renewed_at = NULL, retry_after = NULL,
+      accounting_reconciliation_status = CASE
+        WHEN EXISTS (SELECT 1 FROM public.job_operations jo WHERE jo.job_id = j.id)
+        THEN 'pending' ELSE COALESCE(j.accounting_reconciliation_status, 'not_required') END
+  WHERE j.id IN (SELECT id FROM _leadx_reset_jobs)
+    AND j.status = ANY(p_status_allowlist);
+  GET DIAGNOSTICS v_job_changed = ROW_COUNT;
+  v_changed := v_job_changed;
+  v_transitioned := v_transitioned + v_changed;
+
+  UPDATE public.agent_runs ar
+  SET status = 'cancelled', error = 'scoped_reset', finished_at = now(), updated_at = now()
+  WHERE ar.id IN (SELECT id FROM _leadx_reset_agent_runs)
+    AND ar.status IN ('queued','running');
+  GET DIAGNOSTICS v_agent_run_changed = ROW_COUNT;
+  v_changed := v_agent_run_changed;
+  v_transitioned := v_transitioned + v_changed;
+
+  UPDATE public.agent_mission_tasks t
+  SET status = 'cancelled', error = 'scoped_reset', error_category = 'scoped_reset',
+      dependency_outcome = 'terminal', terminal_result = jsonb_build_object('status','cancelled','reason','scoped_reset'),
+      lease_owner = NULL, lease_expires_at = NULL, lease_renewed_at = NULL,
+      run_after = now(), finished_at = now(), updated_at = now()
+  WHERE t.id IN (SELECT id FROM _leadx_reset_tasks)
+    AND (t.status = ANY(p_status_allowlist) OR t.status = 'blocked');
+  GET DIAGNOSTICS v_task_changed = ROW_COUNT;
+  v_changed := v_task_changed;
+  v_transitioned := v_transitioned + v_changed;
+
+  UPDATE public.agent_missions m
+  SET status = 'cancelled', completed_at = now(), updated_at = now(),
+      failure_summary = jsonb_build_object('reason','scoped_reset'),
+      terminal_result = jsonb_build_object('status','cancelled','reason','scoped_reset')
+  WHERE m.id IN (SELECT id FROM _leadx_reset_missions)
+    AND m.status IN ('queued','running');
+  GET DIAGNOSTICS v_mission_changed = ROW_COUNT;
+  v_changed := v_mission_changed;
+  v_transitioned := v_transitioned + v_changed;
+
+  -- Finish the current attempt rows without deleting their evidence. The
+  -- owner/attempt identity remains available for diagnostics and late CAS
+  -- completion cannot match the reset terminal status.
+  UPDATE public.job_attempts ja
+  SET finished_at = COALESCE(finished_at, now()), outcome = 'cancelled',
+      retryable = false, error_category = 'scoped_reset', error = 'scoped_reset'
+  WHERE ja.job_id IN (SELECT id FROM _leadx_reset_jobs) AND ja.finished_at IS NULL;
+  UPDATE public.agent_mission_task_attempts ta
+  SET finished_at = COALESCE(finished_at, now()), outcome = 'cancelled',
+      retryable = false, error_category = 'scoped_reset', error = 'scoped_reset'
+  WHERE ta.task_id IN (SELECT id FROM _leadx_reset_tasks) AND ta.finished_at IS NULL;
+
+  -- Reuse the established job-operation settlement path. A missing operation
+  -- is a legacy row, not an accounting failure; an unavailable dependency is
+  -- reported pending rather than claimed as reconciled.
+  FOR v_job_id IN SELECT id FROM _leadx_reset_jobs LOOP
     BEGIN
-      v_result:=public.leadx_finish_job_operation(v_id,'cancelled',jsonb_build_object('reason','scoped_reset'));
-      IF NOT (v_result ? 'reason' AND v_result->>'reason'='job_operation_not_found')
-         AND coalesce(v_result->>'accounting_status','') NOT IN ('released','none')
-         AND NOT (v_result ? 'outcome' AND v_result->>'outcome'='replay') THEN
-        v_pending:=v_pending+1;
+      v_result := public.leadx_finish_job_operation(
+        v_job_id, 'cancelled', jsonb_build_object('status','cancelled','reason','scoped_reset'));
+      IF (v_result ? 'reason') AND v_result->>'reason' = 'job_operation_not_found' THEN
+        UPDATE public.jobs SET accounting_reconciliation_status = 'not_required'
+        WHERE id = v_job_id AND status = 'cancelled';
+      ELSIF COALESCE(v_result->>'accounting_status','') IN ('released','none')
+         OR (v_result ? 'outcome') AND v_result->>'outcome' = 'replay' THEN
+        UPDATE public.jobs SET accounting_reconciliation_status = 'reconciled'
+        WHERE id = v_job_id AND status = 'cancelled';
+      ELSE
+        v_accounting_pending := v_accounting_pending + 1;
         IF NOT (v_failed_reason_codes ? 'job_accounting_pending') THEN
-          v_failed_reason_codes:=v_failed_reason_codes||'["job_accounting_pending"]'::jsonb;
+          v_failed_reason_codes := v_failed_reason_codes || '["job_accounting_pending"]'::jsonb;
         END IF;
       END IF;
     EXCEPTION WHEN OTHERS THEN
-      v_pending:=v_pending+1;
+      v_accounting_pending := v_accounting_pending + 1;
       IF NOT (v_failed_reason_codes ? 'accounting_dependency_unavailable') THEN
-        v_failed_reason_codes:=v_failed_reason_codes||'["accounting_dependency_unavailable"]'::jsonb;
+        v_failed_reason_codes := v_failed_reason_codes || '["accounting_dependency_unavailable"]'::jsonb;
       END IF;
     END;
   END LOOP;
-  FOREACH v_id IN ARRAY v_reservations LOOP
+
+  FOR v_reservation_id IN SELECT id FROM _leadx_reset_reservations LOOP
     BEGIN
-      SELECT tenant_id,greatest(coalesce(reserved_quantity,0)-coalesce(committed_quantity,0),0)
-        INTO v_tenant,v_quantity FROM public.quota_reservations WHERE id=v_id;
-      v_result:=public.leadx_record_quota_settlement(v_id,v_tenant,'scoped-reset:'||v_id::text,'released',v_quantity);
-      IF NOT coalesce((v_result->>'ok')::boolean,false) THEN
-        v_pending:=v_pending+1;
+      v_result := public.leadx_record_quota_settlement(
+        v_reservation_id,
+        (SELECT tenant_id FROM public.quota_reservations WHERE id = v_reservation_id),
+        'scoped-reset:' || v_reservation_id::text,
+        'released',
+        (SELECT GREATEST(COALESCE(reserved_quantity,0) - COALESCE(committed_quantity,0),0)
+         FROM public.quota_reservations WHERE id = v_reservation_id));
+      IF NOT COALESCE((v_result->>'ok')::boolean, false) THEN
+        v_accounting_pending := v_accounting_pending + 1;
         IF NOT (v_failed_reason_codes ? 'quota_settlement_pending') THEN
-          v_failed_reason_codes:=v_failed_reason_codes||'["quota_settlement_pending"]'::jsonb;
+          v_failed_reason_codes := v_failed_reason_codes || '["quota_settlement_pending"]'::jsonb;
         END IF;
       END IF;
     EXCEPTION WHEN OTHERS THEN
-      v_pending:=v_pending+1;
+      v_accounting_pending := v_accounting_pending + 1;
       IF NOT (v_failed_reason_codes ? 'quota_accounting_unavailable') THEN
-        v_failed_reason_codes:=v_failed_reason_codes||'["quota_accounting_unavailable"]'::jsonb;
+        v_failed_reason_codes := v_failed_reason_codes || '["quota_accounting_unavailable"]'::jsonb;
       END IF;
     END;
   END LOOP;
-  SELECT count(*) INTO v_remaining FROM public.pipeline_runs WHERE id=ANY(v_runs) AND status=ANY(p_status_allowlist);
-  SELECT v_remaining+count(*) INTO v_remaining FROM public.jobs WHERE id=ANY(v_jobs) AND status=ANY(p_status_allowlist);
-  SELECT v_remaining+count(*) INTO v_remaining FROM public.agent_runs WHERE id=ANY(v_agent_runs) AND status IN ('queued','running');
-  SELECT v_remaining+count(*) INTO v_remaining FROM public.agent_mission_tasks WHERE id=ANY(v_tasks) AND (status=ANY(p_status_allowlist) OR status='blocked');
-  SELECT v_remaining+count(*) INTO v_remaining FROM public.agent_missions WHERE id=ANY(v_missions) AND status IN ('queued','running');
-  v_remaining_stale:=CASE WHEN v_scope='tenant_stale' THEN v_remaining ELSE 0 END;
-  v_transitioned_by_table:=jsonb_build_object(
-    'pipeline_runs',LEAST(coalesce(array_length(v_runs,1),0),v_report_limit),
-    'jobs',LEAST(coalesce(array_length(v_jobs,1),0),v_report_limit),
-    'agent_runs',LEAST(coalesce(array_length(v_agent_runs,1),0),v_report_limit),
-    'missions',LEAST(coalesce(array_length(v_missions,1),0),v_report_limit),
-    'mission_tasks',LEAST(coalesce(array_length(v_tasks,1),0),v_report_limit),
-    'quota_reservations',0);
-  v_skipped_by_table:=jsonb_build_object('pipeline_runs',0,'jobs',0,'agent_runs',0,'missions',0,'mission_tasks',0);
-  RETURN jsonb_build_object('ok',v_pending=0,'applied',true,'scope_kind',v_scope,
-    'selected',jsonb_build_object('pipeline_runs',LEAST(coalesce(array_length(v_runs,1),0),v_report_limit),
-      'jobs',LEAST(coalesce(array_length(v_jobs,1),0),v_report_limit),'agent_runs',LEAST(coalesce(array_length(v_agent_runs,1),0),v_report_limit),
-      'missions',LEAST(coalesce(array_length(v_missions,1),0),v_report_limit),'mission_tasks',LEAST(coalesce(array_length(v_tasks,1),0),v_report_limit),
-      'quota_reservations',LEAST(coalesce(array_length(v_reservations,1),0),v_report_limit)),
-    'counts',jsonb_build_object('selected_by_status',v_selected_by_status,
-      'transitioned_by_table',v_transitioned_by_table,'skipped_by_table',v_skipped_by_table,
-      'remaining',jsonb_build_object('active',LEAST(v_remaining,v_report_limit),'stale',LEAST(v_remaining_stale,v_report_limit))),
-    'accounting_pending',v_pending,
-    'pending_reconciliation',jsonb_build_object('status',CASE WHEN v_pending=0 THEN 'reconciled' ELSE 'pending' END,
-      'count',LEAST(v_pending,v_report_limit),'reason_codes',v_failed_reason_codes),
-    'skipped_reason_codes',v_skipped_reason_codes,'failed_reason_codes',v_failed_reason_codes,
-    'remaining_active',LEAST(v_remaining,v_report_limit),'remaining_stale',LEAST(v_remaining_stale,v_report_limit),
-    'ready_for_fresh_run',v_remaining=0 AND v_pending=0);
-END; $$;
-REVOKE ALL ON FUNCTION public.leadx_transition_scoped_work(text,uuid,uuid,timestamptz,text[],boolean) FROM PUBLIC,anon,authenticated;
-GRANT EXECUTE ON FUNCTION public.leadx_transition_scoped_work(text,uuid,uuid,timestamptz,text[],boolean) TO service_role;
+
+  SELECT count(*) INTO v_remaining_active FROM public.pipeline_runs pr
+  WHERE pr.id IN (SELECT id FROM _leadx_reset_runs) AND pr.status = ANY(p_status_allowlist);
+  SELECT v_remaining_active + count(*) INTO v_remaining_active FROM public.jobs j
+  WHERE j.id IN (SELECT id FROM _leadx_reset_jobs) AND j.status = ANY(p_status_allowlist);
+  SELECT v_remaining_active + count(*) INTO v_remaining_active FROM public.agent_runs ar
+  WHERE ar.id IN (SELECT id FROM _leadx_reset_agent_runs) AND ar.status IN ('queued','running');
+  SELECT v_remaining_active + count(*) INTO v_remaining_active FROM public.agent_mission_tasks t
+  WHERE t.id IN (SELECT id FROM _leadx_reset_tasks) AND (t.status = ANY(p_status_allowlist) OR t.status = 'blocked');
+  SELECT v_remaining_active + count(*) INTO v_remaining_active FROM public.agent_missions m
+  WHERE m.id IN (SELECT id FROM _leadx_reset_missions) AND m.status IN ('queued','running');
+  v_remaining := v_remaining_active;
+  -- A stale scope has no separate hidden queue: every remaining active row is stale.
+  v_remaining_stale := CASE WHEN v_scope = 'tenant_stale' THEN v_remaining_active ELSE 0 END;
+  v_transitioned_by_table := jsonb_build_object(
+    'pipeline_runs', LEAST(v_run_changed, v_report_limit), 'jobs', LEAST(v_job_changed, v_report_limit),
+    'agent_runs', LEAST(v_agent_run_changed, v_report_limit), 'missions', LEAST(v_mission_changed, v_report_limit),
+    'mission_tasks', LEAST(v_task_changed, v_report_limit), 'quota_reservations', 0);
+  v_skipped_by_table := jsonb_build_object(
+    'pipeline_runs', LEAST(GREATEST(v_run_count - v_run_changed, 0), v_report_limit),
+    'jobs', LEAST(GREATEST(v_job_count - v_job_changed, 0), v_report_limit),
+    'agent_runs', LEAST(GREATEST(v_agent_run_count - v_agent_run_changed, 0), v_report_limit),
+    'missions', LEAST(GREATEST(v_mission_count - v_mission_changed, 0), v_report_limit),
+    'mission_tasks', LEAST(GREATEST(v_task_count - v_task_changed, 0), v_report_limit),
+    'quota_reservations', 0);
+  IF v_skipped_by_table <> '{"pipeline_runs": 0, "jobs": 0, "agent_runs": 0, "missions": 0, "mission_tasks": 0, "quota_reservations": 0}'::jsonb
+     AND NOT (v_skipped_reason_codes ? 'status_changed_before_transition') THEN
+    v_skipped_reason_codes := v_skipped_reason_codes || '["status_changed_before_transition"]'::jsonb;
+  END IF;
+
+  RETURN jsonb_build_object(
+    'ok', v_accounting_pending = 0, 'applied', true, 'scope_kind', v_scope,
+    'selected', jsonb_build_object('pipeline_runs',LEAST(v_run_count,v_report_limit),'jobs',LEAST(v_job_count,v_report_limit),
+      'agent_runs',LEAST(v_agent_run_count,v_report_limit),'missions',LEAST(v_mission_count,v_report_limit),
+      'mission_tasks',LEAST(v_task_count,v_report_limit),'quota_reservations',LEAST(v_reservation_count,v_report_limit)),
+    'counts', jsonb_build_object('selected_by_status', v_selected_by_status,
+      'transitioned_by_table', v_transitioned_by_table, 'skipped_by_table', v_skipped_by_table,
+      'remaining', jsonb_build_object('active',LEAST(v_remaining_active,v_report_limit),
+        'stale',LEAST(v_remaining_stale,v_report_limit))),
+    'transitioned', LEAST(v_transitioned, v_report_limit), 'accounting_pending', v_accounting_pending,
+    'pending_reconciliation', jsonb_build_object(
+      'status', CASE WHEN v_accounting_pending = 0 THEN 'reconciled' ELSE 'pending' END,
+      'count', LEAST(v_accounting_pending, v_report_limit), 'reason_codes', v_failed_reason_codes),
+    'skipped_reason_codes', v_skipped_reason_codes, 'failed_reason_codes', v_failed_reason_codes,
+    'remaining_active', LEAST(v_remaining_active,v_report_limit),
+    'remaining_stale', LEAST(v_remaining_stale,v_report_limit),
+    'ready_for_fresh_run', v_remaining_active = 0 AND v_accounting_pending = 0);
+END;
+$$;
+
+REVOKE ALL ON FUNCTION public.leadx_transition_scoped_work(text,uuid,uuid,timestamptz,text[],boolean)
+  FROM PUBLIC, anon, authenticated;
+GRANT EXECUTE ON FUNCTION public.leadx_transition_scoped_work(text,uuid,uuid,timestamptz,text[],boolean)
+  TO service_role;
+
 NOTIFY pgrst, 'reload schema';
 
 -- ============================================================================
 -- CANONICAL MIGRATION 37: 20261025000200_leadx_scoped_work_operation_ledger.sql
 -- ============================================================================
+
+-- LeadX additive scoped-reset operation ledger.
+-- The operation key is global by design: reusing it with another request can
+-- never create a second scoped mutation or disclose the original request.
+
 CREATE TABLE IF NOT EXISTS public.scoped_work_reset_operations (
   operation_id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   operation_key text NOT NULL UNIQUE,
@@ -11714,100 +11859,195 @@ CREATE TABLE IF NOT EXISTS public.scoped_work_reset_operations (
   canonical_request jsonb NOT NULL DEFAULT '{}'::jsonb,
   scope_hash text NOT NULL,
   actor_hash text NOT NULL,
-  status text NOT NULL DEFAULT 'processing' CHECK (status IN ('processing','completed')),
+  status text NOT NULL DEFAULT 'processing'
+    CHECK (status IN ('processing', 'completed')),
   result jsonb NOT NULL DEFAULT '{}'::jsonb,
   created_at timestamptz NOT NULL DEFAULT now(),
   completed_at timestamptz
 );
-ALTER TABLE IF EXISTS public.scoped_work_reset_operations ADD COLUMN IF NOT EXISTS operation_id uuid;
-ALTER TABLE IF EXISTS public.scoped_work_reset_operations ADD COLUMN IF NOT EXISTS operation_key text;
-ALTER TABLE IF EXISTS public.scoped_work_reset_operations ADD COLUMN IF NOT EXISTS request_hash text;
-ALTER TABLE IF EXISTS public.scoped_work_reset_operations ADD COLUMN IF NOT EXISTS canonical_request jsonb;
-ALTER TABLE IF EXISTS public.scoped_work_reset_operations ADD COLUMN IF NOT EXISTS scope_hash text;
-ALTER TABLE IF EXISTS public.scoped_work_reset_operations ADD COLUMN IF NOT EXISTS actor_hash text;
-ALTER TABLE IF EXISTS public.scoped_work_reset_operations ADD COLUMN IF NOT EXISTS status text;
-ALTER TABLE IF EXISTS public.scoped_work_reset_operations ADD COLUMN IF NOT EXISTS result jsonb;
-ALTER TABLE IF EXISTS public.scoped_work_reset_operations ADD COLUMN IF NOT EXISTS created_at timestamptz;
-ALTER TABLE IF EXISTS public.scoped_work_reset_operations ADD COLUMN IF NOT EXISTS completed_at timestamptz;
-CREATE UNIQUE INDEX IF NOT EXISTS uq_scoped_reset_operation_key ON public.scoped_work_reset_operations(operation_key);
-CREATE INDEX IF NOT EXISTS idx_scoped_reset_operations_scope ON public.scoped_work_reset_operations(scope_hash,created_at DESC);
+
+ALTER TABLE IF EXISTS public.scoped_work_reset_operations
+  ADD COLUMN IF NOT EXISTS operation_id uuid;
+ALTER TABLE IF EXISTS public.scoped_work_reset_operations
+  ADD COLUMN IF NOT EXISTS operation_key text;
+ALTER TABLE IF EXISTS public.scoped_work_reset_operations
+  ADD COLUMN IF NOT EXISTS request_hash text;
+ALTER TABLE IF EXISTS public.scoped_work_reset_operations
+  ADD COLUMN IF NOT EXISTS canonical_request jsonb;
+ALTER TABLE IF EXISTS public.scoped_work_reset_operations
+  ADD COLUMN IF NOT EXISTS scope_hash text;
+ALTER TABLE IF EXISTS public.scoped_work_reset_operations
+  ADD COLUMN IF NOT EXISTS actor_hash text;
+ALTER TABLE IF EXISTS public.scoped_work_reset_operations
+  ADD COLUMN IF NOT EXISTS status text;
+ALTER TABLE IF EXISTS public.scoped_work_reset_operations
+  ADD COLUMN IF NOT EXISTS result jsonb;
+ALTER TABLE IF EXISTS public.scoped_work_reset_operations
+  ADD COLUMN IF NOT EXISTS created_at timestamptz;
+ALTER TABLE IF EXISTS public.scoped_work_reset_operations
+  ADD COLUMN IF NOT EXISTS completed_at timestamptz;
+
+CREATE UNIQUE INDEX IF NOT EXISTS uq_scoped_reset_operation_key
+  ON public.scoped_work_reset_operations(operation_key);
+CREATE INDEX IF NOT EXISTS idx_scoped_reset_operations_scope
+  ON public.scoped_work_reset_operations(scope_hash, created_at DESC);
 
 CREATE OR REPLACE FUNCTION public.leadx_reset_scoped_work(
-  p_operation_key text, p_actor text, p_scope_kind text,
-  p_run_id uuid DEFAULT NULL, p_tenant_id uuid DEFAULT NULL,
+  p_operation_key text,
+  p_actor text,
+  p_scope_kind text,
+  p_run_id uuid DEFAULT NULL,
+  p_tenant_id uuid DEFAULT NULL,
   p_cutoff timestamptz DEFAULT NULL,
   p_status_allowlist text[] DEFAULT ARRAY['queued','running','retrying']::text[],
-  p_apply boolean DEFAULT false, p_confirmation boolean DEFAULT false
-) RETURNS jsonb LANGUAGE plpgsql SECURITY DEFINER SET search_path=public AS $$
+  p_apply boolean DEFAULT false,
+  p_confirmation boolean DEFAULT false
+) RETURNS jsonb
+LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
 DECLARE
-  v_operation_id uuid; v_existing public.scoped_work_reset_operations%ROWTYPE;
-  v_canonical jsonb; v_statuses jsonb; v_request_hash text; v_scope_hash text; v_result jsonb;
+  v_operation_id uuid;
+  v_existing public.scoped_work_reset_operations%ROWTYPE;
+  v_canonical jsonb;
+  v_statuses jsonb;
+  v_request_hash text;
+  v_scope_hash text;
+  v_result jsonb;
   v_started_at timestamptz := clock_timestamp();
 BEGIN
-  IF p_operation_key IS NULL OR btrim(p_operation_key)='' OR p_actor IS NULL OR btrim(p_actor)=''
-     OR (coalesce(p_apply,false) AND NOT coalesce(p_confirmation,false)) THEN
-    RETURN jsonb_build_object('ok',false,'outcome','conflict','reason',CASE WHEN coalesce(p_apply,false) THEN 'confirmation_required' ELSE 'invalid_reset_request' END);
+  -- The Python boundary validates these values too; keep the RPC fail-closed
+  -- for direct service-role callers and never treat a missing scope as global.
+  IF p_operation_key IS NULL OR btrim(p_operation_key) = ''
+     OR p_actor IS NULL OR btrim(p_actor) = ''
+     OR (coalesce(p_apply, false) AND NOT coalesce(p_confirmation, false)) THEN
+    RETURN jsonb_build_object('ok', false, 'outcome', 'conflict',
+      'reason', CASE WHEN coalesce(p_apply, false) THEN 'confirmation_required' ELSE 'invalid_reset_request' END);
   END IF;
-  SELECT coalesce(jsonb_agg(value ORDER BY value),'[]'::jsonb) INTO v_statuses
-    FROM unnest(coalesce(p_status_allowlist,ARRAY[]::text[])) AS statuses(value);
-  v_canonical:=jsonb_build_object('actor_hash',md5(p_actor),'scope_kind',lower(btrim(coalesce(p_scope_kind,''))),
-    'run_id',p_run_id,'tenant_id',p_tenant_id,'cutoff',p_cutoff,'status_allowlist',v_statuses,
-    'apply',coalesce(p_apply,false),'confirmation',coalesce(p_confirmation,false));
-  v_request_hash:=md5(v_canonical::text);
-  v_scope_hash:=md5(jsonb_build_object('scope_kind',lower(btrim(coalesce(p_scope_kind,''))),
-    'run_id',p_run_id,'tenant_id',p_tenant_id,'cutoff',p_cutoff,'status_allowlist',v_statuses)::text);
-  INSERT INTO public.scoped_work_reset_operations(operation_key,request_hash,canonical_request,scope_hash,actor_hash)
-    VALUES(p_operation_key,v_request_hash,v_canonical,v_scope_hash,md5(p_actor))
-    ON CONFLICT(operation_key) DO NOTHING RETURNING operation_id INTO v_operation_id;
+
+  SELECT coalesce(jsonb_agg(value ORDER BY value), '[]'::jsonb)
+    INTO v_statuses
+  FROM unnest(coalesce(p_status_allowlist, ARRAY[]::text[])) AS statuses(value);
+
+  v_canonical := jsonb_build_object(
+    'actor_hash', md5(p_actor),
+    'scope_kind', lower(btrim(coalesce(p_scope_kind, ''))),
+    'run_id', p_run_id,
+    'tenant_id', p_tenant_id,
+    'cutoff', p_cutoff,
+    'status_allowlist', v_statuses,
+    'apply', coalesce(p_apply, false),
+    'confirmation', coalesce(p_confirmation, false)
+  );
+  v_request_hash := md5(v_canonical::text);
+  v_scope_hash := md5(jsonb_build_object(
+    'scope_kind', lower(btrim(coalesce(p_scope_kind, ''))),
+    'run_id', p_run_id,
+    'tenant_id', p_tenant_id,
+    'cutoff', p_cutoff,
+    'status_allowlist', v_statuses
+  )::text);
+
+  INSERT INTO public.scoped_work_reset_operations(
+    operation_key, request_hash, canonical_request, scope_hash, actor_hash
+  ) VALUES (
+    p_operation_key, v_request_hash, v_canonical, v_scope_hash, md5(p_actor)
+  ) ON CONFLICT (operation_key) DO NOTHING
+  RETURNING operation_id INTO v_operation_id;
+
   IF v_operation_id IS NULL THEN
-    SELECT * INTO v_existing FROM public.scoped_work_reset_operations WHERE operation_key=p_operation_key FOR UPDATE;
-    IF v_existing.request_hash<>v_request_hash THEN
-      RETURN jsonb_build_object('ok',false,'outcome','conflict','reason','operation_key_conflict');
+    SELECT * INTO v_existing
+    FROM public.scoped_work_reset_operations
+    WHERE operation_key = p_operation_key
+    FOR UPDATE;
+
+    IF v_existing.request_hash <> v_request_hash THEN
+      -- Do not return the original scope, actor, result, or operation id.
+      RETURN jsonb_build_object('ok', false, 'outcome', 'conflict', 'reason', 'operation_key_conflict');
     END IF;
-    IF v_existing.status='completed' THEN
-      RETURN coalesce(v_existing.result,'{}'::jsonb)||jsonb_build_object('replayed',true);
+    IF v_existing.status = 'completed' THEN
+      RETURN coalesce(v_existing.result, '{}'::jsonb) || jsonb_build_object('replayed', true);
     END IF;
-    RETURN jsonb_build_object('ok',false,'outcome','conflict','reason','operation_in_progress');
+    RETURN jsonb_build_object('ok', false, 'outcome', 'conflict', 'reason', 'operation_in_progress');
   END IF;
-  v_result:=public.leadx_transition_scoped_work(p_scope_kind,p_run_id,p_tenant_id,p_cutoff,p_status_allowlist,p_apply);
+
+  -- The existing transition function remains the only lifecycle mutation.
+  -- This wrapper adds identity, replay, and audit boundaries around it.
+  v_result := public.leadx_transition_scoped_work(
+    p_scope_kind, p_run_id, p_tenant_id, p_cutoff, p_status_allowlist, p_apply
+  );
   IF p_apply THEN
+    -- Attach only hashed actor identity and the safe operation id to rows that
+    -- this transaction just terminalized. Never persist raw operator input.
     UPDATE public.pipeline_runs
-    SET meta=coalesce(meta,'{}'::jsonb)||jsonb_build_object('recovery',coalesce(meta->'recovery','{}'::jsonb)||jsonb_build_object(
-      'operation_id',v_operation_id,'actor_hash',md5(p_actor),'source_run_id',id::text))
-    WHERE status='failed' AND error_message='scoped_reset'
+    SET meta = COALESCE(meta, '{}'::jsonb) || jsonb_build_object(
+      'recovery', COALESCE(meta->'recovery', '{}'::jsonb) || jsonb_build_object(
+        'operation_id', v_operation_id, 'actor_hash', md5(p_actor), 'source_run_id', id::text))
+    WHERE status = 'failed' AND error_message = 'scoped_reset'
       AND finished_at >= v_started_at
-      AND ((lower(btrim(coalesce(p_scope_kind,'')))='run' AND id=p_run_id)
-        OR (lower(btrim(coalesce(p_scope_kind,'')))<>'run' AND tenant_id=p_tenant_id));
+      AND ((lower(btrim(coalesce(p_scope_kind,''))) = 'run' AND id = p_run_id)
+        OR (lower(btrim(coalesce(p_scope_kind,''))) <> 'run' AND tenant_id = p_tenant_id));
     UPDATE public.jobs
-    SET terminal_result=coalesce(terminal_result,'{}'::jsonb)||jsonb_build_object('recovery',coalesce(terminal_result->'recovery','{}'::jsonb)||jsonb_build_object(
-      'operation_id',v_operation_id,'actor_hash',md5(p_actor),'source_job_id',id::text))
-    WHERE status='cancelled' AND error_category='scoped_reset'
+    SET terminal_result = COALESCE(terminal_result, '{}'::jsonb) || jsonb_build_object(
+      'recovery', COALESCE(terminal_result->'recovery', '{}'::jsonb) || jsonb_build_object(
+        'operation_id', v_operation_id, 'actor_hash', md5(p_actor), 'source_job_id', id::text))
+    WHERE status = 'cancelled' AND error_category = 'scoped_reset'
       AND finished_at >= v_started_at
-      AND ((lower(btrim(coalesce(p_scope_kind,'')))='run' AND (id=p_run_id OR payload->>'run_id'=p_run_id::text))
-        OR (lower(btrim(coalesce(p_scope_kind,'')))<>'run' AND tenant_id=p_tenant_id));
+      AND ((lower(btrim(coalesce(p_scope_kind,''))) = 'run' AND (id = p_run_id OR payload->>'run_id' = p_run_id::text))
+        OR (lower(btrim(coalesce(p_scope_kind,''))) <> 'run' AND tenant_id = p_tenant_id));
   END IF;
-  v_result:=coalesce(v_result,'{}'::jsonb)||jsonb_build_object('operation_id',v_operation_id,
-    'scope_hash',v_scope_hash,'outcome',CASE WHEN p_apply THEN 'applied' ELSE 'dry_run' END,
-    'replayed',false,'event_recorded',true);
-  UPDATE public.scoped_work_reset_operations SET status='completed',result=v_result,completed_at=now()
-    WHERE operation_id=v_operation_id;
-  INSERT INTO public.audit_log(tenant_id,actor_id,actor_type,action,resource_type,resource_id,after_state,reason)
-    VALUES(p_tenant_id,'principal_'||left(md5(p_actor),24),'platform_admin','admin.scoped_work_reset',
-      'scoped_work_reset',v_operation_id::text,jsonb_build_object('operation_id',v_operation_id,
-      'scope_hash',v_scope_hash,'run_id',p_run_id,'selected',v_result->'selected',
-      'outcome',v_result->>'outcome','reason_code',coalesce(v_result->>'reason','scoped_reset')),'scoped_reset');
+  v_result := coalesce(v_result, '{}'::jsonb) || jsonb_build_object(
+    'operation_id', v_operation_id,
+    'scope_hash', v_scope_hash,
+    'outcome', CASE WHEN p_apply THEN 'applied' ELSE 'dry_run' END,
+    'replayed', false,
+    'event_recorded', true
+  );
+
+  UPDATE public.scoped_work_reset_operations
+  SET status = 'completed', result = v_result, completed_at = now()
+  WHERE operation_id = v_operation_id;
+
+  -- Keep the event allow-listed and opaque. Raw actor/request payloads never
+  -- enter audit_log; the existing audit readers expose only safe columns.
+  INSERT INTO public.audit_log(
+    tenant_id, actor_id, actor_type, action, resource_type, resource_id,
+    after_state, reason
+  ) VALUES (
+    p_tenant_id,
+    'principal_' || left(md5(p_actor), 24),
+    'platform_admin',
+    'admin.scoped_work_reset',
+    'scoped_work_reset',
+    v_operation_id::text,
+    jsonb_build_object(
+      'operation_id', v_operation_id,
+      'scope_hash', v_scope_hash,
+      'run_id', p_run_id,
+      'selected', v_result->'selected',
+      'outcome', v_result->>'outcome',
+      'reason_code', coalesce(v_result->>'reason', 'scoped_reset')
+    ),
+    'scoped_reset'
+  );
+
   RETURN v_result;
-END; $$;
+END;
+$$;
+
 ALTER TABLE IF EXISTS public.scoped_work_reset_operations ENABLE ROW LEVEL SECURITY;
-REVOKE ALL ON TABLE public.scoped_work_reset_operations FROM PUBLIC,anon,authenticated;
+REVOKE ALL ON TABLE public.scoped_work_reset_operations FROM PUBLIC, anon, authenticated;
 GRANT ALL ON TABLE public.scoped_work_reset_operations TO service_role;
-REVOKE ALL ON FUNCTION public.leadx_reset_scoped_work(text,text,text,uuid,uuid,timestamptz,text[],boolean,boolean) FROM PUBLIC,anon,authenticated;
-GRANT EXECUTE ON FUNCTION public.leadx_reset_scoped_work(text,text,text,uuid,uuid,timestamptz,text[],boolean,boolean) TO service_role;
+REVOKE ALL ON FUNCTION public.leadx_reset_scoped_work(text,text,text,uuid,uuid,timestamptz,text[],boolean,boolean)
+  FROM PUBLIC, anon, authenticated;
+GRANT EXECUTE ON FUNCTION public.leadx_reset_scoped_work(text,text,text,uuid,uuid,timestamptz,text[],boolean,boolean)
+  TO service_role;
+
 NOTIFY pgrst, 'reload schema';
 
 -- ============================================================================
 -- CANONICAL MIGRATION 38: 20261025000300_leadx_task8_stage_accounting.sql
 -- ============================================================================
+
+-- LeadX Task 8: durable ordered stage and assignment identities.
 -- Additive only. Legacy board/status fields remain readable by existing clients.
 ALTER TABLE IF EXISTS public.pipeline_run_leads
   ADD COLUMN IF NOT EXISTS stage_status text NOT NULL DEFAULT 'accepted',
@@ -11846,6 +12086,8 @@ NOTIFY pgrst, 'reload schema';
 -- ============================================================================
 -- CANONICAL MIGRATION 39: 20261028000400_leadx_delivery_timestamp_semantics.sql
 -- ============================================================================
+
+-- Keep delivered_at truthful: assignment creation is not delivery.
 -- Pending/failed assignments have never reached a successful delivery state.
 UPDATE public.lead_assignments
 SET delivered_at = NULL
@@ -11855,11 +12097,10 @@ WHERE delivery_status IN ('pending', 'failed')
 COMMENT ON COLUMN public.lead_assignments.delivered_at IS
   'Timestamp of successful delivery confirmation; NULL while assignment is pending or failed.';
 
-NOTIFY pgrst, 'reload schema';
-
 -- ============================================================================
 -- CANONICAL MIGRATION 40: 20261029000500_leadx_pipeline_run_cancelled_status.sql
 -- ============================================================================
+
 -- Allow durable operator/client cancellation as a terminal pipeline state.
 DO $$
 DECLARE constraint_name text;
@@ -11882,8 +12123,13 @@ BEGIN
 EXCEPTION WHEN duplicate_object THEN NULL;
 END $$;
 NOTIFY pgrst, 'reload schema';
+
+-- ============================================================================
 -- CANONICAL MIGRATION 41: 20261030000600_leadx_product_state_authority.sql
+-- ============================================================================
+
 -- LeadX product-state authority: additive billing, support, target, and reconciliation fields.
+-- Legacy columns/statuses remain readable by older API workers.
 ALTER TABLE IF EXISTS public.tenants
   ADD COLUMN IF NOT EXISTS billing_catalog_version text,
   ADD COLUMN IF NOT EXISTS billing_plan_snapshot jsonb,
@@ -11947,6 +12193,236 @@ END $$;
 
 CREATE INDEX IF NOT EXISTS idx_pipeline_runs_reconciliation
   ON public.pipeline_runs(tenant_id, reconciliation_status, started_at DESC);
+
+NOTIFY pgrst, 'reload schema';
+
+-- ============================================================================
+-- CANONICAL MIGRATION 42: 20261117000100_leadx_tenant_settings.sql
+-- ============================================================================
+
+-- Application code reads tenants.settings (feature flags, exclusive-lead entitlement, quality gate,
+-- client discovery requests) but no earlier migration created the column, so those paths returned 500.
+-- Additive and idempotent; no row rewrite beyond the default.
+ALTER TABLE IF EXISTS public.tenants
+  ADD COLUMN IF NOT EXISTS settings jsonb NOT NULL DEFAULT '{}'::jsonb;
+
+NOTIFY pgrst, 'reload schema';
+
+-- ============================================================================
+-- CANONICAL MIGRATION 43: 20261117000200_leadx_jobs_singleton_kinds.sql
+-- ============================================================================
+
+-- jobs_active_unique_kind_tenant_idx made EVERY job kind single-flight per tenant. That is only intended for
+-- cron/scheduler kinds and pipeline.run (two runs for one tenant would fight over the same quota). It also
+-- rejected a second queued agent.run, csv.import, email.bulk, ... for the same tenant with a 23505 that surfaced
+-- as "Durable job queue unavailable". Narrow the uniqueness to the intended singleton kinds.
+-- Subset of the previous predicate: cannot fail on existing data. Rollback: recreate the old index (see MIGRATION_RECOVERY.json).
+DROP INDEX IF EXISTS public.jobs_active_unique_kind_tenant_idx;
+CREATE UNIQUE INDEX IF NOT EXISTS jobs_active_singleton_kind_tenant_idx
+  ON public.jobs (kind, tenant_id)
+  WHERE status IN ('queued','running')
+    AND kind IN ('pipeline.run','sequences.process_due','automations.process_events','approvals.expire','alerts.run',
+                 'schedules.tick','leads.reverify','autonomous.campaign_tick','autonomous.campaign_run',
+                 'webhooks.deliver','agent.goals.tick','signals.refresh','searches.alerts');
+
+NOTIFY pgrst, 'reload schema';
+
+-- ============================================================================
+-- CANONICAL MIGRATION 44: 20261117000300_leadx_webhook_signing_secret.sql
+-- ============================================================================
+
+-- Per-webhook signing secret. Deliveries were signed only with one global WEBHOOK_SIGNING_SECRET, and were unsigned when it was unset.
+-- Existing rows get NULL and keep the legacy behaviour until the webhook is re-created; new webhooks always receive a secret.
+ALTER TABLE IF EXISTS public.outbound_webhooks ADD COLUMN IF NOT EXISTS signing_secret text;
+
+NOTIFY pgrst, 'reload schema';
+
+-- ============================================================================
+-- CANONICAL MIGRATION 45: 20261117000400_leadx_workflow_runs_fk.sql
+-- ============================================================================
+
+-- workflow_runs.workflow_id referenced the legacy workflow_rules table, but runs are created for workflow_definitions rows
+-- (the CRM Automations feature). Every custom automation therefore failed with a foreign-key error and never executed.
+-- Re-point the key at workflow_definitions. NOT VALID keeps any pre-existing legacy run rows untouched; new rows are checked.
+-- Rollback: drop workflow_runs_workflow_definition_fkey and re-add the old constraint referencing workflow_rules(id) NOT VALID.
+DO $$
+BEGIN
+  IF to_regclass('public.workflow_runs') IS NOT NULL AND to_regclass('public.workflow_definitions') IS NOT NULL THEN
+    ALTER TABLE public.workflow_runs DROP CONSTRAINT IF EXISTS workflow_runs_workflow_id_fkey;
+    IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'workflow_runs_workflow_definition_fkey') THEN
+      ALTER TABLE public.workflow_runs
+        ADD CONSTRAINT workflow_runs_workflow_definition_fkey
+        FOREIGN KEY (workflow_id) REFERENCES public.workflow_definitions(id) ON DELETE CASCADE NOT VALID;
+    END IF;
+  END IF;
+END $$;
+
+NOTIFY pgrst, 'reload schema';
+
+-- ============================================================================
+-- CANONICAL MIGRATION 46: 20261117000500_leadx_agent_missions_graph_count.sql
+-- ============================================================================
+
+-- agent_missions.graph_count was constrained to exactly 30 (the legacy fixed graph). Task-first missions compile a profile-specific
+-- graph of a different size, so creating ANY default GTM mission failed with a check violation. Allow 1..200.
+-- Rollback: re-add CHECK (graph_count = 30) after deleting or rewriting task-first missions.
+ALTER TABLE IF EXISTS public.agent_missions DROP CONSTRAINT IF EXISTS agent_missions_graph_count_check;
+ALTER TABLE IF EXISTS public.agent_missions ADD CONSTRAINT agent_missions_graph_count_check CHECK (graph_count BETWEEN 1 AND 200);
+
+NOTIFY pgrst, 'reload schema';
+
+-- ============================================================================
+-- CANONICAL MIGRATION 47: 20261118000100_leadx_email_format_guard.sql
+-- ============================================================================
+
+-- Last line of defence for the "TikTok URL saved as an email" class of bug. The application validates before writing; this makes the
+-- database refuse such values even if a future code path forgets to. NOT VALID: existing rows are not scanned or rejected, new writes are checked.
+DO $$
+DECLARE t text;
+BEGIN
+  FOREACH t IN ARRAY ARRAY['enrichment', 'leads_global'] LOOP
+    IF to_regclass('public.' || t) IS NOT NULL
+       AND EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = 'public' AND table_name = t AND column_name = 'email')
+       AND NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = t || '_email_format_chk') THEN
+      EXECUTE format($f$ALTER TABLE public.%I ADD CONSTRAINT %I CHECK (
+        email IS NULL OR (
+          email ~* '^[a-z0-9._%%+\-]{1,64}@[a-z0-9\-]+(\.[a-z0-9\-]+)*\.[a-z]{2,24}$'
+          AND email !~* '(tiktok|instagram|facebook|linkedin|twitter|youtube|pinterest)\.com'
+          AND email !~* '@[0-9]x\.'
+          AND email !~* '\.(png|jpe?g|gif|webp|svg|css|js)$'
+        )) NOT VALID$f$, t, t || '_email_format_chk');
+    END IF;
+  END LOOP;
+END $$;
+
+NOTIFY pgrst, 'reload schema';
+
+-- ============================================================================
+-- CANONICAL MIGRATION 48: 20261118000200_leadx_data_engine_ledgers.sql
+-- ============================================================================
+
+-- Data-engine ledgers: provider miss cache, enrichment spend ledger, rejected-lead review queue.
+-- All three are written by the service role only (RLS enabled, no anon/authenticated policies);
+-- tenants read them through the API, which scopes by tenant_id.
+
+create table if not exists public.enrichment_negative_cache (
+  lead_key text not null,
+  provider text not null,
+  field text not null,
+  expires_at timestamptz not null,
+  created_at timestamptz not null default now(),
+  primary key (lead_key, provider, field)
+);
+create index if not exists enrichment_negative_cache_expires_idx on public.enrichment_negative_cache(expires_at);
+
+create table if not exists public.enrichment_spend_ledger (
+  id uuid primary key default gen_random_uuid(),
+  tenant_id uuid references public.tenants(id) on delete cascade,
+  run_id text,
+  lead_key text,
+  provider text not null,
+  field text not null,
+  credits numeric not null default 0 check (credits >= 0),
+  hit boolean not null default false,
+  created_at timestamptz not null default now()
+);
+create index if not exists enrichment_spend_ledger_tenant_idx on public.enrichment_spend_ledger(tenant_id, created_at desc);
+create index if not exists enrichment_spend_ledger_run_idx on public.enrichment_spend_ledger(run_id);
+
+create table if not exists public.lead_review_queue (
+  id uuid primary key default gen_random_uuid(),
+  tenant_id uuid not null references public.tenants(id) on delete cascade,
+  lead_id uuid not null,
+  run_id text,
+  reasons jsonb not null default '[]'::jsonb,
+  score integer,
+  snapshot jsonb not null default '{}'::jsonb,
+  status text not null default 'pending' check (status in ('pending','approved','rejected','recovered')),
+  created_at timestamptz not null default now(),
+  resolved_at timestamptz,
+  resolved_by text
+);
+create unique index if not exists lead_review_queue_tenant_lead_pending_idx
+  on public.lead_review_queue(tenant_id, lead_id) where status = 'pending';
+create index if not exists lead_review_queue_tenant_status_idx on public.lead_review_queue(tenant_id, status, created_at desc);
+
+alter table public.enrichment_negative_cache enable row level security;
+alter table public.enrichment_spend_ledger enable row level security;
+alter table public.lead_review_queue enable row level security;
+
+-- ============================================================================
+-- CANONICAL MIGRATION 49: 20261119000100_leadx_fetch_intelligence.sql
+-- ============================================================================
+
+-- Fetch-intelligence ledgers: one row per fetch attempt (provider-level) and one per lead acquisition outcome.
+-- Written by the service role only (RLS on, no anon/authenticated policies); tenants read them through /crm/{tenant}/engine/fetching.
+
+create table if not exists public.fetch_attempts (
+  id uuid primary key default gen_random_uuid(),
+  tenant_id uuid references public.tenants(id) on delete cascade,
+  run_id text,
+  lead_key text,
+  discovery_source text,
+  domain text not null,
+  url text,
+  provider text not null,
+  trigger text,
+  category text not null,
+  kind text,
+  http_status integer,
+  ok boolean not null default false,
+  elapsed_ms integer,
+  bytes integer,
+  cost numeric not null default 0 check (cost >= 0),
+  error text,
+  created_at timestamptz not null default now()
+);
+create index if not exists fetch_attempts_tenant_idx on public.fetch_attempts(tenant_id, created_at desc);
+create index if not exists fetch_attempts_domain_idx on public.fetch_attempts(domain, created_at desc);
+
+create table if not exists public.fetch_outcomes (
+  id uuid primary key default gen_random_uuid(),
+  tenant_id uuid references public.tenants(id) on delete cascade,
+  run_id text,
+  lead_key text,
+  discovery_source text,
+  domain text,
+  website_fetched boolean not null default false,
+  category text,
+  challenge text,
+  http_status integer,
+  provider text,
+  acquisition text not null check (acquisition in ('fetched','recovered','corroborated','hint_only','failed')),
+  recovery_sources jsonb,
+  completeness numeric,
+  fields jsonb,
+  elapsed_ms integer,
+  cost numeric not null default 0 check (cost >= 0),
+  tokens integer not null default 0 check (tokens >= 0),
+  needs_human boolean not null default false,
+  human_status text check (human_status in ('pending','resolved','dismissed','retry_requested')),
+  created_at timestamptz not null default now()
+);
+create index if not exists fetch_outcomes_tenant_idx on public.fetch_outcomes(tenant_id, created_at desc);
+create index if not exists fetch_outcomes_human_idx on public.fetch_outcomes(tenant_id, created_at desc) where needs_human and human_status = 'pending';
+
+alter table public.fetch_attempts enable row level security;
+alter table public.fetch_outcomes enable row level security;
+
+-- ============================================================================
+-- CANONICAL MIGRATION 50: 20261120000100_leadx_outreach_guardrails.sql
+-- ============================================================================
+
+-- Outreach guardrails: approval mode (auto_send off by default), EU/UK exclusion (on by default), lawful-basis note.
+-- Additive and idempotent. Existing campaigns switch to approval mode, which is the safe default.
+ALTER TABLE IF EXISTS public.autonomous_campaigns
+  ADD COLUMN IF NOT EXISTS auto_send boolean NOT NULL DEFAULT false,
+  ADD COLUMN IF NOT EXISTS exclude_eu_uk boolean NOT NULL DEFAULT true,
+  ADD COLUMN IF NOT EXISTS lawful_basis_note text;
+
+-- email_sends.provider_id also stores the SMTP Message-ID; IMAP reply matching looks it up.
+CREATE INDEX IF NOT EXISTS idx_email_sends_provider_id ON public.email_sends (provider_id) WHERE provider_id IS NOT NULL;
+CREATE INDEX IF NOT EXISTS idx_email_sends_to_email ON public.email_sends (to_email);
 
 NOTIFY pgrst, 'reload schema';
 

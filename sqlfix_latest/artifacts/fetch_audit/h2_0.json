@@ -1,0 +1,5542 @@
+{
+ "engine": {
+  "wall_s": 93.4,
+  "rows": [
+   {
+    "site": "http://www.gregorysterndds.com",
+    "domain": "gregorysterndds.com",
+    "secs": 3.05,
+    "home": {
+     "category": "ok",
+     "usable": true,
+     "method": "direct",
+     "status": 200,
+     "direct_first": true,
+     "providers": [
+      "direct"
+     ]
+    },
+    "had_hint": true,
+    "info": {
+     "ok": true,
+     "error": null,
+     "pages": 0,
+     "description": false,
+     "firecrawl_calls": 0,
+     "email": "gregorysterndds@gmail.com",
+     "phone": "+13104531500",
+     "owner": null,
+     "social": true,
+     "address": true,
+     "class": "fetched",
+     "cost": 0.0,
+     "tokens": 0,
+     "completeness": 0.857,
+     "recovery": [],
+     "challenge": null,
+     "category": "ok",
+     "profile": [
+      "description",
+      "industries",
+      "services",
+      "technologies"
+     ],
+     "fields": [
+      "address",
+      "description",
+      "email",
+      "industries",
+      "phone",
+      "services",
+      "social",
+      "technologies"
+     ],
+     "method": "direct",
+     "alt_sources": [],
+     "alt_tried": [],
+     "hint_contact": null
+    }
+   },
+   {
+    "site": "https://www.susanellisondds.com/",
+    "domain": "susanellisondds.com",
+    "secs": 4.04,
+    "home": {
+     "category": "ok",
+     "usable": true,
+     "method": "direct",
+     "status": 200,
+     "direct_first": true,
+     "providers": [
+      "direct"
+     ]
+    },
+    "had_hint": true,
+    "info": {
+     "ok": true,
+     "error": null,
+     "pages": 4,
+     "description": true,
+     "firecrawl_calls": 0,
+     "email": "frontdesk2@susanellison.com",
+     "phone": "+17137816401",
+     "owner": null,
+     "social": true,
+     "address": true,
+     "class": "fetched",
+     "cost": 0.0,
+     "tokens": 0,
+     "completeness": 0.857,
+     "recovery": [],
+     "challenge": null,
+     "category": "ok",
+     "profile": [
+      "description",
+      "industries",
+      "services",
+      "technologies"
+     ],
+     "fields": [
+      "address",
+      "description",
+      "email",
+      "industries",
+      "phone",
+      "services",
+      "social",
+      "technologies"
+     ],
+     "method": "direct",
+     "alt_sources": [],
+     "alt_tried": [],
+     "hint_contact": null
+    }
+   },
+   {
+    "site": "http://www.rosaccilawfirm.com/",
+    "domain": "rosaccilawfirm.com",
+    "secs": 4.21,
+    "home": {
+     "category": "ok",
+     "usable": true,
+     "method": "direct",
+     "status": 200,
+     "direct_first": true,
+     "providers": [
+      "direct"
+     ]
+    },
+    "had_hint": true,
+    "info": {
+     "ok": true,
+     "error": null,
+     "pages": 4,
+     "description": false,
+     "firecrawl_calls": 0,
+     "email": "vbellomo@rosaccilawfirm.com",
+     "phone": "4016086907",
+     "owner": null,
+     "social": true,
+     "address": false,
+     "class": "fetched",
+     "cost": 0.0,
+     "tokens": 0,
+     "completeness": 0.429,
+     "recovery": [],
+     "challenge": null,
+     "category": "ok",
+     "profile": [
+      "industries"
+     ],
+     "fields": [
+      "email",
+      "industries",
+      "phone",
+      "social"
+     ],
+     "method": "direct",
+     "alt_sources": [],
+     "alt_tried": [],
+     "hint_contact": null
+    }
+   },
+   {
+    "site": "https://www.aacj.org",
+    "domain": "aacj.org",
+    "secs": 4.35,
+    "home": {
+     "category": "ok",
+     "usable": true,
+     "method": "direct",
+     "status": 200,
+     "direct_first": true,
+     "providers": [
+      "direct"
+     ]
+    },
+    "had_hint": false,
+    "info": {
+     "ok": true,
+     "error": null,
+     "pages": 5,
+     "description": false,
+     "firecrawl_calls": 0,
+     "email": "info@aacj.org",
+     "phone": "+16024927999",
+     "owner": null,
+     "social": false,
+     "address": true,
+     "class": "fetched",
+     "cost": 0.0,
+     "tokens": 0,
+     "completeness": 0.571,
+     "recovery": [],
+     "challenge": null,
+     "category": "ok",
+     "profile": [
+      "description",
+      "industries",
+      "technologies"
+     ],
+     "fields": [
+      "address",
+      "description",
+      "email",
+      "industries",
+      "phone",
+      "technologies"
+     ],
+     "method": "direct",
+     "alt_sources": [],
+     "alt_tried": [],
+     "hint_contact": null
+    }
+   },
+   {
+    "site": "https://dumondlawaz.com",
+    "domain": "dumondlawaz.com",
+    "secs": 5.88,
+    "home": {
+     "category": "ok",
+     "usable": true,
+     "method": "direct",
+     "status": 200,
+     "direct_first": true,
+     "providers": [
+      "direct"
+     ]
+    },
+    "had_hint": true,
+    "info": {
+     "ok": true,
+     "error": null,
+     "pages": 2,
+     "description": false,
+     "firecrawl_calls": 0,
+     "email": "info@dumondlawaz.com",
+     "phone": "+18005718062",
+     "owner": null,
+     "social": true,
+     "address": false,
+     "class": "fetched",
+     "cost": 0.0,
+     "tokens": 0,
+     "completeness": 0.571,
+     "recovery": [],
+     "challenge": null,
+     "category": "ok",
+     "profile": [
+      "description",
+      "industries"
+     ],
+     "fields": [
+      "description",
+      "email",
+      "industries",
+      "phone",
+      "social"
+     ],
+     "method": "direct",
+     "alt_sources": [],
+     "alt_tried": [],
+     "hint_contact": null
+    }
+   },
+   {
+    "site": "https://www.pollockcohen.com",
+    "domain": "pollockcohen.com",
+    "secs": 6.61,
+    "home": {
+     "category": "ok",
+     "usable": true,
+     "method": "direct",
+     "status": 200,
+     "direct_first": true,
+     "providers": [
+      "direct"
+     ]
+    },
+    "had_hint": true,
+    "info": {
+     "ok": true,
+     "error": null,
+     "pages": 12,
+     "description": false,
+     "firecrawl_calls": 0,
+     "email": "nyc@pollockcohen.com",
+     "phone": "2024072424",
+     "owner": null,
+     "social": true,
+     "address": false,
+     "class": "fetched",
+     "cost": 0.0,
+     "tokens": 0,
+     "completeness": 0.571,
+     "recovery": [],
+     "challenge": null,
+     "category": "ok",
+     "profile": [
+      "description",
+      "industries",
+      "technologies"
+     ],
+     "fields": [
+      "description",
+      "email",
+      "industries",
+      "phone",
+      "social",
+      "technologies"
+     ],
+     "method": "direct",
+     "alt_sources": [],
+     "alt_tried": [],
+     "hint_contact": null
+    }
+   },
+   {
+    "site": "https://www.hovekianlab.com",
+    "domain": "hovekianlab.com",
+    "secs": 6.64,
+    "home": {
+     "category": "js_shell",
+     "usable": true,
+     "method": "direct",
+     "status": 200,
+     "direct_first": true,
+     "providers": [
+      "direct"
+     ]
+    },
+    "had_hint": true,
+    "info": {
+     "ok": true,
+     "error": null,
+     "pages": 9,
+     "description": false,
+     "firecrawl_calls": 0,
+     "email": "arno@hovekianlab.com",
+     "phone": "2545352419",
+     "owner": null,
+     "social": true,
+     "address": true,
+     "class": "fetched",
+     "cost": 0.0,
+     "tokens": 0,
+     "completeness": 0.714,
+     "recovery": [],
+     "challenge": null,
+     "category": "js_shell",
+     "profile": [
+      "industries",
+      "services",
+      "technologies"
+     ],
+     "fields": [
+      "address",
+      "email",
+      "industries",
+      "phone",
+      "services",
+      "social",
+      "technologies"
+     ],
+     "method": "direct",
+     "alt_sources": [],
+     "alt_tried": [],
+     "hint_contact": null
+    }
+   },
+   {
+    "site": "http://smithandco.co/",
+    "domain": "smithandco.co",
+    "secs": 6.64,
+    "home": {
+     "category": "ok",
+     "usable": true,
+     "method": "direct",
+     "status": 200,
+     "direct_first": true,
+     "providers": [
+      "direct"
+     ]
+    },
+    "had_hint": true,
+    "info": {
+     "ok": true,
+     "error": null,
+     "pages": 6,
+     "description": false,
+     "firecrawl_calls": 0,
+     "email": "smith@smithandco.co",
+     "phone": "+13053932311",
+     "owner": null,
+     "social": true,
+     "address": true,
+     "class": "fetched",
+     "cost": 0.0,
+     "tokens": 0,
+     "completeness": 0.857,
+     "recovery": [],
+     "challenge": null,
+     "category": "ok",
+     "profile": [
+      "description",
+      "industries",
+      "services",
+      "technologies"
+     ],
+     "fields": [
+      "address",
+      "description",
+      "email",
+      "industries",
+      "phone",
+      "services",
+      "social",
+      "technologies"
+     ],
+     "method": "direct",
+     "alt_sources": [],
+     "alt_tried": [],
+     "hint_contact": null
+    }
+   },
+   {
+    "site": "https://dwyertaglia.com",
+    "domain": "dwyertaglia.com",
+    "secs": 6.8,
+    "home": {
+     "category": "js_shell",
+     "usable": true,
+     "method": "direct",
+     "status": 200,
+     "direct_first": false,
+     "providers": [
+      "direct",
+      "direct"
+     ]
+    },
+    "had_hint": false,
+    "info": {
+     "ok": true,
+     "error": null,
+     "pages": 1,
+     "description": false,
+     "firecrawl_calls": 0,
+     "email": "jcamacho@dwyertaglia.com",
+     "phone": "+12122276000",
+     "owner": null,
+     "social": false,
+     "address": false,
+     "class": "fetched",
+     "cost": 0.0,
+     "tokens": 0,
+     "completeness": 0.429,
+     "recovery": [],
+     "challenge": null,
+     "category": "js_shell",
+     "profile": [
+      "description",
+      "industries"
+     ],
+     "fields": [
+      "description",
+      "email",
+      "industries",
+      "phone"
+     ],
+     "method": "direct",
+     "alt_sources": [],
+     "alt_tried": [],
+     "hint_contact": null
+    }
+   },
+   {
+    "site": "http://www.myntdental.com/",
+    "domain": "myntdental.com",
+    "secs": 7.66,
+    "home": {
+     "category": "ok",
+     "usable": true,
+     "method": "direct",
+     "status": 200,
+     "direct_first": true,
+     "providers": [
+      "direct"
+     ]
+    },
+    "had_hint": true,
+    "info": {
+     "ok": true,
+     "error": null,
+     "pages": 4,
+     "description": false,
+     "firecrawl_calls": 0,
+     "email": "franklinpark@myntdental.com",
+     "phone": "+13129999995",
+     "owner": null,
+     "social": true,
+     "address": true,
+     "class": "fetched",
+     "cost": 0.0,
+     "tokens": 0,
+     "completeness": 0.714,
+     "recovery": [],
+     "challenge": null,
+     "category": "ok",
+     "profile": [
+      "description",
+      "industries",
+      "technologies"
+     ],
+     "fields": [
+      "address",
+      "description",
+      "email",
+      "industries",
+      "phone",
+      "social",
+      "technologies"
+     ],
+     "method": "direct",
+     "alt_sources": [],
+     "alt_tried": [],
+     "hint_contact": null
+    }
+   },
+   {
+    "site": "http://www.sanantoniotmjandsleepapnea.com/",
+    "domain": "sanantoniotmjandsleepapnea.com",
+    "secs": 8.02,
+    "home": {
+     "category": "ok",
+     "usable": true,
+     "method": "direct",
+     "status": 200,
+     "direct_first": true,
+     "providers": [
+      "direct"
+     ]
+    },
+    "had_hint": true,
+    "info": {
+     "ok": true,
+     "error": null,
+     "pages": 4,
+     "description": true,
+     "firecrawl_calls": 0,
+     "email": "info@websitesolutionscompany.com",
+     "phone": "+12103088228",
+     "owner": null,
+     "social": true,
+     "address": false,
+     "class": "fetched",
+     "cost": 0.0,
+     "tokens": 0,
+     "completeness": 0.714,
+     "recovery": [],
+     "challenge": null,
+     "category": "ok",
+     "profile": [
+      "description",
+      "industries",
+      "services",
+      "technologies"
+     ],
+     "fields": [
+      "description",
+      "email",
+      "industries",
+      "phone",
+      "services",
+      "social",
+      "technologies"
+     ],
+     "method": "direct",
+     "alt_sources": [],
+     "alt_tried": [],
+     "hint_contact": null
+    }
+   },
+   {
+    "site": "https://delegaldocs.com",
+    "domain": "delegaldocs.com",
+    "secs": 8.47,
+    "home": {
+     "category": "ok",
+     "usable": true,
+     "method": "direct",
+     "status": 200,
+     "direct_first": true,
+     "providers": [
+      "direct"
+     ]
+    },
+    "had_hint": true,
+    "info": {
+     "ok": true,
+     "error": null,
+     "pages": 6,
+     "description": false,
+     "firecrawl_calls": 0,
+     "email": "info@delegaldocs.com",
+     "phone": "+16026267577",
+     "owner": null,
+     "social": true,
+     "address": true,
+     "class": "fetched",
+     "cost": 0.0,
+     "tokens": 0,
+     "completeness": 0.714,
+     "recovery": [],
+     "challenge": null,
+     "category": "ok",
+     "profile": [
+      "description",
+      "industries",
+      "technologies"
+     ],
+     "fields": [
+      "address",
+      "description",
+      "email",
+      "industries",
+      "phone",
+      "social",
+      "technologies"
+     ],
+     "method": "direct",
+     "alt_sources": [],
+     "alt_tried": [],
+     "hint_contact": null
+    }
+   },
+   {
+    "site": "https://247lemonlaw.com",
+    "domain": "247lemonlaw.com",
+    "secs": 8.54,
+    "home": {
+     "category": "sgcaptcha",
+     "usable": false,
+     "method": "direct",
+     "status": 202,
+     "direct_first": false,
+     "providers": [
+      "direct"
+     ]
+    },
+    "had_hint": true,
+    "info": {
+     "ok": true,
+     "error": null,
+     "pages": 0,
+     "description": false,
+     "firecrawl_calls": 0,
+     "email": "info@247lemonlaw.com",
+     "phone": "+14246771115",
+     "owner": "Hamid Kohan",
+     "social": true,
+     "address": false,
+     "class": "recovered",
+     "cost": 0.0,
+     "tokens": 0,
+     "completeness": 0.714,
+     "recovery": [
+      "address",
+      "email",
+      "owner_name",
+      "phone",
+      "website"
+     ],
+     "challenge": "sgcaptcha",
+     "category": "sgcaptcha",
+     "profile": [
+      "industries"
+     ],
+     "fields": [
+      "address",
+      "decision_maker",
+      "email",
+      "industries",
+      "phone",
+      "social",
+      "website"
+     ],
+     "method": "alt:archive",
+     "alt_sources": [
+      "archive"
+     ],
+     "alt_tried": [
+      "archive"
+     ],
+     "hint_contact": null
+    }
+   },
+   {
+    "site": "https://www.morlemlaw.com",
+    "domain": "morlemlaw.com",
+    "secs": 8.77,
+    "home": {
+     "category": "ok",
+     "usable": true,
+     "method": "direct",
+     "status": 200,
+     "direct_first": true,
+     "providers": [
+      "direct"
+     ]
+    },
+    "had_hint": true,
+    "info": {
+     "ok": true,
+     "error": null,
+     "pages": 2,
+     "description": false,
+     "firecrawl_calls": 0,
+     "email": null,
+     "phone": "+12126833750",
+     "owner": null,
+     "social": true,
+     "address": true,
+     "class": "fetched",
+     "cost": 0.0,
+     "tokens": 0,
+     "completeness": 0.571,
+     "recovery": [],
+     "challenge": null,
+     "category": "ok",
+     "profile": [
+      "description",
+      "industries",
+      "technologies"
+     ],
+     "fields": [
+      "address",
+      "description",
+      "industries",
+      "phone",
+      "social",
+      "technologies"
+     ],
+     "method": "direct",
+     "alt_sources": [],
+     "alt_tried": [],
+     "hint_contact": null
+    }
+   },
+   {
+    "site": "https://tnmultisports.com",
+    "domain": "tnmultisports.com",
+    "secs": 8.93,
+    "home": {
+     "category": "sgcaptcha",
+     "usable": false,
+     "method": "direct",
+     "status": 202,
+     "direct_first": false,
+     "providers": [
+      "direct"
+     ]
+    },
+    "had_hint": true,
+    "info": {
+     "ok": true,
+     "error": null,
+     "pages": 0,
+     "description": false,
+     "firecrawl_calls": 0,
+     "email": "coaches@tnmultisports.com",
+     "phone": "+12068189591",
+     "owner": null,
+     "social": true,
+     "address": false,
+     "class": "recovered",
+     "cost": 0.0,
+     "tokens": 0,
+     "completeness": 0.429,
+     "recovery": [
+      "address",
+      "email",
+      "phone",
+      "website"
+     ],
+     "challenge": "sgcaptcha",
+     "category": "sgcaptcha",
+     "profile": [
+      "industries"
+     ],
+     "fields": [
+      "email",
+      "industries",
+      "phone",
+      "social",
+      "website"
+     ],
+     "method": "alt:archive+hints",
+     "alt_sources": [
+      "archive"
+     ],
+     "alt_tried": [
+      "archive"
+     ],
+     "hint_contact": null
+    }
+   },
+   {
+    "site": "https://heartland.com",
+    "domain": "heartland.com",
+    "secs": 8.94,
+    "home": {
+     "category": "js_shell",
+     "usable": true,
+     "method": "direct",
+     "status": 200,
+     "direct_first": true,
+     "providers": [
+      "direct"
+     ]
+    },
+    "had_hint": true,
+    "info": {
+     "ok": true,
+     "error": null,
+     "pages": 3,
+     "description": false,
+     "firecrawl_calls": 0,
+     "email": null,
+     "phone": "24747885-25",
+     "owner": null,
+     "social": true,
+     "address": false,
+     "class": "fetched",
+     "cost": 0.0,
+     "tokens": 0,
+     "completeness": 0.429,
+     "recovery": [],
+     "challenge": null,
+     "category": "js_shell",
+     "profile": [
+      "description",
+      "industries",
+      "technologies"
+     ],
+     "fields": [
+      "description",
+      "industries",
+      "phone",
+      "social",
+      "technologies"
+     ],
+     "method": "direct",
+     "alt_sources": [],
+     "alt_tried": [],
+     "hint_contact": null
+    }
+   },
+   {
+    "site": "http://www.lavishloxstudio.vpweb.com",
+    "domain": "vpweb.com",
+    "secs": 10.38,
+    "home": {
+     "category": "ok",
+     "usable": true,
+     "method": "direct",
+     "status": 200,
+     "direct_first": true,
+     "providers": [
+      "direct"
+     ]
+    },
+    "had_hint": true,
+    "info": {
+     "ok": true,
+     "error": null,
+     "pages": 1,
+     "description": false,
+     "firecrawl_calls": 0,
+     "email": null,
+     "phone": "2166136261",
+     "owner": null,
+     "social": false,
+     "address": false,
+     "class": "fetched",
+     "cost": 0.0,
+     "tokens": 0,
+     "completeness": 0.286,
+     "recovery": [],
+     "challenge": null,
+     "category": "ok",
+     "profile": [
+      "description",
+      "industries",
+      "technologies"
+     ],
+     "fields": [
+      "description",
+      "industries",
+      "phone",
+      "technologies"
+     ],
+     "method": "direct",
+     "alt_sources": [],
+     "alt_tried": [],
+     "hint_contact": null
+    }
+   },
+   {
+    "site": "http://www.weilerlawfirm.com/",
+    "domain": "weilerlawfirm.com",
+    "secs": 10.66,
+    "home": {
+     "category": "js_shell",
+     "usable": true,
+     "method": "direct",
+     "status": 200,
+     "direct_first": true,
+     "providers": [
+      "direct"
+     ]
+    },
+    "had_hint": true,
+    "info": {
+     "ok": true,
+     "error": null,
+     "pages": 6,
+     "description": false,
+     "firecrawl_calls": 0,
+     "email": "aweiler@weilerlawfirm.com",
+     "phone": "+16027147810",
+     "owner": null,
+     "social": true,
+     "address": true,
+     "class": "fetched",
+     "cost": 0.0,
+     "tokens": 0,
+     "completeness": 0.714,
+     "recovery": [],
+     "challenge": null,
+     "category": "js_shell",
+     "profile": [
+      "description",
+      "industries",
+      "technologies"
+     ],
+     "fields": [
+      "address",
+      "description",
+      "email",
+      "industries",
+      "phone",
+      "social",
+      "technologies"
+     ],
+     "method": "direct",
+     "alt_sources": [],
+     "alt_tried": [],
+     "hint_contact": null
+    }
+   },
+   {
+    "site": "https://www.kelsey-seybold.com/find-a-houston-doctor/elmira-rakhmatulina-family-medicine",
+    "domain": "kelsey-seybold.com",
+    "secs": 10.66,
+    "home": {
+     "category": "ok",
+     "usable": true,
+     "method": "direct",
+     "status": 200,
+     "direct_first": true,
+     "providers": [
+      "direct"
+     ]
+    },
+    "had_hint": true,
+    "info": {
+     "ok": true,
+     "error": null,
+     "pages": 12,
+     "description": true,
+     "firecrawl_calls": 0,
+     "email": "premierprograms@kelsey-seybold.com",
+     "phone": "+17134420427",
+     "owner": null,
+     "social": true,
+     "address": true,
+     "class": "fetched",
+     "cost": 0.0,
+     "tokens": 0,
+     "completeness": 0.714,
+     "recovery": [],
+     "challenge": null,
+     "category": "ok",
+     "profile": [
+      "description",
+      "industries",
+      "technologies"
+     ],
+     "fields": [
+      "address",
+      "description",
+      "email",
+      "industries",
+      "phone",
+      "social",
+      "technologies"
+     ],
+     "method": "direct",
+     "alt_sources": [],
+     "alt_tried": [],
+     "hint_contact": null
+    }
+   },
+   {
+    "site": "http://VudohairJ.com/",
+    "domain": "vudohairj.com",
+    "secs": 10.73,
+    "home": {
+     "category": "ok",
+     "usable": true,
+     "method": "direct",
+     "status": 200,
+     "direct_first": true,
+     "providers": [
+      "direct"
+     ]
+    },
+    "had_hint": true,
+    "info": {
+     "ok": true,
+     "error": null,
+     "pages": 2,
+     "description": false,
+     "firecrawl_calls": 0,
+     "email": "vudohair@gmail.com",
+     "phone": "+13038857130",
+     "owner": null,
+     "social": true,
+     "address": false,
+     "class": "fetched",
+     "cost": 0.0,
+     "tokens": 0,
+     "completeness": 0.571,
+     "recovery": [],
+     "challenge": null,
+     "category": "ok",
+     "profile": [
+      "description",
+      "industries"
+     ],
+     "fields": [
+      "description",
+      "email",
+      "industries",
+      "phone",
+      "social"
+     ],
+     "method": "direct",
+     "alt_sources": [],
+     "alt_tried": [],
+     "hint_contact": null
+    }
+   },
+   {
+    "site": "https://www.appealtech.com",
+    "domain": "appealtech.com",
+    "secs": 11.34,
+    "home": {
+     "category": "ok",
+     "usable": true,
+     "method": "direct",
+     "status": 200,
+     "direct_first": true,
+     "providers": [
+      "direct"
+     ]
+    },
+    "had_hint": true,
+    "info": {
+     "ok": true,
+     "error": null,
+     "pages": 4,
+     "description": false,
+     "firecrawl_calls": 0,
+     "email": "info@proceedlegal.com",
+     "phone": "+18004277325",
+     "owner": null,
+     "social": true,
+     "address": true,
+     "class": "fetched",
+     "cost": 0.0,
+     "tokens": 0,
+     "completeness": 0.714,
+     "recovery": [],
+     "challenge": null,
+     "category": "ok",
+     "profile": [
+      "description",
+      "industries",
+      "technologies"
+     ],
+     "fields": [
+      "address",
+      "description",
+      "email",
+      "industries",
+      "phone",
+      "social",
+      "technologies"
+     ],
+     "method": "direct",
+     "alt_sources": [],
+     "alt_tried": [],
+     "hint_contact": null
+    }
+   },
+   {
+    "site": "https://camplawplc.com",
+    "domain": "camplawplc.com",
+    "secs": 7.57,
+    "home": {
+     "category": "ok",
+     "usable": true,
+     "method": "direct",
+     "status": 200,
+     "direct_first": true,
+     "providers": [
+      "direct"
+     ]
+    },
+    "had_hint": true,
+    "info": {
+     "ok": true,
+     "error": null,
+     "pages": 4,
+     "description": false,
+     "firecrawl_calls": 0,
+     "email": null,
+     "phone": "602 596 3033",
+     "owner": null,
+     "social": false,
+     "address": true,
+     "class": "fetched",
+     "cost": 0.0,
+     "tokens": 0,
+     "completeness": 0.286,
+     "recovery": [],
+     "challenge": null,
+     "category": "ok",
+     "profile": [
+      "industries",
+      "technologies"
+     ],
+     "fields": [
+      "address",
+      "industries",
+      "phone",
+      "technologies"
+     ],
+     "method": "direct",
+     "alt_sources": [],
+     "alt_tried": [],
+     "hint_contact": null
+    }
+   },
+   {
+    "site": "https://hcbalaw.com",
+    "domain": "hcbalaw.com",
+    "secs": 11.94,
+    "home": {
+     "category": "cloudflare",
+     "usable": false,
+     "method": "direct",
+     "status": 403,
+     "direct_first": false,
+     "providers": [
+      "direct"
+     ]
+    },
+    "had_hint": false,
+    "info": {
+     "ok": true,
+     "error": null,
+     "pages": 0,
+     "description": false,
+     "firecrawl_calls": 0,
+     "email": "lisa.burke@hcbalaw.com",
+     "phone": "+12017984708",
+     "owner": null,
+     "social": true,
+     "address": false,
+     "class": "recovered",
+     "cost": 0.0,
+     "tokens": 0,
+     "completeness": 0.429,
+     "recovery": [
+      "address",
+      "email",
+      "phone",
+      "website"
+     ],
+     "challenge": "cloudflare",
+     "category": "cloudflare",
+     "profile": [
+      "industries"
+     ],
+     "fields": [
+      "email",
+      "industries",
+      "phone",
+      "social",
+      "website"
+     ],
+     "method": "alt:hints+archive",
+     "alt_sources": [
+      "archive"
+     ],
+     "alt_tried": [
+      "archive"
+     ],
+     "hint_contact": null
+    }
+   },
+   {
+    "site": "http://www.soul-cycle.com/",
+    "domain": "soul-cycle.com",
+    "secs": 6.95,
+    "home": {
+     "category": "ok",
+     "usable": true,
+     "method": "direct",
+     "status": 200,
+     "direct_first": true,
+     "providers": [
+      "direct"
+     ]
+    },
+    "had_hint": true,
+    "info": {
+     "ok": true,
+     "error": null,
+     "pages": 6,
+     "description": false,
+     "firecrawl_calls": 0,
+     "email": "yoursoulmatters@soul-cycle.com",
+     "phone": "+1-646-755-6872",
+     "owner": null,
+     "social": true,
+     "address": true,
+     "class": "fetched",
+     "cost": 0.0,
+     "tokens": 0,
+     "completeness": 0.714,
+     "recovery": [],
+     "challenge": null,
+     "category": "ok",
+     "profile": [
+      "description",
+      "industries",
+      "technologies"
+     ],
+     "fields": [
+      "address",
+      "description",
+      "email",
+      "industries",
+      "phone",
+      "social",
+      "technologies"
+     ],
+     "method": "direct",
+     "alt_sources": [],
+     "alt_tried": [],
+     "hint_contact": null
+    }
+   },
+   {
+    "site": "http://www.commercialroofingindallas.com",
+    "domain": "commercialroofingindallas.com",
+    "secs": 13.98,
+    "home": {
+     "category": "ok",
+     "usable": true,
+     "method": "direct",
+     "status": 200,
+     "direct_first": true,
+     "providers": [
+      "direct"
+     ]
+    },
+    "had_hint": true,
+    "info": {
+     "ok": true,
+     "error": null,
+     "pages": 1,
+     "description": false,
+     "firecrawl_calls": 0,
+     "email": "info@commercialroofingindallas.com",
+     "phone": "+19452804620",
+     "owner": null,
+     "social": true,
+     "address": false,
+     "class": "fetched",
+     "cost": 0.0,
+     "tokens": 0,
+     "completeness": 0.714,
+     "recovery": [],
+     "challenge": null,
+     "category": "ok",
+     "profile": [
+      "description",
+      "industries",
+      "services",
+      "technologies"
+     ],
+     "fields": [
+      "description",
+      "email",
+      "industries",
+      "phone",
+      "services",
+      "social",
+      "technologies"
+     ],
+     "method": "direct",
+     "alt_sources": [],
+     "alt_tried": [],
+     "hint_contact": null
+    }
+   },
+   {
+    "site": "http://livefitstudiospnw.com/",
+    "domain": "livefitstudiospnw.com",
+    "secs": 13.99,
+    "home": {
+     "category": "ok",
+     "usable": true,
+     "method": "direct",
+     "status": 200,
+     "direct_first": true,
+     "providers": [
+      "direct"
+     ]
+    },
+    "had_hint": true,
+    "info": {
+     "ok": true,
+     "error": null,
+     "pages": 5,
+     "description": false,
+     "firecrawl_calls": 0,
+     "email": "livefitstudiospnw@gmail.com",
+     "phone": "5.6-2.5 9.2.9 9.2.9",
+     "owner": null,
+     "social": false,
+     "address": false,
+     "class": "fetched",
+     "cost": 0.0,
+     "tokens": 0,
+     "completeness": 0.429,
+     "recovery": [],
+     "challenge": null,
+     "category": "ok",
+     "profile": [
+      "industries",
+      "services",
+      "technologies"
+     ],
+     "fields": [
+      "email",
+      "industries",
+      "phone",
+      "services",
+      "technologies"
+     ],
+     "method": "direct",
+     "alt_sources": [],
+     "alt_tried": [],
+     "hint_contact": null
+    }
+   },
+   {
+    "site": "http://www.rayospermanentmakeup.com/",
+    "domain": "rayospermanentmakeup.com",
+    "secs": 15.43,
+    "home": {
+     "category": "dns",
+     "usable": false,
+     "method": "direct",
+     "status": null,
+     "direct_first": null,
+     "providers": []
+    },
+    "had_hint": true,
+    "info": {
+     "ok": false,
+     "error": "blocked:dns_failure",
+     "pages": 0,
+     "description": false,
+     "firecrawl_calls": 0,
+     "email": null,
+     "phone": null,
+     "owner": null,
+     "social": false,
+     "address": false,
+     "class": "hint_only",
+     "cost": 0.0,
+     "tokens": 0,
+     "completeness": 0.0,
+     "recovery": [
+      "address",
+      "email",
+      "phone",
+      "website"
+     ],
+     "challenge": null,
+     "category": "dns",
+     "profile": [
+      "industries"
+     ],
+     "fields": [
+      "industries"
+     ],
+     "method": "alt:hints",
+     "alt_sources": [],
+     "alt_tried": [
+      "archive",
+      "commoncrawl",
+      "directory",
+      "search",
+      "places",
+      "successor"
+     ],
+     "hint_contact": true
+    }
+   },
+   {
+    "site": "http://haleayoga.com/",
+    "domain": "haleayoga.com",
+    "secs": 7.25,
+    "home": {
+     "category": "ok",
+     "usable": true,
+     "method": "direct",
+     "status": 200,
+     "direct_first": true,
+     "providers": [
+      "direct"
+     ]
+    },
+    "had_hint": true,
+    "info": {
+     "ok": true,
+     "error": null,
+     "pages": 4,
+     "description": false,
+     "firecrawl_calls": 0,
+     "email": "info@haleayoga.com",
+     "phone": "+12064026772",
+     "owner": null,
+     "social": true,
+     "address": false,
+     "class": "fetched",
+     "cost": 0.0,
+     "tokens": 0,
+     "completeness": 0.571,
+     "recovery": [],
+     "challenge": null,
+     "category": "ok",
+     "profile": [
+      "description",
+      "industries",
+      "technologies"
+     ],
+     "fields": [
+      "description",
+      "email",
+      "industries",
+      "phone",
+      "social",
+      "technologies"
+     ],
+     "method": "direct",
+     "alt_sources": [],
+     "alt_tried": [],
+     "hint_contact": null
+    }
+   },
+   {
+    "site": "https://www.hairbyidalia.com/",
+    "domain": "hairbyidalia.com",
+    "secs": 15.91,
+    "home": {
+     "category": "dns",
+     "usable": false,
+     "method": "direct",
+     "status": null,
+     "direct_first": null,
+     "providers": []
+    },
+    "had_hint": true,
+    "info": {
+     "ok": false,
+     "error": "blocked:dns_failure",
+     "pages": 0,
+     "description": false,
+     "firecrawl_calls": 0,
+     "email": null,
+     "phone": null,
+     "owner": null,
+     "social": false,
+     "address": false,
+     "class": "hint_only",
+     "cost": 0.0,
+     "tokens": 0,
+     "completeness": 0.0,
+     "recovery": [
+      "address",
+      "email",
+      "phone",
+      "website"
+     ],
+     "challenge": null,
+     "category": "dns",
+     "profile": [
+      "industries"
+     ],
+     "fields": [
+      "industries"
+     ],
+     "method": "alt:hints",
+     "alt_sources": [],
+     "alt_tried": [
+      "archive",
+      "commoncrawl",
+      "directory",
+      "search",
+      "places",
+      "successor"
+     ],
+     "hint_contact": true
+    }
+   },
+   {
+    "site": "https://allurehairstudio.com",
+    "domain": "allurehairstudio.com",
+    "secs": 5.56,
+    "home": {
+     "category": "js_shell",
+     "usable": true,
+     "method": "direct",
+     "status": 200,
+     "direct_first": true,
+     "providers": [
+      "direct"
+     ]
+    },
+    "had_hint": true,
+    "info": {
+     "ok": true,
+     "error": null,
+     "pages": 8,
+     "description": false,
+     "firecrawl_calls": 0,
+     "email": "allurehairstudio282penn@gmail.com",
+     "phone": "3248295750",
+     "owner": null,
+     "social": true,
+     "address": false,
+     "class": "fetched",
+     "cost": 0.0,
+     "tokens": 0,
+     "completeness": 0.429,
+     "recovery": [],
+     "challenge": null,
+     "category": "js_shell",
+     "profile": [
+      "industries",
+      "technologies"
+     ],
+     "fields": [
+      "email",
+      "industries",
+      "phone",
+      "social",
+      "technologies"
+     ],
+     "method": "direct",
+     "alt_sources": [],
+     "alt_tried": [],
+     "hint_contact": null
+    }
+   },
+   {
+    "site": "https://www.fadeandfeather.co",
+    "domain": "fadeandfeather.co",
+    "secs": 2.61,
+    "home": {
+     "category": "ok",
+     "usable": true,
+     "method": "direct",
+     "status": 200,
+     "direct_first": true,
+     "providers": [
+      "direct"
+     ]
+    },
+    "had_hint": false,
+    "info": {
+     "ok": true,
+     "error": null,
+     "pages": 2,
+     "description": false,
+     "firecrawl_calls": 0,
+     "email": "douglas@fadeandfeather.co",
+     "phone": "+17207348404",
+     "owner": null,
+     "social": true,
+     "address": true,
+     "class": "fetched",
+     "cost": 0.0,
+     "tokens": 0,
+     "completeness": 0.714,
+     "recovery": [],
+     "challenge": null,
+     "category": "ok",
+     "profile": [
+      "description",
+      "industries",
+      "technologies"
+     ],
+     "fields": [
+      "address",
+      "description",
+      "email",
+      "industries",
+      "phone",
+      "social",
+      "technologies"
+     ],
+     "method": "direct",
+     "alt_sources": [],
+     "alt_tried": [],
+     "hint_contact": null
+    }
+   },
+   {
+    "site": "https://www.GrandLakesDentalGroup.com/?sc_cid=Facebook%3AO%3AGP%3A645%3ASocial%3AGeneral%3Ana&_vsrefdom=organic_social&y_source=1_MTEwMjkxNS01NTktbG9jYXRpb24ud2Vic2l0ZQ%3D%3D",
+    "domain": "grandlakesdentalgroup.com",
+    "secs": 8.37,
+    "home": {
+     "category": "ok",
+     "usable": true,
+     "method": "direct",
+     "status": 200,
+     "direct_first": true,
+     "providers": [
+      "direct"
+     ]
+    },
+    "had_hint": true,
+    "info": {
+     "ok": true,
+     "error": null,
+     "pages": 12,
+     "description": false,
+     "firecrawl_calls": 0,
+     "email": null,
+     "phone": "+12815745005",
+     "owner": null,
+     "social": true,
+     "address": true,
+     "class": "fetched",
+     "cost": 0.0,
+     "tokens": 0,
+     "completeness": 0.714,
+     "recovery": [],
+     "challenge": null,
+     "category": "ok",
+     "profile": [
+      "description",
+      "industries",
+      "services"
+     ],
+     "fields": [
+      "address",
+      "description",
+      "industries",
+      "phone",
+      "services",
+      "social"
+     ],
+     "method": "direct",
+     "alt_sources": [],
+     "alt_tried": [],
+     "hint_contact": null
+    }
+   },
+   {
+    "site": "https://prowire-orthodontic-laboratory.business.site",
+    "domain": "prowire-orthodontic-laboratory.business.site",
+    "secs": 18.66,
+    "home": {
+     "category": "http_404",
+     "usable": false,
+     "method": "direct",
+     "status": 404,
+     "direct_first": false,
+     "providers": [
+      "direct"
+     ]
+    },
+    "had_hint": true,
+    "info": {
+     "ok": false,
+     "error": "http_404",
+     "pages": 0,
+     "description": false,
+     "firecrawl_calls": 0,
+     "email": null,
+     "phone": null,
+     "owner": null,
+     "social": false,
+     "address": false,
+     "class": "hint_only",
+     "cost": 0.0,
+     "tokens": 0,
+     "completeness": 0.0,
+     "recovery": [
+      "address",
+      "phone",
+      "website"
+     ],
+     "challenge": null,
+     "category": "http_404",
+     "profile": [
+      "industries"
+     ],
+     "fields": [
+      "industries"
+     ],
+     "method": "alt:hints",
+     "alt_sources": [],
+     "alt_tried": [
+      "archive",
+      "commoncrawl",
+      "directory",
+      "search",
+      "places",
+      "successor"
+     ],
+     "hint_contact": true
+    }
+   },
+   {
+    "site": "http://breathbodyandsoul.com",
+    "domain": "breathbodyandsoul.com",
+    "secs": 19.05,
+    "home": {
+     "category": "dns",
+     "usable": false,
+     "method": "direct",
+     "status": null,
+     "direct_first": null,
+     "providers": []
+    },
+    "had_hint": false,
+    "info": {
+     "ok": false,
+     "error": "blocked:dns_failure",
+     "pages": 0,
+     "description": false,
+     "firecrawl_calls": 0,
+     "email": null,
+     "phone": null,
+     "owner": null,
+     "social": false,
+     "address": false,
+     "class": "failed",
+     "cost": 0.0,
+     "tokens": 0,
+     "completeness": 0.0,
+     "recovery": [
+      "address",
+      "website"
+     ],
+     "challenge": null,
+     "category": "dns",
+     "profile": [
+      "industries"
+     ],
+     "fields": [
+      "industries"
+     ],
+     "method": "alt:hints",
+     "alt_sources": [],
+     "alt_tried": [
+      "archive",
+      "commoncrawl",
+      "directory",
+      "search",
+      "places",
+      "successor"
+     ],
+     "hint_contact": null
+    }
+   },
+   {
+    "site": "https://rr-studio-hair-and-makeup.business.site",
+    "domain": "rr-studio-hair-and-makeup.business.site",
+    "secs": 19.31,
+    "home": {
+     "category": "http_404",
+     "usable": false,
+     "method": "direct",
+     "status": 404,
+     "direct_first": false,
+     "providers": [
+      "direct"
+     ]
+    },
+    "had_hint": true,
+    "info": {
+     "ok": false,
+     "error": "http_404",
+     "pages": 0,
+     "description": false,
+     "firecrawl_calls": 0,
+     "email": null,
+     "phone": null,
+     "owner": null,
+     "social": false,
+     "address": false,
+     "class": "hint_only",
+     "cost": 0.0,
+     "tokens": 0,
+     "completeness": 0.0,
+     "recovery": [
+      "address",
+      "phone",
+      "website"
+     ],
+     "challenge": null,
+     "category": "http_404",
+     "profile": [
+      "industries"
+     ],
+     "fields": [
+      "industries"
+     ],
+     "method": "alt:hints",
+     "alt_sources": [],
+     "alt_tried": [
+      "archive",
+      "commoncrawl",
+      "directory",
+      "search",
+      "places",
+      "successor"
+     ],
+     "hint_contact": true
+    }
+   },
+   {
+    "site": "http://robertssalons.com",
+    "domain": "robertssalons.com",
+    "secs": 19.83,
+    "home": {
+     "category": "dns",
+     "usable": false,
+     "method": "direct",
+     "status": null,
+     "direct_first": null,
+     "providers": []
+    },
+    "had_hint": true,
+    "info": {
+     "ok": false,
+     "error": "blocked:dns_failure",
+     "pages": 0,
+     "description": false,
+     "firecrawl_calls": 0,
+     "email": null,
+     "phone": null,
+     "owner": null,
+     "social": false,
+     "address": false,
+     "class": "hint_only",
+     "cost": 0.0,
+     "tokens": 0,
+     "completeness": 0.0,
+     "recovery": [
+      "address",
+      "phone",
+      "website"
+     ],
+     "challenge": null,
+     "category": "dns",
+     "profile": [
+      "industries"
+     ],
+     "fields": [
+      "industries"
+     ],
+     "method": "alt:hints",
+     "alt_sources": [],
+     "alt_tried": [
+      "archive",
+      "commoncrawl",
+      "directory",
+      "search",
+      "places",
+      "successor"
+     ],
+     "hint_contact": true
+    }
+   },
+   {
+    "site": "http://www.smilesculpture.com",
+    "domain": "smilesculpture.com",
+    "secs": 19.98,
+    "home": {
+     "category": "ok",
+     "usable": true,
+     "method": "direct",
+     "status": 200,
+     "direct_first": true,
+     "providers": [
+      "direct"
+     ]
+    },
+    "had_hint": true,
+    "info": {
+     "ok": true,
+     "error": null,
+     "pages": 4,
+     "description": true,
+     "firecrawl_calls": 0,
+     "email": null,
+     "phone": "+6282168977981",
+     "owner": null,
+     "social": false,
+     "address": true,
+     "class": "fetched",
+     "cost": 0.0,
+     "tokens": 0,
+     "completeness": 0.429,
+     "recovery": [],
+     "challenge": null,
+     "category": "ok",
+     "profile": [
+      "description",
+      "industries"
+     ],
+     "fields": [
+      "address",
+      "description",
+      "industries",
+      "phone"
+     ],
+     "method": "direct",
+     "alt_sources": [],
+     "alt_tried": [],
+     "hint_contact": null
+    }
+   },
+   {
+    "site": "http://www.theimplantlearningcenter.com/",
+    "domain": "theimplantlearningcenter.com",
+    "secs": 20.12,
+    "home": {
+     "category": "dns",
+     "usable": false,
+     "method": "direct",
+     "status": null,
+     "direct_first": null,
+     "providers": []
+    },
+    "had_hint": true,
+    "info": {
+     "ok": false,
+     "error": "blocked:dns_failure",
+     "pages": 0,
+     "description": false,
+     "firecrawl_calls": 0,
+     "email": null,
+     "phone": null,
+     "owner": null,
+     "social": false,
+     "address": false,
+     "class": "hint_only",
+     "cost": 0.0,
+     "tokens": 0,
+     "completeness": 0.0,
+     "recovery": [
+      "address",
+      "phone",
+      "website"
+     ],
+     "challenge": null,
+     "category": "dns",
+     "profile": [
+      "industries"
+     ],
+     "fields": [
+      "industries"
+     ],
+     "method": "alt:hints",
+     "alt_sources": [],
+     "alt_tried": [
+      "archive",
+      "commoncrawl",
+      "directory",
+      "search",
+      "places",
+      "successor"
+     ],
+     "hint_contact": true
+    }
+   },
+   {
+    "site": "http://www.phoenix-personalinjuryattorney.com",
+    "domain": "phoenix-personalinjuryattorney.com",
+    "secs": 14.72,
+    "home": {
+     "category": "ok",
+     "usable": true,
+     "method": "direct",
+     "status": 200,
+     "direct_first": true,
+     "providers": [
+      "direct"
+     ]
+    },
+    "had_hint": true,
+    "info": {
+     "ok": true,
+     "error": null,
+     "pages": 3,
+     "description": false,
+     "firecrawl_calls": 0,
+     "email": null,
+     "phone": "+12123005196",
+     "owner": null,
+     "social": false,
+     "address": true,
+     "class": "fetched",
+     "cost": 0.0,
+     "tokens": 0,
+     "completeness": 0.571,
+     "recovery": [],
+     "challenge": null,
+     "category": "ok",
+     "profile": [
+      "description",
+      "industries",
+      "services",
+      "technologies"
+     ],
+     "fields": [
+      "address",
+      "description",
+      "industries",
+      "phone",
+      "services",
+      "technologies"
+     ],
+     "method": "direct",
+     "alt_sources": [],
+     "alt_tried": [],
+     "hint_contact": null
+    }
+   },
+   {
+    "site": "http://www.plumbquickinc.com/",
+    "domain": "plumbquickinc.com",
+    "secs": 20.96,
+    "home": {
+     "category": "ok",
+     "usable": true,
+     "method": "direct",
+     "status": 200,
+     "direct_first": true,
+     "providers": [
+      "direct"
+     ]
+    },
+    "had_hint": true,
+    "info": {
+     "ok": true,
+     "error": null,
+     "pages": 2,
+     "description": false,
+     "firecrawl_calls": 0,
+     "email": null,
+     "phone": "+15122467440",
+     "owner": null,
+     "social": true,
+     "address": false,
+     "class": "fetched",
+     "cost": 0.0,
+     "tokens": 0,
+     "completeness": 0.571,
+     "recovery": [],
+     "challenge": null,
+     "category": "ok",
+     "profile": [
+      "description",
+      "industries",
+      "services",
+      "technologies"
+     ],
+     "fields": [
+      "description",
+      "industries",
+      "phone",
+      "services",
+      "social",
+      "technologies"
+     ],
+     "method": "direct",
+     "alt_sources": [],
+     "alt_tried": [],
+     "hint_contact": null
+    }
+   },
+   {
+    "site": "http://Skinbybeverlylynn.skincaretherapy.net/",
+    "domain": "skincaretherapy.net",
+    "secs": 7.5,
+    "home": {
+     "category": "ok",
+     "usable": true,
+     "method": "direct",
+     "status": 200,
+     "direct_first": true,
+     "providers": [
+      "direct"
+     ]
+    },
+    "had_hint": true,
+    "info": {
+     "ok": true,
+     "error": null,
+     "pages": 6,
+     "description": false,
+     "firecrawl_calls": 0,
+     "email": null,
+     "phone": "+17024100282",
+     "owner": null,
+     "social": false,
+     "address": true,
+     "class": "fetched",
+     "cost": 0.0,
+     "tokens": 0,
+     "completeness": 0.429,
+     "recovery": [],
+     "challenge": null,
+     "category": "ok",
+     "profile": [
+      "description",
+      "industries"
+     ],
+     "fields": [
+      "address",
+      "description",
+      "industries",
+      "phone"
+     ],
+     "method": "direct",
+     "alt_sources": [],
+     "alt_tried": [],
+     "hint_contact": null
+    }
+   },
+   {
+    "site": "http://www.jewelyogapdx.com/",
+    "domain": "jewelyogapdx.com",
+    "secs": 6.58,
+    "home": {
+     "category": "ok",
+     "usable": true,
+     "method": "direct",
+     "status": 200,
+     "direct_first": true,
+     "providers": [
+      "direct"
+     ]
+    },
+    "had_hint": true,
+    "info": {
+     "ok": true,
+     "error": null,
+     "pages": 4,
+     "description": false,
+     "firecrawl_calls": 0,
+     "email": "jewelyogapdx@gmail.com",
+     "phone": "+15032275524",
+     "owner": null,
+     "social": true,
+     "address": false,
+     "class": "fetched",
+     "cost": 0.0,
+     "tokens": 0,
+     "completeness": 0.571,
+     "recovery": [],
+     "challenge": null,
+     "category": "ok",
+     "profile": [
+      "description",
+      "industries",
+      "technologies"
+     ],
+     "fields": [
+      "description",
+      "email",
+      "industries",
+      "phone",
+      "social",
+      "technologies"
+     ],
+     "method": "direct",
+     "alt_sources": [],
+     "alt_tried": [],
+     "hint_contact": null
+    }
+   },
+   {
+    "site": "http://www.bankruptcyordivorcephoenix.com",
+    "domain": "bankruptcyordivorcephoenix.com",
+    "secs": 18.46,
+    "home": {
+     "category": "dns",
+     "usable": false,
+     "method": "direct",
+     "status": null,
+     "direct_first": null,
+     "providers": []
+    },
+    "had_hint": true,
+    "info": {
+     "ok": false,
+     "error": "blocked:dns_failure",
+     "pages": 0,
+     "description": false,
+     "firecrawl_calls": 0,
+     "email": null,
+     "phone": null,
+     "owner": null,
+     "social": false,
+     "address": false,
+     "class": "hint_only",
+     "cost": 0.0,
+     "tokens": 0,
+     "completeness": 0.0,
+     "recovery": [
+      "address",
+      "email",
+      "phone",
+      "website"
+     ],
+     "challenge": null,
+     "category": "dns",
+     "profile": [
+      "industries"
+     ],
+     "fields": [
+      "industries"
+     ],
+     "method": "alt:hints",
+     "alt_sources": [],
+     "alt_tried": [
+      "archive",
+      "commoncrawl",
+      "directory",
+      "search",
+      "places",
+      "successor"
+     ],
+     "hint_contact": true
+    }
+   },
+   {
+    "site": "https://drsaldds.com",
+    "domain": "drsaldds.com",
+    "secs": 19.04,
+    "home": {
+     "category": "ok",
+     "usable": true,
+     "method": "direct",
+     "status": 200,
+     "direct_first": true,
+     "providers": [
+      "direct"
+     ]
+    },
+    "had_hint": true,
+    "info": {
+     "ok": true,
+     "error": null,
+     "pages": 7,
+     "description": false,
+     "firecrawl_calls": 0,
+     "email": null,
+     "phone": "+17084560800",
+     "owner": null,
+     "social": true,
+     "address": true,
+     "class": "fetched",
+     "cost": 0.0,
+     "tokens": 0,
+     "completeness": 0.714,
+     "recovery": [],
+     "challenge": null,
+     "category": "ok",
+     "profile": [
+      "description",
+      "industries",
+      "services",
+      "technologies"
+     ],
+     "fields": [
+      "address",
+      "description",
+      "industries",
+      "phone",
+      "services",
+      "social",
+      "technologies"
+     ],
+     "method": "direct",
+     "alt_sources": [],
+     "alt_tried": [],
+     "hint_contact": null
+    }
+   },
+   {
+    "site": "http://www.amwheelerlaw.com/",
+    "domain": "amwheelerlaw.com",
+    "secs": 7.11,
+    "home": {
+     "category": "ok",
+     "usable": true,
+     "method": "direct",
+     "status": 200,
+     "direct_first": true,
+     "providers": [
+      "direct"
+     ]
+    },
+    "had_hint": true,
+    "info": {
+     "ok": true,
+     "error": null,
+     "pages": 12,
+     "description": true,
+     "firecrawl_calls": 0,
+     "email": "alicia@amwheelerlaw.com",
+     "phone": "+16025865625",
+     "owner": null,
+     "social": true,
+     "address": true,
+     "class": "fetched",
+     "cost": 0.0,
+     "tokens": 0,
+     "completeness": 0.714,
+     "recovery": [],
+     "challenge": null,
+     "category": "ok",
+     "profile": [
+      "description",
+      "industries",
+      "technologies"
+     ],
+     "fields": [
+      "address",
+      "description",
+      "email",
+      "industries",
+      "phone",
+      "social",
+      "technologies"
+     ],
+     "method": "direct",
+     "alt_sources": [],
+     "alt_tried": [],
+     "hint_contact": null
+    }
+   },
+   {
+    "site": "http://www.windycityortho.com/",
+    "domain": "windycityortho.com",
+    "secs": 17.08,
+    "home": {
+     "category": "ok",
+     "usable": true,
+     "method": "direct",
+     "status": 200,
+     "direct_first": true,
+     "providers": [
+      "direct"
+     ]
+    },
+    "had_hint": true,
+    "info": {
+     "ok": true,
+     "error": null,
+     "pages": 12,
+     "description": false,
+     "firecrawl_calls": 0,
+     "email": null,
+     "phone": "+17736978038",
+     "owner": null,
+     "social": true,
+     "address": true,
+     "class": "fetched",
+     "cost": 0.0,
+     "tokens": 0,
+     "completeness": 0.714,
+     "recovery": [],
+     "challenge": null,
+     "category": "ok",
+     "profile": [
+      "description",
+      "industries",
+      "services",
+      "technologies"
+     ],
+     "fields": [
+      "address",
+      "description",
+      "industries",
+      "phone",
+      "services",
+      "social",
+      "technologies"
+     ],
+     "method": "direct",
+     "alt_sources": [],
+     "alt_tried": [],
+     "hint_contact": null
+    }
+   },
+   {
+    "site": "http://www.SmilesOnElston.com/",
+    "domain": "smilesonelston.com",
+    "secs": 16.01,
+    "home": {
+     "category": "ok",
+     "usable": true,
+     "method": "direct",
+     "status": 200,
+     "direct_first": true,
+     "providers": [
+      "direct"
+     ]
+    },
+    "had_hint": true,
+    "info": {
+     "ok": true,
+     "error": null,
+     "pages": 11,
+     "description": true,
+     "firecrawl_calls": 0,
+     "email": null,
+     "phone": "+17737637434",
+     "owner": null,
+     "social": true,
+     "address": true,
+     "class": "fetched",
+     "cost": 0.0,
+     "tokens": 0,
+     "completeness": 0.714,
+     "recovery": [],
+     "challenge": null,
+     "category": "ok",
+     "profile": [
+      "description",
+      "industries",
+      "services",
+      "technologies"
+     ],
+     "fields": [
+      "address",
+      "description",
+      "industries",
+      "phone",
+      "services",
+      "social",
+      "technologies"
+     ],
+     "method": "direct",
+     "alt_sources": [],
+     "alt_tried": [],
+     "hint_contact": null
+    }
+   },
+   {
+    "site": "http://www.kingendo.com/",
+    "domain": "kingendo.com",
+    "secs": 24.64,
+    "home": {
+     "category": "ok",
+     "usable": true,
+     "method": "direct",
+     "status": 200,
+     "direct_first": true,
+     "providers": [
+      "direct"
+     ]
+    },
+    "had_hint": true,
+    "info": {
+     "ok": true,
+     "error": null,
+     "pages": 1,
+     "description": false,
+     "firecrawl_calls": 0,
+     "email": null,
+     "phone": "+18478234161",
+     "owner": null,
+     "social": true,
+     "address": true,
+     "class": "fetched",
+     "cost": 0.0,
+     "tokens": 0,
+     "completeness": 0.714,
+     "recovery": [],
+     "challenge": null,
+     "category": "ok",
+     "profile": [
+      "description",
+      "industries",
+      "services",
+      "technologies"
+     ],
+     "fields": [
+      "address",
+      "description",
+      "industries",
+      "phone",
+      "services",
+      "social",
+      "technologies"
+     ],
+     "method": "direct",
+     "alt_sources": [],
+     "alt_tried": [],
+     "hint_contact": null
+    }
+   },
+   {
+    "site": "https://www.chrysalis-shelter.org",
+    "domain": "chrysalis-shelter.org",
+    "secs": 15.91,
+    "home": {
+     "category": "ok",
+     "usable": true,
+     "method": "direct",
+     "status": 200,
+     "direct_first": true,
+     "providers": [
+      "direct"
+     ]
+    },
+    "had_hint": false,
+    "info": {
+     "ok": true,
+     "error": null,
+     "pages": 1,
+     "description": false,
+     "firecrawl_calls": 0,
+     "email": null,
+     "phone": "+16029559059",
+     "owner": null,
+     "social": true,
+     "address": false,
+     "class": "fetched",
+     "cost": 0.0,
+     "tokens": 0,
+     "completeness": 0.429,
+     "recovery": [],
+     "challenge": null,
+     "category": "ok",
+     "profile": [
+      "description",
+      "industries",
+      "technologies"
+     ],
+     "fields": [
+      "description",
+      "industries",
+      "phone",
+      "social",
+      "technologies"
+     ],
+     "method": "direct",
+     "alt_sources": [],
+     "alt_tried": [],
+     "hint_contact": null
+    }
+   },
+   {
+    "site": "http://dentalimplantshoustontx.com/",
+    "domain": "dentalimplantshoustontx.com",
+    "secs": 5.6,
+    "home": {
+     "category": "ok",
+     "usable": true,
+     "method": "direct",
+     "status": 200,
+     "direct_first": true,
+     "providers": [
+      "direct"
+     ]
+    },
+    "had_hint": true,
+    "info": {
+     "ok": true,
+     "error": null,
+     "pages": 5,
+     "description": false,
+     "firecrawl_calls": 0,
+     "email": "office@dentalimplantshoustontx.com",
+     "phone": "+12814469157",
+     "owner": null,
+     "social": true,
+     "address": false,
+     "class": "fetched",
+     "cost": 0.0,
+     "tokens": 0,
+     "completeness": 0.714,
+     "recovery": [],
+     "challenge": null,
+     "category": "ok",
+     "profile": [
+      "description",
+      "industries",
+      "services",
+      "technologies"
+     ],
+     "fields": [
+      "description",
+      "email",
+      "industries",
+      "phone",
+      "services",
+      "social",
+      "technologies"
+     ],
+     "method": "direct",
+     "alt_sources": [],
+     "alt_tried": [],
+     "hint_contact": null
+    }
+   },
+   {
+    "site": "https://www.westhair.salon",
+    "domain": "westhair.salon",
+    "secs": 25.92,
+    "home": {
+     "category": "http_404",
+     "usable": false,
+     "method": "direct",
+     "status": 404,
+     "direct_first": false,
+     "providers": [
+      "direct"
+     ]
+    },
+    "had_hint": true,
+    "info": {
+     "ok": true,
+     "error": null,
+     "pages": 0,
+     "description": false,
+     "firecrawl_calls": 0,
+     "email": null,
+     "phone": "+16192305772",
+     "owner": null,
+     "social": true,
+     "address": false,
+     "class": "recovered",
+     "cost": 0.0,
+     "tokens": 0,
+     "completeness": 0.429,
+     "recovery": [
+      "address",
+      "phone",
+      "website"
+     ],
+     "challenge": null,
+     "category": "http_404",
+     "profile": [
+      "industries"
+     ],
+     "fields": [
+      "address",
+      "industries",
+      "phone",
+      "social",
+      "website"
+     ],
+     "method": "alt:archive",
+     "alt_sources": [
+      "archive"
+     ],
+     "alt_tried": [
+      "archive",
+      "commoncrawl",
+      "directory",
+      "search",
+      "places",
+      "successor"
+     ],
+     "hint_contact": null
+    }
+   },
+   {
+    "site": "https://classy-cuts-hair-beauty-salon.hub.biz/",
+    "domain": "classy-cuts-hair-beauty-salon.hub.biz",
+    "secs": 26.19,
+    "home": {
+     "category": "cloudflare",
+     "usable": false,
+     "method": "direct",
+     "status": 403,
+     "direct_first": false,
+     "providers": [
+      "direct"
+     ]
+    },
+    "had_hint": true,
+    "info": {
+     "ok": false,
+     "error": "site_challenge:cloudflare",
+     "pages": 0,
+     "description": false,
+     "firecrawl_calls": 0,
+     "email": null,
+     "phone": null,
+     "owner": null,
+     "social": false,
+     "address": false,
+     "class": "hint_only",
+     "cost": 0.0,
+     "tokens": 0,
+     "completeness": 0.0,
+     "recovery": [
+      "address",
+      "phone",
+      "website"
+     ],
+     "challenge": "cloudflare",
+     "category": "cloudflare",
+     "profile": [
+      "industries"
+     ],
+     "fields": [
+      "industries"
+     ],
+     "method": "alt:hints",
+     "alt_sources": [],
+     "alt_tried": [
+      "archive",
+      "commoncrawl",
+      "directory",
+      "search",
+      "places"
+     ],
+     "hint_contact": true
+    }
+   },
+   {
+    "site": "https://www.bluerosenaturalnailspa.com",
+    "domain": "bluerosenaturalnailspa.com",
+    "secs": 19.42,
+    "home": {
+     "category": "ok",
+     "usable": true,
+     "method": "direct",
+     "status": 200,
+     "direct_first": true,
+     "providers": [
+      "direct"
+     ]
+    },
+    "had_hint": true,
+    "info": {
+     "ok": true,
+     "error": null,
+     "pages": 4,
+     "description": false,
+     "firecrawl_calls": 0,
+     "email": null,
+     "phone": "2026-11-19 09",
+     "owner": null,
+     "social": false,
+     "address": false,
+     "class": "fetched",
+     "cost": 0.0,
+     "tokens": 0,
+     "completeness": 0.286,
+     "recovery": [],
+     "challenge": null,
+     "category": "ok",
+     "profile": [
+      "description",
+      "industries",
+      "technologies"
+     ],
+     "fields": [
+      "description",
+      "industries",
+      "phone",
+      "technologies"
+     ],
+     "method": "direct",
+     "alt_sources": [],
+     "alt_tried": [],
+     "hint_contact": null
+    }
+   },
+   {
+    "site": "http://www.higdonshairstudio.com/",
+    "domain": "higdonshairstudio.com",
+    "secs": 15.9,
+    "home": {
+     "category": "js_shell",
+     "usable": true,
+     "method": "direct",
+     "status": 200,
+     "direct_first": true,
+     "providers": [
+      "direct"
+     ]
+    },
+    "had_hint": true,
+    "info": {
+     "ok": true,
+     "error": null,
+     "pages": 1,
+     "description": false,
+     "firecrawl_calls": 0,
+     "email": null,
+     "phone": "+13034555208",
+     "owner": null,
+     "social": true,
+     "address": true,
+     "class": "fetched",
+     "cost": 0.0,
+     "tokens": 0,
+     "completeness": 0.714,
+     "recovery": [],
+     "challenge": null,
+     "category": "js_shell",
+     "profile": [
+      "description",
+      "industries",
+      "services",
+      "technologies"
+     ],
+     "fields": [
+      "address",
+      "description",
+      "industries",
+      "phone",
+      "services",
+      "social",
+      "technologies"
+     ],
+     "method": "direct",
+     "alt_sources": [],
+     "alt_tried": [],
+     "hint_contact": null
+    }
+   },
+   {
+    "site": "http://www.lacanteraendo.com/",
+    "domain": "lacanteraendo.com",
+    "secs": 6.66,
+    "home": {
+     "category": "js_shell",
+     "usable": true,
+     "method": "direct",
+     "status": 200,
+     "direct_first": true,
+     "providers": [
+      "direct"
+     ]
+    },
+    "had_hint": true,
+    "info": {
+     "ok": true,
+     "error": null,
+     "pages": 1,
+     "description": false,
+     "firecrawl_calls": 0,
+     "email": null,
+     "phone": "+12106907668",
+     "owner": null,
+     "social": false,
+     "address": false,
+     "class": "fetched",
+     "cost": 0.0,
+     "tokens": 0,
+     "completeness": 0.143,
+     "recovery": [],
+     "challenge": null,
+     "category": "js_shell",
+     "profile": [
+      "industries",
+      "technologies"
+     ],
+     "fields": [
+      "industries",
+      "phone",
+      "technologies"
+     ],
+     "method": "direct",
+     "alt_sources": [],
+     "alt_tried": [],
+     "hint_contact": null
+    }
+   },
+   {
+    "site": "https://www.ortegalawgroupllc.com/",
+    "domain": "ortegalawgroupllc.com",
+    "secs": 27.41,
+    "home": {
+     "category": "sgcaptcha",
+     "usable": false,
+     "method": "direct",
+     "status": 202,
+     "direct_first": false,
+     "providers": [
+      "direct"
+     ]
+    },
+    "had_hint": true,
+    "info": {
+     "ok": true,
+     "error": null,
+     "pages": 0,
+     "description": false,
+     "firecrawl_calls": 0,
+     "email": null,
+     "phone": "+16026107697",
+     "owner": null,
+     "social": true,
+     "address": false,
+     "class": "corroborated",
+     "cost": 0.0,
+     "tokens": 0,
+     "completeness": 0.429,
+     "recovery": [
+      "address",
+      "email",
+      "phone",
+      "website"
+     ],
+     "challenge": "sgcaptcha",
+     "category": "sgcaptcha",
+     "profile": [
+      "industries"
+     ],
+     "fields": [
+      "address",
+      "industries",
+      "phone",
+      "social",
+      "website"
+     ],
+     "method": "alt:hints+archive",
+     "alt_sources": [
+      "archive"
+     ],
+     "alt_tried": [
+      "archive",
+      "commoncrawl",
+      "directory",
+      "search",
+      "places"
+     ],
+     "hint_contact": null
+    }
+   },
+   {
+    "site": "http://www.smiletheorymp.com/",
+    "domain": "smiletheorymp.com",
+    "secs": 5.46,
+    "home": {
+     "category": "ok",
+     "usable": true,
+     "method": "direct",
+     "status": 200,
+     "direct_first": true,
+     "providers": [
+      "direct"
+     ]
+    },
+    "had_hint": true,
+    "info": {
+     "ok": true,
+     "error": null,
+     "pages": 6,
+     "description": false,
+     "firecrawl_calls": 0,
+     "email": "info@smiletheorymp.com",
+     "phone": "+13122630880",
+     "owner": "Millennium Park",
+     "social": true,
+     "address": true,
+     "class": "fetched",
+     "cost": 0.0,
+     "tokens": 0,
+     "completeness": 0.857,
+     "recovery": [],
+     "challenge": null,
+     "category": "ok",
+     "profile": [
+      "description",
+      "industries",
+      "technologies"
+     ],
+     "fields": [
+      "address",
+      "decision_maker",
+      "description",
+      "email",
+      "industries",
+      "phone",
+      "social",
+      "technologies"
+     ],
+     "method": "direct",
+     "alt_sources": [],
+     "alt_tried": [],
+     "hint_contact": null
+    }
+   },
+   {
+    "site": "http://embracedentalandortho.com/",
+    "domain": "embracedentalandortho.com",
+    "secs": 20.9,
+    "home": {
+     "category": "ok",
+     "usable": true,
+     "method": "direct",
+     "status": 200,
+     "direct_first": true,
+     "providers": [
+      "direct"
+     ]
+    },
+    "had_hint": true,
+    "info": {
+     "ok": true,
+     "error": null,
+     "pages": 12,
+     "description": false,
+     "firecrawl_calls": 0,
+     "email": null,
+     "phone": "+15626307777",
+     "owner": null,
+     "social": true,
+     "address": true,
+     "class": "fetched",
+     "cost": 0.0,
+     "tokens": 0,
+     "completeness": 0.714,
+     "recovery": [],
+     "challenge": null,
+     "category": "ok",
+     "profile": [
+      "description",
+      "industries",
+      "services",
+      "technologies"
+     ],
+     "fields": [
+      "address",
+      "description",
+      "industries",
+      "phone",
+      "services",
+      "social",
+      "technologies"
+     ],
+     "method": "direct",
+     "alt_sources": [],
+     "alt_tried": [],
+     "hint_contact": null
+    }
+   },
+   {
+    "site": "http://kashidental.com/",
+    "domain": "kashidental.com",
+    "secs": 6.38,
+    "home": {
+     "category": "ok",
+     "usable": true,
+     "method": "direct",
+     "status": 200,
+     "direct_first": true,
+     "providers": [
+      "direct"
+     ]
+    },
+    "had_hint": true,
+    "info": {
+     "ok": true,
+     "error": null,
+     "pages": 12,
+     "description": false,
+     "firecrawl_calls": 0,
+     "email": "mohsinjawwad359@gmail.com",
+     "phone": "+12109718989",
+     "owner": null,
+     "social": true,
+     "address": true,
+     "class": "fetched",
+     "cost": 0.0,
+     "tokens": 0,
+     "completeness": 0.857,
+     "recovery": [],
+     "challenge": null,
+     "category": "ok",
+     "profile": [
+      "description",
+      "industries",
+      "services",
+      "technologies"
+     ],
+     "fields": [
+      "address",
+      "description",
+      "email",
+      "industries",
+      "phone",
+      "services",
+      "social",
+      "technologies"
+     ],
+     "method": "direct",
+     "alt_sources": [],
+     "alt_tried": [],
+     "hint_contact": null
+    }
+   },
+   {
+    "site": "https://www.abperio.org/",
+    "domain": "abperio.org",
+    "secs": 3.72,
+    "home": {
+     "category": "ok",
+     "usable": true,
+     "method": "direct",
+     "status": 200,
+     "direct_first": true,
+     "providers": [
+      "direct"
+     ]
+    },
+    "had_hint": true,
+    "info": {
+     "ok": true,
+     "error": null,
+     "pages": 7,
+     "description": false,
+     "firecrawl_calls": 0,
+     "email": "staff@abperio.org",
+     "phone": "+13126820919",
+     "owner": null,
+     "social": true,
+     "address": false,
+     "class": "fetched",
+     "cost": 0.0,
+     "tokens": 0,
+     "completeness": 0.714,
+     "recovery": [],
+     "challenge": null,
+     "category": "ok",
+     "profile": [
+      "description",
+      "industries",
+      "services",
+      "technologies"
+     ],
+     "fields": [
+      "description",
+      "email",
+      "industries",
+      "phone",
+      "services",
+      "social",
+      "technologies"
+     ],
+     "method": "direct",
+     "alt_sources": [],
+     "alt_tried": [],
+     "hint_contact": null
+    }
+   },
+   {
+    "site": "http://mannlawny.com",
+    "domain": "mannlawny.com",
+    "secs": 6.86,
+    "home": {
+     "category": "ok",
+     "usable": true,
+     "method": "direct",
+     "status": 200,
+     "direct_first": true,
+     "providers": [
+      "direct"
+     ]
+    },
+    "had_hint": true,
+    "info": {
+     "ok": true,
+     "error": null,
+     "pages": 1,
+     "description": false,
+     "firecrawl_calls": 0,
+     "email": "lmann@mannlawny.com",
+     "phone": "+12129411888",
+     "owner": null,
+     "social": false,
+     "address": true,
+     "class": "fetched",
+     "cost": 0.0,
+     "tokens": 0,
+     "completeness": 0.571,
+     "recovery": [],
+     "challenge": null,
+     "category": "ok",
+     "profile": [
+      "description",
+      "industries",
+      "technologies"
+     ],
+     "fields": [
+      "address",
+      "description",
+      "email",
+      "industries",
+      "phone",
+      "technologies"
+     ],
+     "method": "direct",
+     "alt_sources": [],
+     "alt_tried": [],
+     "hint_contact": null
+    }
+   },
+   {
+    "site": "http://www.rklawny.com",
+    "domain": "rklawny.com",
+    "secs": 3.99,
+    "home": {
+     "category": "ok",
+     "usable": true,
+     "method": "direct",
+     "status": 200,
+     "direct_first": true,
+     "providers": [
+      "direct"
+     ]
+    },
+    "had_hint": true,
+    "info": {
+     "ok": true,
+     "error": null,
+     "pages": 6,
+     "description": true,
+     "firecrawl_calls": 0,
+     "email": "rkiperman@rklawny.com",
+     "phone": "+19172614514",
+     "owner": null,
+     "social": true,
+     "address": false,
+     "class": "fetched",
+     "cost": 0.0,
+     "tokens": 0,
+     "completeness": 0.571,
+     "recovery": [],
+     "challenge": null,
+     "category": "ok",
+     "profile": [
+      "company_size",
+      "description",
+      "industries",
+      "technologies"
+     ],
+     "fields": [
+      "company_size",
+      "description",
+      "email",
+      "industries",
+      "phone",
+      "social",
+      "technologies"
+     ],
+     "method": "direct",
+     "alt_sources": [],
+     "alt_tried": [],
+     "hint_contact": null
+    }
+   },
+   {
+    "site": "http://westwoodlaorthodontics.com",
+    "domain": "westwoodlaorthodontics.com",
+    "secs": 12.84,
+    "home": {
+     "category": "ok",
+     "usable": true,
+     "method": "direct",
+     "status": 200,
+     "direct_first": true,
+     "providers": [
+      "direct"
+     ]
+    },
+    "had_hint": true,
+    "info": {
+     "ok": true,
+     "error": null,
+     "pages": 3,
+     "description": false,
+     "firecrawl_calls": 0,
+     "email": null,
+     "phone": "+13102086333",
+     "owner": "Southern California",
+     "social": true,
+     "address": true,
+     "class": "fetched",
+     "cost": 0.0,
+     "tokens": 0,
+     "completeness": 0.714,
+     "recovery": [],
+     "challenge": null,
+     "category": "ok",
+     "profile": [
+      "industries",
+      "services",
+      "technologies"
+     ],
+     "fields": [
+      "address",
+      "decision_maker",
+      "industries",
+      "phone",
+      "services",
+      "social",
+      "technologies"
+     ],
+     "method": "direct",
+     "alt_sources": [],
+     "alt_tried": [],
+     "hint_contact": null
+    }
+   },
+   {
+    "site": "https://www.quentelorthodontics.com/",
+    "domain": "quentelorthodontics.com",
+    "secs": 13.99,
+    "home": {
+     "category": "ok",
+     "usable": true,
+     "method": "direct",
+     "status": 200,
+     "direct_first": true,
+     "providers": [
+      "direct"
+     ]
+    },
+    "had_hint": true,
+    "info": {
+     "ok": true,
+     "error": null,
+     "pages": 10,
+     "description": false,
+     "firecrawl_calls": 0,
+     "email": null,
+     "phone": "+12818520000",
+     "owner": null,
+     "social": true,
+     "address": true,
+     "class": "fetched",
+     "cost": 0.0,
+     "tokens": 0,
+     "completeness": 0.714,
+     "recovery": [],
+     "challenge": null,
+     "category": "ok",
+     "profile": [
+      "description",
+      "industries",
+      "services",
+      "technologies"
+     ],
+     "fields": [
+      "address",
+      "description",
+      "industries",
+      "phone",
+      "services",
+      "social",
+      "technologies"
+     ],
+     "method": "direct",
+     "alt_sources": [],
+     "alt_tried": [],
+     "hint_contact": null
+    }
+   },
+   {
+    "site": "http://smilesaver.net",
+    "domain": "smilesaver.net",
+    "secs": 22.29,
+    "home": {
+     "category": "dns",
+     "usable": false,
+     "method": "direct",
+     "status": null,
+     "direct_first": null,
+     "providers": []
+    },
+    "had_hint": true,
+    "info": {
+     "ok": false,
+     "error": "blocked:dns_failure",
+     "pages": 0,
+     "description": false,
+     "firecrawl_calls": 0,
+     "email": null,
+     "phone": null,
+     "owner": null,
+     "social": false,
+     "address": false,
+     "class": "hint_only",
+     "cost": 0.0,
+     "tokens": 0,
+     "completeness": 0.0,
+     "recovery": [
+      "address",
+      "phone",
+      "website"
+     ],
+     "challenge": null,
+     "category": "dns",
+     "profile": [
+      "industries"
+     ],
+     "fields": [
+      "industries"
+     ],
+     "method": "alt:hints",
+     "alt_sources": [],
+     "alt_tried": [
+      "archive",
+      "commoncrawl",
+      "directory",
+      "search",
+      "places",
+      "successor"
+     ],
+     "hint_contact": true
+    }
+   },
+   {
+    "site": "http://www.PioneerTitleAgency.com/",
+    "domain": "pioneertitleagency.com",
+    "secs": 32.02,
+    "home": {
+     "category": "sgcaptcha",
+     "usable": false,
+     "method": "direct",
+     "status": 202,
+     "direct_first": false,
+     "providers": [
+      "direct"
+     ]
+    },
+    "had_hint": true,
+    "info": {
+     "ok": true,
+     "error": null,
+     "pages": 0,
+     "description": false,
+     "firecrawl_calls": 0,
+     "email": null,
+     "phone": "+15204586121",
+     "owner": null,
+     "social": true,
+     "address": false,
+     "class": "recovered",
+     "cost": 0.0,
+     "tokens": 0,
+     "completeness": 0.429,
+     "recovery": [
+      "address",
+      "email",
+      "phone",
+      "website"
+     ],
+     "challenge": "sgcaptcha",
+     "category": "sgcaptcha",
+     "profile": [
+      "industries"
+     ],
+     "fields": [
+      "address",
+      "industries",
+      "phone",
+      "social",
+      "website"
+     ],
+     "method": "alt:hints+commoncrawl",
+     "alt_sources": [
+      "commoncrawl"
+     ],
+     "alt_tried": [
+      "archive",
+      "commoncrawl",
+      "directory",
+      "search",
+      "places"
+     ],
+     "hint_contact": null
+    }
+   },
+   {
+    "site": "https://www.cedarspringsdentaltx.com/",
+    "domain": "cedarspringsdentaltx.com",
+    "secs": 7.95,
+    "home": {
+     "category": "ok",
+     "usable": true,
+     "method": "direct",
+     "status": 200,
+     "direct_first": true,
+     "providers": [
+      "direct"
+     ]
+    },
+    "had_hint": true,
+    "info": {
+     "ok": true,
+     "error": null,
+     "pages": 10,
+     "description": false,
+     "firecrawl_calls": 0,
+     "email": null,
+     "phone": "+12104681981",
+     "owner": "An Ho",
+     "social": true,
+     "address": true,
+     "class": "fetched",
+     "cost": 0.0,
+     "tokens": 0,
+     "completeness": 0.857,
+     "recovery": [],
+     "challenge": null,
+     "category": "ok",
+     "profile": [
+      "description",
+      "industries",
+      "services",
+      "technologies"
+     ],
+     "fields": [
+      "address",
+      "decision_maker",
+      "description",
+      "industries",
+      "phone",
+      "services",
+      "social",
+      "technologies"
+     ],
+     "method": "direct",
+     "alt_sources": [],
+     "alt_tried": [],
+     "hint_contact": null
+    }
+   },
+   {
+    "site": "https://fairoaksdentaltx.com/",
+    "domain": "fairoaksdentaltx.com",
+    "secs": 6.62,
+    "home": {
+     "category": "ok",
+     "usable": true,
+     "method": "direct",
+     "status": 200,
+     "direct_first": true,
+     "providers": [
+      "direct"
+     ]
+    },
+    "had_hint": true,
+    "info": {
+     "ok": true,
+     "error": null,
+     "pages": 1,
+     "description": false,
+     "firecrawl_calls": 0,
+     "email": null,
+     "phone": "+12106989100",
+     "owner": null,
+     "social": false,
+     "address": false,
+     "class": "fetched",
+     "cost": 0.0,
+     "tokens": 0,
+     "completeness": 0.286,
+     "recovery": [],
+     "challenge": null,
+     "category": "ok",
+     "profile": [
+      "industries",
+      "services",
+      "technologies"
+     ],
+     "fields": [
+      "industries",
+      "phone",
+      "services",
+      "technologies"
+     ],
+     "method": "direct",
+     "alt_sources": [],
+     "alt_tried": [],
+     "hint_contact": null
+    }
+   },
+   {
+    "site": "http://www.blackstylists.com",
+    "domain": "blackstylists.com",
+    "secs": 33.05,
+    "home": {
+     "category": "ok",
+     "usable": true,
+     "method": "browser",
+     "status": 200,
+     "direct_first": false,
+     "providers": [
+      "direct",
+      "direct",
+      "browser"
+     ]
+    },
+    "had_hint": true,
+    "info": {
+     "ok": true,
+     "error": null,
+     "pages": 0,
+     "description": false,
+     "firecrawl_calls": 0,
+     "email": null,
+     "phone": null,
+     "owner": null,
+     "social": false,
+     "address": false,
+     "class": "fetched",
+     "cost": 0.0,
+     "tokens": 0,
+     "completeness": 0.0,
+     "recovery": [
+      "address",
+      "phone",
+      "website"
+     ],
+     "challenge": null,
+     "category": "ok",
+     "profile": [
+      "industries",
+      "technologies"
+     ],
+     "fields": [
+      "industries",
+      "technologies"
+     ],
+     "method": "browser+alt:hints",
+     "alt_sources": [],
+     "alt_tried": [],
+     "hint_contact": null
+    }
+   },
+   {
+    "site": "http://www.olleapc.com/",
+    "domain": "olleapc.com",
+    "secs": 21.43,
+    "home": {
+     "category": "dns",
+     "usable": false,
+     "method": "direct",
+     "status": null,
+     "direct_first": null,
+     "providers": []
+    },
+    "had_hint": true,
+    "info": {
+     "ok": false,
+     "error": "blocked:dns_failure",
+     "pages": 0,
+     "description": false,
+     "firecrawl_calls": 0,
+     "email": null,
+     "phone": null,
+     "owner": null,
+     "social": false,
+     "address": false,
+     "class": "hint_only",
+     "cost": 0.0,
+     "tokens": 0,
+     "completeness": 0.0,
+     "recovery": [
+      "address",
+      "email",
+      "phone",
+      "website"
+     ],
+     "challenge": null,
+     "category": "dns",
+     "profile": [
+      "industries"
+     ],
+     "fields": [
+      "industries"
+     ],
+     "method": "alt:hints",
+     "alt_sources": [],
+     "alt_tried": [
+      "archive",
+      "commoncrawl",
+      "directory",
+      "search",
+      "places",
+      "successor"
+     ],
+     "hint_contact": true
+    }
+   },
+   {
+    "site": "https://www.alicia-spa.com/",
+    "domain": "alicia-spa.com",
+    "secs": 34.18,
+    "home": {
+     "category": "ok",
+     "usable": true,
+     "method": "browser",
+     "status": 200,
+     "direct_first": true,
+     "providers": [
+      "direct",
+      "browser"
+     ]
+    },
+    "had_hint": true,
+    "info": {
+     "ok": true,
+     "error": null,
+     "pages": 4,
+     "description": false,
+     "firecrawl_calls": 0,
+     "email": "usabeautician@gmail.com",
+     "phone": "+17869778555",
+     "owner": null,
+     "social": true,
+     "address": true,
+     "class": "fetched",
+     "cost": 0.0,
+     "tokens": 0,
+     "completeness": 0.714,
+     "recovery": [],
+     "challenge": null,
+     "category": "ok",
+     "profile": [
+      "description",
+      "industries",
+      "technologies"
+     ],
+     "fields": [
+      "address",
+      "description",
+      "email",
+      "industries",
+      "phone",
+      "social",
+      "technologies"
+     ],
+     "method": "browser",
+     "alt_sources": [],
+     "alt_tried": [],
+     "hint_contact": null
+    }
+   },
+   {
+    "site": "http://lawfirm.com/",
+    "domain": "lawfirm.com",
+    "secs": 10.53,
+    "home": {
+     "category": "ok",
+     "usable": true,
+     "method": "direct",
+     "status": 200,
+     "direct_first": true,
+     "providers": [
+      "direct"
+     ]
+    },
+    "had_hint": true,
+    "info": {
+     "ok": true,
+     "error": null,
+     "pages": 6,
+     "description": false,
+     "firecrawl_calls": 0,
+     "email": null,
+     "phone": "+18887269160",
+     "owner": null,
+     "social": false,
+     "address": false,
+     "class": "fetched",
+     "cost": 0.0,
+     "tokens": 0,
+     "completeness": 0.429,
+     "recovery": [],
+     "challenge": null,
+     "category": "ok",
+     "profile": [
+      "description",
+      "industries",
+      "services",
+      "technologies"
+     ],
+     "fields": [
+      "description",
+      "industries",
+      "phone",
+      "services",
+      "technologies"
+     ],
+     "method": "direct",
+     "alt_sources": [],
+     "alt_tried": [],
+     "hint_contact": null
+    }
+   },
+   {
+    "site": "https://www.suzukilawoffices.com/contact/",
+    "domain": "suzukilawoffices.com",
+    "secs": 9.76,
+    "home": {
+     "category": "ok",
+     "usable": true,
+     "method": "direct",
+     "status": 200,
+     "direct_first": true,
+     "providers": [
+      "direct"
+     ]
+    },
+    "had_hint": true,
+    "info": {
+     "ok": true,
+     "error": null,
+     "pages": 5,
+     "description": false,
+     "firecrawl_calls": 0,
+     "email": null,
+     "phone": "+16026825270",
+     "owner": null,
+     "social": true,
+     "address": true,
+     "class": "fetched",
+     "cost": 0.0,
+     "tokens": 0,
+     "completeness": 0.714,
+     "recovery": [],
+     "challenge": null,
+     "category": "ok",
+     "profile": [
+      "description",
+      "industries",
+      "services",
+      "technologies"
+     ],
+     "fields": [
+      "address",
+      "description",
+      "industries",
+      "phone",
+      "services",
+      "social",
+      "technologies"
+     ],
+     "method": "direct",
+     "alt_sources": [],
+     "alt_tried": [],
+     "hint_contact": null
+    }
+   },
+   {
+    "site": "http://www.theparlour101.com",
+    "domain": "theparlour101.com",
+    "secs": 26.42,
+    "home": {
+     "category": "dns",
+     "usable": false,
+     "method": "direct",
+     "status": null,
+     "direct_first": null,
+     "providers": []
+    },
+    "had_hint": true,
+    "info": {
+     "ok": false,
+     "error": "blocked:dns_failure",
+     "pages": 0,
+     "description": false,
+     "firecrawl_calls": 0,
+     "email": null,
+     "phone": null,
+     "owner": null,
+     "social": false,
+     "address": false,
+     "class": "hint_only",
+     "cost": 0.0,
+     "tokens": 0,
+     "completeness": 0.0,
+     "recovery": [
+      "address",
+      "email",
+      "phone",
+      "website"
+     ],
+     "challenge": null,
+     "category": "dns",
+     "profile": [
+      "industries"
+     ],
+     "fields": [
+      "industries"
+     ],
+     "method": "alt:hints",
+     "alt_sources": [],
+     "alt_tried": [
+      "archive",
+      "commoncrawl",
+      "directory",
+      "search",
+      "places",
+      "successor"
+     ],
+     "hint_contact": true
+    }
+   },
+   {
+    "site": "http://www.ourdentalplanet.com",
+    "domain": "ourdentalplanet.com",
+    "secs": 37.4,
+    "home": {
+     "category": "cloudflare",
+     "usable": false,
+     "method": "direct",
+     "status": 403,
+     "direct_first": false,
+     "providers": [
+      "direct"
+     ]
+    },
+    "had_hint": true,
+    "info": {
+     "ok": true,
+     "error": null,
+     "pages": 0,
+     "description": false,
+     "firecrawl_calls": 0,
+     "email": null,
+     "phone": "+18185062977",
+     "owner": null,
+     "social": true,
+     "address": false,
+     "class": "corroborated",
+     "cost": 0.0,
+     "tokens": 0,
+     "completeness": 0.429,
+     "recovery": [
+      "address",
+      "email",
+      "phone",
+      "website"
+     ],
+     "challenge": "cloudflare",
+     "category": "cloudflare",
+     "profile": [
+      "industries"
+     ],
+     "fields": [
+      "address",
+      "industries",
+      "phone",
+      "social",
+      "website"
+     ],
+     "method": "alt:hints+archive",
+     "alt_sources": [
+      "archive"
+     ],
+     "alt_tried": [
+      "archive",
+      "commoncrawl",
+      "directory",
+      "search",
+      "places"
+     ],
+     "hint_contact": null
+    }
+   },
+   {
+    "site": "https://thepicklr.com/location/fremont/",
+    "domain": "thepicklr.com",
+    "secs": 19.19,
+    "home": {
+     "category": "js_shell",
+     "usable": true,
+     "method": "direct",
+     "status": 200,
+     "direct_first": true,
+     "providers": [
+      "direct"
+     ]
+    },
+    "had_hint": true,
+    "info": {
+     "ok": true,
+     "error": null,
+     "pages": 12,
+     "description": false,
+     "firecrawl_calls": 0,
+     "email": "fremont.wa@thepicklrfranchise.com",
+     "phone": "+12063855782",
+     "owner": null,
+     "social": true,
+     "address": true,
+     "class": "fetched",
+     "cost": 0.0,
+     "tokens": 0,
+     "completeness": 0.714,
+     "recovery": [],
+     "challenge": null,
+     "category": "js_shell",
+     "profile": [
+      "description",
+      "industries",
+      "technologies"
+     ],
+     "fields": [
+      "address",
+      "description",
+      "email",
+      "industries",
+      "phone",
+      "social",
+      "technologies"
+     ],
+     "method": "direct",
+     "alt_sources": [],
+     "alt_tried": [],
+     "hint_contact": null
+    }
+   },
+   {
+    "site": "http://advancedfamilydental.net/",
+    "domain": "advancedfamilydental.net",
+    "secs": 24.71,
+    "home": {
+     "category": "dns",
+     "usable": false,
+     "method": "direct",
+     "status": null,
+     "direct_first": null,
+     "providers": []
+    },
+    "had_hint": true,
+    "info": {
+     "ok": false,
+     "error": "blocked:dns_failure",
+     "pages": 0,
+     "description": false,
+     "firecrawl_calls": 0,
+     "email": null,
+     "phone": null,
+     "owner": null,
+     "social": false,
+     "address": false,
+     "class": "hint_only",
+     "cost": 0.0,
+     "tokens": 0,
+     "completeness": 0.0,
+     "recovery": [
+      "address",
+      "email",
+      "phone",
+      "website"
+     ],
+     "challenge": null,
+     "category": "dns",
+     "profile": [
+      "industries"
+     ],
+     "fields": [
+      "industries"
+     ],
+     "method": "alt:hints",
+     "alt_sources": [],
+     "alt_tried": [
+      "archive",
+      "commoncrawl",
+      "directory",
+      "search",
+      "places",
+      "successor"
+     ],
+     "hint_contact": true
+    }
+   },
+   {
+    "site": "https://www.smilearchitectsofhouston.com",
+    "domain": "smilearchitectsofhouston.com",
+    "secs": 21.98,
+    "home": {
+     "category": "http_404",
+     "usable": false,
+     "method": "direct",
+     "status": 404,
+     "direct_first": false,
+     "providers": [
+      "direct"
+     ]
+    },
+    "had_hint": true,
+    "info": {
+     "ok": true,
+     "error": null,
+     "pages": 0,
+     "description": false,
+     "firecrawl_calls": 0,
+     "email": "smilearchitects1100@yahoo.com",
+     "phone": "+12814981100",
+     "owner": "Dr. Truong Le",
+     "social": true,
+     "address": false,
+     "class": "recovered",
+     "cost": 0.0,
+     "tokens": 0,
+     "completeness": 0.714,
+     "recovery": [
+      "address",
+      "email",
+      "owner_name",
+      "phone",
+      "website"
+     ],
+     "challenge": null,
+     "category": "http_404",
+     "profile": [
+      "industries"
+     ],
+     "fields": [
+      "address",
+      "decision_maker",
+      "email",
+      "industries",
+      "phone",
+      "social",
+      "website"
+     ],
+     "method": "alt:archive",
+     "alt_sources": [
+      "archive"
+     ],
+     "alt_tried": [
+      "archive"
+     ],
+     "hint_contact": null
+    }
+   },
+   {
+    "site": "http://www.moyadentistry.com/",
+    "domain": "moyadentistry.com",
+    "secs": 21.12,
+    "home": {
+     "category": "dns",
+     "usable": false,
+     "method": "direct",
+     "status": null,
+     "direct_first": null,
+     "providers": []
+    },
+    "had_hint": true,
+    "info": {
+     "ok": false,
+     "error": "blocked:dns_failure",
+     "pages": 0,
+     "description": false,
+     "firecrawl_calls": 0,
+     "email": null,
+     "phone": null,
+     "owner": null,
+     "social": false,
+     "address": false,
+     "class": "hint_only",
+     "cost": 0.0,
+     "tokens": 0,
+     "completeness": 0.0,
+     "recovery": [
+      "address",
+      "phone",
+      "website"
+     ],
+     "challenge": null,
+     "category": "dns",
+     "profile": [
+      "industries"
+     ],
+     "fields": [
+      "industries"
+     ],
+     "method": "alt:hints",
+     "alt_sources": [],
+     "alt_tried": [
+      "archive",
+      "commoncrawl",
+      "directory",
+      "search",
+      "places",
+      "successor"
+     ],
+     "hint_contact": true
+    }
+   },
+   {
+    "site": "http://www.fredjdelacoteradds.com",
+    "domain": "fredjdelacoteradds.com",
+    "secs": 20.05,
+    "home": {
+     "category": "http_4xx",
+     "usable": false,
+     "method": "direct",
+     "status": 421,
+     "direct_first": false,
+     "providers": [
+      "direct"
+     ]
+    },
+    "had_hint": true,
+    "info": {
+     "ok": false,
+     "error": "http_4xx",
+     "pages": 0,
+     "description": false,
+     "firecrawl_calls": 0,
+     "email": null,
+     "phone": null,
+     "owner": null,
+     "social": false,
+     "address": false,
+     "class": "hint_only",
+     "cost": 0.0,
+     "tokens": 0,
+     "completeness": 0.0,
+     "recovery": [
+      "address",
+      "phone",
+      "website"
+     ],
+     "challenge": null,
+     "category": "http_4xx",
+     "profile": [
+      "industries"
+     ],
+     "fields": [
+      "industries",
+      "website"
+     ],
+     "method": "alt:hints+archive",
+     "alt_sources": [
+      "archive"
+     ],
+     "alt_tried": [
+      "archive",
+      "commoncrawl",
+      "directory",
+      "search",
+      "places",
+      "successor"
+     ],
+     "hint_contact": true
+    }
+   },
+   {
+    "site": "http://www.timbarkleydds.com",
+    "domain": "timbarkleydds.com",
+    "secs": 38.7,
+    "home": {
+     "category": "cloudflare",
+     "usable": false,
+     "method": "direct",
+     "status": 403,
+     "direct_first": false,
+     "providers": [
+      "direct"
+     ]
+    },
+    "had_hint": true,
+    "info": {
+     "ok": true,
+     "error": null,
+     "pages": 0,
+     "description": false,
+     "firecrawl_calls": 0,
+     "email": null,
+     "phone": "+12813749490",
+     "owner": null,
+     "social": false,
+     "address": false,
+     "class": "corroborated",
+     "cost": 0.0,
+     "tokens": 0,
+     "completeness": 0.286,
+     "recovery": [
+      "address",
+      "email",
+      "phone",
+      "website"
+     ],
+     "challenge": "cloudflare",
+     "category": "cloudflare",
+     "profile": [
+      "industries"
+     ],
+     "fields": [
+      "address",
+      "industries",
+      "phone",
+      "website"
+     ],
+     "method": "alt:hints+archive",
+     "alt_sources": [
+      "archive"
+     ],
+     "alt_tried": [
+      "archive",
+      "commoncrawl",
+      "directory",
+      "search",
+      "places"
+     ],
+     "hint_contact": null
+    }
+   },
+   {
+    "site": "https://lonestarfamilydentistry.com/",
+    "domain": "lonestarfamilydentistry.com",
+    "secs": 31.28,
+    "home": {
+     "category": "tls",
+     "usable": false,
+     "method": "direct",
+     "status": null,
+     "direct_first": false,
+     "providers": [
+      "direct",
+      "direct",
+      "browser",
+      "scrapling"
+     ]
+    },
+    "had_hint": true,
+    "info": {
+     "ok": true,
+     "error": null,
+     "pages": 0,
+     "description": false,
+     "firecrawl_calls": 0,
+     "email": "lnfo@lonestarfamilydentistry.com",
+     "phone": "+13463880505",
+     "owner": null,
+     "social": true,
+     "address": false,
+     "class": "recovered",
+     "cost": 0.0,
+     "tokens": 0,
+     "completeness": 0.571,
+     "recovery": [
+      "address",
+      "email",
+      "phone",
+      "website"
+     ],
+     "challenge": null,
+     "category": "tls",
+     "profile": [
+      "industries"
+     ],
+     "fields": [
+      "address",
+      "email",
+      "industries",
+      "phone",
+      "social",
+      "website"
+     ],
+     "method": "alt:archive",
+     "alt_sources": [
+      "archive"
+     ],
+     "alt_tried": [
+      "archive"
+     ],
+     "hint_contact": null
+    }
+   },
+   {
+    "site": "http://lesliemystylist.com/",
+    "domain": "lesliemystylist.com",
+    "secs": 42.61,
+    "home": {
+     "category": "ok",
+     "usable": true,
+     "method": "browser",
+     "status": 200,
+     "direct_first": true,
+     "providers": [
+      "direct",
+      "browser"
+     ]
+    },
+    "had_hint": true,
+    "info": {
+     "ok": true,
+     "error": null,
+     "pages": 2,
+     "description": false,
+     "firecrawl_calls": 0,
+     "email": null,
+     "phone": "619-520-7077",
+     "owner": null,
+     "social": false,
+     "address": false,
+     "class": "fetched",
+     "cost": 0.0,
+     "tokens": 0,
+     "completeness": 0.286,
+     "recovery": [],
+     "challenge": null,
+     "category": "ok",
+     "profile": [
+      "description",
+      "industries"
+     ],
+     "fields": [
+      "description",
+      "industries",
+      "phone"
+     ],
+     "method": "browser",
+     "alt_sources": [],
+     "alt_tried": [],
+     "hint_contact": null
+    }
+   },
+   {
+    "site": "http://www.obaisiortho.com/",
+    "domain": "obaisiortho.com",
+    "secs": 27.91,
+    "home": {
+     "category": "ok",
+     "usable": true,
+     "method": "direct",
+     "status": 200,
+     "direct_first": true,
+     "providers": [
+      "direct"
+     ]
+    },
+    "had_hint": true,
+    "info": {
+     "ok": true,
+     "error": null,
+     "pages": 4,
+     "description": true,
+     "firecrawl_calls": 0,
+     "email": null,
+     "phone": "+17735889200",
+     "owner": null,
+     "social": true,
+     "address": true,
+     "class": "fetched",
+     "cost": 0.0,
+     "tokens": 0,
+     "completeness": 0.714,
+     "recovery": [],
+     "challenge": null,
+     "category": "ok",
+     "profile": [
+      "description",
+      "industries",
+      "services",
+      "technologies"
+     ],
+     "fields": [
+      "address",
+      "description",
+      "industries",
+      "phone",
+      "services",
+      "social",
+      "technologies"
+     ],
+     "method": "direct",
+     "alt_sources": [],
+     "alt_tried": [],
+     "hint_contact": null
+    }
+   },
+   {
+    "site": "http://atmospheredenver.com/",
+    "domain": "atmospheredenver.com",
+    "secs": 46.24,
+    "home": {
+     "category": "ok",
+     "usable": true,
+     "method": "crawl4ai",
+     "status": 200,
+     "direct_first": true,
+     "providers": [
+      "direct",
+      "browser",
+      "crawl4ai"
+     ]
+    },
+    "had_hint": true,
+    "info": {
+     "ok": true,
+     "error": null,
+     "pages": 4,
+     "description": false,
+     "firecrawl_calls": 0,
+     "email": null,
+     "phone": null,
+     "owner": null,
+     "social": false,
+     "address": false,
+     "class": "fetched",
+     "cost": 0.0,
+     "tokens": 0,
+     "completeness": 0.0,
+     "recovery": [
+      "address",
+      "email",
+      "phone",
+      "website"
+     ],
+     "challenge": null,
+     "category": "ok",
+     "profile": [
+      "industries"
+     ],
+     "fields": [
+      "industries"
+     ],
+     "method": "crawl4ai+alt:hints",
+     "alt_sources": [],
+     "alt_tried": [],
+     "hint_contact": null
+    }
+   },
+   {
+    "site": "https://inglewooddentalandorthodontics.com/",
+    "domain": "inglewooddentalandorthodontics.com",
+    "secs": 40.06,
+    "home": {
+     "category": "sgcaptcha",
+     "usable": false,
+     "method": "direct",
+     "status": 202,
+     "direct_first": false,
+     "providers": [
+      "direct"
+     ]
+    },
+    "had_hint": true,
+    "info": {
+     "ok": true,
+     "error": null,
+     "pages": 0,
+     "description": false,
+     "firecrawl_calls": 0,
+     "email": "info@inglewooddentalandorthodontics.com",
+     "phone": "+13106743322",
+     "owner": null,
+     "social": true,
+     "address": false,
+     "class": "recovered",
+     "cost": 0.0,
+     "tokens": 0,
+     "completeness": 0.571,
+     "recovery": [
+      "address",
+      "email",
+      "phone",
+      "website"
+     ],
+     "challenge": "sgcaptcha",
+     "category": "sgcaptcha",
+     "profile": [
+      "industries"
+     ],
+     "fields": [
+      "address",
+      "email",
+      "industries",
+      "phone",
+      "social",
+      "website"
+     ],
+     "method": "alt:commoncrawl+archive",
+     "alt_sources": [
+      "archive",
+      "commoncrawl"
+     ],
+     "alt_tried": [
+      "archive",
+      "commoncrawl"
+     ],
+     "hint_contact": null
+    }
+   },
+   {
+    "site": "https://www.rockmoorroofing.com/",
+    "domain": "rockmoorroofing.com",
+    "secs": 41.66,
+    "home": {
+     "category": "sgcaptcha",
+     "usable": false,
+     "method": "direct",
+     "status": 202,
+     "direct_first": false,
+     "providers": [
+      "direct"
+     ]
+    },
+    "had_hint": true,
+    "info": {
+     "ok": true,
+     "error": null,
+     "pages": 0,
+     "description": false,
+     "firecrawl_calls": 0,
+     "email": null,
+     "phone": "+12142336210",
+     "owner": null,
+     "social": true,
+     "address": false,
+     "class": "corroborated",
+     "cost": 0.0,
+     "tokens": 0,
+     "completeness": 0.429,
+     "recovery": [
+      "address",
+      "email",
+      "phone",
+      "website"
+     ],
+     "challenge": "sgcaptcha",
+     "category": "sgcaptcha",
+     "profile": [
+      "industries"
+     ],
+     "fields": [
+      "address",
+      "industries",
+      "phone",
+      "social",
+      "website"
+     ],
+     "method": "alt:hints+archive",
+     "alt_sources": [
+      "archive"
+     ],
+     "alt_tried": [
+      "archive",
+      "commoncrawl"
+     ],
+     "hint_contact": null
+    }
+   },
+   {
+    "site": "http://crossfitimmense.com/",
+    "domain": "crossfitimmense.com",
+    "secs": 50.96,
+    "home": {
+     "category": "ok",
+     "usable": true,
+     "method": "direct",
+     "status": 200,
+     "direct_first": true,
+     "providers": [
+      "direct"
+     ]
+    },
+    "had_hint": true,
+    "info": {
+     "ok": true,
+     "error": null,
+     "pages": 4,
+     "description": false,
+     "firecrawl_calls": 0,
+     "email": null,
+     "phone": "+19713346654",
+     "owner": null,
+     "social": true,
+     "address": false,
+     "class": "fetched",
+     "cost": 0.0,
+     "tokens": 0,
+     "completeness": 0.429,
+     "recovery": [],
+     "challenge": null,
+     "category": "ok",
+     "profile": [
+      "description",
+      "industries",
+      "technologies"
+     ],
+     "fields": [
+      "description",
+      "industries",
+      "phone",
+      "social",
+      "technologies"
+     ],
+     "method": "direct",
+     "alt_sources": [],
+     "alt_tried": [],
+     "hint_contact": null
+    }
+   },
+   {
+    "site": "http://www.gigishair.com",
+    "domain": "gigishair.com",
+    "secs": 29.91,
+    "home": {
+     "category": "cloudflare",
+     "usable": false,
+     "method": "direct",
+     "status": 403,
+     "direct_first": false,
+     "providers": [
+      "direct"
+     ]
+    },
+    "had_hint": true,
+    "info": {
+     "ok": false,
+     "error": "site_challenge:cloudflare",
+     "pages": 0,
+     "description": false,
+     "firecrawl_calls": 0,
+     "email": null,
+     "phone": null,
+     "owner": null,
+     "social": false,
+     "address": false,
+     "class": "hint_only",
+     "cost": 0.0,
+     "tokens": 0,
+     "completeness": 0.0,
+     "recovery": [
+      "address",
+      "email",
+      "phone",
+      "website"
+     ],
+     "challenge": "cloudflare",
+     "category": "cloudflare",
+     "profile": [
+      "industries"
+     ],
+     "fields": [
+      "industries"
+     ],
+     "method": "alt:hints",
+     "alt_sources": [],
+     "alt_tried": [
+      "archive",
+      "commoncrawl",
+      "directory",
+      "search",
+      "places"
+     ],
+     "hint_contact": true
+    }
+   },
+   {
+    "site": "https://legalhelpontheway.com",
+    "domain": "legalhelpontheway.com",
+    "secs": 54.7,
+    "home": {
+     "category": "disconnect",
+     "usable": false,
+     "method": "direct",
+     "status": null,
+     "direct_first": false,
+     "providers": [
+      "direct",
+      "direct",
+      "direct",
+      "browser",
+      "scrapling"
+     ]
+    },
+    "had_hint": true,
+    "info": {
+     "ok": true,
+     "error": null,
+     "pages": 0,
+     "description": false,
+     "firecrawl_calls": 0,
+     "email": "cliff449@hotmail.com",
+     "phone": "+16022588989",
+     "owner": null,
+     "social": true,
+     "address": false,
+     "class": "recovered",
+     "cost": 0.0,
+     "tokens": 0,
+     "completeness": 0.571,
+     "recovery": [
+      "address",
+      "email",
+      "phone",
+      "website"
+     ],
+     "challenge": null,
+     "category": "disconnect",
+     "profile": [
+      "industries"
+     ],
+     "fields": [
+      "address",
+      "email",
+      "industries",
+      "phone",
+      "social",
+      "website"
+     ],
+     "method": "alt:archive",
+     "alt_sources": [
+      "archive"
+     ],
+     "alt_tried": [
+      "archive"
+     ],
+     "hint_contact": null
+    }
+   },
+   {
+    "site": "http://nanibeautysalon.placeweb.site",
+    "domain": "nanibeautysalon.placeweb.site",
+    "secs": 57.16,
+    "home": {
+     "category": "timeout",
+     "usable": false,
+     "method": "direct",
+     "status": null,
+     "direct_first": false,
+     "providers": [
+      "direct",
+      "direct"
+     ]
+    },
+    "had_hint": true,
+    "info": {
+     "ok": false,
+     "error": "ConnectTimeout: ",
+     "pages": 0,
+     "description": false,
+     "firecrawl_calls": 0,
+     "email": null,
+     "phone": null,
+     "owner": null,
+     "social": false,
+     "address": false,
+     "class": "hint_only",
+     "cost": 0.0,
+     "tokens": 0,
+     "completeness": 0.0,
+     "recovery": [
+      "address",
+      "phone",
+      "website"
+     ],
+     "challenge": null,
+     "category": "timeout",
+     "profile": [
+      "industries"
+     ],
+     "fields": [
+      "industries"
+     ],
+     "method": "alt:hints",
+     "alt_sources": [],
+     "alt_tried": [
+      "archive",
+      "commoncrawl",
+      "directory",
+      "search",
+      "places"
+     ],
+     "hint_contact": true
+    }
+   },
+   {
+    "site": "http://www.johnlenzdds.com",
+    "domain": "johnlenzdds.com",
+    "secs": 39.68,
+    "home": {
+     "category": "sgcaptcha",
+     "usable": false,
+     "method": "direct",
+     "status": 202,
+     "direct_first": false,
+     "providers": [
+      "direct"
+     ]
+    },
+    "had_hint": true,
+    "info": {
+     "ok": true,
+     "error": null,
+     "pages": 0,
+     "description": false,
+     "firecrawl_calls": 0,
+     "email": null,
+     "phone": "+17084428787",
+     "owner": null,
+     "social": true,
+     "address": false,
+     "class": "corroborated",
+     "cost": 0.0,
+     "tokens": 0,
+     "completeness": 0.286,
+     "recovery": [
+      "address",
+      "phone",
+      "website"
+     ],
+     "challenge": "sgcaptcha",
+     "category": "sgcaptcha",
+     "profile": [
+      "industries"
+     ],
+     "fields": [
+      "industries",
+      "phone",
+      "social",
+      "website"
+     ],
+     "method": "alt:archive+hints",
+     "alt_sources": [
+      "archive"
+     ],
+     "alt_tried": [
+      "archive",
+      "commoncrawl",
+      "directory",
+      "search",
+      "places"
+     ],
+     "hint_contact": null
+    }
+   },
+   {
+    "site": "https://www.draudreyboros.com",
+    "domain": "draudreyboros.com",
+    "secs": 41.12,
+    "home": {
+     "category": "cloudflare",
+     "usable": false,
+     "method": "direct",
+     "status": 403,
+     "direct_first": false,
+     "providers": [
+      "direct"
+     ]
+    },
+    "had_hint": true,
+    "info": {
+     "ok": true,
+     "error": null,
+     "pages": 0,
+     "description": false,
+     "firecrawl_calls": 0,
+     "email": null,
+     "phone": "+13102645557",
+     "owner": null,
+     "social": false,
+     "address": false,
+     "class": "corroborated",
+     "cost": 0.0,
+     "tokens": 0,
+     "completeness": 0.286,
+     "recovery": [
+      "address",
+      "phone",
+      "website"
+     ],
+     "challenge": "cloudflare",
+     "category": "cloudflare",
+     "profile": [
+      "industries"
+     ],
+     "fields": [
+      "address",
+      "industries",
+      "phone",
+      "website"
+     ],
+     "method": "alt:archive",
+     "alt_sources": [
+      "archive"
+     ],
+     "alt_tried": [
+      "archive",
+      "commoncrawl"
+     ],
+     "hint_contact": null
+    }
+   },
+   {
+    "site": "http://paradise-tans.com",
+    "domain": "paradise-tans.com",
+    "secs": 40.11,
+    "home": {
+     "category": "dns",
+     "usable": false,
+     "method": "direct",
+     "status": null,
+     "direct_first": null,
+     "providers": []
+    },
+    "had_hint": true,
+    "info": {
+     "ok": false,
+     "error": "blocked:dns_failure",
+     "pages": 0,
+     "description": false,
+     "firecrawl_calls": 0,
+     "email": null,
+     "phone": null,
+     "owner": null,
+     "social": false,
+     "address": false,
+     "class": "hint_only",
+     "cost": 0.0,
+     "tokens": 0,
+     "completeness": 0.0,
+     "recovery": [
+      "address",
+      "email",
+      "phone",
+      "website"
+     ],
+     "challenge": null,
+     "category": "dns",
+     "profile": [
+      "industries"
+     ],
+     "fields": [
+      "industries"
+     ],
+     "method": "alt:hints",
+     "alt_sources": [],
+     "alt_tried": [
+      "archive",
+      "commoncrawl",
+      "directory",
+      "search",
+      "places",
+      "successor"
+     ],
+     "hint_contact": true
+    }
+   },
+   {
+    "site": "http://www.encantolaw.com",
+    "domain": "encantolaw.com",
+    "secs": 63.82,
+    "home": {
+     "category": "disconnect",
+     "usable": false,
+     "method": "direct",
+     "status": null,
+     "direct_first": false,
+     "providers": [
+      "direct",
+      "direct",
+      "direct",
+      "browser"
+     ]
+    },
+    "had_hint": true,
+    "info": {
+     "ok": true,
+     "error": null,
+     "pages": 0,
+     "description": false,
+     "firecrawl_calls": 0,
+     "email": "info@encantolaw.com",
+     "phone": "+0490-0491",
+     "owner": null,
+     "social": true,
+     "address": false,
+     "class": "recovered",
+     "cost": 0.0,
+     "tokens": 0,
+     "completeness": 0.571,
+     "recovery": [
+      "address",
+      "email",
+      "phone",
+      "website"
+     ],
+     "challenge": null,
+     "category": "disconnect",
+     "profile": [
+      "industries"
+     ],
+     "fields": [
+      "address",
+      "email",
+      "industries",
+      "phone",
+      "social",
+      "website"
+     ],
+     "method": "alt:archive",
+     "alt_sources": [
+      "archive"
+     ],
+     "alt_tried": [
+      "archive"
+     ],
+     "hint_contact": null
+    }
+   },
+   {
+    "site": "http://drdanib.com/",
+    "domain": "drdanib.com",
+    "secs": 52.13,
+    "home": {
+     "category": "ok",
+     "usable": true,
+     "method": "direct",
+     "status": 200,
+     "direct_first": true,
+     "providers": [
+      "direct"
+     ]
+    },
+    "had_hint": true,
+    "info": {
+     "ok": true,
+     "error": null,
+     "pages": 5,
+     "description": true,
+     "firecrawl_calls": 0,
+     "email": null,
+     "phone": "+13109109950",
+     "owner": "Veneer Specialist",
+     "social": true,
+     "address": true,
+     "class": "fetched",
+     "cost": 0.0,
+     "tokens": 0,
+     "completeness": 0.857,
+     "recovery": [],
+     "challenge": null,
+     "category": "ok",
+     "profile": [
+      "description",
+      "industries",
+      "services",
+      "technologies"
+     ],
+     "fields": [
+      "address",
+      "decision_maker",
+      "description",
+      "industries",
+      "phone",
+      "services",
+      "social",
+      "technologies"
+     ],
+     "method": "direct",
+     "alt_sources": [],
+     "alt_tried": [],
+     "hint_contact": null
+    }
+   },
+   {
+    "site": "http://shagencinitas.com",
+    "domain": "shagencinitas.com",
+    "secs": 80.55,
+    "home": {
+     "category": "disconnect",
+     "usable": false,
+     "method": "direct",
+     "status": null,
+     "direct_first": false,
+     "providers": [
+      "direct",
+      "direct",
+      "direct",
+      "browser",
+      "scrapling"
+     ]
+    },
+    "had_hint": true,
+    "info": {
+     "ok": true,
+     "error": null,
+     "pages": 0,
+     "description": false,
+     "firecrawl_calls": 0,
+     "email": null,
+     "phone": "+0102-0103",
+     "owner": null,
+     "social": true,
+     "address": false,
+     "class": "recovered",
+     "cost": 0.0,
+     "tokens": 0,
+     "completeness": 0.286,
+     "recovery": [
+      "address",
+      "email",
+      "phone",
+      "website"
+     ],
+     "challenge": null,
+     "category": "disconnect",
+     "profile": [
+      "industries"
+     ],
+     "fields": [
+      "industries",
+      "phone",
+      "social",
+      "website"
+     ],
+     "method": "alt:hints+archive",
+     "alt_sources": [
+      "archive"
+     ],
+     "alt_tried": [
+      "archive",
+      "commoncrawl",
+      "directory",
+      "search",
+      "places"
+     ],
+     "hint_contact": null
+    }
+   },
+   {
+    "site": "https://atoothcompany.com/our-team-1",
+    "domain": "atoothcompany.com",
+    "secs": 67.87,
+    "home": {
+     "category": "disconnect",
+     "usable": false,
+     "method": "direct",
+     "status": null,
+     "direct_first": false,
+     "providers": [
+      "direct",
+      "direct",
+      "direct",
+      "browser"
+     ]
+    },
+    "had_hint": true,
+    "info": {
+     "ok": true,
+     "error": null,
+     "pages": 0,
+     "description": false,
+     "firecrawl_calls": 0,
+     "email": null,
+     "phone": "+13127911829",
+     "owner": null,
+     "social": true,
+     "address": false,
+     "class": "corroborated",
+     "cost": 0.0,
+     "tokens": 0,
+     "completeness": 0.286,
+     "recovery": [
+      "address",
+      "phone",
+      "website"
+     ],
+     "challenge": null,
+     "category": "disconnect",
+     "profile": [
+      "industries"
+     ],
+     "fields": [
+      "industries",
+      "phone",
+      "social",
+      "website"
+     ],
+     "method": "alt:archive+hints",
+     "alt_sources": [
+      "archive"
+     ],
+     "alt_tried": [
+      "archive",
+      "commoncrawl",
+      "directory",
+      "search",
+      "places"
+     ],
+     "hint_contact": null
+    }
+   },
+   {
+    "site": "http://www.whosnextlajolla.com",
+    "domain": "whosnextlajolla.com",
+    "secs": 77.44,
+    "home": {
+     "category": "disconnect",
+     "usable": false,
+     "method": "direct",
+     "status": null,
+     "direct_first": false,
+     "providers": [
+      "direct",
+      "direct",
+      "direct",
+      "browser",
+      "scrapling"
+     ]
+    },
+    "had_hint": true,
+    "info": {
+     "ok": false,
+     "error": "RemoteProtocolError: Server disconnected without sending a response.",
+     "pages": 0,
+     "description": false,
+     "firecrawl_calls": 0,
+     "email": null,
+     "phone": null,
+     "owner": null,
+     "social": false,
+     "address": false,
+     "class": "hint_only",
+     "cost": 0.0,
+     "tokens": 0,
+     "completeness": 0.0,
+     "recovery": [
+      "address",
+      "phone",
+      "website"
+     ],
+     "challenge": null,
+     "category": "disconnect",
+     "profile": [
+      "industries"
+     ],
+     "fields": [
+      "industries"
+     ],
+     "method": "alt:hints",
+     "alt_sources": [],
+     "alt_tried": [
+      "archive",
+      "commoncrawl",
+      "directory",
+      "search",
+      "places"
+     ],
+     "hint_contact": true
+    }
+   },
+   {
+    "site": "https://kindredstudiolv.com/",
+    "domain": "kindredstudiolv.com",
+    "secs": 82.0,
+    "home": {
+     "category": "disconnect",
+     "usable": false,
+     "method": "direct",
+     "status": null,
+     "direct_first": false,
+     "providers": [
+      "direct",
+      "direct",
+      "direct",
+      "browser",
+      "scrapling"
+     ]
+    },
+    "had_hint": true,
+    "info": {
+     "ok": true,
+     "error": null,
+     "pages": 0,
+     "description": false,
+     "firecrawl_calls": 0,
+     "email": null,
+     "phone": "+17023399383",
+     "owner": null,
+     "social": true,
+     "address": false,
+     "class": "corroborated",
+     "cost": 0.0,
+     "tokens": 0,
+     "completeness": 0.429,
+     "recovery": [
+      "address",
+      "email",
+      "phone",
+      "website"
+     ],
+     "challenge": null,
+     "category": "disconnect",
+     "profile": [
+      "industries"
+     ],
+     "fields": [
+      "address",
+      "industries",
+      "phone",
+      "social",
+      "website"
+     ],
+     "method": "alt:hints+archive",
+     "alt_sources": [
+      "archive"
+     ],
+     "alt_tried": [
+      "archive",
+      "commoncrawl",
+      "directory",
+      "search",
+      "places"
+     ],
+     "hint_contact": null
+    }
+   }
+  ],
+  "metrics": {
+   "alt_source_hits": {
+    "archive": 19,
+    "commoncrawl": 2
+   },
+   "alt_source_tried": {
+    "archive": 38,
+    "commoncrawl": 31,
+    "directory": 28,
+    "search": 28,
+    "places": 28,
+    "successor": 16
+   },
+   "n": 100,
+   "website_fetch_success_pct": 62.0,
+   "acquisition_success_pct": 73.0,
+   "alt_recovered": 11,
+   "alt_recovered_pct": 11.0,
+   "corroborated": 8,
+   "hint_only": 18,
+   "acquisition_incl_corroborated_pct": 81.0,
+   "contact_incl_discovery_hints_pct": 99.0,
+   "failed": 1,
+   "enriched_ok_pct": 81.0,
+   "site_email_pct": 32.0,
+   "contact_from_site_pct": 60.0,
+   "usable_contact_pct": 71.0,
+   "avg_core_completeness_pct": 44.8,
+   "avg_latency_s": 21.12,
+   "provider_cost_credits": 0,
+   "tokens": 0,
+   "sites": 100,
+   "dns_live_sites": 88,
+   "fetch_success_all_pct": 62.0,
+   "fetch_success_live_pct": 70.5,
+   "failure_categories_all": {
+    "sgcaptcha": 7,
+    "cloudflare": 6,
+    "dns": 12,
+    "http_404": 4,
+    "http_4xx": 1,
+    "tls": 1,
+    "disconnect": 6,
+    "timeout": 1
+   },
+   "failure_categories_live": {
+    "sgcaptcha": 7,
+    "cloudflare": 6,
+    "http_404": 4,
+    "http_4xx": 1,
+    "tls": 1,
+    "disconnect": 6,
+    "timeout": 1
+   },
+   "pages_per_site_avg": 6.11,
+   "field_completeness_pct": {
+    "email": 40.0,
+    "phone": 79.0,
+    "address": 36.0,
+    "social": 63.0,
+    "description": 9.0
+   },
+   "recovered_by_method": {
+    "retry": 1,
+    "alt_source": 11,
+    "browser": 1
+   },
+   "firecrawl_calls": 0
+  }
+ }
+}

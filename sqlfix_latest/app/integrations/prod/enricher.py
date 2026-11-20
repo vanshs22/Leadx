@@ -8,9 +8,11 @@ Production Enricher cascade:
 from __future__ import annotations
 
 import asyncio
+import time
 import html as html_lib
 import json
 import logging
+import os
 import re
 from typing import Optional
 from urllib.parse import urljoin, urlparse
@@ -33,6 +35,20 @@ BOOKING_PLATFORMS = [
     ("simplybook", "SimplyBook"), ("styleseat", "StyleSeat"), ("treatwell", "Treatwell"),
 ]
 
+# stealthy_headers=True runs browserforge's header generator per request (~10% of crawl CPU); a fixed browser UA is enough here.
+_FETCH_HEADERS = {
+    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/131 Safari/537.36",
+    "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+    "Accept-Language": "en-US,en;q=0.9",
+}
+
+try:  # scrapling regenerates browserforge headers on every get() (~2 ms CPU each); one set is enough for the process
+    import functools
+    import scrapling.engines.static as _sstatic
+    _sstatic.generate_headers = functools.lru_cache(maxsize=4)(_sstatic.generate_headers)
+except Exception as _exc:
+    logging.getLogger("lead_engine.enricher").debug("scrapling header cache not installed: %s", _exc)
+
 INSTAGRAM_RE = re.compile(r"instagram\.com/([a-zA-Z0-9._]+)")
 FACEBOOK_RE = re.compile(r"facebook\.com/([a-zA-Z0-9.]+)")
 LINKEDIN_RE = re.compile(r"linkedin\.com/company/([a-zA-Z0-9\-]+)")
@@ -42,6 +58,14 @@ CONTACT_PATHS = (
     "/our-team", "/meet-the-team", "/services", "/locations", "/book", "/booking",
     "/appointments", "/get-started", "/schedule", "/request-an-appointment",
 )
+SECONDARY_MAX = 6  # homepage links considered per site before the sitemap merge; the old crawl fetched ~30 (mostly 404s)
+CRAWL_RANK = tuple(re.compile(p, re.I) for p in ("contact", "about", "team|staff|owner|founder|manager", "service", "location|book|appointment", "career"))
+_OUR_UA = "leadx"  # robots.txt group we honor before falling back to "*"
+
+
+def _crawl_max_pages() -> int:
+    return max(1, int(os.getenv("LEADX_CRAWL_MAX_PAGES", "12")))
+CONTACT_FIRST = re.compile(r"(contact|about|team|staff)", re.I)
 SECONDARY_HINTS = re.compile(r"(contact|about|team|staff|owner|founder|manager|service|location|book|appointment|career)", re.I)
 
 
@@ -70,24 +94,74 @@ def _extract_social(html: str) -> dict:
 # ---------------------------------------------------------------------------
 # Fetch layers
 # ---------------------------------------------------------------------------
-async def fetch_scrapling(url: str, timeout: int = 20) -> dict:
-    """Fast HTTP fetch through Scrapling, with a plain-httpx fallback.
+async def _httpx_fetch(url: str, timeout: int, out: dict) -> dict:
+    """Pooled keep-alive fetch with per-hop SSRF checks (net_safety.safe_get); no HTML tree is built."""
+    r, err = await safe_get(url, timeout=timeout, headers=_FETCH_HEADERS)
+    if r is not None and r.status_code < 400 and r.text:
+        out.update(html=r.text, text=r.text, ok=True, method="httpx", status=r.status_code, error=None)
+    elif r is not None:
+        out.update(status=r.status_code, error=f"http_{r.status_code}")
+    else:
+        out["error"] = err
+    return out
 
-    SECURITY: every hop (including redirects) is validated as a public URL
-    before it is requested, so a lead website can never make the server call
-    localhost, private ranges or cloud metadata endpoints.
 
-    Important: import from scrapling.fetchers. The package has moved the
-    fetcher exports over time, and importing from the package root can leave
-    the production enricher silently falling back to httpx.
+_JS_REDIRECT = re.compile(r"""(?:location(?:\.href)?\s*=\s*|http-equiv=["']refresh["'][^>]*content=["']\d+;\s*(?:url=)?)["']?([^"'\s>;]+)""", re.I)
+
+
+async def _recover_fetch(url: str, timeout: int, out: dict) -> None:
+    """One extra attempt for the common free fixes: JS/meta redirect stubs, homepage path 404, scheme/www flip, 429 backoff.
+    Never touches captcha interstitials (sgcaptcha etc.): those are not bypassed."""
+    p = urlparse(url)
+    alt = None
+    html = out.get("html") or ""
+    if out["ok"] and len(html) < 800:
+        m = _JS_REDIRECT.search(html)
+        if m and "captcha" not in m.group(1).lower():
+            alt = urljoin(url, m.group(1))
+            if not _same_domain(alt, url):
+                alt = None
+    elif out.get("status") == 429:
+        await asyncio.sleep(1.5)
+        alt = url
+    elif out.get("status") in (404, 410) and (p.path.strip("/") or p.query):
+        alt = f"{p.scheme}://{p.netloc}/"
+    elif out.get("status") is None and not str(out.get("error") or "").startswith("blocked"):
+        host = p.netloc[4:] if p.netloc.startswith("www.") else "www." + p.netloc
+        alt = f"{'http' if p.scheme == 'https' else 'https'}://{host}{p.path or '/'}"
+    if alt and not await assert_public_url(alt):
+        again = {"html": "", "text": "", "method": "httpx", "ok": False, "error": None, "status": None}
+        await _httpx_fetch(alt, timeout, again)
+        if again["ok"] and len(again["html"]) > len(html):
+            out.update(again)
+
+
+async def fetch_scrapling(url: str, timeout: int = 20, light: bool = False) -> dict:
+    """Fast page fetch. Plain pooled httpx first; Scrapling only when the site refuses it (403/429/503/network error).
+
+    SECURITY: every hop (including redirects) is validated as a public URL before it is requested, so a lead
+    website can never make the server call localhost, private ranges or cloud metadata endpoints.
+    light=True (secondary pages) never falls back to Scrapling. LEADX_FETCH_FAST=0 restores Scrapling-first.
     """
     from app.integrations.prod.discovery_runtime import assert_provider_allowed
     assert_provider_allowed("first_party_web")
+    from app.integrations.prod import fetch_engine
+    if fetch_engine.enabled():  # classified, history-aware cascade (docs/DATA_ENGINE.md); LEADX_FETCH_ENGINE=0 keeps the path below
+        return await fetch_engine.acquire(url, light=light, timeout=timeout)
     out = {"html": "", "text": "", "method": "scrapling", "ok": False, "error": None, "status": None}
     blocked = await assert_public_url(url)
     if blocked:
         out["error"] = f"blocked:{blocked}"
         return out
+    fast = os.getenv("LEADX_FETCH_FAST", "1") != "0"
+    if light or fast:
+        await _httpx_fetch(url, timeout, out)
+        if not light:
+            await _recover_fetch(url, timeout, out)
+        err = str(out.get("error") or "")
+        if out["ok"] or light or err.startswith("blocked") or out.get("status") in (404, 410, 451):
+            return out
+        out.update(ok=False, html="", text="")
     try:
         try:
             from scrapling.fetchers import AsyncFetcher
@@ -98,7 +172,7 @@ async def fetch_scrapling(url: str, timeout: int = 20) -> dict:
         page = None
         for _hop in range(6):
             page = await fetcher.get(
-                current, timeout=timeout, follow_redirects=False, stealthy_headers=True
+                current, timeout=timeout, follow_redirects=False, stealthy_headers=False, headers=_FETCH_HEADERS
             )
             code = getattr(page, "status", None)
             loc = None
@@ -125,28 +199,32 @@ async def fetch_scrapling(url: str, timeout: int = 20) -> dict:
                 text = page.get_all_text(separator=" ") or ""
             except Exception:
                 text = ""
-        out.update(html=html, text=text or html, ok=bool(html), status=status)
+        out.update(html=html, text=text or html, ok=bool(html), status=status, error=None)
         if status is not None and int(status) >= 400:
             out["ok"] = False
             out["error"] = f"http_{status}"
     except Exception as e:
-        out["error"] = str(e)
         logger.debug("scrapling fail %s: %s", url, e)
-        r, err = await safe_get(
-            url,
-            timeout=timeout,
-            headers={
-                "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/131 Safari/537.36",
-                "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
-            },
-        )
-        if r is not None and r.status_code < 400 and r.text:
-            out.update(html=r.text, text=r.text, ok=True, method="httpx", status=r.status_code, error=None)
-        elif r is not None:
-            out.update(status=r.status_code, error=f"http_{r.status_code}")
+        if not fast:
+            await _httpx_fetch(url, timeout, out)
         else:
-            out["error"] = f"{out.get('error')}; httpx={err}"
+            out["error"] = f"{out.get('error')}; scrapling={str(e)[:80]}"
     return out
+
+
+def ensure_crawl4ai_dir() -> None:
+    """Crawl4AI reads CRAWL4_AI_BASE_DIRECTORY at import, so call this before the first import. Never overrides a user value."""
+    if os.environ.get("CRAWL4_AI_BASE_DIRECTORY"):
+        return
+    import tempfile
+    home = os.path.join(os.path.expanduser("~"), ".crawl4ai")
+    for d in (home, os.path.join(tempfile.gettempdir(), "leadx-crawl4ai")):
+        try:
+            os.makedirs(os.path.join(d, ".crawl4ai"), exist_ok=True)  # Crawl4AI appends .crawl4ai to the base dir
+            os.environ["CRAWL4_AI_BASE_DIRECTORY"] = d if d != home else os.path.expanduser("~")
+            return
+        except OSError:
+            continue
 
 
 async def fetch_crawl4ai(url: str) -> dict:
@@ -164,13 +242,27 @@ async def fetch_crawl4ai(url: str) -> dict:
         out["error"] = f"blocked:{blocked}"
         return out
     try:
-        from crawl4ai import AsyncWebCrawler, BrowserConfig
+        ensure_crawl4ai_dir()
+        from crawl4ai import AsyncWebCrawler, BrowserConfig, CacheMode, CrawlerRunConfig
         browser_config = BrowserConfig(browser_type="chromium", headless=True, verbose=False)
         # Crawl4AI defaults to the installed Google Chrome channel; use the
         # Playwright-managed Chromium binary instead.
         browser_config.chrome_channel = None
         async with AsyncWebCrawler(config=browser_config, verbose=False) as crawler:
-            res = await crawler.arun(url=url)
+            seen: dict[str, bool] = {}
+
+            async def gate(route):  # same per-request SSRF gate as fetch_engine._browser_fetch: redirects and subrequests included
+                host = urlparse(route.request.url).hostname or ""
+                if host not in seen:
+                    seen[host] = not await assert_public_url(route.request.url)
+                await (route.continue_() if seen[host] else route.abort())
+
+            async def on_context(page, context, **kw):
+                await context.route("**/*", gate)
+                return page
+            crawler.crawler_strategy.set_hook("on_page_context_created", on_context)
+            # wait for the load event (not just DOM ready), allow slow pages, and scroll once for lazy content
+            res = await crawler.arun(url=url, config=CrawlerRunConfig(wait_until="load", page_timeout=45000, delay_before_return_html=1.0, scan_full_page=True, cache_mode=CacheMode.BYPASS))
             markdown_value = getattr(res, "markdown", "") or ""
             if not isinstance(markdown_value, str):
                 markdown_value = (
@@ -199,6 +291,7 @@ async def fetch_crawl4ai(url: str) -> dict:
 async def fetch_firecrawl(url: str) -> dict:
     from app.integrations.prod.discovery_runtime import assert_provider_allowed
     assert_provider_allowed("paid_enrichment")
+    out: dict = {"ok": False, "html": "", "markdown": "", "url": url}
     blocked = await assert_public_url(url)
     if blocked:
         out["error"] = f"blocked:{blocked}"
@@ -285,27 +378,44 @@ def _extract_structured_contacts(content: str) -> tuple[list[str], list[str]]:
     return emails[:20], phones[:5]
 
 
-def _parse_content(content: str) -> dict:
+def _parse_content(content: str, page_url: str = "") -> dict:
+    """Typed extraction (see field_extract). Keeps the legacy keys; adds evidence, full social URLs, people and JSON-LD facts."""
+    from app.integrations.prod.field_extract import extract_all
     normalized = html_lib.unescape(content or "")
-    emails = extract_emails(normalized)
-    structured_emails, structured_phones = _extract_structured_contacts(normalized)
-    emails = list(dict.fromkeys(emails + structured_emails))[:20]
-    phones = extract_phones(normalized)
-    for phone in structured_phones:
-        if normalize_phone(phone) not in {normalize_phone(x) for x in phones}:
+    found = extract_all(normalized, page_url)
+    emails = [e["value"] for e in found["emails"]][:20]
+    phones = [p["value"] for p in found["phones"]]
+    legacy_phones = extract_phones(normalized)  # still consulted for numbers the typed pass could not validate
+    for phone in legacy_phones:
+        if normalize_phone(phone) and normalize_phone(phone) not in {normalize_phone(x) for x in phones}:
             phones.append(phone)
     has_booking, platform = _detect_booking(normalized)
-    social = _extract_social(normalized)
+    legacy_social = _extract_social(normalized)
+    social = {k: v["handle"] for k, v in found["social"].items() if v["platform"] != "whatsapp"}
+    for k, v in legacy_social.items():  # legacy handle keys only fill platforms the typed pass did not classify
+        social.setdefault(k, v)
+    biz = found["business"]
+    owner = next((p["name"] for p in found["people"] if re.search(r"owner|founder|ceo|president|principal|dr\.|dentist|doctor", str(p.get("title") or ""), re.I)), None)
     return {
         "emails": emails,
         "email": emails[0] if emails else None,
         "email_valid": is_valid_email(emails[0]) if emails else None,
         "phone_from_web": phones[0] if phones else None,
+        "phones": phones[:10],
         "has_booking": has_booking,
         "booking_platform": platform,
         "social_links": social,
+        "social_urls": {k: v["url"] for k, v in found["social"].items()},
+        "link_hubs": found["link_hubs"],
         "services": [],
-        "owner_name": None,
+        "owner_name": owner,
+        "people": found["people"],
+        "address_parsed": found["address"],
+        "business_jsonld": biz,
+        "field_evidence": {
+            "emails": found["emails"][:10], "phones": found["phones"][:10],
+            "rejected": found["rejected"],
+        },
     }
 
 
@@ -316,33 +426,135 @@ def _same_domain(url: str, base: str) -> bool:
         return False
 
 
-def _secondary_urls(base_url: str, html: str) -> list[str]:
+def parse_robots(text: str) -> tuple[list[str], list[str]]:
+    """(Disallow patterns for our user agent, Sitemap URLs). The group named for us wins over "*".
+    shortcut: Allow lines and crawl-delay are ignored (only stricter, never looser than the file says); upgrade if a site needs Allow carve-outs."""
+    groups: dict[str, list[str]] = {}
+    agents: list[str] = []
+    in_rules = False
+    sitemaps: list[str] = []
+    for raw in (text or "").splitlines():
+        line = raw.split("#", 1)[0].strip()
+        key, _, val = line.partition(":")
+        key, val = key.strip().lower(), val.strip()
+        if key == "user-agent":
+            if in_rules:
+                agents, in_rules = [], False
+            agents.append(val.lower())
+            groups.setdefault(val.lower(), [])
+        elif key in ("disallow", "allow"):
+            in_rules = True
+            if key == "disallow" and val:
+                for a in agents:
+                    groups[a].append(val)
+        elif key == "sitemap" and val:
+            sitemaps.append(val)
+    mine = next((g for a, g in groups.items() if a == _OUR_UA), None)
+    return (mine if mine is not None else groups.get("*", [])), sitemaps
+
+
+def robots_allows(path_and_query: str, disallow: list[str]) -> bool:
+    for pat in disallow:
+        rx = re.escape(pat).replace(r"\*", ".*")
+        if rx.endswith(r"\$"):
+            rx = rx[:-2] + "$"
+        if re.match(rx, path_and_query):
+            return False
+    return True
+
+
+def parse_sitemap(xml: str) -> tuple[list[str], list[str]]:
+    """(page URLs, child sitemap URLs). A <sitemapindex> yields children, a <urlset> yields pages."""
+    import html as _html
+    locs = [_html.unescape(u.strip()) for u in re.findall(r"<loc>\s*([^<]+?)\s*</loc>", xml or "", re.I)]
+    return ([], locs) if re.search(r"<sitemapindex", xml or "", re.I) else (locs, [])
+
+
+def _crawl_rank(url: str) -> int:
+    path = urlparse(url).path
+    return next((i for i, rx in enumerate(CRAWL_RANK) if rx.search(path)), len(CRAWL_RANK))
+
+
+async def _sitemap_plan(base_url: str) -> tuple[list[str], list[str]]:
+    """(robots Disallow patterns, same-domain sitemap URLs matching SECONDARY_HINTS). Sitemap index followed one level, 3 children max."""
+    root = f"{urlparse(base_url).scheme}://{urlparse(base_url).netloc}"
+    robots, first = await asyncio.gather(fetch_scrapling(root + "/robots.txt", timeout=8, light=True), fetch_scrapling(root + "/sitemap.xml", timeout=8, light=True))
+    disallow, listed = parse_robots(robots.get("html") or "" if robots.get("ok") else "")
+    pages: list[str] = []
+    docs = [first.get("html") or "" if first.get("ok") else ""]
+    extra = [u for u in dict.fromkeys(listed) if _same_domain(u, base_url) and u.rstrip("/") != root + "/sitemap.xml"][:2]
+    docs += [d.get("html") or "" for d in await asyncio.gather(*(fetch_scrapling(u, timeout=8, light=True) for u in extra)) if d.get("ok")]
+    children: list[str] = []
+    for d in docs:
+        p, c = parse_sitemap(d)
+        pages += p; children += c
+    kids = [u for u in dict.fromkeys(children) if _same_domain(u, base_url)][:3]
+    for d in await asyncio.gather(*(fetch_scrapling(u, timeout=8, light=True) for u in kids)):
+        if d.get("ok"):
+            pages += parse_sitemap(d.get("html") or "")[0]
+    return disallow, [u for u in dict.fromkeys(pages) if _same_domain(u, base_url) and SECONDARY_HINTS.search(urlparse(u).path)]
+
+
+def _secondary_urls(base_url: str, html: str, guess: bool = True, limit: int = SECONDARY_MAX) -> list[str]:
+    """Contact/about-style pages: links the homepage actually has first, guessed paths only after them."""
     found: list[str] = []
     seen: set[str] = set()
-    limit = int(__import__('os').getenv('ENRICH_SECONDARY_PAGES', '12'))
+
     def add(url: str) -> None:
-        if len(found) >= limit or not url.startswith(('http://', 'https://')) or not _same_domain(url, base_url):
+        clean = url.split('#', 1)[0].strip()
+        if not clean.startswith(('http://', 'https://')) or not _same_domain(clean, base_url):
             return
-        clean = url.split('#', 1)[0].rstrip('/')
-        if clean == base_url.rstrip('/') or clean in seen:
+        if clean.rstrip('/') == base_url.rstrip('/') or clean in seen:
             return
         seen.add(clean); found.append(clean)
-    for path in CONTACT_PATHS:
-        add(urljoin(base_url.rstrip('/') + '/', path.lstrip('/')))
     for href in re.findall(r"(?:href|data-href)\s*=\s*[\"']([^\"']+)[\"']", html or '', re.I):
         if SECONDARY_HINTS.search(href):
             add(urljoin(base_url, href))
+    if len(found) > limit:
+        found = [u for u in found if CONTACT_FIRST.search(u)] + [u for u in found if not CONTACT_FIRST.search(u)]
+    found = found[:limit]
+    if guess:
+        for path in CONTACT_PATHS:
+            add(urljoin(base_url.rstrip('/') + '/', path.lstrip('/')))
     return found
 
 
-async def _fetch_secondary_pages(base_url: str, html: str, use_firecrawl_for_secondary: bool = True) -> tuple[str, list[str]]:
-    urls = _secondary_urls(base_url, html)
+async def _fetch_secondary_pages(base_url: str, html: str, use_firecrawl_for_secondary: bool = False,
+                                 tried: Optional[set] = None, guessed: bool = False, stats: Optional[dict] = None) -> tuple[str, list[str]]:
+    """First pass: homepage links merged with sitemap.xml URLs (robots.txt honored), contact/about/team/service/location first, up to
+    LEADX_CRAWL_MAX_PAGES (12), same domain, within LEADX_CRAWL_BUDGET_S (25). Falls back to 4 guessed paths if nothing is linked or listed.
+    guessed=True: the other guessed paths. ``stats`` receives sitemap_urls (used from the sitemap) and the planned page count."""
+    tried = tried if tried is not None else set()
+    budget = float(os.getenv("LEADX_CRAWL_BUDGET_S", "25"))
+    t0 = time.monotonic()
+    disallow: list[str] = []
+    mapped: list[str] = []
+    if not guessed:
+        try:
+            disallow, mapped = await asyncio.wait_for(_sitemap_plan(base_url), timeout=min(12, budget))
+        except Exception as exc:  # no sitemap or a slow one never blocks the crawl
+            logger.debug("sitemap plan failed: %s", type(exc).__name__)
+    allowed = lambda u: robots_allows(urlparse(u).path + ("?" + urlparse(u).query if urlparse(u).query else ""), disallow)
+    if guessed:  # the sitemap plan is skipped on this pass, but robots.txt still applies
+        try:
+            robots = await fetch_scrapling(f"{urlparse(base_url).scheme}://{urlparse(base_url).netloc}/robots.txt", timeout=8, light=True)
+            disallow = parse_robots(robots.get("html") or "" if robots.get("ok") else "")[0]
+        except Exception as exc:
+            logger.debug("robots fetch failed: %s", type(exc).__name__)
+        urls = [u for u in _secondary_urls(base_url, '', guess=True) if u not in tried and allowed(u)][:SECONDARY_MAX]
+    else:
+        linked = _secondary_urls(base_url, html, guess=False, limit=10_000)
+        merged = [u for u in dict.fromkeys(linked + [u for u in mapped if u.rstrip('/') != base_url.rstrip('/')]) if allowed(u)]
+        urls = sorted(merged, key=_crawl_rank)[:_crawl_max_pages()] or [u for u in _secondary_urls(base_url, '', guess=True)[:4] if allowed(u)]
+        if stats is not None:
+            stats["sitemap_urls"] = [u for u in urls if u in mapped and u not in linked]
+    tried.update(urls)
     if not urls:
         return '', []
-    sem = asyncio.Semaphore(4)
+    sem = asyncio.Semaphore(SECONDARY_MAX)
     async def one(url: str):
         async with sem:
-            page = await fetch_scrapling(url, timeout=12)
+            page = await fetch_scrapling(url, timeout=12, light=True)
             content = (page.get('html') or page.get('text') or '') if page.get('ok') else ''
             # Contact pages are often where the actual phone/email lives. If
             # the primary fetcher is blocked by the site, give Firecrawl one
@@ -356,7 +568,11 @@ async def _fetch_secondary_pages(base_url: str, html: str, use_firecrawl_for_sec
                 except Exception:
                     content = ''
             return url, content
-    rows = await asyncio.gather(*(one(u) for u in urls), return_exceptions=True)
+    tasks = [asyncio.ensure_future(one(u)) for u in urls]
+    _, pending = await asyncio.wait(tasks, timeout=max(budget - (time.monotonic() - t0), 1))
+    for t in pending:  # per-site time budget: keep what finished, drop the stragglers
+        t.cancel()
+    rows = [t.result() if t.done() and not t.cancelled() and not t.exception() else Exception("skipped") for t in tasks]
     chunks, used = [], []
     for row in rows:
         if isinstance(row, Exception):
@@ -365,6 +581,38 @@ async def _fetch_secondary_pages(base_url: str, html: str, use_firecrawl_for_sec
         if content:
             chunks.append(content[:12000]); used.append(url)
     return '\n'.join(chunks), used
+
+
+_FREE_MAIL = {"gmail.com", "yahoo.com", "outlook.com", "hotmail.com", "aol.com", "icloud.com", "dr.com", "live.com", "msn.com"}
+
+
+def _email_belongs(email: str, site_domain: Optional[str], name: str) -> bool:
+    """Search snippets are full of other businesses' addresses (directories, parent companies). Keep an address only if it is
+    on the lead's own domain, or a free-mail address whose local part carries a word of the business name."""
+    local, dom = email.lower().rsplit("@", 1)
+    if local in {"flast", "firstlast", "first.last", "firstname.lastname", "name", "yourname", "youremail", "email", "user", "username", "jdoe", "johndoe", "john.doe", "janedoe", "jane.doe"}:
+        return False  # template text from a "how to find emails" snippet
+    site = (site_domain or "").lower().removeprefix("www.")
+    if site and (dom == site or dom.endswith("." + site) or site.endswith("." + dom)):
+        return True
+    words = [w for w in re.findall(r"[a-z]{4,}", (name or "").lower()) if w not in {"dental", "dentist", "dentistry", "clinic", "center", "group"}]
+    return dom in _FREE_MAIL and any(w in local for w in words)
+
+
+def _about_business(item: dict, name: str, city: Optional[str], domain: Optional[str]) -> bool:
+    """A search result is about this business when it sits on its domain, or names every distinctive word of the business name
+    (and its city when known). Other companies' LinkedIn people, directories and parent brands fail this."""
+    from app.integrations.prod.entity_resolution import _name_tokens
+    link = (item.get("link") or "").lower()
+    dom = (domain or "").lower().removeprefix("www.")
+    if dom and re.search(r"(^|[/.@])" + re.escape(dom) + r"([/:?#]|$)", link):
+        return True
+    blob = " ".join(str(item.get(k) or "") for k in ("title", "snippet")).lower()
+    words = set(re.findall(r"[a-z0-9]+", blob))
+    toks = _name_tokens(name)
+    if not toks or not toks <= words:
+        return False
+    return not city or city.lower() in blob or bool(dom and dom in blob)
 
 
 async def _serper_contact_fallback(name: str, city: Optional[str], domain: Optional[str]) -> dict:
@@ -379,37 +627,40 @@ async def _serper_contact_fallback(name: str, city: Optional[str], domain: Optio
         queries = []
         if domain:
             queries += [f'site:{domain} (contact OR email OR owner OR founder OR manager)', f'site:{domain} (team OR staff OR about)']
-        queries += [f'"{name}"{loc} owner founder manager', f'"{name}"{loc} email contact', f'"{name}"{loc} site:linkedin.com/in']
-        emails, owners, social = [], [], {}
-        for q in queries[:5]:
-            async def call(key: str):
-                async with httpx.AsyncClient(timeout=20) as client:
-                    r = await client.post('https://google.serper.dev/search', headers={'X-API-KEY': key, 'Content-Type': 'application/json'}, json={'q': q, 'num': 10})
-                    r.raise_for_status(); return (r.json() or {}).get('organic') or []
-            rows = await with_key_rotation('serper', call)
+        queries += [f'"{name}"{loc} owner founder manager', f'"{name}"{loc} email contact', f'"{name}"{loc} phone', f'"{name}"{loc} site:linkedin.com/in']
+        emails, phones, owners, social = [], [], [], {}
+        from app.integrations.prod.web_search import web_search
+        # Queries run together (web_search paces Serper itself); SearXNG first, Serper only if SearXNG is unavailable.
+        for rows in await asyncio.gather(*(web_search(q, max_pages=1) for q in queries[:6]), return_exceptions=True):
+            if isinstance(rows, BaseException):
+                continue
             for item in rows:
+                if not _about_business(item, name, city, domain):
+                    continue
                 blob = ' '.join(str(item.get(k) or '') for k in ('title','snippet','link'))
                 for email in extract_emails(blob):
-                    if email not in emails: emails.append(email)
+                    if email not in emails and _email_belongs(email, domain, name): emails.append(email)
+                for ph in extract_phones(' '.join(str(item.get(k) or '') for k in ('title', 'snippet'))):
+                    if ph not in phones: phones.append(ph)
                 link = item.get('link') or ''
-                if 'linkedin.com/in/' in link and len(owners) < 5:
+                if 'linkedin.com/in/' in link and len(owners) < 5 and link.split('?')[0] not in {o['linkedin_url'] for o in owners}:
                     title = item.get('title') or ''
                     owners.append({'name': title.split('-')[0].split('|')[0].strip()[:120], 'title': title[:200], 'linkedin_url': link.split('?')[0]})
                 if 'instagram.com/' in link and 'instagram' not in social: social['instagram'] = link.split('?')[0]
                 if 'facebook.com/' in link and 'facebook' not in social: social['facebook'] = link.split('?')[0]
-        return {'emails': emails[:10], 'decision_makers': owners[:5], 'social_links': social}
+        return {'emails': emails[:10], 'phones': phones[:5], 'decision_makers': owners[:5], 'social_links': social}
     except Exception as e:
         logger.debug('Serper contact fallback failed for %s: %s', name, e)
         return {}
 
 
-async def _try_contact_pages(base_url: str, already_emails: list) -> dict:
+async def _try_contact_pages(base_url: str, already_emails: list, tried: Optional[set] = None) -> dict:
     if already_emails:
         return {}
-    combined, used = await _fetch_secondary_pages(base_url, '')
+    combined, used = await _fetch_secondary_pages(base_url, '', tried=tried, guessed=True)
     if not combined:
         return {}
-    parsed = _parse_content(combined)
+    parsed = _parse_content(combined, base_url)
     parsed['secondary_pages'] = used
     return parsed
 
@@ -423,6 +674,7 @@ def _merge_parsed(base: dict, extra: dict) -> dict:
     base["email"] = base["emails"][0] if base["emails"] else base.get("email")
     base["email_valid"] = is_valid_email(base["email"]) if base.get("email") else None
     base["phone_from_web"] = base.get("phone_from_web") or extra.get("phone_from_web")
+    base["phones"] = list(dict.fromkeys((base.get("phones") or []) + (extra.get("phones") or [])))[:10]
     base["has_booking"] = bool(base.get("has_booking") or extra.get("has_booking"))
     base["booking_platform"] = base.get("booking_platform") or extra.get("booking_platform")
     base["social_links"] = {**(base.get("social_links") or {}), **(extra.get("social_links") or {})}
@@ -431,9 +683,19 @@ def _merge_parsed(base: dict, extra: dict) -> dict:
     return base
 
 
-async def enrich_one(website: str, use_crawl4ai: bool = True, use_firecrawl: bool = True, company_name: Optional[str] = None, city: Optional[str] = None) -> dict:
+_JS_SHELL = re.compile(r"(enable javascript|<noscript[^>]*>.{0,200}javascript|id=[\"']root[\"']\s*></div>|id=[\"']__next[\"']\s*></div>|window\.__NUXT__|you need to enable)", re.I | re.S)
+
+
+def _needs_rendering(content: str) -> bool:
+    """True when what we fetched looks like an unrendered page, so a paid renderer could add something."""
+    text = re.sub(r"<[^>]+>", " ", re.sub(r"(?is)<(script|style)[^>]*>.*?</\1>", " ", content or ""))
+    return len(re.sub(r"\s+", " ", text).strip()) < 1200 or bool(_JS_SHELL.search(content or ""))
+
+
+async def enrich_one(website: str, use_crawl4ai: bool = True, use_firecrawl: bool = True, company_name: Optional[str] = None, city: Optional[str] = None, hints: Optional[dict] = None) -> dict:
     """
-    Full enrichment cascade for one URL.
+    Full enrichment cascade for one URL. ``hints`` (phone, email, address, social_links, region) from discovery drive alternative-source
+    recovery and identity matching when the site itself cannot be read.
 
     Returns dict ready for enrichment table upsert.
     """
@@ -472,8 +734,8 @@ async def enrich_one(website: str, use_crawl4ai: bool = True, use_firecrawl: boo
             return {"ok": False, "error": type(exc).__name__}
 
     scrap, c4 = await asyncio.gather(
-        bounded(scrap_task, 25),
-        bounded(crawl_task, 35) if crawl_task else asyncio.sleep(0, result={}),
+        bounded(scrap_task, 25 if os.getenv("LEADX_FETCH_ENGINE", "1") == "0" else float(os.getenv("LEADX_FETCH_BUDGET_S", "60")) + 65),
+        bounded(crawl_task, 55) if crawl_task else asyncio.sleep(0, result={}),
     )
 
     html = scrap.get("html") or ""
@@ -485,65 +747,67 @@ async def enrich_one(website: str, use_crawl4ai: bool = True, use_firecrawl: boo
 
     content = "\n".join(x for x in (
         html,
-        text,
+        "" if text == html else text,
         c4.get("html") or "",
         c4.get("text") or "",
         md,
     ) if x)
 
-    # Firecrawl is no longer a dead-end 'last resort'. If the page loaded but
-    # did not yield contact signals, ask Firecrawl for the full page including
-    # footer/navigation. This is exactly where sites like Glow MedSpa expose
-    # phone/email/address information.
-    parsed = _parse_content(content) if content else {}
-    contact_missing = not parsed.get("email") or not parsed.get("phone_from_web")
-    if use_firecrawl and contact_missing:
-        try:
-            fc = await fetch_firecrawl(website)
-            fc_content = "\n".join(x for x in (fc.get("html"), fc.get("markdown")) if x)
-            if fc_content:
-                content = "\n".join(x for x in (content, fc_content) if x)
-                fc_parsed = _parse_content(fc_content)
-                parsed = _merge_parsed(parsed, fc_parsed)
-                if fc.get("ok"):
-                    method_parts.append("firecrawl")
-                    md = md or fc.get("markdown") or ""
-        except Exception as e:
-            logger.debug("firecrawl contact augmentation failed: %s", e)
+    parsed = _parse_content(content, website) if content else {}
+    firecrawl_calls = 0
+    firecrawl_cost = 0.0
+    site_ok = bool(content)
+    hints = dict(hints or {})
+    hints.setdefault("name", company_name)
+    hints.setdefault("city", city)
+    hints["website"] = website
+    hints["fetch_category"] = scrap.get("category")
 
-    if not content:
+    if not content and not _recovery_enabled():
         empty["error"] = scrap.get("error") or c4.get("error") or "all_fetchers_failed"
+        empty["acquisition"] = _acq_meta(scrap, "failed")
         return empty
 
     # Crawl high-value internal pages (contact/about/team/services/locations) so
     # enrichment is domain-deep instead of homepage-only.
+    tried: set = set()
+    crawl: dict = {}
+    secondary_urls: list = []
     try:
-        secondary_html, secondary_urls = await _fetch_secondary_pages(website, html or content, use_firecrawl_for_secondary=use_firecrawl)
+        secondary_html, secondary_urls = await _fetch_secondary_pages(website, html or content, tried=tried, stats=crawl, use_firecrawl_for_secondary=use_firecrawl and os.getenv('LEADX_FIRECRAWL_SECONDARY', '0') == '1') if site_ok else ("", [])
         if secondary_html:
-            secondary = _parse_content(secondary_html)
+            secondary = _parse_content(secondary_html, website)
             parsed = _merge_parsed(parsed, secondary)
             parsed['secondary_pages'] = secondary_urls
     except Exception as e:
         logger.debug('secondary enrichment crawl failed: %s', e)
 
     # Contact page follow-up if no email
-    if not parsed.get("emails"):
-        extra = await _try_contact_pages(website, parsed.get("emails") or [])
+    if site_ok and not parsed.get("emails"):
+        extra = await _try_contact_pages(website, parsed.get("emails") or [], tried)
         if extra.get("emails"):
+            keep_phones = parsed.get("phones") or []
             parsed.update({k: v for k, v in extra.items() if v})
+            parsed["phones"] = list(dict.fromkeys(keep_phones + (extra.get("phones") or [])))[:10]
             method_parts.append("contact-pages")
+            secondary_urls = secondary_urls + [u for u in (extra.get("secondary_pages") or []) if u not in secondary_urls]
 
     # Public-search waterfall for missing contact/decision-maker fields. Uses only
     # indexed public results and can be disabled to conserve Serper quota.
     # Paid Serper lookup is a fallback: only when the free crawl found no email
     # (owner-only lookups are opt-in via ENRICH_SEARCH_FALLBACK_OWNER=1).
     _os = __import__('os')
-    _need_search = (not parsed.get('email')) or (_os.getenv('ENRICH_SEARCH_FALLBACK_OWNER', '0') == '1' and not parsed.get('owner_name'))
+    serper_found: dict = {}
+    site_emails, site_phones = list(parsed.get("emails") or []), list(parsed.get("phones") or [parsed.get("phone_from_web")])  # what the site itself gave, before any search/recovery merge
+    _need_search = (not parsed.get('email')) or (not parsed.get('phone_from_web')) or (_os.getenv('ENRICH_SEARCH_FALLBACK_OWNER', '0') == '1' and not parsed.get('owner_name'))
     if _os.getenv('ENRICH_SEARCH_FALLBACK', '1') == '1' and _os.getenv('LEADX_PAID_FALLBACK', 'auto').strip().lower() != 'never' and _need_search:
         try:
             host = urlparse(website).netloc
             brand = (company_name or '').strip() or host.split('.')[0].replace('-', ' ')
             fallback = await _serper_contact_fallback(brand, city, host)
+            serper_found = fallback
+            if fallback.get('phones'):
+                parsed['phones'] = list(dict.fromkeys((parsed.get('phones') or []) + fallback['phones']))[:10]
             if fallback.get('emails'):
                 parsed['emails'] = list(dict.fromkeys((parsed.get('emails') or []) + fallback['emails']))[:20]
                 parsed['email'] = parsed['emails'][0]
@@ -554,6 +818,81 @@ async def enrich_one(website: str, use_crawl4ai: bool = True, use_firecrawl: boo
                     parsed['owner_name'] = fallback['decision_makers'][0].get('name')
             parsed['social_links'] = {**(parsed.get('social_links') or {}), **(fallback.get('social_links') or {})}
         except Exception as exc: __import__("logging").getLogger(__name__).debug("suppressed optional failure: %s", exc)
+
+    # Alternative-source recovery: the site was unreadable (challenge, 403/429, DNS, timeout, empty) or gave no contact at all.
+    # Identity-matched public sources only; nothing is merged unless domain/phone/address and name agree (alt_recovery.identity_match).
+    found: dict = {}
+    alt: dict = {}
+    # Finding one contact type does not stop the search for the other: the free alternative sources keep looking for whichever is missing.
+    if _recovery_enabled() and (not site_ok or not (parsed.get("email") and parsed.get("phone_from_web"))):
+        try:
+            from app.integrations.prod.alt_recovery import recover
+            have = {k: parsed.get(v) for k, v in (("email", "email"), ("phone", "phone_from_web")) if parsed.get(v)}
+            partial = site_ok and not hints.get("force_alt") and bool(parsed.get("email") or parsed.get("phone_from_web"))
+            alt = await recover(hints, have, want=tuple(f for f in ("email", "phone") if f not in have),
+                                sources="hints,archive,commoncrawl,directory,search" if partial else (None if not site_ok or hints.get("force_alt") else "hints"))
+            found = alt.get("found") or {}
+            if "email" in found:
+                parsed["emails"] = list(dict.fromkeys((parsed.get("emails") or []) + [found["email"]["value"]]))[:20]
+                parsed["email"] = parsed["emails"][0]
+                parsed["email_valid"] = is_valid_email(parsed["email"])
+            if "phone" in found and not parsed.get("phone_from_web"):
+                parsed["phone_from_web"] = found["phone"]["value"]
+            if "owner_name" in found and not parsed.get("owner_name"):
+                parsed["owner_name"] = found["owner_name"]["value"]
+            parsed["social_links"] = {**(alt.get("social_links") or {}), **(parsed.get("social_links") or {})}
+            real = [f["source"] for f in found.values() if f["source"] != "hints"] if site_ok else [f["source"] for f in found.values()]
+            if real:
+                method_parts.append("alt:" + "+".join(dict.fromkeys(real)))
+        except Exception as exc:
+            logger.debug("alt recovery failed: %s", exc)
+
+    # Firecrawl (paid) is the last resort: only after the free crawl, browser/Crawl4AI and index/alternative recovery all left no email or phone,
+    # and only for a JS shell or an unrecovered challenge (fetch_engine.firecrawl_last_resort holds every gate, cap and cache).
+    contact_missing = not parsed.get("email") and not parsed.get("phone_from_web")
+    fc_cat = scrap.get("category") if not site_ok else ("js_shell" if _needs_rendering(content) else None)
+    if use_firecrawl and fc_cat:
+        try:
+            from app.integrations.prod import fetch_engine
+            fc = await fetch_engine.firecrawl_last_resort(website, fc_cat, recovered=not contact_missing)
+            if not fc["skipped"]:
+                firecrawl_calls += 1
+                firecrawl_cost += fc.get("cost", 0.0)
+            fc_content = "\n".join(x for x in (fc.get("html"), fc.get("markdown")) if x)
+            if fc_content:
+                content = "\n".join(x for x in (content, fc_content) if x)
+                parsed = _merge_parsed(parsed, _parse_content(fc_content, website))
+                if fc.get("ok"):
+                    method_parts.append("firecrawl")
+                    md = md or fc.get("markdown") or ""
+        except Exception as e:
+            logger.debug("firecrawl last resort failed: %s", e)
+
+    # Every email/phone seen, with its source. The primary email/phone fields below keep their existing meaning.
+    from app.integrations.prod import contact_candidates as cc
+    cc.add_many(parsed, "email", site_emails, "website", 0.8, "verified")
+    cc.add_many(parsed, "phone", site_phones, "website", 0.8, "verified")
+    for f, kind in (("email", "email"), ("phone", "phone")):
+        if f in found:
+            cc.add(parsed, kind, found[f]["value"], "alt:" + str(found[f]["source"]), float(found[f].get("confidence") or 0.6),
+                   "inferred" if found[f]["source"] == "hints" else "verified", observed_at=found[f].get("observed_at"))
+    cc.add_many(parsed, "email", serper_found.get("emails") or [], "serper", 0.5)
+    cc.add_many(parsed, "phone", serper_found.get("phones") or [], "serper", 0.5)
+    seen_e = {c["value"] for c in parsed.get("email_contacts") or []}  # whatever is left in parsed came from the Firecrawl last resort
+    cc.add_many(parsed, "email", [e for e in parsed.get("emails") or [] if cc.norm_value("email", e) not in seen_e], "firecrawl", 0.7, "verified")
+    seen_p = {c["value"] for c in parsed.get("phone_contacts") or []}
+    cc.add_many(parsed, "phone", [x for x in parsed.get("phones") or [] if cc.norm_value("phone", x) not in seen_p], "firecrawl", 0.7, "verified")
+    _dom = urlparse(website).netloc
+    if not parsed.get("phone_from_web"):
+        # search-snippet phones stay candidates; only site/registry/alt phones become the primary
+        parsed["phone_from_web"] = cc.choose_primary({"phone_contacts": [c for c in parsed.get("phone_contacts") or [] if c.get("source") != "serper"]}, "phone")
+    if not parsed.get("email"):
+        parsed["emails"] = [e for e in [cc.choose_primary(parsed, "email")] if e]
+        parsed["email"] = parsed["emails"][0] if parsed["emails"] else None
+        parsed["email_valid"] = is_valid_email(parsed["email"]) if parsed["email"] else None
+    # discovery hints stay candidates only (never the enrichment's primary); the lead keeps them either way
+    cc.add(parsed, "email", hints.get("email"), "hints", 0.4, identity="@" in str(hints.get("email") or "") and _email_belongs(str(hints["email"]).lower(), _dom, company_name or ""))
+    cc.add(parsed, "phone", hints.get("phone"), "hints", 0.4)
 
     # Rank candidate emails so the most reachable, most relevant address is primary.
     try:
@@ -581,26 +920,62 @@ async def enrich_one(website: str, use_crawl4ai: bool = True, use_firecrawl: boo
         or parsed.get("phone_from_web")
         or parsed.get("social_links")
     )
-
+    from app.integrations.prod import acquisition as acq, content_prep, fetch_telemetry
+    profile = content_prep.extract_profile(html or content, parsed) if site_ok else {}
+    if hints.get("category") and "industries" not in profile:
+        profile["industries"] = {"value": [hints["category"]], "source": "discovery_record"}
+    pages_crawled = (1 if site_ok else 0) + len(secondary_urls)   # homepage + secondary pages that returned content
+    parsed["crawl"] = {"pages_crawled": pages_crawled, "pages": secondary_urls, "from_sitemap": crawl.get("sitemap_urls", [])}
+    for m in {f["method"] for f in found.values() if f.get("method")}:
+        fetch_telemetry.count("index_recovery_" + m)
+    fetch_telemetry.count("pages_crawled", pages_crawled); fetch_telemetry.count("sites_crawled")  # per-site value is in raw_extraction.crawl (fetch_outcomes has no column for it)
+    prov = acq.build_provenance(parsed, profile, website if site_ok else None, found, {"email": hints.get("email"), "phone": hints.get("phone")})
+    klass = acq.acquisition_class(site_ok, found, {"email": hints.get("email"), "phone": hints.get("phone")})
+    ok = ok and klass not in ("hint_only",)  # discovery hints are not an enrichment; the lead keeps them either way
+    meta = _acq_meta(scrap, klass)
+    meta.update(pages_crawled=pages_crawled, completeness=acq.completeness(prov), recovery={"sources_tried": alt.get("sources_tried", []), "found": sorted(found), "rejected": alt.get("rejected", []), "cost": alt.get("cost", 0.0),
+                "index_methods": sorted({f["method"] for f in found.values() if f.get("method")})},   # index recovery is reported apart from fetch success: website_fetched stays false
+                tokens=0, llm_candidate=content_prep.needs_llm(parsed, content_prep.main_text(html, 6000)) if site_ok else False,
+                cost=round(meta["cost"] + firecrawl_cost + alt.get("cost", 0.0), 4), fields=sorted(f for f, v in prov.items() if v.get("status") != "hint"))
+    fetch_telemetry.record_outcome({"domain": urlparse(website).hostname, "website_fetched": site_ok, "category": meta["category"], "challenge": meta["challenge"],
+                                    "acquisition": klass, "recovery_sources": meta["recovery"]["found"] and sorted({f["source"] for f in found.values()}), "completeness": meta["completeness"],
+                                    "fields": meta["fields"], "elapsed_ms": meta["elapsed_ms"], "cost": meta["cost"], "tokens": 0, "provider": meta["provider"],
+                                    "needs_human": bool(meta["challenge"]), "human_status": "pending" if meta["challenge"] else None, "http_status": meta["status"]})
     return {
         "website": website,
         "email": parsed.get("email"),
         "email_valid": parsed.get("email_valid"),
         "emails": parsed.get("emails") or [],
         "phone_from_web": parsed.get("phone_from_web"),
+        "email_contacts": parsed.get("email_contacts") or [],
+        "phone_contacts": parsed.get("phone_contacts") or [],
         "has_booking": parsed.get("has_booking") or False,
         "booking_platform": parsed.get("booking_platform"),
-        "services": parsed.get("services") or [],
+        "services": (profile.get("services") or {}).get("value") or parsed.get("services") or [],
         "social_links": parsed.get("social_links") or {},
         "owner_name": parsed.get("owner_name"),
         "decision_makers": parsed.get("decision_makers") or [],
         "markdown_summary": (md or "")[:4000] or None,
-        "raw_extraction": parsed,
+        "raw_extraction": {**parsed, "field_provenance": prov, "profile": profile, "acquisition": {k: v for k, v in meta.items() if k != "attempts"}},  # persisted in enrichment.raw_extraction
+        "profile": profile,
+        "field_provenance": prov,
+        "acquisition": meta,
         "enrichment_method": "+".join(dict.fromkeys(method_parts)) or "unknown",
         "enrichment_ok": ok,
-        "error": None if ok else "sparse_extraction",
+        "firecrawl_calls": firecrawl_calls,
+        "pages_crawled": pages_crawled,
+        "error": None if ok else (f"site_challenge:{meta['challenge']}" if meta["challenge"] else scrap.get("error") if not site_ok else "sparse_extraction"),
     }
 
+
+def _recovery_enabled() -> bool:
+    return os.getenv("LEADX_ALT_RECOVERY", "1") != "0" and os.getenv("LEADX_FETCH_ENGINE", "1") != "0"
+
+
+def _acq_meta(scrap: dict, klass: str) -> dict:
+    return {"class": klass, "website_fetched": bool(scrap.get("ok")), "category": scrap.get("category"), "challenge": scrap.get("challenge"), "status": scrap.get("status"),
+            "provider": scrap.get("method"), "attempts": scrap.get("attempts") or [], "elapsed_ms": scrap.get("elapsed_ms") or 0, "cost": float(scrap.get("cost") or 0.0),
+            "cooldown": bool(scrap.get("cooldown")), "cached": bool(scrap.get("cached"))}
 
 
 async def _resolve_website(name: str, city: Optional[str] = None) -> Optional[str]:
@@ -668,17 +1043,26 @@ async def enrich_batch(
             return lead
         async with sem:
             try:
-                info = await enrich_one(url, use_crawl4ai=use_crawl4ai, use_firecrawl=use_firecrawl, company_name=lead.get("name") or lead.get("company_name"), city=lead.get("city"))
+                info = await enrich_one(url, use_crawl4ai=use_crawl4ai, use_firecrawl=use_firecrawl, company_name=lead.get("name") or lead.get("company_name"), city=lead.get("city"),
+                                        hints={"phone": lead.get("phone_e164") or lead.get("phone"), "email": lead.get("email"), "address": lead.get("address"), "category": lead.get("category"),
+                                               "social_links": lead.get("social_links") or {}, "region": lead.get("region") or lead.get("state")})
             except Exception as e:
                 logger.exception("enrich_one crashed for %s", url)
                 lead["enrichment_ok"] = False
                 lead["enrichment_error"] = str(e)
                 return lead
 
+            lead["acquisition"] = info.get("acquisition")
+            if (info.get("acquisition") or {}).get("challenge"):
+                lead["fetch_challenge"] = info["acquisition"]["challenge"]
             if info.get("enrichment_ok"):
+                lead["field_provenance"] = info.get("field_provenance")
+                lead["profile"] = info.get("profile")
                 lead["email"] = info.get("email") or lead.get("email")
                 lead["email_valid"] = info.get("email_valid")
                 lead["emails"] = info.get("emails") or []
+                from app.integrations.prod import contact_candidates as cc
+                cc.merge(lead, info)
                 if info.get("phone_from_web") and not lead.get("phone_normalized"):
                     lead["phone"] = info["phone_from_web"]
                     lead["phone_normalized"] = normalize_phone(info["phone_from_web"])

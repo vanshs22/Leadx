@@ -55,7 +55,26 @@ async def upsert_global_batch(leads:list[dict])->list[dict]:
     non_batchable = [lead for lead in leads if not lead.get("fingerprint")]
     sb = get_supabase()
     if batchable:
-        payloads=[_global_payload(x) for x in batchable]
+        # A phone number is unique in leads_global. Re-use the stored fingerprint when the phone is already known so the
+        # batch upsert updates that row instead of violating the unique index (which used to force a slow row-by-row fallback).
+        phones = sorted({x["phone_normalized"] for x in batchable if x.get("phone_normalized")})
+        known: dict[str, str] = {}
+        try:
+            for i in range(0, len(phones), 100):
+                for r in (await aexec(sb.table("leads_global").select("fingerprint,phone_normalized").in_("phone_normalized", phones[i:i + 100]))).data or []:
+                    if r.get("fingerprint") and r.get("phone_normalized"):
+                        known[r["phone_normalized"]] = r["fingerprint"]
+        except Exception as exc:
+            logger.debug("phone pre-resolution skipped: %s", type(exc).__name__)
+        for x in batchable:
+            fp_known = known.get(x.get("phone_normalized") or "")
+            if fp_known:
+                x["fingerprint"] = fp_known
+        # One command cannot touch the same conflict key twice, so send one payload per fingerprint.
+        unique: dict[str, dict] = {}
+        for x in batchable:
+            unique.setdefault(x["fingerprint"], _global_payload(x, discovered=True))
+        payloads = list(unique.values())
         try:
             rows=(await aexec(sb.table("leads_global").upsert(payloads,on_conflict="fingerprint"))).data or []
             by={r.get("fingerprint"):r.get("id") for r in rows if r.get("fingerprint")}
@@ -111,9 +130,9 @@ def prepare_enrichment_pool(leads:list[dict],reuse_days:int=14):
 @to_async
 def upsert_enrichment(lead_id:str,lead:dict)->None:
     sb=get_supabase()
-    from app.integrations.prod.utils import is_valid_email
-    email = lead.get("email") if is_valid_email(lead.get("email")) else None
-    emails = [str(value).strip().lower() for value in (lead.get("emails") or []) if is_valid_email(value)]
+    from app.integrations.prod.utils import normalize_email
+    email = normalize_email(lead.get("email"))
+    emails = [e for e in (normalize_email(value) for value in (lead.get("emails") or [])) if e]
     payload={"lead_id":lead_id,"email":email,"email_valid":bool(email) and lead.get("email_valid") is not False,"emails":emails,"phone_from_web":lead.get("phone_from_web"),"has_booking":bool(lead.get("has_booking") or lead.get("booking_platform")),"booking_platform":lead.get("booking_platform"),"services":lead.get("services") or [],"social_links":lead.get("social_links") or {},"owner_name":lead.get("owner_name") or lead.get("decision_maker_name"),"pitch_line":lead.get("pitch_line"),"intent_score":int(lead.get("intent_score") or 0),"markdown_summary":(lead.get("markdown_summary") or "")[:4000] or None,"raw_extraction":lead.get("raw_extraction") or {},"enrichment_method":lead.get("enrichment_method"),"enrichment_ok":bool(lead.get("enrichment_ok")),"error":lead.get("enrichment_error"),"extracted_at":datetime.now(timezone.utc).isoformat()}
     try:
         sb.table("enrichment").upsert(payload,on_conflict="lead_id").execute()
@@ -129,8 +148,8 @@ def upsert_enrichment(lead_id:str,lead:dict)->None:
 @to_async
 def upsert_score(lead_id:str,score:int,tier:str,reasoning:str,lead:Optional[dict]=None)->None:
     sb=get_supabase();lead=lead or {};row={"lead_id":lead_id,"deterministic_score":score,"total_score":score,"tier":tier,"reasoning":reasoning,"scored_at":datetime.now(timezone.utc).isoformat()}
-    for k in ("pitch_line","intent_score","fit_score","opportunity_score","contactability_score","opportunity_score_overall","intelligence_confidence","opportunity_evidence"):
-        if lead.get(k) is not None:row[k]=lead[k]
+    # Intelligence sub-scores are persisted in lead_opportunities (record_opportunity);
+    # public.scores only has the canonical columns, and writing others failed every upsert.
     try:
         sb.table("scores").upsert(row,on_conflict="lead_id").execute()
         from app.integrations.prod.evidence_graph import record_field_evidence
@@ -149,12 +168,12 @@ async def upsert_enrichment_batch(items: list[tuple[str, dict]]) -> list[dict]:
     """
     if not items:
         return []
-    from app.integrations.prod.utils import is_valid_email
+    from app.integrations.prod.utils import normalize_email
 
     payloads: list[dict] = []
     for lead_id, lead in items:
-        email = lead.get("email") if is_valid_email(lead.get("email")) else None
-        emails = [str(value).strip().lower() for value in (lead.get("emails") or []) if is_valid_email(value)]
+        email = normalize_email(lead.get("email"))
+        emails = [e for e in (normalize_email(value) for value in (lead.get("emails") or [])) if e]
         payloads.append({
             "lead_id": str(lead_id), "email": email,
             "email_valid": bool(email) and lead.get("email_valid") is not False,
@@ -220,9 +239,6 @@ async def upsert_score_batch(items: list[tuple[str, int, str, str, Optional[dict
             "tier": tier, "reasoning": reasoning,
             "scored_at": datetime.now(timezone.utc).isoformat(),
         }
-        for key in ("pitch_line", "intent_score", "fit_score", "opportunity_score", "contactability_score", "opportunity_score_overall", "intelligence_confidence", "opportunity_evidence"):
-            if lead.get(key) is not None:
-                row[key] = lead[key]
         payloads.append(row)
     try:
         await aexec(get_supabase().table("scores").upsert(payloads, on_conflict="lead_id"))
@@ -291,10 +307,18 @@ def stage_transition_key(run_id: str, lead_id: str, stage: str) -> str:
     return f"{str(run_id)}:{str(lead_id)}:{str(stage).strip().lower()}"
 
 
+# The run board (pipeline_run_leads.stage) is also written with the operator-board vocabulary
+# (discovered/enriched/gated/assigned) by _board_upsert/_reconcile_run_board. Without this mapping the
+# next durable transition saw "discovered" as an unknown stage and rejected every assignment.
+BOARD_STAGE_ALIASES = {"discovered": "verification", "enriched": "scoring", "gated": "gating", "assigned": "assignment"}
+
+
 def validate_stage_transition(current_stage: str | None, next_stage: str) -> dict:
     """Validate the only legal forward stage order without touching storage."""
     current = str(current_stage or "").strip().lower() or None
     target = str(next_stage or "").strip().lower()
+    current = BOARD_STAGE_ALIASES.get(current, current) if current else None
+    target = BOARD_STAGE_ALIASES.get(target, target)
     if target not in STAGE_ORDER:
         return {"ok": False, "reason": "unknown_stage", "from": current, "to": target}
     if current is None:
@@ -304,6 +328,46 @@ def validate_stage_transition(current_stage: str | None, next_stage: str) -> dic
     if STAGE_ORDER.index(target) < STAGE_ORDER.index(current):
         return {"ok": False, "reason": "stage_regression", "from": current, "to": target}
     return {"ok": True, "reason": "same_stage" if current == target else "forward", "from": current, "to": target}
+
+
+_STAGE_STATE: "dict[tuple[str, str], dict]" = {}   # last stage written per (run, lead) by this process, so most transitions need no read
+_HISTORY: list = []
+_HISTORY_LOCK = __import__("threading").Lock()
+_HISTORY_THREAD = None
+
+
+def _flush_history() -> None:
+    """Insert buffered lead_state_history rows in one request. Additive audit data: a failure is logged, never raised."""
+    with _HISTORY_LOCK:
+        rows, _HISTORY[:] = list(_HISTORY), []
+    if not rows:
+        return
+    try:
+        get_supabase().table("lead_state_history").insert(rows).execute()
+    except Exception as exc:
+        logger.debug("stage history projection unavailable: %s", type(exc).__name__)
+
+
+def flush_stage_history() -> None:
+    _flush_history()
+
+
+def _queue_history(row: dict) -> None:
+    global _HISTORY_THREAD
+    with _HISTORY_LOCK:
+        _HISTORY.append(row)
+        big = len(_HISTORY) >= 100
+    if big:
+        _flush_history()
+    elif _HISTORY_THREAD is None or not _HISTORY_THREAD.is_alive():
+        import threading, time as _t
+
+        def _loop():
+            while True:
+                _t.sleep(0.5)
+                _flush_history()
+        _HISTORY_THREAD = threading.Thread(target=_loop, name="leadx-stage-history", daemon=True)
+        _HISTORY_THREAD.start()
 
 
 @to_async
@@ -318,12 +382,19 @@ def record_stage_transition(
     metadata: Optional[dict] = None,
     assignment_id: str | None = None,
     supabase=None,
+    extra: Optional[dict] = None,
+    assume_new: bool = False,
+    fast: bool = False,
 ) -> dict:
     """Persist one ordered, tenant-scoped lead stage transition.
 
     ``pipeline_run_leads`` is deliberately the first write.  A duplicate key
     returns the prior outcome and does not append another history event, so a
     retry cannot advance counters or bill twice.
+
+    ``extra`` carries the display columns of the run-board card so the card and the transition are one write.
+    ``fast`` (used by the streaming pipeline) reuses this process's last-written stage instead of reading it and batches history
+    rows; ``assume_new`` skips the read for a lead this run has just discovered.
     """
     tenant_id, run_id, lead_id = str(tenant_id or ""), str(run_id or ""), str(lead_id or "")
     stage = str(stage or "").strip().lower()
@@ -335,10 +406,12 @@ def record_stage_transition(
     key = stage_transition_key(run_id, lead_id, stage)
     sb = supabase or get_supabase()
     try:
-        current_rows = (sb.table("pipeline_run_leads")
-                        .select("stage,stage_status,stage_reason,stage_idempotency_key,tenant_id")
-                        .eq("run_id", run_id).eq("lead_id", lead_id).limit(1).execute().data or [])
-        current = current_rows[0] if current_rows else None
+        current = _STAGE_STATE.get((run_id, lead_id)) if fast else None
+        if current is None and not (fast and assume_new):
+            current_rows = (sb.table("pipeline_run_leads")
+                            .select("stage,stage_status,stage_reason,stage_idempotency_key,tenant_id")
+                            .eq("run_id", run_id).eq("lead_id", lead_id).limit(1).execute().data or [])
+            current = current_rows[0] if current_rows else None
         if current and current.get("tenant_id") not in (None, tenant_id):
             return {"ok": False, "reason": "tenant_scope_denied"}
         if current and current.get("stage_idempotency_key") == key:
@@ -357,23 +430,31 @@ def record_stage_transition(
             "stage": stage, "stage_status": status, "stage_reason": (reason or None),
             "stage_idempotency_key": key, "included": status == "accepted",
             "updated_at": now,
+            **(extra or {}),  # the board's own stage name wins over the durable one, as the old second write did
         }
         if assignment_id:
             row["crm_assignment_id"] = str(assignment_id)
         sb.table("pipeline_run_leads").upsert(row, on_conflict="run_id,lead_id").execute()
-        # The history table is additive and may be absent on old compatibility
-        # deployments. The run-board write above remains the required barrier.
-        try:
-            sb.table("lead_state_history").insert({
-                "lead_id": lead_id, "tenant_id": tenant_id,
-                "from_state": current.get("stage") if current else None,
-                "to_state": stage, "event": f"stage.{status}",
-                "reason": (reason or None),
-                "metadata": {**(metadata or {}), "run_id": run_id, "idempotency_key": key},
-                "created_at": now,
-            }).execute()
-        except Exception as exc:
-            logger.debug("stage history projection unavailable: %s", type(exc).__name__)
+        if fast:
+            _STAGE_STATE[(run_id, lead_id)] = {"stage": stage, "stage_status": status, "stage_reason": reason, "stage_idempotency_key": key, "tenant_id": tenant_id}
+            if len(_STAGE_STATE) > 50000:
+                _STAGE_STATE.clear()
+        # The history table is additive and may be absent on old compatibility deployments.
+        history_row = ({
+            "lead_id": lead_id, "tenant_id": tenant_id,
+            "from_state": current.get("stage") if current else None,
+            "to_state": stage, "event": f"stage.{status}",
+            "reason": (reason or None),
+            "metadata": {**(metadata or {}), "run_id": run_id, "idempotency_key": key},
+            "created_at": now,
+        })
+        if fast:
+            _queue_history(history_row)
+        else:
+            try:
+                sb.table("lead_state_history").insert(history_row).execute()
+            except Exception as exc:
+                logger.debug("stage history projection unavailable: %s", type(exc).__name__)
         return {"ok": True, "replayed": False, "stage": stage, "status": status, "idempotency_key": key}
     except Exception as exc:
         logger.warning("stage transition persistence failed: %s", type(exc).__name__)

@@ -12,15 +12,17 @@
 
 fastapi==0.111.0
 uvicorn==0.30.1
-httpx==0.27.0
-pydantic==2.8.2
+httpx==0.27.2
+# optional HTTP/2 for the shared fetch client; net_safety falls back to HTTP/1.1 without it (LEADX_HTTP2=0 forces that)
+h2==4.4.1
+pydantic==2.14.3
 supabase==2.5.1
-python-dotenv==1.0.1
-python-jose[cryptography]==3.3.0
-cryptography==42.0.8
+python-dotenv==1.2.4
+PyJWT[crypto]==2.15.1
+cryptography==50.0.2
 stripe==10.1.0
 redis==5.0.7
-dnspython==2.6.1
+dnspython==2.9.2
 email-validator==2.2.0
 # Optional Instagram discovery dependency; the social lane soft-fails when absent.
 # Install separately only when Instagram discovery is explicitly enabled.
@@ -29,4 +31,11 @@ boto3==1.43.75  # Amazon SES domain + send
 
 anthropic==0.69.0
 # Optional phone parsing dependency; verification falls back to normalized strings when absent.
-# phonenumbers==9.0.13
+phonenumbers==9.0.13
+
+# Free open-data discovery (Overture Maps Places over S3)
+duckdb==2.0.0
+
+# First-party site fetch fallback when plain httpx is refused (403/429/503); enricher works without but loses those sites
+scrapling==0.2.9
+browserforge==1.2.4

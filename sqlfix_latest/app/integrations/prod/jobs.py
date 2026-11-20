@@ -905,6 +905,16 @@ def prepare_job(
                         operation="prepare",
                     )
                     return result
+                # Single-flight kinds (e.g. pipeline.run) conflict on (kind, tenant) rather than on the
+                # idempotency key: report the active job instead of calling the queue unavailable.
+                active = _active_unique_job(kind, str(tenant_id))
+                if active:
+                    return {
+                        "ok": True, "outcome": "in_progress", "reason": "active_duplicate",
+                        "reason_code": "active_duplicate", "replayed": False,
+                        "job_id": active.get("id"), "status": active.get("status") or "queued",
+                        "provider_operation_id": provider_operation_id,
+                    }
                 emit_telemetry(
                     logger, logging.ERROR, "job.prepare_conflict_unresolved",
                     kind=kind, tenant_id=tenant_id, status="rejected",

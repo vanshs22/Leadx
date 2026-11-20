@@ -68,7 +68,7 @@ def test_target_pipeline_contract_keeps_stop_child_cancel_and_paid_work_guards()
     target = source[source.index("async def run_pipeline_parallel_target("):source.index("\n\n\nasync def run_pipeline(")]
     for fragment in (
         "stop_event.set()",
-        "assigned_n >= slots_cap",
+        "delivery_ready_n >= slots_cap",
         "if stop_event.is_set() or _cancelled()",
         "for task in enrich_workers + assignment_workers",
         "task.cancel()",

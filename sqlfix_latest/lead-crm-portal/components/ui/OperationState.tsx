@@ -197,8 +197,8 @@ export function OperationStateCard({
           <div><dt className="label">Retries</dt><dd className="mt-1 text-[0.8125rem] font-medium tabular-nums text-ink">{operation.retries ?? 0}</dd></div>
           <div><dt className="label">Worker</dt><dd className="mt-1 text-[0.8125rem] font-medium capitalize text-ink">{label(operation.workerStatus)}</dd></div>
         </dl>
-        <div className="mt-4 grid grid-cols-2 gap-px overflow-hidden rounded-lg border border-line bg-line sm:grid-cols-4 lg:grid-cols-6">
-          {progressRows(operation).map(([name, value]) => <div key={name} className="bg-surface-2 px-3 py-2.5"><div className="text-[11px] text-ink-faint">{name}</div><div className="mt-1 text-sm font-semibold tabular-nums text-ink"><DisplayValue value={value} /></div></div>)}
+        <div className="mt-4 flex flex-nowrap gap-px overflow-x-auto rounded-lg border border-line bg-line">
+          {progressRows(operation).map(([name, value]) => <div key={name} className="min-w-[96px] flex-1 shrink-0 whitespace-nowrap bg-surface-2 px-3 py-2.5"><div className="text-[11px] text-ink-faint">{name}</div><div className="mt-1 text-sm font-semibold tabular-nums text-ink"><DisplayValue value={value} /></div></div>)}
         </div>
         {hasDetails ? <div className="mt-4 space-y-1.5 rounded-lg border border-line bg-surface-3/60 px-3 py-2.5 text-xs text-ink-muted">
           {operation.blockers?.length ? <div><b className="font-semibold text-ink">Blockers:</b> {operation.blockers.join(", ")}</div> : null}

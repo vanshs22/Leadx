@@ -1282,6 +1282,9 @@ class AutonomousCampaignRequest(BaseModel):
     stop_on_optout: bool = True
     require_verified_email: bool = True
     score_threshold: int = Field(default=70, ge=0, le=100)
+    auto_send: bool = False
+    exclude_eu_uk: bool = True
+    lawful_basis_note: str = Field(default="", max_length=1000)
 
 
 class AutonomousCampaignUpdate(BaseModel):
@@ -1304,6 +1307,57 @@ class AutonomousCampaignUpdate(BaseModel):
     require_verified_email: Optional[bool] = None
     score_threshold: Optional[int] = Field(default=None, ge=0, le=100)
     status: Optional[str] = None
+    auto_send: Optional[bool] = None
+    exclude_eu_uk: Optional[bool] = None
+    lawful_basis_note: Optional[str] = Field(default=None, max_length=1000)
+
+
+class OperatorOutreachProfile(BaseModel):
+    sender_name: Optional[str] = Field(default=None, max_length=200)
+    postal_address: Optional[str] = Field(default=None, max_length=500)
+    product_description: Optional[str] = Field(default=None, max_length=2000)
+
+
+class CampaignDraftDecision(BaseModel):
+    approve: bool = True
+    subject: Optional[str] = Field(default=None, max_length=200)
+    body_text: Optional[str] = Field(default=None, max_length=5000)
+
+
+@router.get("/admin/outreach-profile")
+def operator_outreach_profile():
+    from app.integrations.prod.operator_pipeline import ensure_operator_tenant
+    from app.integrations.prod.outreach_compliance import outreach_profile, REQUIRED
+    p = outreach_profile(ensure_operator_tenant()["id"])
+    return {"ok": True, "profile": p, "missing": [k for k in REQUIRED if not p[k]]}
+
+
+@router.put("/admin/outreach-profile")
+def put_operator_outreach_profile(req: OperatorOutreachProfile):
+    from app.integrations.prod.operator_pipeline import ensure_operator_tenant
+    from app.integrations.prod.outreach_compliance import save_outreach_profile, REQUIRED
+    p = save_outreach_profile(ensure_operator_tenant()["id"], req.model_dump())
+    return {"ok": True, "profile": p, "missing": [k for k in REQUIRED if not p[k]]}
+
+
+@router.get("/admin/autonomous-campaigns/{campaign_id}/drafts")
+def autonomous_campaign_drafts(campaign_id: str):
+    from app.integrations.prod.autonomous_campaigns import get_campaign
+    from app.integrations.prod.autonomous_copy import list_drafts
+    if not get_campaign(campaign_id):
+        raise HTTPException(404, "campaign not found")
+    return {"ok": True, "drafts": list_drafts(campaign_id)}
+
+
+@router.post("/admin/autonomous-campaigns/{campaign_id}/drafts/{copy_id}")
+def decide_autonomous_campaign_draft(campaign_id: str, copy_id: str, req: CampaignDraftDecision):
+    from app.integrations.prod.autonomous_campaigns import get_campaign
+    from app.integrations.prod.autonomous_copy import decide_draft
+    c = get_campaign(campaign_id)
+    out = decide_draft(c["tenant_id"], campaign_id, copy_id, req.approve, req.subject, req.body_text) if c else None
+    if not out:
+        raise HTTPException(404, "draft not found")
+    return out
 
 
 @router.get("/admin/autonomous-campaigns")

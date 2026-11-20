@@ -10,7 +10,7 @@ import { PageHeader, Panel, StatusBadge } from "@/components/ui/Primitives";
 import { FreshnessNote } from "@/components/ui/SurfaceMeta";
 import { Icon } from "@/components/ui/Icon";
 
-const TRIGGERS = [["email.reply_received", "Reply received"], ["lead.assigned", "Lead assigned"], ["deal.stage_changed", "Deal stage changed"], ["lead.score_changed", "Lead score changed"], ["lead.quality_gate_passed", "Lead passed quality gate"]] as const;
+const TRIGGERS = [["lead.signal_detected", "Website signal detected"], ["email.reply_received", "Reply received"], ["lead.assigned", "Lead assigned"], ["deal.stage_changed", "Deal stage changed"], ["lead.score_changed", "Lead score changed"], ["lead.quality_gate_passed", "Lead passed quality gate"]] as const;
 const TEMPLATES = [
   { name: "Hot reply → owner + deal", trigger: "email.reply_received", graph: { trigger: { event: "email.reply_received", conditions: [{ field: "reply_score", op: "gte", value: 75 }] }, actions: [{ type: "escalate_owner", params: { title: "Hot reply — owner action required" } }, { type: "notify_owner", params: { message: "A high-intent reply needs owner attention." } }] } },
   { name: "Opt-out → stop outreach", trigger: "email.reply_received", graph: { trigger: { event: "email.reply_received", conditions: [{ field: "category", op: "eq", value: "opt_out" }] }, actions: [{ type: "stop_sequence" }] } },

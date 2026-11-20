@@ -27,6 +27,7 @@ import hmac
 import ipaddress
 import logging
 import os
+import time
 import re
 import socket
 from typing import Optional
@@ -97,16 +98,27 @@ def is_public_url(url: str, *, resolve: bool = True) -> tuple[bool, str]:
         return True, ""
     try:
         port = parsed.port or (443 if parsed.scheme == "https" else 80)
-        infos = socket.getaddrinfo(host, port, type=socket.SOCK_STREAM)
+        key, now = (host, port), time.monotonic()
+        hit = _DNS_CACHE.get(key)
+        if hit and now - hit[0] < _DNS_TTL_S:  # ~30 fetches per site hit the same host; one lookup is enough
+            addrs = hit[1]
+        else:
+            addrs = {i[4][0] for i in socket.getaddrinfo(host, port, type=socket.SOCK_STREAM)}
+            if len(_DNS_CACHE) > 20_000:
+                _DNS_CACHE.clear()
+            _DNS_CACHE[key] = (now, addrs)
     except (socket.gaierror, UnicodeError, ValueError):
         return False, "dns_failure"
-    addrs = {i[4][0] for i in infos}
     if not addrs:
         return False, "dns_failure"
     for a in addrs:
         if not _ip_is_public(a):
             return False, "private_address"
     return True, ""
+
+
+_DNS_CACHE: dict = {}
+_DNS_TTL_S = 300.0
 
 
 async def assert_public_url(url: str) -> Optional[str]:
@@ -119,34 +131,104 @@ async def assert_public_url(url: str) -> Optional[str]:
     return None
 
 
+# httpx rebuilds (and re-reads the CA bundle for) a fresh SSL context for every client: ~5 ms CPU each on the shared event loop.
+# Reuse one verified context for the default-verify case. shortcut: ignores per-client cert files, drop if mTLS is ever needed.
+try:
+    import httpx._config as _hc
+    _orig_verify = _hc.SSLConfig.load_ssl_context_verify
+    _ctx_cache: list = []
+
+    def _cached_verify(self):
+        if self.verify is not True or getattr(self, "cert", None):
+            return _orig_verify(self)
+        if not _ctx_cache:
+            _ctx_cache.append(_orig_verify(self))
+        return _ctx_cache[0]
+
+    _hc.SSLConfig.load_ssl_context_verify = _cached_verify
+except Exception:  # httpx internals changed: fall back to the stock behaviour
+    pass
+
+
+_CLIENTS: dict = {}
+_SHARDS = 16
+_HOST_SEMS: dict = {}
+
+
+def _http2_on() -> bool:
+    """HTTP/2 when the h2 package is installed; LEADX_HTTP2=0 forces HTTP/1.1 (A/B switch)."""
+    if os.getenv("LEADX_HTTP2", "1") == "0":
+        return False
+    try:
+        import h2  # noqa: F401
+        return True
+    except ImportError:
+        return False
+
+
+def _host_sem(host: str):
+    """At most LEADX_HOST_CONNECTIONS (default 2) requests in flight per host: many parallel connections to one small site read as an attack and get dropped."""
+    import asyncio
+    loop = asyncio.get_running_loop()
+    if _HOST_SEMS.get("loop") is not loop or len(_HOST_SEMS) > 50_000:
+        _HOST_SEMS.clear(); _HOST_SEMS["loop"] = loop
+    s = _HOST_SEMS.get(host)
+    if s is None:
+        s = _HOST_SEMS[host] = asyncio.Semaphore(max(1, int(os.getenv("LEADX_HOST_CONNECTIONS", "2"))))
+    return s
+
+
+def _shared_client(host: str = ""):
+    """Pooled keep-alive clients per event loop, sharded by host: no per-request client/TLS setup, connections reused per host.
+
+    One big httpcore pool rescans every queued request on each release (quadratic CPU at a few hundred in flight), so the
+    load is spread over small pools. Cookies are disabled: a crawler has no use for them and the jar costs CPU per response.
+    """
+    import asyncio
+    import http.cookiejar
+    import httpx
+    loop_id = id(asyncio.get_running_loop())
+    pools = _CLIENTS.get(loop_id)
+    if pools is None:
+        _CLIENTS.clear()
+        pools = _CLIENTS[loop_id] = {}
+    i = hash(host) % _SHARDS
+    c = pools.get(i)
+    if c is None or c.is_closed:
+        c = pools[i] = httpx.AsyncClient(
+            follow_redirects=False, http2=_http2_on(),
+            limits=httpx.Limits(max_connections=64, max_keepalive_connections=32, keepalive_expiry=30),
+        )
+        c.cookies.jar.set_policy(http.cookiejar.DefaultCookiePolicy(allowed_domains=[]))
+    return c
+
+
 async def safe_get(url: str, *, timeout: float = 20.0, max_redirects: int = 5,
                    max_bytes: int = 2_500_000, headers: Optional[dict] = None):
     """GET with per-hop SSRF validation and a response size cap.
 
     Returns ``(response, error)``; exactly one is None.
     """
-    import httpx
-
     current = url
-    async with httpx.AsyncClient(timeout=timeout, follow_redirects=False) as client:
-        for _ in range(max_redirects + 1):
-            reason = await assert_public_url(current)
-            if reason:
-                return None, f"blocked:{reason}"
-            try:
-                async with client.stream("GET", current, headers=headers) as r:
-                    if r.status_code in _REDIRECT_CODES and r.headers.get("location"):
-                        current = urljoin(current, r.headers["location"])
-                        continue
-                    body = bytearray()
-                    async for chunk in r.aiter_bytes():
-                        body.extend(chunk)
-                        if len(body) > max_bytes:
-                            break
-                    r._content = bytes(body[:max_bytes])  # noqa: SLF001 - expose .text/.content
-                    return r, None
-            except Exception as e:  # network errors are data, not crashes
-                return None, str(e)[:300]
+    for _ in range(max_redirects + 1):
+        reason = await assert_public_url(current)
+        if reason:
+            return None, f"blocked:{reason}"
+        try:
+            host = urlparse(current).hostname or ""
+            async with _host_sem(host), _shared_client(host).stream("GET", current, headers=headers, timeout=timeout) as r:
+                if r.status_code in _REDIRECT_CODES and r.headers.get("location"):
+                    current = urljoin(current, r.headers["location"])
+                    continue
+                body = bytearray()
+                async for chunk in r.aiter_bytes():
+                    body.extend(chunk)
+                    if len(body) > max_bytes:
+                        break
+                r._content = bytes(body[:max_bytes])  # noqa: SLF001 - expose .text/.content
+                return r, None
+        except Exception as e:  # network errors are data, not crashes
+            return None, f"{type(e).__name__}: {e}"[:300]  # type name matters: httpx timeouts have an empty message
     return None, "too_many_redirects"
 
 

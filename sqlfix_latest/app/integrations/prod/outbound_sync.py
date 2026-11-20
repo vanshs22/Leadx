@@ -53,6 +53,7 @@ async def push_assignment(tenant_id:str, assignment_id:str)->dict:
         selected = await offload(select_connection, tenant_id, p)
         if not selected: continue
         cfgrows=[selected]
+        cfg=_config(selected)
         try:
             prior=(await aexec(_sb().table("integration_deliveries").select("attempt").eq("tenant_id",tenant_id).eq("assignment_id",assignment_id).eq("provider",p).order("attempt",desc=True).limit(1))).data or []
             attempt=int(prior[0].get("attempt") or 0)+1 if prior else 1

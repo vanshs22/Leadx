@@ -405,7 +405,7 @@ def list_companies(
     tid = ctx.tenant_id
     q = _sb().table("companies").select("*", count="exact").eq("tenant_id", tid)
     if search:
-        q = q.ilike("name", f"%{search}%")
+        q = q.ilike("name", f"*{search}*")
     if status:
         q = q.eq("status", status)
     if owner:
@@ -611,7 +611,7 @@ def list_deals(
     tid = ctx.tenant_id
     q = _sb().table("deals").select("*", count="exact").eq("tenant_id", tid)
     if search:
-        q = q.ilike("title", f"%{search}%")
+        q = q.ilike("title", f"*{search}*")
     if stage_id:
         q = q.eq("stage_id", str(stage_id))
     if status:
@@ -764,7 +764,7 @@ def list_logs(
             aq = aq.eq("action", action)
         if search:
             safe = search.replace("%", "").replace("_", "")[:80]
-            aq = aq.ilike("summary", f"%{safe}%")
+            aq = aq.ilike("summary", f"*{safe}*")
         if before:
             aq = aq.lt("created_at", before)
         rows.extend(_exec(aq).data or [])
@@ -784,7 +784,7 @@ def list_logs(
             lq = lq.lt("created_at", before)
         if search:
             safe = search.replace("%", "").replace("_", "")[:80]
-            lq = lq.ilike("title", f"%{safe}%")
+            lq = lq.ilike("title", f"*{safe}*")
         for row in (_exec(lq).data or []):
             rows.append({
                 "id": str(row.get("id")),
@@ -848,7 +848,7 @@ def list_activities(
 ):
     q = _sb().table("activities").select("*", count="exact").eq("tenant_id", ctx.tenant_id)
     if search:
-        q = q.ilike("subject", f"%{search}%")
+        q = q.ilike("subject", f"*{search}*")
     if activity_type:
         q = q.eq("activity_type", activity_type)
     if company_id:
@@ -911,7 +911,7 @@ def list_crm_tasks(
 ):
     q = _sb().table("tasks").select("*", count="exact").eq("tenant_id", ctx.tenant_id)
     if search:
-        q = q.ilike("title", f"%{search}%")
+        q = q.ilike("title", f"*{search}*")
     if status:
         q = q.eq("status", status)
     if assigned_to:
@@ -975,7 +975,7 @@ def list_notes(
 ):
     q = _sb().table("notes").select("*", count="exact").eq("tenant_id", ctx.tenant_id)
     if search:
-        q = q.ilike("body", f"%{search}%")
+        q = q.ilike("body", f"*{search}*")
     if company_id:
         q = q.eq("company_id", str(company_id))
     if contact_id:

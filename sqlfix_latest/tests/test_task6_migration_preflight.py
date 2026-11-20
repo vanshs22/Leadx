@@ -10,7 +10,7 @@ ROOT = Path(__file__).resolve().parents[1]
 
 def test_task6_current_chain_and_bundle_names_are_authoritative():
     report = run_preflight(ROOT)
-    assert len(report.canonical_migrations) == 41
+    assert len(report.canonical_migrations) == 50
     assert report.bundle_migrations == report.canonical_migrations
     codes = {finding.code for finding in report.findings}
     assert "bundle_marker_number_drift" not in codes

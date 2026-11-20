@@ -21,6 +21,7 @@ services:
       - LEAD_ENGINE_DEV_AUTH_BYPASS=${LEAD_ENGINE_DEV_AUTH_BYPASS:-0}
       - LINKEDIN_SCRAPER_URL=${LINKEDIN_SCRAPER_URL:-http://linkedin-scraper:8001}
       - REDIS_URL=${REDIS_URL:-redis://redis:6379/0}
+      - SEARXNG_URL=${SEARXNG_URL:-http://searxng:8080}
       - REQUIRE_DISTRIBUTED_RATE_LIMIT=${REQUIRE_DISTRIBUTED_RATE_LIMIT:-0}
       # The supported local profile must not claim readiness without its data,
       # cache, worker, and queue capabilities.
@@ -78,6 +79,7 @@ services:
       - LOCAL_AUTH_TENANT_ID=${LOCAL_AUTH_TENANT_ID:-local-tenant}
       - LEADX_PROCESS=worker
       - REDIS_URL=${REDIS_URL:-redis://redis:6379/0}
+      - SEARXNG_URL=${SEARXNG_URL:-http://searxng:8080}
       - WORKER_CONCURRENCY=${WORKER_CONCURRENCY:-3}
       # Keep the process alive across transient Supabase transport failures;
       # durable claim/transition code still fails closed and retries on recovery.
@@ -149,6 +151,18 @@ services:
     mem_limit: 1024m
     memswap_limit: 2048m
     shm_size: 64mb
+
+  # Self-hosted web search for discovery (directories, socials). Internal network only; Serper is used only if this returns nothing.
+  searxng:
+    image: searxng/searxng:latest
+    environment:
+      - SEARXNG_SECRET=${SEARXNG_SECRET:?set SEARXNG_SECRET to a random 32+ character value}
+    volumes:
+      - ./deploy/searxng/settings.yml:/etc/searxng/settings.yml:ro
+    restart: "on-failure:5"
+    cap_drop: [ALL]
+    cap_add: [CHOWN, SETGID, SETUID]
+    security_opt: ["no-new-privileges:true"]
 
   # Redis for distributed rate limits / queues
   redis:

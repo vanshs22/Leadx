@@ -138,6 +138,10 @@ async def execute_agent_task(run: dict, expected_agent: str | None = None) -> di
                 )
         elif agent in {"enrichment", "research", "signal", "qualification"}:
             ids = [str(x) for x in (data.get("lead_ids") or ([data.get("lead_id")] if data.get("lead_id") else []))]
+            if not ids and data.get("mission_id"):
+                # Early in a mission the graph reaches lead-oriented stages before any lead exists. That is "nothing to do yet",
+                # not a failure; failing here marked every downstream stage dependency_failed and the mission always ended failed.
+                return {"agent": agent, "skipped": "no_leads_yet", "results": []}
             if not ids: raise ValueError("lead_id_or_lead_ids_required")
             results = []
             for lid in ids[:100]:
@@ -171,7 +175,7 @@ async def execute_agent_task(run: dict, expected_agent: str | None = None) -> di
                     from app.integrations.prod.lead_research import deep_research_lead
                     from app.layers.persistence_layer import record_evidence
                     from app.layers.persistence_layer import upsert_enrichment
-                    merged = await deep_research_lead(lead)
+                    merged = await deep_research_lead(lead, allow_paid=data.get("allow_paid") is not False)
                     await upsert_enrichment(lid, merged)
                     await record_evidence(lid, merged.get("research_evidence") or [])
                     results.append({"lead_id": lid, "ok": True, "sources": merged.get("research_sources", [])})

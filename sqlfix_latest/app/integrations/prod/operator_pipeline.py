@@ -106,7 +106,8 @@ def _ensure_stages(tenant_id: str) -> None:
                 sb.table("deal_stages").select("slug").eq("tenant_id", tenant_id).execute().data or []
             )
         }
-        missing = [{**s, "tenant_id": tenant_id} for s in OPERATOR_STAGES if s["slug"] not in have]
+        # Explicit booleans: PostgREST bulk inserts NULL-fill keys absent from some rows (is_won/is_lost are NOT NULL).
+        missing = [{"is_won": False, "is_lost": False, **s, "tenant_id": tenant_id} for s in OPERATOR_STAGES if s["slug"] not in have]
         if missing:
             sb.table("deal_stages").insert(missing).execute()
     except Exception:

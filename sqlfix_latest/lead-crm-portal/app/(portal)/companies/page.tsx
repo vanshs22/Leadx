@@ -15,6 +15,7 @@ import { useChangedIds } from "@/lib/live";
 import { BulkActionBar } from "@/components/BulkActionBar";
 import { EmptyState, ErrorState, LoadingRows } from "@/components/ui/States";
 import { EvidenceNote, FreshnessNote } from "@/components/ui/SurfaceMeta";
+import { BuyingCommittee } from "@/components/companies/BuyingCommittee";
 import { PageHeader, FilterBar, Pagination, Panel, Badge, Drawer, type Tone } from "@/components/ui/Primitives";
 import { Icon } from "@/components/ui/Icon";
 
@@ -377,7 +378,8 @@ export default function CompaniesPage() {
                             <div className="mb-3 section-title">
                               {c.name} · activity
                             </div>
-                            <CompanyTimeline tenantId={tenantId} companyId={c.id} />
+                            <BuyingCommittee tenantId={tenantId} companyId={c.id} />
+                            <div className="mt-4"><CompanyTimeline tenantId={tenantId} companyId={c.id} /></div>
                           </td>
                         </tr>
                       )}
